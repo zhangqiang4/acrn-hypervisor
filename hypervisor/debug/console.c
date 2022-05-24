@@ -76,18 +76,45 @@ void console_init(void)
 
 void console_putc(const char *ch)
 {
-	(void)uart16550_puts(ch, 1U);
+	(void)console_write(ch, 1U);
+	//(void)uart16550_puts(ch, 1U);
 }
-
 
 size_t console_write(const char *s, size_t len)
 {
+	uint32_t i;
+	struct acrn_vm *vm = get_service_vm();
+
+	if (is_service_vm(vm)) {
+		struct acrn_vuart *vu = &vm->vuart[2];
+
+		if (vu->active) {
+			for (i = 0U; i < len; i++) {
+				vuart_putchar(vu, *(s+i));
+				if (*(s+i) == '\n') {
+					/* Append '\r', no need change the len */
+					vuart_putchar(vu, '\r');
+				}
+			}
+			vuart_toggle_intr(vu);
+		}
+	}
+//return len;
 	return  uart16550_puts(s, len);
 }
 
 char console_getc(void)
 {
-	return uart16550_getc();
+	struct acrn_vm *vm = get_service_vm();
+	char c = -1;
+
+	if (is_service_vm(vm)) {
+		struct acrn_vuart *vu = &vm->vuart[2];
+
+		if (vu->active)
+			c = vuart_getchar(vu);
+	}
+	return (c == -1) ? uart16550_getc() : c;
 }
 
 /*

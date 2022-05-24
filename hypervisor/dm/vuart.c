@@ -666,6 +666,15 @@ void init_legacy_vuarts(struct acrn_vm *vm, const struct vuart_config *vu_config
 			}
 		}
 	}
+	if (is_service_vm(vm)) {
+		vu = &vm->vuart[2];
+		setup_vuart(vm, 2);
+		vu->port_base = 0x3E8;
+		vu->irq = 6;
+		if (vuart_register_io_handler(vm, vu->port_base, 2) != 0U) {
+			vu->active = true;
+		}
+	}
 }
 
 void deinit_legacy_vuarts(struct acrn_vm *vm)

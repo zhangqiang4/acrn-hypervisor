@@ -304,7 +304,7 @@ struct acrn_vm *get_vm_from_vmid(uint16_t vm_id)
 /* return a pointer to the virtual machine structure of Service VM */
 struct acrn_vm *get_service_vm(void)
 {
-	ASSERT(service_vm_ptr != NULL, "service_vm_ptr is NULL");
+//	ASSERT(service_vm_ptr != NULL, "service_vm_ptr is NULL");
 
 	return service_vm_ptr;
 }

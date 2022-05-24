@@ -32,7 +32,7 @@
 #include <asm/lib/spinlock.h>
 #include <asm/vm_config.h>
 
-#define RX_BUF_SIZE		256U
+#define RX_BUF_SIZE		8192U
 #define TX_BUF_SIZE		8192U
 #define INVAILD_VUART_IDX	0xFFU
 
