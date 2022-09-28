@@ -22,112 +22,223 @@ Prerequisites
    based on Ubuntu.
 #. This tutorial is validated on the following configurations:
 
-   - ACRN v2.0 (branch: ``release_2.0``)
+   - ACRN v3.0 (branch: ``release_3.0``)
    - Ubuntu 20.04
 
 #. Kata Containers are supported for ACRN hypervisors configured for
    the Industry or SDC scenarios.
 
 
-Install Docker
-**************
+Install Containerd
+******************
 
-The following instructions install Docker* on the Ubuntu Service VM.
-Refer to the `Get Docker Engine - Community for Ubuntu
-<https://docs.docker.com/engine/install/ubuntu/>`_
-installation guide for detailed information.
+The following instructions install Containerd on the Ubuntu Service VM.
 
 #. Install the following prerequisite packages:
 
    .. code-block:: none
 
-      $ sudo apt-get install apt-transport-https ca-certificates curl
+      $ sudo apt-get install containerd
 
-#. Run the following commands to add Docker's official GPG key,
-   set up the repository, and install the Docker Engine - Community
-   from the repository:
+#. Install required kernel modules:
 
    .. code-block:: none
 
-      $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-      $ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-      $ sudo apt-get update
-      $ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+      $ sudo modprobe vhost_vsock
+
+#. Create required directories:
+
+   .. code-block:: none
+
+      $ sudo mkdir -pv /run/vc/vm
+
+Install devmapper snapshotter
+****************************
+
+It's a containerd plugin to manage image pool.
+
+#. Check if it's installed:
+
+   .. code-block:: none
+
+      $ sudo ctr plugins ls |grep devmapper
+
+    If the output is:
+
+   .. code-block:: none
+
+      io.containerd.snapshotter.v1    devmapper                linux/amd64  ok
+
+    Then you can skip this. Otherwise, follow below steps to set it up.
+
+    Create following script:
+
+   .. code-block:: none
+
+        #!/bin/bash
+        set -ex
+
+        DATA_DIR=/var/lib/containerd/io.containerd.snapshotter.v1.devmapper
+        POOL_NAME=containerd-pool
+
+        mkdir -p ${DATA_DIR}
+
+        # Create data file
+        sudo touch "${DATA_DIR}/data"
+        sudo truncate -s 100G "${DATA_DIR}/data"
+
+        # Create metadata file
+        sudo touch "${DATA_DIR}/meta"
+        sudo truncate -s 10G "${DATA_DIR}/meta"
+
+        # Allocate loop devices
+        DATA_DEV=$(sudo losetup --find --show "${DATA_DIR}/data")
+        META_DEV=$(sudo losetup --find --show "${DATA_DIR}/meta")
+
+        # Define thin-pool parameters.
+        # See https://www.kernel.org/doc/Documentation/device-mapper/thin-provisioning.txt for details.
+        SECTOR_SIZE=512
+        DATA_SIZE="$(sudo blockdev --getsize64 -q ${DATA_DEV})"
+        LENGTH_IN_SECTORS=$(bc <<< "${DATA_SIZE}/${SECTOR_SIZE}")
+        DATA_BLOCK_SIZE=128
+        LOW_WATER_MARK=32768
+
+        # Create a thin-pool device
+        sudo dmsetup create "${POOL_NAME}" \
+            --table "0 ${LENGTH_IN_SECTORS} thin-pool ${META_DEV} ${DATA_DEV}
+            ${DATA_BLOCK_SIZE} ${LOW_WATER_MARK}"
+
+        cat << EOF
+        #
+        # Add this to your config.toml configuration file and restart containerd
+        daemon
+        #
+        [plugins]
+          [plugins.devmapper]
+            pool_name = "${POOL_NAME}"
+            root_path = "${DATA_DIR}"
+            base_image_size = "10GB"
+            discard_blocks = true
+        EOF>>
+
+    Make it executable and run it:
+
+   .. code-block:: none
+
+      $ sudo chmod +x ~/scripts/devmapper/create.sh && \
+          cd ~/scripts/devmapper/ && \
+          sudo ./create.sh
+
+    Now, we can add the devmapper configuration provided from the script to
+    ``/etc/containerd/config.toml`` and restart containerd.
+
+   .. code-block:: none
+
+      $ sudo systemctl restart containerd
+
+    We can use ``dmsetup`` to verify the thin-pool was created successfully.
+    We should also check that devmapper is registered and running:
+
+   .. code-block:: none
+
+      $ sudo dmsetup ls
+      # devpool (253:0)
+      $ sudo ctr plugins ls | grep devmapper
+      # io.containerd.snapshotter.v1    devmapper                linux/amd64 ok
+
+    This script needs to be run only once, while setting up the devmapper
+    snapshotter for containerd. Afterwards, make sure that on each reboot, the
+    thin-pool is initialized from the same data dir. Otherwise, all the
+    fetched containers (or the ones that you’ve created) will be
+    re-initialized. A simple script that re-creates the thin-pool from the
+    same data dir is shown below:
+
+   .. code-block:: none
+
+        #!/bin/bash
+        set -ex
+
+        DATA_DIR=/var/lib/containerd/io.containerd.snapshotter.v1.devmapper
+        POOL_NAME=containerd-pool
+
+        # Allocate loop devices
+        DATA_DEV=$(sudo losetup --find --show "${DATA_DIR}/data")
+        META_DEV=$(sudo losetup --find --show "${DATA_DIR}/meta")
+
+        # Define thin-pool parameters.
+        # See https://www.kernel.org/doc/Documentation/device-mapper/thin-provisioning.txt for details.
+        SECTOR_SIZE=512
+        DATA_SIZE="$(sudo blockdev --getsize64 -q ${DATA_DEV})"
+        LENGTH_IN_SECTORS=$(bc <<< "${DATA_SIZE}/${SECTOR_SIZE}")
+        DATA_BLOCK_SIZE=128
+        LOW_WATER_MARK=32768
+
+        # Create a thin-pool device
+        sudo dmsetup create "${POOL_NAME}" \
+            --table "0 ${LENGTH_IN_SECTORS} thin-pool ${META_DEV} ${DATA_DEV}
+            ${DATA_BLOCK_SIZE} ${LOW_WATER_MARK}"
+
+    We can create a systemd service to run above script on each reboot, save
+    following content to ``/lib/systemd/system/devmapper_reload.service``
+
+   .. code-block:: none
+
+        [Unit]
+        Description=Devmapper reload script
+
+        [Service]
+        ExecStart=/path/to/script/reload.sh
+
+        [Install]
+        WantedBy=multi-user.target
+
+    And enable the newly created service:
+
+   .. code-block:: none
+
+        $ sudo systemctl daemon-reload
+        $ sudo systemctl enable devmapper_reload.service
+        $ sudo systemctl start devmapper_reload.service
+
 
 Install Kata Containers
 ***********************
 
-Kata Containers provide a variety of installation methods, this guide uses
-`kata-deploy <https://github.com/kata-containers/packaging/tree/master/kata-deploy>`_
-to automate the Kata Containers installation procedure.
+Install Kata from release package
+=================================
 
-#. Install Kata Containers:
-
-   .. code-block:: none
-
-      $ sudo docker run -v /opt/kata:/opt/kata -v /var/run/dbus:/var/run/dbus -v /run/systemd:/run/systemd -v /etc/docker:/etc/docker -it katadocker/kata-deploy kata-deploy-docker install
-
-#. Install the ``acrnctl`` tool:
+#. Download the kata-3.0.0 release (not ready!!!) and install the binaries:
 
    .. code-block:: none
 
-      $ cd /home/acrn/work/acrn-hypervisor
-      $ sudo cp build/misc/tools/acrnctl /usr/bin/
+      $ wget https://github.com/kata-containers/kata-containers/releases/download/3.0.0-alpha1/kata-static-3.0.0-alpha1-x86_64.tar.xz
+      $ sudo tar -C / -xvf kata-static-3.0.0-alpha1-x86_64.tar.xz
 
-   .. note:: This assumes you have built ACRN on this machine following the
-      instructions in the :ref:`gsg`.
-
-#. Modify the :ref:`daemon.json` file in order to:
-
-   a. Add a ``kata-acrn`` runtime (``runtimes`` section).
-
-      .. note:: In order to run Kata with ACRN, the container stack must provide
-         block-based storage, such as :file:`device-mapper`. Since Docker may be
-         configured to use :file:`overlay2` storage driver, the above
-         configuration also instructs Docker to use :file:`device-mapper`
-         storage driver.
-
-   #. Use the ``device-mapper`` storage driver.
-
-   #. Make Docker use Kata Containers by default.
-
-   These changes are highlighted below.
+#. Create symbolic links so that containerd could find kata binaries:
 
    .. code-block:: none
-      :emphasize-lines: 2,3,21-24
-      :name: daemon.json
-      :caption: /etc/docker/daemon.json
 
-      {
-        "storage-driver": "devicemapper",
-        "default-runtime": "kata-acrn",
-        "runtimes": {
-          "kata-qemu": {
-            "path": "/opt/kata/bin/kata-runtime",
-            "runtimeArgs": [ "--kata-config", "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml" ]
-          },
-          "kata-qemu-virtiofs": {
-            "path": "/opt/kata/bin/kata-runtime",
-            "runtimeArgs": [ "--kata-config", "/opt/kata/share/defaults/kata-containers/configuration-qemu-virtiofs.toml" ]
-          },
-          "kata-fc": {
-            "path": "/opt/kata/bin/kata-runtime",
-            "runtimeArgs": [ "--kata-config", "/opt/kata/share/defaults/kata-containers/configuration-fc.toml" ]
-          },
-          "kata-clh": {
-            "path": "/opt/kata/bin/kata-runtime",
-            "runtimeArgs": [ "--kata-config", "/opt/kata/share/defaults/kata-containers/configuration-clh.toml" ]
-          },
-          "kata-acrn": {
-            "path": "/opt/kata/bin/kata-runtime",
-            "runtimeArgs": [ "--kata-config", "/opt/kata/share/defaults/kata-containers/configuration-acrn.toml" ]
-          }
-        }
-      }
+      $ sudo ln -svf /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+      $ sudo ln -svf /opt/kata/bin/kata-collect-data.sh /usr/local/bin/kata-collect-data.sh
+      $ sudo ln -svf /opt/kata/bin/kata-runtime /usr/local/bin/kata-runtime
+      $ sudo ln -svf /opt/kata/libexec/virtiofsd /usr/libexec/virtiofsd
+
+#. Check installation by showing version details:
+
+   .. code-block:: none
+
+      $ kata-runtime --version
 
 #. Configure Kata to use ACRN.
 
-   Modify the ``[hypervisor.acrn]`` section in the ``/opt/kata/share/defaults/kata-containers/configuration-acrn.toml``
+   Copy the default ACRN configuration to Kata configuration path:
+
+   .. code-block:: none
+
+      $ sudo mkdir /etc/kata-containers
+      $ sudo cp opt/kata/share/defaults/kata-containers/configuration-acrn.toml /etc/kata-containers/configuration.toml
+
+   Modify the ``[hypervisor.acrn]`` section
    file.
 
    .. code-block:: none
@@ -141,63 +252,65 @@ to automate the Kata Containers installation procedure.
       kernel = "/opt/kata/share/kata-containers/vmlinuz.container"
       image = "/opt/kata/share/kata-containers/kata-containers.img"
 
-#. Restart the Docker service.
+    Run following command to check ACRN configuration:
 
-   .. code-block:: none
+    .. code-block:: console
 
-      $ sudo systemctl restart docker
+       $ /opt/kata/bin/kata-runtime --kata-config /opt/kata/share/defaults/kata-containers/configuration-acrn.toml kata-env | awk -v RS= '/\[Hypervisor\]/'
+        [Hypervisor]
+          MachineType = ""
+          Version = "DM version is: 3.0-v3.0-1-g4b4455167-dirty-4b4455167-dirty (daily tag:acrn-2022w27.1-180000p), build by acrn@2022-07-27 06:46:50"
+          Path = "/usr/bin/acrn-dm"
+          BlockDeviceDriver = "virtio-blk"
+          EntropySource = "/dev/urandom"
+          SharedFS = ""
+          VirtioFSDaemon = ""
+          SocketPath = ""
+          Msize9p = 0
+          MemorySlots = 10
+          PCIeRootPort = 0
+          HotplugVFIOOnRootBus = false
+          Debug = false
 
-Verify that these configurations are effective by checking the following
-outputs:
+Install Kata from source
+========================
 
-.. code-block:: console
+We just build runtime here. Kata agent and Guest images come from
+release package. So continue below steps if above steps have been done.
 
-   $ sudo docker info | grep -i runtime
-   WARNING: the devicemapper storage-driver is deprecated, and will be removed in a future release.
-   WARNING: devicemapper: usage of loopback devices is strongly discouraged for production use.
-            Use `--storage-opt dm.thinpooldev` to specify a custom block storage device.
-    Runtimes: kata-clh kata-fc kata-qemu kata-qemu-virtiofs runc kata-acrn
-    Default Runtime: kata-acrn
+#. Get Kata source code from github repository:
 
-.. code-block:: console
+    .. code-block:: console
 
-   $ /opt/kata/bin/kata-runtime --kata-config /opt/kata/share/defaults/kata-containers/configuration-acrn.toml kata-env | awk -v RS= '/\[Hypervisor\]/'
-   [Hypervisor]
-     MachineType = ""
-     Version = "DM version is: 2.0-unstable-7c7bf767-dirty (daily tag:acrn-2020w23.5-180000p), build by acrn@2020-06-11 17:11:17"
-     Path = "/usr/bin/acrn-dm"
-     BlockDeviceDriver = "virtio-blk"
-     EntropySource = "/dev/urandom"
-     SharedFS = ""
-     VirtioFSDaemon = ""
-     Msize9p = 0
-     MemorySlots = 10
-     PCIeRootPort = 0
-     HotplugVFIOOnRootBus = false
-     Debug = false
-     UseVSock = false
+      $ git clone https://github.com/kata-containers/kata-containers
+
+#. Apply patches if any.
+
+#. Build runtime
+
+   Generated binaries will overwrite pre-installed binaries.
+
+    .. code-block:: console
+
+      $ cd kata-containers/src/runtime
+      $ make && sudo make install
 
 Run a Kata Container With ACRN
 ******************************
 
-The system is now ready to run a Kata Container on ACRN. Note that a reboot
-is recommended after the installation.
+Restart containerd service to make sure the devmapper plugin is registered.
 
-Before running a Kata Container on ACRN, you must take at least one CPU offline:
+    .. code-block:: console
 
-.. code-block:: none
+      $ sudo systemctl restart containerd
 
-   $ curl -O https://raw.githubusercontent.com/kata-containers/documentation/master/how-to/offline_cpu.sh
-   $ chmod +x ./offline_cpu.sh
-   $ sudo ./offline_cpu.sh
+Run following commands to launch an ACRN Kata container. The successful output
+should be the kernel uname version.
 
-Start a Kata Container on ACRN:
+    .. code-block:: console
 
-.. code-block:: none
+        $ image="docker.io/library/busybox:latest"
+        $ sudo ctr image pull "$image
+        $ sudo ctr run --snapshotter devmapper --runtime "io.containerd.kata.v2" --rm -t "$image" test-kata uname -r
 
-   $ sudo docker run -ti busybox sh
 
-If you run into problems, contact us on the `ACRN mailing list
-<https://lists.projectacrn.org/g/acrn-dev>`_ and provide as
-much detail as possible about the issue. The output of ``sudo docker info``
-and ``kata-runtime kata-env`` is useful.
