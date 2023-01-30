@@ -290,6 +290,7 @@ struct pci_pdev {
 
 	/* The bus/device/function triple of the physical PCI device. */
 	union pci_bdf bdf;
+	uint16_t secondary_bus; 	/* for bridge only */
 
 	uint32_t msi_capoff;
 	uint32_t pcie_capoff;
@@ -301,6 +302,7 @@ struct pci_pdev {
 	bool has_flr;
 	bool has_af_flr;
 	struct hlist_node link;
+	struct pci_pdev *parent;
 };
 
 struct pci_cfg_ops {
@@ -357,12 +359,13 @@ void set_mmcfg_region(struct pci_mmcfg_region *region);
 #endif
 struct pci_mmcfg_region *get_mmcfg_region(void);
 
-struct pci_pdev *pci_init_pdev(union pci_bdf pbdf, uint32_t drhd_index);
+struct pci_pdev *pci_init_pdev(union pci_bdf pbdf, uint32_t drhd_index, struct pci_pdev *parent);
 uint32_t pci_pdev_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes);
 void pci_pdev_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val);
 void enable_disable_pci_intx(union pci_bdf bdf, bool enable);
 
 bool is_hv_owned_pdev(union pci_bdf pbdf);
+bool is_prelaunched_owned_pdev(union pci_bdf pbdf);
 uint32_t get_hv_owned_pdev_num(void);
 const struct pci_pdev **get_hv_owned_pdevs(void);
 /*
@@ -394,6 +397,11 @@ static inline bool is_pci_cfg_multifunction(uint8_t header_type)
 	return ((header_type != 0xffU) && ((header_type & PCIM_MFDEV) == PCIM_MFDEV));
 }
 
+static inline int is_pci_pdev_present(union pci_bdf pbdf)
+{
+	return is_pci_vendor_valid(pci_pdev_read_cfg(pbdf, PCIR_VENDOR, 2U));
+}
+
 static inline bool pci_is_valid_access_offset(uint32_t offset, uint32_t bytes)
 {
 	return ((offset & (bytes - 1U)) == 0U);
@@ -414,5 +422,7 @@ bool pdev_need_bar_restore(const struct pci_pdev *pdev);
 void pdev_restore_bar(const struct pci_pdev *pdev);
 void pci_switch_to_mmio_cfg_ops(void);
 void reserve_vmsix_on_msi_irtes(struct pci_pdev *pdev);
+struct pci_pdev *pci_hotplug_pdev(union pci_bdf bdf);
+struct pci_pdev *pci_find_bridge_pdev(int bus_num);
 
 #endif /* PCI_H_ */

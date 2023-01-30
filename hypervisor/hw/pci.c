@@ -357,6 +357,24 @@ bool is_hv_owned_pdev(union pci_bdf pbdf)
 	return ret;
 }
 
+bool is_prelaunched_owned_pdev(union pci_bdf pbdf)
+{
+   uint32_t vmid, i;
+   struct acrn_vm_config *vm_config;
+   struct acrn_vm_pci_dev_config *dev_config;
+
+   for (vmid = 0; vmid < CONFIG_MAX_VM_NUM; vmid++) {
+       vm_config = &vm_configs[vmid];
+       for (i = 0; i < vm_config->pci_dev_num; i++) {
+           dev_config = &vm_config->pci_devs[i];
+           if (dev_config->pbdf.value == pbdf.value)
+               return true;
+       }
+   }
+
+   return false;
+}
+
 /*
  * quantity of uint64_t to encode a bitmap of all bus values
  * TODO: PCI_BUSMAX is a good candidate to move to
@@ -384,6 +402,7 @@ struct pci_bdf_mapping_group {
 struct pci_bus_num_to_drhd_index_mapping {
 	uint8_t bus_under_scan;
 	uint32_t bus_drhd_index;
+	struct pci_pdev *bridge_pdev;
 };
 
 static uint32_t pci_check_override_drhd_index(union pci_bdf pbdf,
@@ -420,17 +439,19 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 	union pci_bdf pbdf;
 	uint8_t current_bus_index;
 	uint32_t current_drhd_index, bdf_drhd_index;
-	struct pci_pdev *pdev;
+	struct pci_pdev *pdev, *current_bridge_pdev;
 
 	struct pci_bus_num_to_drhd_index_mapping bus_map[PCI_BUSMAX + 1U]; /* FIFO queue of buses to walk */
 	uint32_t s = 0U, e = 0U; /* start and end index into queue */
 
 	bus_map[e].bus_under_scan = bus;
 	bus_map[e].bus_drhd_index = drhd_index;
+	bus_map[e].bridge_pdev = NULL;
 	e = e + 1U;
 	while (s < e) {
 		current_bus_index = bus_map[s].bus_under_scan;
 		current_drhd_index = bus_map[s].bus_drhd_index;
+		current_bridge_pdev = bus_map[s].bridge_pdev;
 		s = s + 1U;
 
 		bitmap_set_nolock(current_bus_index,
@@ -462,12 +483,13 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 
 				bdf_drhd_index = pci_check_override_drhd_index(pbdf, bdfs_from_drhds,
 									current_drhd_index);
-				pdev = pci_init_pdev(pbdf, bdf_drhd_index);
+				pdev = pci_init_pdev(pbdf, bdf_drhd_index, current_bridge_pdev);
 				/* NOTE: This touch logic change: if a bridge own by HV as its children */
 				if ((pdev != NULL) && is_bridge(pdev)) {
 					bus_map[e].bus_under_scan =
 						(uint8_t)pci_pdev_read_cfg(pbdf, PCIR_SECBUS_1, 1U);
 					bus_map[e].bus_drhd_index = bdf_drhd_index;
+					bus_map[e].bridge_pdev = pdev;
 					e = e + 1U;
 				}
 			}
@@ -616,6 +638,9 @@ static void init_all_dev_config(void)
 	}
 }
 
+struct pci_bdf_mapping_group bdfs_from_drhds = {.pci_bdf_map_count = 0U};
+uint32_t drhd_idx_pci_all = INVALID_DRHD_INDEX;
+
 /*
  * @brief Walks the PCI heirarchy and initializes array of pci_pdev structs
  * Uses DRHD info from ACPI DMAR tables to cover the endpoints and
@@ -625,8 +650,6 @@ static void init_all_dev_config(void)
 void init_pci_pdev_list(void)
 {
 	uint64_t buses_visited[BUSES_BITMAP_LEN] = {0UL};
-	struct pci_bdf_mapping_group bdfs_from_drhds = {.pci_bdf_map_count = 0U};
-	uint32_t drhd_idx_pci_all = INVALID_DRHD_INDEX;
 	uint16_t bus;
 	bool was_visited = false;
 
@@ -843,7 +866,7 @@ static void pci_enumerate_cap(struct pci_pdev *pdev)
  *
  * @return If there's a successfully initialized pdev return it, otherwise return NULL;
  */
-struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
+struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index, struct pci_pdev *bridge_pdev)
 {
 	uint8_t hdr_type, hdr_layout;
 	struct pci_pdev *pdev = NULL;
@@ -861,6 +884,10 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 			pdev->sub_class = (uint8_t)pci_pdev_read_cfg(bdf, PCIR_SUBCLASS, 1U);
 			pdev->nr_bars = pci_pdev_get_nr_bars(hdr_type);
 			pdev_save_bar(pdev);
+			pdev->parent = bridge_pdev;
+			if (hdr_layout == PCIM_HDRTYPE_BRIDGE) {
+				pdev->secondary_bus = pci_pdev_read_cfg(bdf, PCIR_SECBUS_1, 1U);
+			}
 
 			if ((pci_pdev_read_cfg(bdf, PCIR_STATUS, 2U) & PCIM_STATUS_CAPPRESENT) != 0U) {
 				pci_enumerate_cap(pdev);
@@ -888,6 +915,69 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 	} else {
 		pr_err("%s, failed to alloc pci_pdev!\n", __func__);
 	}
+
+	return pdev;
+}
+
+struct pci_pdev *pci_find_bridge_pdev(int bus_num)
+{
+	uint32_t i;
+
+	for (i = 0; i < num_pci_pdev; i++) {
+		struct pci_pdev *pdev = &pci_pdevs[i];
+
+		if (pdev && is_bridge(pdev) && pdev->secondary_bus == bus_num)
+			return pdev;
+	}
+
+	return NULL;
+}
+
+struct pci_pdev *pci_hotplug_pdev(union pci_bdf bdf)
+{
+	uint32_t drhd_index, current_drhd_index;
+	struct pci_pdev *pdev, *parent_pdev;
+
+	pr_info("Hotplugging PCIe device: %x:%x.%x", bdf.bits.b, bdf.bits.d, bdf.bits.f);
+
+	uint16_t bus = bdf.bits.b;
+	parent_pdev = pci_find_bridge_pdev(bus);
+	if (parent_pdev) {
+		pr_info("\tparent device: %x:%x.%x", parent_pdev->bdf.bits.b, parent_pdev->bdf.bits.d, parent_pdev->bdf.bits.f);
+	} else {
+		pr_info("\tparent device: NULL");
+	}
+	current_drhd_index = parent_pdev ? parent_pdev->drhd_index : drhd_idx_pci_all;
+	drhd_index = pci_check_override_drhd_index(bdf, &bdfs_from_drhds, current_drhd_index);
+	pr_info("\tdrhd_index=[%d]", drhd_index);
+	pr_info("\tVendor=0x%02x, Device=0x%02x", pci_pdev_read_cfg(bdf, PCIR_VENDOR, 2U), pci_pdev_read_cfg(bdf, PCIR_DEVICE, 2U));
+	pdev = pci_init_pdev(bdf, drhd_index, parent_pdev);
+	if (!pdev)
+		return NULL;
+
+	if (is_bridge(pdev)) {
+		config_pci_bridge(pdev);
+		/* scan this new bus ? */
+	}
+
+	/*
+	 * FIXME: Mask the SR-IOV capability instead drop the device
+	 * when supporting PCIe extended capabilities whitelist.
+	 */
+	if (pdev->sriov.capoff != 0U) {
+		int vf_cnt = pci_pdev_read_cfg(pdev->bdf,
+			pdev->sriov.capoff + PCIR_SRIOV_TOTAL_VFS, 2U);
+		/*
+		 * For SRIOV-Capable device, drop the device
+		 * if no room for its all of virtual functions.
+		 */
+		if ((num_pci_pdev + vf_cnt) > CONFIG_MAX_PCI_DEV_NUM) {
+			pr_err("%s, %x:%x.%x is dropped since no room for %u VFs",
+					__func__, pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f, vf_cnt);
+			return NULL;
+		}
+	}
+	(void)init_one_dev_config(pdev);
 
 	return pdev;
 }

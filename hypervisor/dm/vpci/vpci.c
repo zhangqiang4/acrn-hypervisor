@@ -619,24 +619,46 @@ static const struct pci_vdev_ops pci_pt_dev_ops = {
 /**
  * @pre vpci != NULL
  */
-static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
+static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf vbdf,
 	uint32_t offset, uint32_t bytes, uint32_t *val)
 {
 	int32_t ret = 0;
 	struct pci_vdev *vdev;
 
 	spinlock_obtain(&vpci->lock);
-	vdev = find_available_vdev(vpci, bdf);
+	vdev = find_available_vdev(vpci, vbdf);
 	if (vdev != NULL) {
 		ret = vdev->vdev_ops->read_vdev_cfg(vdev, offset, bytes, val);
 	} else {
 		if (is_postlaunched_vm(vpci2vm(vpci))) {
 			ret = -ENODEV;
-		} else if (is_plat_hidden_pdev(bdf)) {
+		} else if (is_plat_hidden_pdev(vbdf)) {
 			/* expose and pass through platform hidden devices */
-			*val = pci_pdev_read_cfg(bdf, offset, bytes);
+			*val = pci_pdev_read_cfg(vbdf, offset, bytes);
 		} else {
-			/* no action: e.g., PCI scan */
+			/* cfg hole or hotplugged device. */
+			if (is_service_vm(vpci2vm(vpci))) {
+				union pci_bdf pbdf = vbdf;
+				if (!is_hv_owned_pdev(pbdf) && !is_prelaunched_owned_pdev(pbdf) && is_pci_pdev_present(pbdf)) {
+					struct pci_pdev *pdev = pci_hotplug_pdev(pbdf);
+					if (pdev) {
+						int i;
+						struct acrn_vm_config *vm_config = get_vm_config(vpci2vm(vpci)->vm_id);
+						for (i = 0; i < vm_config->pci_dev_num; i++) {
+							if (vm_config->pci_devs[i].pbdf.value == pbdf.value) {
+								break;
+							}
+						}
+						ASSERT(i < vm_config->pci_dev_num, "Hotplugged device wasn't added to the probing VM");
+						(void)vpci_init_vdev(vpci, &vm_config->pci_devs[i], NULL);
+						check_pt_dev_pio_bars(&vpci->pci_vdevs[i]);
+
+						*val = pci_pdev_read_cfg(pbdf, offset, bytes);
+					} else {
+						pr_err("fail to hotplug %02x:%02x.%01x to %s", pbdf.bits.b, pbdf.bits.d, pbdf.bits.f, vpci2vm(vpci)->name);
+					}
+				}
+			}
 		}
 	}
 	spinlock_release(&vpci->lock);
