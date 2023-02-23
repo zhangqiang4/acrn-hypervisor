@@ -1484,6 +1484,7 @@ pci_emul_ecfg_handler(struct vmctx *ctx, int vcpu, int dir, uint64_t addr,
 	if (in)
 		*val = ~0UL;
 	pci_cfgrw(ctx, vcpu, in, bus, slot, func, coff, bytes, (uint32_t *)val);
+	pr_info("%s: [%02x:%02x.%01x] <%c>@%03x=0x%x", __func__, bus, slot, func, (dir == MEM_F_READ ? 'R' : 'W'), coff, val);
 	return 0;
 }
 
@@ -2469,7 +2470,7 @@ pci_lintr_route(struct pci_vdev *dev)
 
 	dev->lintr.ioapic_irq = ii->ii_ioapic_irq;
 	dev->lintr.pirq_pin = ii->ii_pirq_pin;
-	pci_set_cfgdata8(dev, PCIR_INTLINE, pirq_irq(ii->ii_pirq_pin));
+	pci_set_cfgdata8(dev, PCIR_INTLINE, ii->ii_ioapic_irq);
 	/* Initialize it to High */
 	vm_set_gsi_irq(dev->vmctx, ii->ii_ioapic_irq, GSI_SET_HIGH);
 }

@@ -476,9 +476,20 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 				pbdf.bits.f = func;
 
 				vendor = pci_pdev_read_cfg(pbdf, PCIR_VENDOR, 2U);
+				//pr_info("hv scan %02x:%02x.%01x, vendor=0x%x", pbdf.bits.b, pbdf.bits.d, pbdf.bits.f, vendor);
 
 				if (!is_pci_vendor_valid(vendor)) {
 					continue;
+				}
+				uint32_t device_id = pci_pdev_read_cfg(pbdf, PCIR_DEVICE, 2U);
+				if (vendor == 0x8086 && device_id == 0x24fd) {
+					continue;   // skip the wifi card
+				}
+				if (vendor == 0x125b && device_id == 0x9100) {
+					continue;   // skip the pcie uart expander
+				}
+				if (vendor == 0x8086 && (device_id == 0x51e8 || device_id == 0x51e9)) {
+					continue;   // skip the designware i2c controller
 				}
 
 				bdf_drhd_index = pci_check_override_drhd_index(pbdf, bdfs_from_drhds,

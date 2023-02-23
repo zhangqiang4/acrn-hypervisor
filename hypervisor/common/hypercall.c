@@ -1013,7 +1013,7 @@ int32_t hcall_set_ptdev_intr_info(struct acrn_vcpu *vcpu, struct acrn_vm *target
 					}
 				}
 			} else {
-				pr_err("%s: Invalid irq type: %u\n", __func__, irq.type);
+				pr_err("%s: [%02x] Invalid phys pin [%d] or virt pin [%d]\n", __func__, irq.phys_bdf, irq.intx.phys_pin, irq.intx.virt_pin);
 			}
 		}
 	return ret;

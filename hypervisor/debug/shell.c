@@ -49,6 +49,7 @@ static int32_t shell_show_ioapic_info(__unused int32_t argc, __unused char **arg
 static int32_t shell_loglevel(int32_t argc, char **argv);
 static int32_t shell_cpuid(int32_t argc, char **argv);
 static int32_t shell_reboot(int32_t argc, char **argv);
+static int32_t shell_en_pcihp(int32_t argc, char **argv);
 static int32_t shell_rdmsr(int32_t argc, char **argv);
 static int32_t shell_wrmsr(int32_t argc, char **argv);
 
@@ -154,6 +155,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_WRMSR_PARAM,
 		.help_str	= SHELL_CMD_WRMSR_HELP,
 		.fcn		= shell_wrmsr,
+	},
+	{
+		.str        = "en_pcihp",
+		.cmd_param  = NULL,
+		.help_str   = "en_pcihp",
+		.fcn        = shell_en_pcihp,
 	},
 };
 
@@ -1527,6 +1534,13 @@ static int32_t shell_cpuid(int32_t argc, char **argv)
 	shell_puts(str);
 
 	return 0;
+}
+
+static int32_t shell_en_pcihp(__unused int32_t argc, __unused char **argv)
+{
+   extern int device_hotplugged;
+   device_hotplugged = 1;
+   return 0;
 }
 
 static int32_t shell_reboot(__unused int32_t argc, __unused char **argv)

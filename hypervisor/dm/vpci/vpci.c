@@ -140,6 +140,7 @@ static bool vpci_pio_cfgdata_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t 
 		uint32_t offset = (uint16_t)cfg_addr.bits.reg_num + (addr - PCI_CONFIG_DATA);
 		if (pci_is_valid_access(offset, bytes)) {
 			bdf.value = cfg_addr.bits.bdf;
+			//pr_info("%s: %02x:%02x.%01x, off=%d", __func__, bdf.bits.b, bdf.bits.d, bdf.bits.f, offset);
 			ret = vpci_read_cfg(vpci, bdf, offset, bytes, &val);
 		}
 	}
@@ -616,6 +617,8 @@ static const struct pci_vdev_ops pci_pt_dev_ops = {
 	.read_vdev_cfg	= read_pt_dev_cfg,
 };
 
+int device_hotplugged = 1;
+
 /**
  * @pre vpci != NULL
  */
@@ -636,6 +639,8 @@ static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf vbdf,
 			/* expose and pass through platform hidden devices */
 			*val = pci_pdev_read_cfg(vbdf, offset, bytes);
 		} else {
+            if (device_hotplugged) {
+ 
 			/* cfg hole or hotplugged device. */
 			if (is_service_vm(vpci2vm(vpci))) {
 				union pci_bdf pbdf = vbdf;
@@ -658,6 +663,7 @@ static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf vbdf,
 						pr_err("fail to hotplug %02x:%02x.%01x to %s", pbdf.bits.b, pbdf.bits.d, pbdf.bits.f, vpci2vm(vpci)->name);
 					}
 				}
+			}
 			}
 		}
 	}

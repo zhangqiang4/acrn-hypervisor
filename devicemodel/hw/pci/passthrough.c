@@ -868,7 +868,14 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		/* Allocates the virq if ptdev only support INTx */
 		pci_lintr_request(dev);
 
-		ptdev->phys_pin = read_config(ptdev->phys_dev, PCIR_INTLINE, 1);
+		if (slot == 0x14 && func == 1)
+			/* RPL RVP xDCI */
+			ptdev->phys_pin = 17;
+		else if (slot == 0x1f && func == 4)
+			/* KBL NUC Smbus */
+			ptdev->phys_pin = 16;
+		else
+			ptdev->phys_pin = read_config(ptdev->phys_dev, PCIR_INTLINE, 1);
 
 		if (ptdev->phys_pin == -1 || ptdev->phys_pin > 256) {
 			pr_err("ptdev %x/%x/%x has wrong phys_pin %d, likely fail!",
