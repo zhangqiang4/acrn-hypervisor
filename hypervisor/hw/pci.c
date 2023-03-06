@@ -558,10 +558,11 @@ static void	config_pci_bridge(const struct pci_pdev *pdev)
 		pci_pdev_write_cfg(pdev->bdf, offset, 2U, msgctrl);
 	}
 
+#if 0
 	/* Enable ARI if PCIe bridge could support it for SRIOV needs it */
 	if (pdev->pcie_capoff != 0x00UL) {
 		offset = pdev->pcie_capoff + PCIR_PCIE_DEVCAP2;
-		val = pci_pdev_read_cfg(pdev->bdf, offset, 2U);
+		val = pci_pdev_read_cfg(pdev->bdf, offset, 4U);
 
 		if ((val & PCIM_PCIE_DEVCAP2_ARI) != 0U) {
 			offset = pdev->pcie_capoff + PCIR_PCIE_DEVCTL2;
@@ -571,6 +572,7 @@ static void	config_pci_bridge(const struct pci_pdev *pdev)
 			pci_pdev_write_cfg(pdev->bdf, offset, 2U, val);
 		}
 	}
+#endif
 }
 
 /*
