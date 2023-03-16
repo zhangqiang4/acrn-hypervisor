@@ -256,11 +256,11 @@ int32_t init_vpci(struct acrn_vm *vm)
 			vm->vpci.pci_mmcfg.address + get_pci_mmcfg_size(&vm->vpci.pci_mmcfg), &vm->vpci, false);
 
 		/* Intercept and handle I/O ports CF8h */
-		register_pio_emulation_handler(vm, PCI_CFGADDR_PIO_IDX, &pci_cfgaddr_range,
+		register_pio_emulation_handler(vm, &pci_cfgaddr_range,
 			vpci_pio_cfgaddr_read, vpci_pio_cfgaddr_write);
 
 		/* Intercept and handle I/O ports CFCh -- CFFh */
-		register_pio_emulation_handler(vm, PCI_CFGDATA_PIO_IDX, &pci_cfgdata_range,
+		register_pio_emulation_handler(vm, &pci_cfgdata_range,
 			vpci_pio_cfgdata_read, vpci_pio_cfgdata_write);
 
 		spinlock_init(&vm->vpci.lock);

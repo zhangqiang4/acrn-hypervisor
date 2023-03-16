@@ -249,7 +249,7 @@ static bool pm1ab_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width, 
 	return true;
 }
 
-static void register_gas_io_handler(struct acrn_vm *vm, uint32_t pio_idx, const struct acrn_acpi_generic_address *gas)
+static void register_gas_io_handler(struct acrn_vm *vm, const struct acrn_acpi_generic_address *gas)
 {
 	uint8_t io_len[5] = {0U, 1U, 2U, 4U, 8U};
 	struct vm_io_range gas_io;
@@ -259,7 +259,7 @@ static void register_gas_io_handler(struct acrn_vm *vm, uint32_t pio_idx, const 
 		gas_io.base = (uint16_t)gas->address;
 		gas_io.len = io_len[gas->access_size];
 
-		register_pio_emulation_handler(vm, pio_idx, &gas_io, &pm1ab_io_read, &pm1ab_io_write);
+		register_pio_emulation_handler(vm, &gas_io, &pm1ab_io_read, &pm1ab_io_write);
 
 		pr_dbg("Enable PM1A trap for VM %d, port 0x%x, size %d\n", vm->vm_id, gas_io.base, gas_io.len);
 	}
@@ -269,10 +269,10 @@ static void register_pm1ab_handler(struct acrn_vm *vm)
 {
 	struct pm_s_state_data *sx_data = vm->pm.sx_state_data;
 
-	register_gas_io_handler(vm, PM1A_EVT_PIO_IDX, &(sx_data->pm1a_evt));
-	register_gas_io_handler(vm, PM1B_EVT_PIO_IDX, &(sx_data->pm1b_evt));
-	register_gas_io_handler(vm, PM1A_CNT_PIO_IDX, &(sx_data->pm1a_cnt));
-	register_gas_io_handler(vm, PM1B_CNT_PIO_IDX, &(sx_data->pm1b_cnt));
+	register_gas_io_handler(vm, &(sx_data->pm1a_evt));
+	register_gas_io_handler(vm, &(sx_data->pm1b_evt));
+	register_gas_io_handler(vm, &(sx_data->pm1a_cnt));
+	register_gas_io_handler(vm, &(sx_data->pm1b_cnt));
 }
 
 static bool rt_vm_pm1a_io_read(__unused struct acrn_vcpu *vcpu,
@@ -309,7 +309,7 @@ static void register_rt_vm_pm1a_ctl_handler(struct acrn_vm *vm)
 	io_range.base = VIRTUAL_PM1A_CNT_ADDR;
 	io_range.len = 1U;
 
-	register_pio_emulation_handler(vm, VIRTUAL_PM1A_CNT_PIO_IDX, &io_range,
+	register_pio_emulation_handler(vm, &io_range,
 					&rt_vm_pm1a_io_read, &rt_vm_pm1a_io_write);
 }
 
@@ -376,7 +376,7 @@ static void register_prelaunched_vm_sleep_handler(struct acrn_vm *vm)
 	io_range.base = VIRTUAL_SLEEP_CTL_ADDR;
 	io_range.len = 2U;
 
-	register_pio_emulation_handler(vm, SLEEP_CTL_PIO_IDX, &io_range,
+	register_pio_emulation_handler(vm, &io_range,
 					&prelaunched_vm_sleep_io_read, &prelaunched_vm_sleep_io_write);
 }
 

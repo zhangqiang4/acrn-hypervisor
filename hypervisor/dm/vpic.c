@@ -983,11 +983,11 @@ static void vpic_register_io_handler(struct acrn_vm *vm)
 		.len = 2U
 	};
 
-	register_pio_emulation_handler(vm, PIC_PRIMARY_PIO_IDX, &primary_vPIC_range,
+	register_pio_emulation_handler(vm, &primary_vPIC_range,
 			vpic_primary_io_read, vpic_primary_io_write);
-	register_pio_emulation_handler(vm, PIC_SECONDARY_PIO_IDX, &secondary_vPIC_range,
+	register_pio_emulation_handler(vm, &secondary_vPIC_range,
 			vpic_secondary_io_read, vpic_secondary_io_write);
-	register_pio_emulation_handler(vm, PIC_ELC_PIO_IDX, &elcr_range,
+	register_pio_emulation_handler(vm, &elcr_range,
 			vpic_elc_io_read, vpic_elc_io_write);
 }
 

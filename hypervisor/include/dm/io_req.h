@@ -257,13 +257,12 @@ int32_t emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req);
  * @brief Register a port I/O handler
  *
  * @param vm      The VM to which the port I/O handlers are registered
- * @param pio_idx The emulated port io index
  * @param range   The emulated port io range
  * @param io_read_fn_ptr The handler for emulating reads from the given range
  * @param io_write_fn_ptr The handler for emulating writes to the given range
  * @pre pio_idx < EMUL_PIO_IDX_MAX
  */
-void   register_pio_emulation_handler(struct acrn_vm *vm, uint32_t pio_idx,
+void   register_pio_emulation_handler(struct acrn_vm *vm,
 		const struct vm_io_range *range, io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr);
 
 /**

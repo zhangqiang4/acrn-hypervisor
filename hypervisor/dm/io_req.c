@@ -556,7 +556,7 @@ hv_emulate_pio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 	port = (uint16_t)pio_req->address;
 	size = (uint16_t)pio_req->size;
 
-	for (idx = 0U; idx < EMUL_PIO_IDX_MAX; idx++) {
+	for (idx = 0U; idx <= vm->nr_emul_pio_regions; idx++) {
 		handler = &(vm->emul_pio[idx]);
 
 		if ((port < handler->port_start) || (port >= handler->port_end)) {
@@ -737,27 +737,120 @@ emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req)
 	return status;
 }
 
+/**
+ * @brief Find match PIO node
+ *
+ * This API find match PIO node from \p vm.
+ *
+ * @param vm The VM to which the MMIO node is belong to.
+ *
+ * @return If there's a match vm_io_handler_desc return it, otherwise
+ * return NULL;
+ */
+static inline struct vm_io_handler_desc *find_match_pio_node(struct acrn_vm *vm,
+				uint16_t start, uint16_t end)
+{
+	bool found = false;
+	uint16_t idx;
+	struct vm_io_handler_desc *handler_desc;
+
+	for (idx = 0; idx < CONFIG_MAX_EMULATED_PIO_REGIONS; idx++) {
+		handler_desc = &(vm->emul_pio[idx]);
+		if ((handler_desc->port_start == start) && (handler_desc->port_end == end)) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		pr_info("%s, vm[%d] no match pio region [0x%lx, 0x%lx] is found",
+				__func__, vm->vm_id, start, end);
+		handler_desc = NULL;
+	}
+
+	return handler_desc;
+}
+
+/**
+ * @brief Find a free PIO node
+ *
+ * This API find a free PIO node from \p vm.
+ *
+ * @param vm The VM to which the PIO node is belong to.
+ *
+ * @return If there's a free vm_io_handler_desc return it, otherwise
+ * return NULL;
+ */
+static inline struct vm_io_handler_desc *find_free_pio_node(struct acrn_vm *vm)
+{
+	uint16_t idx;
+	struct vm_io_handler_desc *pio_node = find_match_pio_node(vm, 0U, 0U);
+
+	if (pio_node != NULL) {
+		idx = (uint16_t)(uint64_t)(pio_node - &(vm->emul_pio[0U]));
+		if (vm->nr_emul_pio_regions < idx) {
+			vm->nr_emul_pio_regions = idx;
+		}
+	}
+
+	return pio_node;
+}
+
 
 /**
  * @brief Register a port I/O handler
  *
  * @param vm      The VM to which the port I/O handlers are registered
- * @param pio_idx The emulated port io index
  * @param range   The emulated port io range
  * @param io_read_fn_ptr The handler for emulating reads from the given range
  * @param io_write_fn_ptr The handler for emulating writes to the given range
  * @pre pio_idx < EMUL_PIO_IDX_MAX
  */
-void register_pio_emulation_handler(struct acrn_vm *vm, uint32_t pio_idx,
-		const struct vm_io_range *range, io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr)
+void register_pio_emulation_handler(struct acrn_vm *vm,
+		const struct vm_io_range *range,
+		io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr)
 {
+	struct vm_io_handler_desc *pio_node;
+
 	if (is_service_vm(vm)) {
 		deny_guest_pio_access(vm, range->base, range->len);
 	}
-	vm->emul_pio[pio_idx].port_start = range->base;
-	vm->emul_pio[pio_idx].port_end = range->base + range->len;
-	vm->emul_pio[pio_idx].io_read = io_read_fn_ptr;
-	vm->emul_pio[pio_idx].io_write = io_write_fn_ptr;
+
+	spinlock_obtain(&vm->emul_pio_lock);
+	pio_node = find_free_pio_node(vm);
+	if (pio_node != NULL) {
+		pio_node->port_start = range->base;
+		pio_node->port_end = range->base + range->len;
+		pio_node->io_read = io_read_fn_ptr;
+		pio_node->io_write = io_write_fn_ptr;
+	} else {
+		pr_fatal("No free PIO handler descriptor. Please rebuild with a bigger CONFIG_MAX_EMULATED_MMIO_REGIONS!\n");
+	}
+	spinlock_release(&vm->emul_pio_lock);
+}
+
+/**
+ * @brief Unregister a PIO handler
+ *
+ * This API unregisters a PIO handler to \p vm
+ *
+ * @param vm The VM to which the PIO handler is unregistered
+ * @param start The base address of the range which wants to unregister
+ * @param end The end of the range (exclusive) which wants to unregister
+ *
+ * @return None
+ */
+void unregister_pio_emulation_handler(struct acrn_vm *vm,
+					uint64_t start, uint64_t end)
+{
+	struct vm_io_handler_desc *pio_node;
+
+	spinlock_obtain(&vm->emul_pio_lock);
+	pio_node = find_match_pio_node(vm, start, end);
+	if (pio_node != NULL) {
+		(void)memset(pio_node, 0U, sizeof(struct vm_io_handler_desc));
+	}
+	spinlock_release(&vm->emul_pio_lock);
 }
 
 /**

@@ -699,7 +699,7 @@ void vrtc_init(struct acrn_vm *vm)
 	vm->vrtc.addr = 0U;
 
 	vm->vrtc.vm = vm;
-	register_pio_emulation_handler(vm, RTC_PIO_IDX, &range, vrtc_read, vrtc_write);
+	register_pio_emulation_handler(vm, &range, vrtc_read, vrtc_write);
 
 	if (is_service_vm(vm)) {
 		calibrate_setup_timer();

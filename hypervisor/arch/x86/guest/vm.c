@@ -735,11 +735,13 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		spinlock_init(&vm->vlapic_mode_lock);
 		spinlock_init(&vm->ept_lock);
 		spinlock_init(&vm->emul_mmio_lock);
+		spinlock_init(&vm->emul_pio_lock);
 		spinlock_init(&vm->arch_vm.iwkey_backup_lock);
 
 		vm->arch_vm.vlapic_mode = VM_VLAPIC_XAPIC;
 		vm->intr_inject_delay_delta = 0UL;
 		vm->nr_emul_mmio_regions = 0U;
+		vm->nr_emul_pio_regions = 0;
 		vm->vcpuid_entry_nr = 0U;
 
 		/* Set up IO bit-mask such that VM exit occurs on

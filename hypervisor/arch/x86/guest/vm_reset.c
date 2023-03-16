@@ -208,11 +208,11 @@ void register_reset_port_handler(struct acrn_vm *vm)
 		};
 
 		io_range.base = 0x64U;
-		register_pio_emulation_handler(vm, KB_PIO_IDX, &io_range, handle_kb_read, handle_kb_write);
+		register_pio_emulation_handler(vm, &io_range, handle_kb_read, handle_kb_write);
 
 		/* ACPI reset register is fixed at 0xcf9 for post-launched and pre-launched VMs */
 		io_range.base = 0xcf9U;
-		register_pio_emulation_handler(vm, CF9_PIO_IDX, &io_range, handle_reset_reg_read, handle_cf9_write);
+		register_pio_emulation_handler(vm, &io_range, handle_reset_reg_read, handle_cf9_write);
 
 		/*
 		 * - here is taking care of Service VM only:
@@ -225,7 +225,7 @@ void register_reset_port_handler(struct acrn_vm *vm)
 			(gas->address != 0xcf9U) && (gas->address != 0x64U)) {
 
 			io_range.base = (uint16_t)reset_reg->reg.address;
-			register_pio_emulation_handler(vm, PIO_RESET_REG_IDX, &io_range,
+			register_pio_emulation_handler(vm, &io_range,
 					handle_reset_reg_read, handle_reset_reg_write);
 		}
 	}
