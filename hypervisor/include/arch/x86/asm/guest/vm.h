@@ -160,7 +160,7 @@ struct acrn_vm {
 	uint16_t nr_emul_mmio_regions;	/* the emulated mmio_region number */
 	struct mem_io_node emul_mmio[CONFIG_MAX_EMULATED_MMIO_REGIONS];
 
-	struct vm_io_handler_desc emul_pio[EMUL_PIO_IDX_MAX];
+	struct vm_io_handler_desc emul_pio[CONFIG_MAX_EMULATED_PIO_REGIONS];
 
 	char name[MAX_VM_NAME_LEN];
 	struct secure_world_control sworld_control;

@@ -184,6 +184,11 @@
       <xsl:with-param name="key" select="'MAX_EMULATED_MMIO_REGIONS'" />
       <xsl:with-param name="value" select="MAX_EMULATED_MMIO" />
     </xsl:call-template>
+
+    <xsl:call-template name="integer-by-key-value">
+      <xsl:with-param name="key" select="'MAX_EMULATED_PIO_REGIONS'" />
+      <xsl:with-param name="value" select="MAX_EMULATED_PIO" />
+    </xsl:call-template>
   </xsl:template>
 
   <xsl:template match="SERIAL_CONSOLE">

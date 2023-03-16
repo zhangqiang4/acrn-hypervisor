@@ -46,6 +46,7 @@ class CapHv:
     def __init__(self, hv_file):
         self.hv_file = hv_file
         self.max_emu_mmio_regions = 0
+        self.max_emu_pio_regions = 0
         self.max_pt_irq_entries = 0
         self.max_ioapic_num = 0
         self.max_ioapic_lines = 0
@@ -54,6 +55,7 @@ class CapHv:
 
     def get_info(self):
         self.max_emu_mmio_regions = acrn_config_utilities.get_hv_item_tag(self.hv_file, "CAPACITIES", "MAX_EMULATED_MMIO")
+        self.max_emu_pio_regions = acrn_config_utilities.get_hv_item_tag(self.hv_file, "CAPACITIES", "MAX_EMULATED_PIO")
         self.max_pt_irq_entries = acrn_config_utilities.get_hv_item_tag(self.hv_file, "CAPACITIES", "MAX_PT_IRQ_ENTRIES")
         self.max_ioapic_num = acrn_config_utilities.get_hv_item_tag(self.hv_file, "CAPACITIES", "MAX_IOAPIC_NUM")
         self.max_ioapic_lines = acrn_config_utilities.get_hv_item_tag(self.hv_file, "CAPACITIES", "MAX_IOAPIC_LINES")
@@ -62,6 +64,7 @@ class CapHv:
 
     def check_item(self):
         hv_cfg_lib.hv_range_check(self.max_emu_mmio_regions, "CAPACITIES", "MAX_EMULATED_MMIO", hv_cfg_lib.RANGE_DB['EMULATED_MMIO_REGIONS'])
+        hv_cfg_lib.hv_range_check(self.max_emu_mmio_regions, "CAPACITIES", "MAX_EMULATED_PIO", hv_cfg_lib.RANGE_DB['EMULATED_PIO_REGIONS'])
         hv_cfg_lib.hv_range_check(self.max_pt_irq_entries, "CAPACITIES", "MAX_PT_IRQ_ENTRIES", hv_cfg_lib.RANGE_DB['PT_IRQ_ENTRIES'])
         hv_cfg_lib.hv_range_check(self.max_ioapic_num, "CAPACITIES", "MAX_IOAPIC_NUM", hv_cfg_lib.RANGE_DB['IOAPIC_NUM'])
         hv_cfg_lib.hv_range_check(self.max_ioapic_lines, "CAPACITIES", "MAX_IOAPIC_LINES", hv_cfg_lib.RANGE_DB['IOAPIC_LINES'])

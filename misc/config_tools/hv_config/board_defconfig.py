@@ -116,6 +116,7 @@ def get_capacities(hv_info, config):
         max_msix_table_num = hv_info.cap.max_msix_table_num
     print("CONFIG_MAX_MSIX_TABLE_NUM={}".format(max_msix_table_num), file=config)
     print("CONFIG_MAX_EMULATED_MMIO_REGIONS={}".format(hv_info.cap.max_emu_mmio_regions), file=config)
+    print("CONFIG_MAX_EMULATED_PIO_REGIONS={}".format(hv_info.cap.max_emu_pio_regions), file=config)
 
 
 def get_log_opt(hv_info, config):

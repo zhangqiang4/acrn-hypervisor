@@ -259,6 +259,21 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         </xs:restriction>
       </xs:simpleType>
     </xs:element>
+    <xs:element name="MAX_EMULATED_PIO" default="32">
+        <xs:annotation acrn:title="Max emulated PIO regions" acrn:views="advanced"
+                       acrn:errormsg="'required': 'must config the max number of emulated PIO regions'">
+          <xs:documentation>Specify the maximum number of emulated PIO regions for device virtualization. The default value is calculated from the board configuration file.</xs:documentation>
+        </xs:annotation>
+      <xs:simpleType>
+        <xs:annotation>
+          <xs:documentation>Integer value from 1 to 128.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:integer">
+          <xs:minInclusive value="1" />
+          <xs:maxInclusive value="128" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:element>
   </xs:all>
 </xs:complexType>
 
