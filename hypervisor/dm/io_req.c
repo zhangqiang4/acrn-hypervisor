@@ -469,29 +469,21 @@ static void dm_emulate_io_complete(struct acrn_vcpu *vcpu)
 }
 
 /**
- * @pre width < 8U
+ * @brief Default handler for PIO holes
+ *
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
+ * @pre pio_req != NULL
+ * @pre pio_req->size <= 4
  */
-static bool pio_default_read(struct acrn_vcpu *vcpu,
-	__unused uint16_t addr, size_t width)
+static int pio_default_handler(__unused struct acrn_vcpu *vcpu,
+	struct acrn_pio_request *pio_req, __unused void *priv)
 {
-	struct acrn_pio_request *pio_req = &vcpu->req.reqs.pio_request;
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		pio_req->value = (uint32_t)((1UL << (pio_req->size * 8U)) - 1UL);
+	}
 
-	pio_req->value = (uint32_t)((1UL << (width * 8U)) - 1UL);
-
-	return true;
-}
-
-/**
- * @pre width < 8U
- * @pre vcpu != NULL
- * @pre vcpu->vm != NULL
- */
-static bool pio_default_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t addr,
-	__unused size_t width, __unused uint32_t v)
-{
-	return true; /* ignore write */
+	return 0;
 }
 
 /**
@@ -541,51 +533,46 @@ hv_emulate_pio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 {
 	int32_t status = -ENODEV;
 	uint16_t port, size;
-	uint32_t idx;
+	uint16_t idx;
 	struct acrn_vm *vm = vcpu->vm;
 	struct acrn_pio_request *pio_req = &io_req->reqs.pio_request;
-	struct vm_io_handler_desc *handler;
-	io_read_fn_t io_read = NULL;
-	io_write_fn_t io_write = NULL;
-
-	if (is_service_vm(vcpu->vm) || is_prelaunched_vm(vcpu->vm)) {
-		io_read = pio_default_read;
-		io_write = pio_default_write;
-	}
+	struct port_io_node *pio_node;
 
 	port = (uint16_t)pio_req->address;
 	size = (uint16_t)pio_req->size;
 
 	for (idx = 0U; idx <= vm->nr_emul_pio_regions; idx++) {
-		handler = &(vm->emul_pio[idx]);
-
-		if ((port < handler->port_start) || (port >= handler->port_end)) {
-			continue;
+		pio_node = &(vm->emul_pio[idx]);
+		/*
+		 * Is it possible to access one range handled by multiple different
+		 * handlers ? Yes. :(
+		 */
+		if ((port >= pio_node->port_start) && (port < pio_node->port_end)) {
+			if (port + size >= pio_node->port_end) {
+				dev_dbg(DBG_LEVEL_IOREQ, "IO access to [%x, %x) is out of the handler range [%x, %x)\n",
+						port, port+size, pio_node->port_start, pio_node->port_end);
+			}
+			status = pio_node->handle(vcpu, pio_req, pio_node->priv);
+			break;
 		}
-
-		if (handler->io_read != NULL) {
-			io_read = handler->io_read;
-		}
-		if (handler->io_write != NULL) {
-			io_write = handler->io_write;
-		}
-		break;
 	}
 
-	if ((pio_req->direction == ACRN_IOREQ_DIR_WRITE) && (io_write != NULL)) {
-		if (io_write(vcpu, port, size, pio_req->value)) {
-			status = 0;
-		}
-	} else if ((pio_req->direction == ACRN_IOREQ_DIR_READ) && (io_read != NULL)) {
-		if (io_read(vcpu, port, size)) {
-			status = 0;
-		}
-	} else {
-		/* do nothing */
+	/*
+	 * PIO hole requests from ServiceVM and Pre-launched VM must be
+	 * handled by Hypervisor. Registered handler should explicitly handle
+	 * their default behaviour and don't fall back to this.
+	 */
+	if ((idx == vm->nr_emul_pio_regions + 1) && (is_service_vm(vcpu->vm) || is_prelaunched_vm(vcpu->vm))) {
+		status = pio_default_handler(vcpu, pio_req, pio_node->priv);
 	}
 
-	pr_dbg("IO %s on port %04x, data %08x",
+	dev_dbg(DBG_LEVEL_IOREQ, "IO %s on port %04x, data %08x",
 		(pio_req->direction == ACRN_IOREQ_DIR_READ) ? "read" : "write", port, pio_req->value);
+
+	if (status && (is_service_vm(vcpu->vm) || is_prelaunched_vm(vcpu->vm))) {
+		pr_fatal("Unhandled IO %s on port %04x, data %08x",
+		(pio_req->direction == ACRN_IOREQ_DIR_READ) ? "read" : "write", port, pio_req->value);
+	}
 
 	return status;
 }
@@ -744,19 +731,19 @@ emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req)
  *
  * @param vm The VM to which the MMIO node is belong to.
  *
- * @return If there's a match vm_io_handler_desc return it, otherwise
+ * @return If there's a match port_io_node return it, otherwise
  * return NULL;
  */
-static inline struct vm_io_handler_desc *find_match_pio_node(struct acrn_vm *vm,
+static inline struct port_io_node *find_match_pio_node(struct acrn_vm *vm,
 				uint16_t start, uint16_t end)
 {
 	bool found = false;
 	uint16_t idx;
-	struct vm_io_handler_desc *handler_desc;
+	struct port_io_node *pio_node;
 
 	for (idx = 0; idx < CONFIG_MAX_EMULATED_PIO_REGIONS; idx++) {
-		handler_desc = &(vm->emul_pio[idx]);
-		if ((handler_desc->port_start == start) && (handler_desc->port_end == end)) {
+		pio_node = &(vm->emul_pio[idx]);
+		if ((pio_node->port_start == start) && (pio_node->port_end == end)) {
 			found = true;
 			break;
 		}
@@ -765,10 +752,10 @@ static inline struct vm_io_handler_desc *find_match_pio_node(struct acrn_vm *vm,
 	if (!found) {
 		pr_info("%s, vm[%d] no match pio region [0x%lx, 0x%lx] is found",
 				__func__, vm->vm_id, start, end);
-		handler_desc = NULL;
+		pio_node = NULL;
 	}
 
-	return handler_desc;
+	return pio_node;
 }
 
 /**
@@ -778,13 +765,13 @@ static inline struct vm_io_handler_desc *find_match_pio_node(struct acrn_vm *vm,
  *
  * @param vm The VM to which the PIO node is belong to.
  *
- * @return If there's a free vm_io_handler_desc return it, otherwise
+ * @return If there's a free port_io_node return it, otherwise
  * return NULL;
  */
-static inline struct vm_io_handler_desc *find_free_pio_node(struct acrn_vm *vm)
+static inline struct port_io_node *find_free_pio_node(struct acrn_vm *vm)
 {
 	uint16_t idx;
-	struct vm_io_handler_desc *pio_node = find_match_pio_node(vm, 0U, 0U);
+	struct port_io_node *pio_node = find_match_pio_node(vm, 0U, 0U);
 
 	if (pio_node != NULL) {
 		idx = (uint16_t)(uint64_t)(pio_node - &(vm->emul_pio[0U]));
@@ -808,9 +795,14 @@ static inline struct vm_io_handler_desc *find_free_pio_node(struct acrn_vm *vm)
  */
 void register_pio_emulation_handler(struct acrn_vm *vm,
 		const struct vm_io_range *range,
-		io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr)
+		int (*hv_port_io_handler)(struct acrn_vcpu *, struct acrn_pio_request *, void *),
+		void *priv)
 {
-	struct vm_io_handler_desc *pio_node;
+	struct port_io_node *pio_node;
+	ASSERT(hv_port_io_handler);
+
+	dev_dbg(DBG_LEVEL_IOREQ, "Register PIO handler for [%x-%x)\n",
+			range->base, range->base + range->len);
 
 	if (is_service_vm(vm)) {
 		deny_guest_pio_access(vm, range->base, range->len);
@@ -821,8 +813,8 @@ void register_pio_emulation_handler(struct acrn_vm *vm,
 	if (pio_node != NULL) {
 		pio_node->port_start = range->base;
 		pio_node->port_end = range->base + range->len;
-		pio_node->io_read = io_read_fn_ptr;
-		pio_node->io_write = io_write_fn_ptr;
+		pio_node->handle = hv_port_io_handler;
+		pio_node->priv = priv;
 	} else {
 		pr_fatal("No free PIO handler descriptor. Please rebuild with a bigger CONFIG_MAX_EMULATED_MMIO_REGIONS!\n");
 	}
@@ -835,20 +827,26 @@ void register_pio_emulation_handler(struct acrn_vm *vm,
  * This API unregisters a PIO handler to \p vm
  *
  * @param vm The VM to which the PIO handler is unregistered
- * @param start The base address of the range which wants to unregister
- * @param end The end of the range (exclusive) which wants to unregister
+ * @param range The port io range which wants to unregister
  *
  * @return None
  */
 void unregister_pio_emulation_handler(struct acrn_vm *vm,
-					uint64_t start, uint64_t end)
+		const struct vm_io_range *range)
 {
-	struct vm_io_handler_desc *pio_node;
+	struct port_io_node *pio_node;
+
+	dev_dbg(DBG_LEVEL_IOREQ, "Unregister PIO handler for [%x-%x)\n",
+			range->base, range->base + range->len);
+
+	if (is_service_vm(vm)) {
+		allow_guest_pio_access(vm, range->base, range->len);
+	}
 
 	spinlock_obtain(&vm->emul_pio_lock);
-	pio_node = find_match_pio_node(vm, start, end);
+	pio_node = find_match_pio_node(vm, range->base, range->base + range->len);
 	if (pio_node != NULL) {
-		(void)memset(pio_node, 0U, sizeof(struct vm_io_handler_desc));
+		(void)memset(pio_node, 0U, sizeof(struct port_io_node));
 	}
 	spinlock_release(&vm->emul_pio_lock);
 }

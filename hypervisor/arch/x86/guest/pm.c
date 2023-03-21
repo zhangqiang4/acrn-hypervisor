@@ -249,6 +249,19 @@ static bool pm1ab_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width, 
 	return true;
 }
 
+static int pm1ab_io_handler(struct acrn_vcpu *vcpu, struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = pm1ab_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = pm1ab_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 static void register_gas_io_handler(struct acrn_vm *vm, const struct acrn_acpi_generic_address *gas)
 {
 	uint8_t io_len[5] = {0U, 1U, 2U, 4U, 8U};
@@ -259,7 +272,7 @@ static void register_gas_io_handler(struct acrn_vm *vm, const struct acrn_acpi_g
 		gas_io.base = (uint16_t)gas->address;
 		gas_io.len = io_len[gas->access_size];
 
-		register_pio_emulation_handler(vm, &gas_io, &pm1ab_io_read, &pm1ab_io_write);
+		register_pio_emulation_handler(vm, &gas_io, pm1ab_io_handler, NULL);
 
 		pr_dbg("Enable PM1A trap for VM %d, port 0x%x, size %d\n", vm->vm_id, gas_io.base, gas_io.len);
 	}
@@ -302,6 +315,20 @@ static bool rt_vm_pm1a_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t wi
 	return false;
 }
 
+static int rt_vm_pm1a_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = rt_vm_pm1a_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = rt_vm_pm1a_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 static void register_rt_vm_pm1a_ctl_handler(struct acrn_vm *vm)
 {
 	struct vm_io_range io_range;
@@ -310,7 +337,7 @@ static void register_rt_vm_pm1a_ctl_handler(struct acrn_vm *vm)
 	io_range.len = 1U;
 
 	register_pio_emulation_handler(vm, &io_range,
-					&rt_vm_pm1a_io_read, &rt_vm_pm1a_io_write);
+					rt_vm_pm1a_io_handler, NULL);
 }
 
 /*
@@ -362,6 +389,20 @@ static bool prelaunched_vm_sleep_io_write(struct acrn_vcpu *vcpu, uint16_t addr,
 	return true;
 }
 
+static int prelaunched_vm_sleep_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = prelaunched_vm_sleep_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = prelaunched_vm_sleep_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 static void register_prelaunched_vm_sleep_handler(struct acrn_vm *vm)
 {
 	struct vm_io_range io_range;
@@ -377,7 +418,7 @@ static void register_prelaunched_vm_sleep_handler(struct acrn_vm *vm)
 	io_range.len = 2U;
 
 	register_pio_emulation_handler(vm, &io_range,
-					&prelaunched_vm_sleep_io_read, &prelaunched_vm_sleep_io_write);
+					prelaunched_vm_sleep_io_handler, NULL);
 }
 
 void init_guest_pm(struct acrn_vm *vm)

@@ -839,6 +839,20 @@ static bool vpic_primary_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t 
 	return true;
 }
 
+static int vpic_primary_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vpic_primary_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vpic_primary_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 static int32_t vpic_secondary_handler(struct acrn_vpic *vpic, bool in, uint16_t port,
 		size_t bytes, uint32_t *eax)
 {
@@ -888,6 +902,21 @@ static bool vpic_secondary_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_
 	}
 
 	return true;
+}
+
+static int vpic_secondary_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vpic_secondary_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vpic_secondary_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+
 }
 
 static int32_t vpic_elc_handler(struct acrn_vpic *vpic, bool in, uint16_t port, size_t bytes,
@@ -968,6 +997,20 @@ static bool vpic_elc_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t widt
 	return true;
 }
 
+static int vpic_elc_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vpic_elc_io_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vpic_elc_io_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 static void vpic_register_io_handler(struct acrn_vm *vm)
 {
 	struct vm_io_range primary_vPIC_range = {
@@ -984,11 +1027,11 @@ static void vpic_register_io_handler(struct acrn_vm *vm)
 	};
 
 	register_pio_emulation_handler(vm, &primary_vPIC_range,
-			vpic_primary_io_read, vpic_primary_io_write);
+			vpic_primary_io_handler, NULL);
 	register_pio_emulation_handler(vm, &secondary_vPIC_range,
-			vpic_secondary_io_read, vpic_secondary_io_write);
+			vpic_secondary_io_handler, NULL);
 	register_pio_emulation_handler(vm, &elcr_range,
-			vpic_elc_io_read, vpic_elc_io_write);
+			vpic_elc_io_handler, NULL);
 }
 
 void vpic_init(struct acrn_vm *vm)

@@ -603,6 +603,18 @@ static bool vrtc_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width,
 	return true;
 }
 
+static int vrtc_handler(struct acrn_vcpu *vcpu, struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vrtc_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vrtc_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 #define CALIBRATE_PERIOD	(3 * 3600 * 1000)	/* By ms, totally 3 hours. */
 static struct hv_timer calibrate_timer;
 
@@ -699,7 +711,7 @@ void vrtc_init(struct acrn_vm *vm)
 	vm->vrtc.addr = 0U;
 
 	vm->vrtc.vm = vm;
-	register_pio_emulation_handler(vm, &range, vrtc_read, vrtc_write);
+	register_pio_emulation_handler(vm, &range, vrtc_handler, NULL);
 
 	if (is_service_vm(vm)) {
 		calibrate_setup_timer();

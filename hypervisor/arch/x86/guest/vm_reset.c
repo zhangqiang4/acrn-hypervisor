@@ -147,6 +147,20 @@ static bool handle_kb_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t bytes)
 	return true;
 }
 
+static int kbc_cmd_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = handle_kb_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = handle_kb_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 
 /*
  * Reset Control register at I/O port 0xcf9.
@@ -165,6 +179,20 @@ static bool handle_cf9_write(struct acrn_vcpu *vcpu, __unused uint16_t addr, siz
 	/* We don't differentiate among hard/soft/warm/cold reset */
 	return handle_common_reset_reg_write(vcpu,
 			((bytes == 1U) && ((val & 0x4U) == 0x4U) && ((val & 0xaU) != 0U)));
+}
+
+static int cf9_io_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = handle_reset_reg_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = handle_cf9_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
 }
 
 /**
@@ -193,6 +221,20 @@ static bool handle_reset_reg_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t
 	return ret;
 }
 
+static int service_vm_reset_reg_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = handle_reset_reg_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = handle_reset_reg_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 /**
  * @pre vm != NULL
  */
@@ -208,11 +250,11 @@ void register_reset_port_handler(struct acrn_vm *vm)
 		};
 
 		io_range.base = 0x64U;
-		register_pio_emulation_handler(vm, &io_range, handle_kb_read, handle_kb_write);
+		register_pio_emulation_handler(vm, &io_range, kbc_cmd_io_handler, NULL);
 
 		/* ACPI reset register is fixed at 0xcf9 for post-launched and pre-launched VMs */
 		io_range.base = 0xcf9U;
-		register_pio_emulation_handler(vm, &io_range, handle_reset_reg_read, handle_cf9_write);
+		register_pio_emulation_handler(vm, &io_range, cf9_io_handler, NULL);
 
 		/*
 		 * - here is taking care of Service VM only:
@@ -226,7 +268,7 @@ void register_reset_port_handler(struct acrn_vm *vm)
 
 			io_range.base = (uint16_t)reset_reg->reg.address;
 			register_pio_emulation_handler(vm, &io_range,
-					handle_reset_reg_read, handle_reset_reg_write);
+					service_vm_reset_reg_handler, NULL);
 		}
 	}
 }

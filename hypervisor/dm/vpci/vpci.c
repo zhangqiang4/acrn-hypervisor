@@ -101,6 +101,20 @@ static bool vpci_pio_cfgaddr_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t
 	return ret;
 }
 
+static int vpci_pio_cfgaddr_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vpci_pio_cfgaddr_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vpci_pio_cfgaddr_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 /**
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
@@ -162,6 +176,20 @@ static bool vpci_pio_cfgdata_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t
 	}
 
 	return (ret == 0);
+}
+
+static int vpci_pio_cfgdata_handler(struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vpci_pio_cfgdata_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vpci_pio_cfgdata_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
 }
 
 /**
@@ -257,11 +285,11 @@ int32_t init_vpci(struct acrn_vm *vm)
 
 		/* Intercept and handle I/O ports CF8h */
 		register_pio_emulation_handler(vm, &pci_cfgaddr_range,
-			vpci_pio_cfgaddr_read, vpci_pio_cfgaddr_write);
+			vpci_pio_cfgaddr_handler, NULL);
 
 		/* Intercept and handle I/O ports CFCh -- CFFh */
 		register_pio_emulation_handler(vm, &pci_cfgdata_range,
-			vpci_pio_cfgdata_read, vpci_pio_cfgdata_write);
+			vpci_pio_cfgdata_handler, NULL);
 
 		spinlock_init(&vm->vpci.lock);
 	}

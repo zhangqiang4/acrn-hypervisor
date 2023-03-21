@@ -162,7 +162,7 @@ struct acrn_vm {
 
 	spinlock_t emul_pio_lock;
 	uint16_t nr_emul_pio_regions;
-	struct vm_io_handler_desc emul_pio[CONFIG_MAX_EMULATED_PIO_REGIONS];
+	struct port_io_node emul_pio[CONFIG_MAX_EMULATED_PIO_REGIONS];
 
 	char name[MAX_VM_NAME_LEN];
 	struct secure_world_control sworld_control;

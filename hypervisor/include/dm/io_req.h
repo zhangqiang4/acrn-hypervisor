@@ -55,20 +55,14 @@ struct vm_io_range {
 	uint16_t len;		/**< IO port range */
 };
 
-struct vm_io_handler_desc;
+struct port_io_node;
 struct acrn_vm;
 struct acrn_vcpu;
-
-typedef
-bool (*io_read_fn_t)(struct acrn_vcpu *vcpu, uint16_t port, size_t size);
-
-typedef
-bool (*io_write_fn_t)(struct acrn_vcpu *vcpu, uint16_t port, size_t size, uint32_t val);
 
 /**
  * @brief Describes a single IO handler description entry.
  */
-struct vm_io_handler_desc {
+struct port_io_node {
 
 	/**
 	 * @brief The base port number of the IO range for this description.
@@ -81,39 +75,29 @@ struct vm_io_handler_desc {
 	uint16_t port_end;
 
 	/**
-	 * @brief A pointer to the "read" function.
+	 * @brief Port IO read/write handler
 	 *
-	 * The read function is called from the hypervisor whenever
-	 * a read access to a range described in "ranges" occur.
+	 * This function is called from the hypervisor whenever
+	 * a read/write access to a range described in "ranges" occur.
 	 * The arguments to the callback are:
 	 *
-	 *    - The address of the port to read from.
-	 *    - The width of the read operation (1,2 or 4).
+	 *    - The vcpu this IO request is for.
+	 *    - The PIO request information
+	 *    - The private data to use
 	 *
-	 * The implementation must return the ports content as
-	 * byte, word or doubleword (depending on the width).
-	 *
-	 * If the pointer is null, a read of 1's is assumed.
+	 * Return 0 if this IO request was successfully handled by hypervisor.
+	 * Otherwise return the error code.
 	 */
-	io_read_fn_t io_read;
+	int (*handle)(struct acrn_vcpu *vcpu, struct acrn_pio_request *pio_req, void *priv);
 
 	/**
-	 * @brief A pointer to the "write" function.
+	 * @brief Private data used by the handler
 	 *
-	 * The write function is called from the hypervisor code
-	 * whenever a write access to a range described in "ranges"
-	 * occur. The arguments to the callback are:
-	 *
-	 *   - The address of the port to write to.
-	 *   - The width of the write operation (1,2 or 4).
-	 *   - The value to write as byte, word or doubleword
-	 *     (depending on the width)
-	 *
-	 * The implementation must write the value to the port.
-	 *
-	 * If the pointer is null, the write access is ignored.
+	 * The pointer to any data specified at registration. This pointer is
+	 * passed to the handler whenever the handler is called.
 	 */
-	io_write_fn_t io_write;
+	void *priv;
+
 };
 
 /* Typedef for MMIO handler and range check routine */
@@ -258,12 +242,22 @@ int32_t emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req);
  *
  * @param vm      The VM to which the port I/O handlers are registered
  * @param range   The emulated port io range
- * @param io_read_fn_ptr The handler for emulating reads from the given range
- * @param io_write_fn_ptr The handler for emulating writes to the given range
- * @pre pio_idx < EMUL_PIO_IDX_MAX
+ * @param hv_port_io_handler 	The read/write handler of the port io range
+ * @param priv    The private data for the io handler
  */
-void   register_pio_emulation_handler(struct acrn_vm *vm,
-		const struct vm_io_range *range, io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr);
+void register_pio_emulation_handler(struct acrn_vm *vm,
+		const struct vm_io_range *range,
+		int (*hv_port_io_handler)(struct acrn_vcpu *, struct acrn_pio_request *, void *),
+		void *priv);
+
+/**
+ * @brief Unregister a port I/O handler
+ *
+ * @param vm      The VM to which the port I/O handlers are registered
+ * @param range   The emulated port io range
+ */
+void unregister_pio_emulation_handler(struct acrn_vm *vm,
+		const struct vm_io_range *range);
 
 /**
  * @brief Register a MMIO handler

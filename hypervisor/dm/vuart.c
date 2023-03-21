@@ -546,6 +546,18 @@ static bool vuart_read(struct acrn_vcpu *vcpu, uint16_t offset_arg, __unused siz
 	return true;
 }
 
+static int vuart_handler(struct acrn_vcpu *vcpu, struct acrn_pio_request *pio_req, __unused void *priv)
+{
+	bool ret;
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		ret = vuart_read(vcpu, pio_req->address, pio_req->size);
+		return ret ? 0 : -ENODEV;
+	}
+
+	ret = vuart_write(vcpu, pio_req->address, pio_req->size, pio_req->value);
+	return ret ? 0 : -ENODEV;
+}
+
 /*
  * @pre: vuart_idx < MAX_VUART_NUM_PER_VM
  */
@@ -558,7 +570,7 @@ static bool vuart_register_io_handler(struct acrn_vm *vm, uint16_t port_base, ui
 		.len = 8U
 	};
 	if (vuart_idx < MAX_VUART_NUM_PER_VM) {
-		register_pio_emulation_handler(vm, &range, vuart_read, vuart_write);
+		register_pio_emulation_handler(vm, &range, vuart_handler, NULL);
 	} else {
 		printf("Not support vuart index %d, will not register \n", vuart_idx);
 		ret = false;
