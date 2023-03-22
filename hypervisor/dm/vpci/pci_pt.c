@@ -263,21 +263,41 @@ static void vdev_pt_map_mem_vbar(struct pci_vdev *vdev, uint32_t idx)
 	}
 }
 
+static int pt_pio_vbar_handler(__unused struct acrn_vcpu *vcpu,
+		struct acrn_pio_request *pio_req, void *priv)
+{
+	struct pci_vbar *vbar = (struct pci_vbar *)priv;
+	uint16_t hpa = pio_req->address - vbar->base_gpa + vbar->base_hpa;
+
+	if (pio_req->direction == ACRN_IOREQ_DIR_READ) {
+		pio_req->value = pio_read(hpa, pio_req->size);
+	} else {
+		pio_write(pio_req->value, hpa, pio_req->size);
+	}
+
+	return 0;
+}
+
 /**
  * @brief Allow IO bar access
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
-static void vdev_pt_allow_io_vbar(struct pci_vdev *vdev, uint32_t idx)
+static void vdev_pt_register_io_vbar(struct pci_vdev *vdev, uint32_t idx)
 {
 	struct acrn_vm *vm = vpci2vm(vdev->vpci);
+	struct pci_vbar *vbar = &vdev->vbars[idx];
+	struct vm_io_range io_vbar_range;
 
-	/* For Service VM, all port IO access is allowed by default, so skip Service VM here */
-	if (!is_service_vm(vm)) {
-		struct pci_vbar *vbar = &vdev->vbars[idx];
-		if (vbar->base_gpa != 0UL) {
-			allow_guest_pio_access(vm, (uint16_t)vbar->base_gpa, (uint32_t)(vbar->size));
-		}
+	io_vbar_range.base = vbar->base_gpa;
+	io_vbar_range.len = vbar->size;
+
+	/*
+	 * this shouldn't happen as vpci_update_one_vbar calls this "map" callback
+	 * only when vbar->base_gpa is not 0
+	 */
+	if (vbar->base_gpa) {
+		register_pio_emulation_handler(vm, &io_vbar_range, pt_pio_vbar_handler, vbar);
 	}
 }
 
@@ -286,17 +306,22 @@ static void vdev_pt_allow_io_vbar(struct pci_vdev *vdev, uint32_t idx)
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
-static void vdev_pt_deny_io_vbar(struct pci_vdev *vdev, uint32_t idx)
+static void vdev_pt_unregister_io_vbar(struct pci_vdev *vdev, uint32_t idx)
 {
 	struct acrn_vm *vm = vpci2vm(vdev->vpci);
+	struct vm_io_range io_vbar_range;
+	struct pci_vbar *vbar = &vdev->vbars[idx];
 
-	/* For Service VM, all port IO access is allowed by default, so skip Service VM here */
-	if (!is_service_vm(vm)) {
-		struct pci_vbar *vbar = &vdev->vbars[idx];
-		if (vbar->base_gpa != 0UL) {
-			deny_guest_pio_access(vm, (uint16_t)(vbar->base_gpa), (uint32_t)(vbar->size));
-		}
+	io_vbar_range.base = vbar->base_gpa;
+	io_vbar_range.len = vbar->size;
 
+	/*
+	 * After guest writes 0xFFFFFFFF or 0 to a vbar, the bar is unfunctional
+	 * and vbar->base_gpa is 0. No handler is registered for it. So skip the
+	 * unregistration in these cases.
+	 */
+	if (vbar->base_gpa) {
+		unregister_pio_emulation_handler(vm, &io_vbar_range);
 	}
 }
 
@@ -308,7 +333,7 @@ void vdev_pt_write_vbar(struct pci_vdev *vdev, uint32_t idx, uint32_t val)
 	struct pci_vbar *vbar = &vdev->vbars[idx];
 
 	if (is_pci_io_bar(vbar)) {
-		vpci_update_one_vbar(vdev, idx, val, vdev_pt_allow_io_vbar, vdev_pt_deny_io_vbar);
+		vpci_update_one_vbar(vdev, idx, val, vdev_pt_register_io_vbar, vdev_pt_unregister_io_vbar);
 	} else {
 		/* pci mem bar */
 		vpci_update_one_vbar(vdev, idx, val, vdev_pt_map_mem_vbar, vdev_pt_unmap_mem_vbar);
@@ -441,6 +466,14 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 				/* if it is parsing SRIOV VF BARs, no need to write vdev bar */
 				if (!is_sriov_bar) {
 					pci_vdev_write_vbar(vdev, idx, lo);
+				}
+
+				if (is_pci_io_bar(vbar)) {
+					struct vm_io_range pio_vbar_range;
+					pio_vbar_range.base = vbar->base_hpa;
+					pio_vbar_range.len = vbar->size;
+					register_pio_emulation_handler(vpci2vm(vdev->vpci),
+							&pio_vbar_range, pt_pio_vbar_handler, vbar);
 				}
 			}
 		}
