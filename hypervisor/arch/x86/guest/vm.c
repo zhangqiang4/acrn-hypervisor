@@ -499,6 +499,13 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 		}
 	}
 
+	/*
+	 * Unmap MMIO resource of PCI Host Bridge Window from ServiceVM.
+	 * BARs for passthru devices are mapped when ServiceVM OS programs
+	 * them.
+	 */
+	ept_del_mr(vm, pml4_page, MMIO32_START, MMIO32_END - MMIO32_START);
+
 	/* Unmap all platform EPC resource from Service VM.
 	 * This part has already been marked as reserved by BIOS in E820
 	 * will cause EPT violation if Service VM accesses EPC resource.
