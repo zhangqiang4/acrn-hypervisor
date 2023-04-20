@@ -40,6 +40,7 @@ static int32_t shell_list_vm(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
 static int32_t shell_dump_host_mem(int32_t argc, char **argv);
+static int32_t shell_md(int32_t argc, char **argv);
 static int32_t shell_dump_guest_mem(int32_t argc, char **argv);
 static int32_t shell_to_vm_console(int32_t argc, char **argv);
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv);
@@ -89,6 +90,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_DUMP_HOST_MEM_PARAM,
 		.help_str	= SHELL_CMD_DUMP_HOST_MEM_HELP,
 		.fcn		= shell_dump_host_mem,
+	},
+	{
+		.str		= SHELL_CMD_MD,
+		.cmd_param	= SHELL_CMD_MD_PARAM,
+		.help_str	= SHELL_CMD_MD_HELP,
+		.fcn		= shell_md,
 	},
 	{
 		.str		= SHELL_CMD_DUMP_GUEST_MEM,
@@ -1037,6 +1044,48 @@ static int32_t shell_dump_host_mem(int32_t argc, char **argv)
 			snprintf(temp_str, MAX_STR_SIZE, "HVA(0x%llx): 0x%016lx  0x%016lx  0x%016lx  0x%016lx\r\n",
 					hva, *hva, *(hva + 1UL), *(hva + 2UL), *(hva + 3UL));
 			hva += 4UL;
+			shell_puts(temp_str);
+		}
+		ret = 0;
+	}
+
+	return ret;
+}
+
+static int32_t shell_md(int32_t argc, char **argv)
+{
+	uint64_t hva;
+	int32_t ret;
+	uint32_t i, j, width, length, loop_cnt;
+	char temp_str[MAX_STR_SIZE];
+
+	/* User input invalidation */
+	if (argc != 4) {
+		ret = -EINVAL;
+	} else	{
+		width = (uint32_t)strtol_deci(argv[1]);
+		hva = strtoul_hex(argv[2]);
+		length = (uint32_t)strtol_deci(argv[3]);
+
+		snprintf(temp_str, MAX_STR_SIZE, "Dump physical memory addr: 0x%016lx, length %d, width %d:\r\n", hva, length, width);
+		shell_puts(temp_str);
+		/* Change the length to a multiple of 32 if the length is not */
+		loop_cnt = ((length & 0x1fU) == 0U) ? ((length / width)) : ((length / width) + 1U);
+		for (i = 0U; i < loop_cnt; i++) {
+			size_t written = snprintf(temp_str, MAX_STR_SIZE, "HVA(0x%llx):", hva);
+			for (j = 0; j < 0x20 / width; j++) {
+				if (width == 1) {
+					written += snprintf(temp_str + written, MAX_STR_SIZE - written, "  %02x", *(uint8_t *)hva);
+				} else if (width == 2) {
+					written += snprintf(temp_str + written, MAX_STR_SIZE - written, "  %04x", *(uint16_t *)hva);
+				} else if (width == 4) {
+					written += snprintf(temp_str + written, MAX_STR_SIZE - written, "  %08x", *(uint32_t *)hva);
+				} else if (width == 8) {
+					written += snprintf(temp_str + written, MAX_STR_SIZE - written, "  %016lx", *(uint64_t *)hva);
+				}
+				hva += width;
+			}
+			snprintf(temp_str + written, MAX_STR_SIZE - written, "\r\n");
 			shell_puts(temp_str);
 		}
 		ret = 0;
