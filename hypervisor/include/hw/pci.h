@@ -90,6 +90,12 @@
 #define PCIM_BAR_MEM_1MB      0x02U
 #define PCIM_BAR_MEM_64       0x04U
 #define PCIM_BAR_MEM_BASE     0xFFFFFFF0U
+#define PCIR_MEM_BASE         0x20U
+#define PCIR_MEM_LIMIT        0x22U
+#define PCIR_PREF_MEM_BASE    0x24U
+#define PCIR_PREF_MEM_LIMIT   0x26U
+#define PCIR_PREF_MEM_BASE_HI 0x28U
+#define PCIR_PREF_MEM_LIMIT_HI 0x2CU
 #define PCIV_SUB_VENDOR_ID    0x2CU
 #define PCIV_SUB_SYSTEM_ID    0x2EU
 #define PCIR_BIOS	      0x30U
@@ -235,7 +241,7 @@ union pci_bar_type {
 	} io_space;
 	struct {
 		uint32_t indicator :1;               /* BITs[0], mapped to memory space if read as 0 */
-		uint32_t mem_type :2;            /* BITs[1:2], 32-bit address if read as 00b, 64-bit address as 01b */
+		uint32_t mem_type :2;            /* BITs[1:2], 32-bit address if read as 00b, 64-bit address as 10b */
 		uint32_t prefetchable :1;        /* BITs[3], set to 1b if the data is prefetchable and set to 0b otherwise */
 		uint32_t reserved2 : 28;
 	} mem_space;

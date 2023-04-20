@@ -251,6 +251,78 @@ static void vdev_pt_map_mem_vbar(struct pci_vdev *vdev, uint32_t idx)
 	if (vbar->base_gpa != 0UL) {
 		struct acrn_vm *vm = vpci2vm(vdev->vpci);
 
+		/*
+		 * It's better to initialize empty physical BARs when HV first
+		 * discovers the PCI devices. But HV lacks of the capability of
+		 * managing resouces allocation of PCI device tree.
+		 *
+		 * Assume vWindow equals pWindow in ServiceVM
+		 */
+		if (vbar->base_hpa == 0UL && is_service_vm(vm)) {
+			struct pci_mmio_res pwindow;
+			struct pci_pdev *pdev = vdev->pdev;
+			bool is_bar64 = (vbar->bar_type.mem_space.mem_type == 2U);
+			struct pci_pdev *parent = pdev->parent;
+			if (parent) {
+				if (is_bar64) {
+					pwindow.start = pci_pdev_read_cfg(parent->bdf, PCIR_PREF_MEM_BASE_HI, 4U);
+					pwindow.start <<= 32U;
+					pwindow.start += (pci_pdev_read_cfg(parent->bdf, PCIR_PREF_MEM_BASE, 2U) << 16U);
+					pwindow.end = pci_pdev_read_cfg(parent->bdf, PCIR_PREF_MEM_LIMIT_HI, 4U);
+					pwindow.end <<= 32U;
+					pwindow.end += (pci_pdev_read_cfg(parent->bdf, PCIR_PREF_MEM_LIMIT, 2U) << 16U);
+				} else {
+					pwindow.start = (pci_pdev_read_cfg(parent->bdf, PCIR_MEM_BASE, 2U) << 16U);
+					pwindow.end = (pci_pdev_read_cfg(parent->bdf, PCIR_MEM_LIMIT, 2U) << 16U);
+				}
+			} else {
+				if (is_bar64) {
+					pwindow.start = MMIO64_START;
+					pwindow.end = MMIO64_END;
+				} else {
+					pwindow.start = MMIO32_START;
+					pwindow.end = MMIO32_END;
+				}
+			}
+
+			pr_info("%s: guest is trying to program 0x%016llx to empty BAR%d@[%02x:%02x.%01x].\n",
+					__func__, vbar->base_gpa, idx,
+					pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f);
+
+			if (vbar->base_gpa >= pwindow.start && vbar->base_gpa + vbar->size <= pwindow.end) {
+				vbar->base_hpa = vbar->base_gpa;
+				pdev->bars[idx].phy_bar = vbar->base_hpa; 	/* recorded here. for restore */
+				if (is_bar64) {
+					pdev->bars[idx + 1].phy_bar = vbar->base_hpa >> 32U;
+				}
+
+				pci_pdev_write_cfg(pdev->bdf, pci_bar_offset(idx), 4U, (uint32_t)(vbar->base_hpa & 0xFFFFFFFFU));
+				if (is_bar64) {
+					pci_pdev_write_cfg(pdev->bdf, pci_bar_offset(idx + 1), 4U, (uint32_t)(vbar->base_hpa >> 32U));
+				}
+				pr_info("%s: write 0x%016llx to BAR%d@[%02x:%02x.%01x].\n",
+						__func__, vbar->base_hpa, idx,
+						pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f);
+				uint64_t val = pci_pdev_read_cfg(pdev->bdf, pci_bar_offset(idx), 4U);
+				val |= (uint64_t)(pci_pdev_read_cfg(pdev->bdf, pci_bar_offset(idx + 1), 4U)) << 32U;
+				pr_info("%s: read out back: 0x%016llx\n", __func__, val);
+
+				int i = 0;
+				for (; i < 16; i++) {
+					if (i % 4 == 0) {
+						printf("\t\n");
+					}
+					uint32_t val = pci_pdev_read_cfg(pdev->bdf, i * 4, 4U);
+					printf(" %08x", val);
+				}
+				printf("\t\n");
+
+			} else {
+				pr_info("%s: Not update pBAR because 0x%016x out of parent window: [0x%016x - 0x%016x).\n",
+						__func__, vbar->base_hpa, pwindow.start, pwindow.end);
+			}
+		}
+
 		ept_add_mr(vm, (uint64_t *)(vm->arch_vm.nworld_eptp),
 			vbar->base_hpa, /* HPA (pbar) */
 			vbar->base_gpa, /* GPA (new vbar) */
@@ -412,7 +484,6 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 			vbar->base_hpa |= ((uint64_t)hi << 32U);
 		}
 
-		if (vbar->base_hpa != 0UL) {
 			pci_pdev_write_cfg(pbdf, offset, 4U, ~0U);
 			size32 = pci_pdev_read_cfg(pbdf, offset, 4U);
 			pci_pdev_write_cfg(pbdf, offset, 4U, lo);
@@ -476,7 +547,6 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 							&pio_vbar_range, pt_pio_vbar_handler, vbar);
 				}
 			}
-		}
 	}
 
 	/* Initialize MSIx mmio hpa and size after BARs initialization */
