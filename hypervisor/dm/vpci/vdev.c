@@ -107,6 +107,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 	uint64_t base = 0UL;
 	uint32_t lo, hi, offset;
 	struct pci_mmio_res *res;
+	int is_bar64 = 0;
 
 	vbar = &vdev->vbars[idx];
 	offset = pci_bar_offset(idx);
@@ -115,6 +116,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 		base = lo & vbar->mask;
 
 		if (is_pci_mem64lo_bar(vbar)) {
+			is_bar64 = 1;
 			vbar = &vdev->vbars[idx + 1U];
 			if (!vbar->sizing) {
 				hi = pci_vdev_read_vcfg(vdev, (offset + 4U), 4U);
@@ -144,7 +146,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 		} else {
 			if ((!is_pci_mem_bar_base_valid(vpci2vm(vdev->vpci), base))
 					|| (!mem_aligned_check(base, vdev->vbars[idx].size))) {
-				res = (base < (1UL << 32UL)) ? &(vdev->vpci->res32) : &(vdev->vpci->res64);
+				res = is_bar64 ? &(vdev->vpci->res64) : &(vdev->vpci->res32);
 				/* VM tries to reprogram vbar address out of pci mmio bar window, it can be caused by:
 				 * 1. For Service VM, <board>.xml is misaligned with the actual native platform,
 				 *    and we get wrong mmio window.
@@ -155,6 +157,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 					" which is out of mmio window[0x%lx - 0x%lx] or not aligned with size: 0x%lx",
 					__func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx, base,
 					res->start, res->end, vdev->vbars[idx].size);
+				base = 0UL;
 			}
 		}
 	}
