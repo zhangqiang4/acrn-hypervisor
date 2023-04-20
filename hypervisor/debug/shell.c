@@ -40,6 +40,8 @@ static int32_t shell_list_vm(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
 static int32_t shell_dump_host_mem(int32_t argc, char **argv);
+static int32_t shell_md(int32_t argc, char **argv);
+static int32_t shell_mm(int32_t argc, char **argv);
 static int32_t shell_dump_guest_mem(int32_t argc, char **argv);
 static int32_t shell_to_vm_console(int32_t argc, char **argv);
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv);
@@ -88,6 +90,18 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_DUMP_HOST_MEM_PARAM,
 		.help_str	= SHELL_CMD_DUMP_HOST_MEM_HELP,
 		.fcn		= shell_dump_host_mem,
+	},
+	{
+		.str		= SHELL_CMD_MD,
+		.cmd_param	= SHELL_CMD_MD_PARAM,
+		.help_str	= SHELL_CMD_MD_HELP,
+		.fcn		= shell_md,
+	},
+	{
+		.str		= SHELL_CMD_MM,
+		.cmd_param	= SHELL_CMD_MM_PARAM,
+		.help_str	= SHELL_CMD_MM_HELP,
+		.fcn		= shell_mm,
 	},
 	{
 		.str		= SHELL_CMD_DUMP_GUEST_MEM,
@@ -1033,6 +1047,94 @@ static int32_t shell_dump_host_mem(int32_t argc, char **argv)
 			shell_puts(temp_str);
 		}
 		ret = 0;
+	}
+
+	return ret;
+}
+
+static int32_t shell_md(int32_t argc, char **argv)
+{
+	uint64_t hva;
+	int32_t ret = 0;
+	uint32_t i, width, count, stride;
+	char temp_str[MAX_STR_SIZE];
+
+	/* User input invalidation */
+	if (argc != 4) {
+		ret = -EINVAL;
+	} else	{
+		hva = strtoul_hex(argv[1]);
+		width = (uint32_t)strtol_deci(argv[2]);
+		count = (uint32_t)strtol_deci(argv[3]);
+		stride = 0x10 / width;
+
+		snprintf(temp_str, MAX_STR_SIZE, "Display physical memory addr: 0x%016lx, width: %d, count: %d, \r\n", hva, width, count);
+		shell_puts(temp_str);
+		stac();
+		for (i = 0U; i < count; i++) {
+			if (i % stride == 0) {
+				snprintf(temp_str, MAX_STR_SIZE, "HVA(0x%llx):", hva);
+				shell_puts(temp_str);
+			}
+
+			if (width == 1) {
+				snprintf(temp_str, MAX_STR_SIZE, "  %02x", *(uint8_t *)hva);
+				shell_puts(temp_str);
+			} else if (width == 2) {
+				snprintf(temp_str, MAX_STR_SIZE, "  %04x", *(uint16_t *)hva);
+				shell_puts(temp_str);
+			} else if (width == 4) {
+				snprintf(temp_str, MAX_STR_SIZE, "  %08x", *(uint32_t *)hva);
+				shell_puts(temp_str);
+			} else if (width == 8) {
+				snprintf(temp_str, MAX_STR_SIZE, "  %016lx", *(uint64_t *)hva);
+				shell_puts(temp_str);
+			}
+			hva += width;
+			if (i % stride == (stride - 1)) {
+				shell_puts("\r\n");
+			}
+		}
+		shell_puts("\r\n");
+		clac();
+	}
+
+	return ret;
+}
+
+static int32_t shell_mm(int32_t argc, char **argv)
+{
+	uint64_t hva, value;
+	int32_t ret = 0;
+	uint32_t i, width, count;
+	char temp_str[MAX_STR_SIZE];
+
+	/* User input invalidation */
+	if (argc != 5) {
+		ret = -EINVAL;
+	} else	{
+		hva = strtoul_hex(argv[1]);
+		width = (uint32_t)strtol_deci(argv[2]);
+		count = (uint32_t)strtol_deci(argv[3]);
+		value = strtoul_hex(argv[4]);
+
+		snprintf(temp_str, MAX_STR_SIZE, "Write 0x%lx to physical memory addr: 0x%016lx, width: %d, count: %d, \r\n", value, hva, width, count);
+		shell_puts(temp_str);
+		stac();
+		for (i = 0U; i < count; i++) {
+			if (width == 1) {
+				*(uint8_t *)hva = (uint8_t)value;
+			} else if (width == 2) {
+				*(uint16_t *)hva = (uint16_t)value;
+			} else if (width == 4) {
+				*(uint32_t *)hva = (uint32_t)value;
+			} else if (width == 8) {
+				*(uint64_t *)hva = (uint64_t)value;
+			}
+
+			hva += width;
+		}
+		clac();
 	}
 
 	return ret;

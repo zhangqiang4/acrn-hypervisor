@@ -67,6 +67,14 @@ struct shell {
 #define SHELL_CMD_DUMP_HOST_MEM_PARAM	"<addr, length>"
 #define SHELL_CMD_DUMP_HOST_MEM_HELP	"Dump host memory, starting at a given address(Hex), and for a given length (Dec in bytes)"
 
+#define SHELL_CMD_MD		"md"
+#define SHELL_CMD_MD_PARAM	"<addr, width, count>"
+#define SHELL_CMD_MD_HELP	"Display host memory/register space, starting at a given address(Hex), in given width, and for a given count (Dec in bytes)"
+
+#define SHELL_CMD_MM		"mm"
+#define SHELL_CMD_MM_PARAM	"<addr, width, count, value>"
+#define SHELL_CMD_MM_HELP	"Write a value of given width to host memory/register space, starting at a given address(Hex), in given width and for a given count (Dec in bytes)"
+
 #define SHELL_CMD_DUMP_GUEST_MEM	"dump_guest_mem"
 #define SHELL_CMD_DUMP_GUEST_MEM_PARAM	"<vm_id, addr, length>"
 #define SHELL_CMD_DUMP_GUEST_MEM_HELP	"Dump guest memory, vm id(Dec), starting at a given address(Hex), and for a given length (Dec in bytes)"
