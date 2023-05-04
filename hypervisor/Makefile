@@ -171,6 +171,8 @@ LIB_C_SRCS += lib/crypto/mbedtls/sha256.c
 LIB_C_SRCS += lib/crypto/mbedtls/md.c
 LIB_C_SRCS += lib/crypto/mbedtls/md_wrap.c
 LIB_C_SRCS += lib/sprintf.c
+LIB_C_SRCS += lib/diagnostics.c
+LIB_C_SRCS += lib/telltale.c
 LIB_C_SRCS += arch/x86/lib/memory.c
 ifdef STACK_PROTECTOR
 LIB_C_SRCS += lib/stack_protector.c
@@ -236,6 +238,7 @@ HW_C_SRCS += common/schedule.c
 HW_C_SRCS += common/event.c
 HW_C_SRCS += common/efi_mmap.c
 HW_C_SRCS += common/sbuf.c
+HW_C_SRCS += common/dxe.c
 ifeq ($(CONFIG_SCHED_NOOP),y)
 HW_C_SRCS += common/sched_noop.c
 endif

@@ -278,7 +278,7 @@ void pdev_restore_bar(const struct pci_pdev *pdev)
 	}
 }
 
-static const struct pci_pdev *pci_find_pdev(uint16_t pbdf)
+const struct pci_pdev *pci_find_pdev(uint16_t pbdf)
 {
 	struct hlist_node *n;
 	const struct pci_pdev *found = NULL, *tmp;

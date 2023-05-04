@@ -362,6 +362,7 @@ uint32_t pci_pdev_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes);
 void pci_pdev_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val);
 void enable_disable_pci_intx(union pci_bdf bdf, bool enable);
 
+const struct pci_pdev *pci_find_pdev(uint16_t pbdf);
 bool is_hv_owned_pdev(union pci_bdf pbdf);
 uint32_t get_hv_owned_pdev_num(void);
 const struct pci_pdev **get_hv_owned_pdevs(void);
