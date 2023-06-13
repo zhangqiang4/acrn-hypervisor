@@ -89,6 +89,7 @@ LIBS += -lpixman-1
 LIBS += -lSDL2
 LIBS += -lEGL
 LIBS += -lGLESv2
+LIBS += -lasound
 
 
 # lib
@@ -144,6 +145,7 @@ SRCS += hw/pci/passthrough.c
 SRCS += hw/pci/pci_util.c
 SRCS += hw/pci/ptm.c
 SRCS += hw/pci/virtio/virtio_audio.c
+SRCS += hw/pci/virtio/virtio_sound.c
 SRCS += hw/pci/virtio/virtio_net.c
 SRCS += hw/pci/virtio/virtio_rnd.c
 SRCS += hw/pci/virtio/virtio_ipu.c
