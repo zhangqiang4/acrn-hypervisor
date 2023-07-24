@@ -1231,6 +1231,12 @@ int vdpy_parse_cmd_option(const char *opts)
 
 			scr->name = "sdl";
 			vdpy.scrs_num++;
+
+                } else if (tmp && strcasestr(str, "lease=")) {
+
+                       scr->name = "lease";
+                       vdpy.scrs_num++;
+                       vdpy.pipe_num++;
 		}
 
 		if(scr->name)

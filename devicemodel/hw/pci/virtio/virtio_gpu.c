@@ -638,8 +638,16 @@ virtio_gpu_neg_features(void *vdev, uint64_t negotiated_features)
 
 	gpu = vdev;
 	gpu->base.negotiated_caps = negotiated_features;
-	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_VBLANK))
-		pr_err("please use frontend virtio gpu driver with feature  VIRTIO_GPU_F_VBLANK \r\n");
+	if(negotiated_features & 0xffffffff00000000)
+		return;
+
+	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_VBLANK)
+			|| !test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_RESOURCE_BLOB)) {
+		if(gpu->vdpy_if.pipe_num) {
+			pr_err("error: lease do not work without frontend driver features supported \r\n");
+			vdpy_deinit(gpu->vdpy_handle);
+		}
+	}
 
 	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_MODIFIER))
 		pr_err("feature VIRTIO_GPU_F_MODIFIER is not supported by guest \r\n");
