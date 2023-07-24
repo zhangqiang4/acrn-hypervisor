@@ -24,6 +24,14 @@ typedef void (*bh_task_func)(void *data);
 /* free vdpy_display_bh after executing bh_cb */
 #define ACRN_BH_FREE    (1 << 2)
 
+#define VDPY_MAX_WIDTH 3840
+#define VDPY_MAX_HEIGHT 2160
+#define VDPY_DEFAULT_WIDTH 1024
+#define VDPY_DEFAULT_HEIGHT 768
+#define VDPY_MIN_WIDTH 640
+#define VDPY_MIN_HEIGHT 480
+#define VSCREEN_MAX_NUM VDPY_MAX_NUM
+
 struct vdpy_display_bh {
 	TAILQ_ENTRY(vdpy_display_bh) link;
 	bh_task_func task_cb;
@@ -63,8 +71,15 @@ struct surface {
 	uint32_t y;
 	uint32_t width;
 	uint32_t height;
+	uint32_t dst_x;
+	uint32_t dst_y;
+	uint32_t dst_width;
+	uint32_t dst_height;
 	uint32_t bpp;
-	uint32_t stride;
+	uint32_t depth;
+	uint32_t stride[4];
+	uint32_t offset[4];
+	uint64_t modifier;
 	void *pixel;
 	struct  {
 		int dmabuf_fd;
@@ -86,17 +101,59 @@ struct cursor {
 	void *data;
 };
 
+struct vdpy_if {
+	int scanout_num;
+	int pipe_num;
+};
+
+struct screen_backend_ops {
+	void (*vdpy_surface_set)(void *backend, struct surface *surf);
+	void (*vdpy_surface_update)(void *backend, struct surface *surf);
+	void (*vdpy_surface_set_vga)(void *backend, struct surface *surf);
+	void (*vdpy_surface_update_vga)(void *backend, struct surface *surf);
+	void (*vdpy_set_modifier)(void *backend, int64_t modifier);
+	void (*vdpy_set_scaling)(void *backend, int x1, int y1, int x2, int y2);
+	void (*vdpy_cursor_refresh)(void *backend);
+	void (*vdpy_display_info)(void *backend, struct display_info *display);
+	void (*vdpy_enable_vblank)(void *backend);
+	void (*vdpy_vblank_init)(void *backend, void (*func)
+		(void *data,unsigned int frame,int i), void *data);
+	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
+	void (*vdpy_cursor_define)(void *backend, struct cursor *cur);
+};
+
+struct vdpy_backend {
+	char *name;
+	int (*init)();
+	void (*deinit)();
+	int (*parse_cmd)(char *tmp);
+	void (*init_screen)(void **backend, struct screen_backend_ops **ops);
+	int (*init_thread)();
+	void (*deinit_thread)();
+	void (*create_res)(int dmabuf_fd);
+	void (*destroy_res)(int dmabuf_fd);
+};
+
+SET_DECLARE(vdpy_backend_set, struct vdpy_backend);
+#define DEFINE_BACKEND_TYPE(x)	DATA_SET(vdpy_backend_set, x)
+
 int vdpy_parse_cmd_option(const char *opts);
 int gfx_ui_init();
-int vdpy_init(int *num_vscreens);
+int vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,int i), void *data);
 void vdpy_get_display_info(int handle, int scanout_id, struct display_info *info);
 void vdpy_surface_set(int handle, int scanout_id, struct surface *surf);
+void vdpy_surface_set_vga(int handle, int scanout_id, struct surface *surf);
 void vdpy_surface_update(int handle, int scanout_id, struct surface *surf);
-void vdpy_set_modifier(int handle, int scanout_id, uint64_t modifier);
+void vdpy_surface_update_vga(int handle, int scanout_id, struct surface *surf);
+void vdpy_enable_vblank(int scanout);
 bool vdpy_submit_bh(int handle, struct vdpy_display_bh *bh);
 void vdpy_get_edid(int handle, int scanout_id, uint8_t *edid, size_t size);
 void vdpy_cursor_define(int handle, int scanout_id, struct cursor *cur);
 void vdpy_cursor_move(int handle, int scanout_id, uint32_t x, uint32_t y);
+void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id);
+void vdpy_set_scaling(int handle,int scanout_id, int x1, int y1, int x2, int y2);
+void vdpy_destroy_res(int dmabuf_fd);
+void vdpy_create_res(int dmabuf_fd);
 int vdpy_deinit(int handle);
 void gfx_ui_deinit();
 

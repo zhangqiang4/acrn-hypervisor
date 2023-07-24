@@ -835,6 +835,11 @@ vq_endchains(struct virtio_vq_info *vq, int used_all_avail)
 		vq_interrupt(base, vq);
 }
 
+bool vq_disallow_interrupt(struct virtio_vq_info *vq)
+{
+	return (vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT);
+}
+
 /**
  * @brief Helper function for clearing used ring flags.
  *

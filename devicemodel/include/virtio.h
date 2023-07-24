@@ -636,7 +636,7 @@ void vq_relchain(struct virtio_vq_info *vq, uint16_t idx, uint32_t iolen);
  * @param used_all_avail Flag indicating if driver used all available chains.
  */
 void vq_endchains(struct virtio_vq_info *vq, int used_all_avail);
-
+bool vq_disallow_interrupt(struct virtio_vq_info *vq);
 /**
  * @brief Helper function for clearing used ring flags.
  *

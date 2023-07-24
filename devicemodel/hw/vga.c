@@ -1438,7 +1438,7 @@ vga_vbe_write(struct vmctx *ctx, int vcpu, struct vga *vga,
 			vga->vberegs.enable = VBE_DISPI_ENABLED;
 			vga->enable = true;
 			vga->surf.width = 0;
-			vga->surf.stride = 0;
+			vga->surf.stride[0] = 0;
 		} else if ((value & VBE_DISPI_DISABLED) &&
 			   !(vga->vberegs.enable & VBE_DISPI_DISABLED)) {
 			vga->vberegs.enable = VBE_DISPI_DISABLED;
