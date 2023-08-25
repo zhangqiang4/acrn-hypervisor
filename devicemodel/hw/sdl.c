@@ -629,7 +629,7 @@ static void sdl_set_modifier(void *backend, int64_t modifier)
 	vscr->modifier = modifier;
 }
 
-static void sdl_set_scaling(void *backend, int x1, int y1, int x2, int y2)
+static void sdl_set_scaling(void *backend, int plane_id, int x1, int y1, int x2, int y2)
 {
 	struct vscreen *vscr = (struct vscreen *)backend;
 

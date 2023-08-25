@@ -68,6 +68,8 @@ struct surface {
 	enum surface_type surf_type;
 	/* use pixman_format as the intermediate-format */
 	pixman_format_code_t surf_format;
+	uint32_t fb_width;
+	uint32_t fb_height;
 	uint32_t x;
 	uint32_t y;
 	uint32_t width;
@@ -114,7 +116,7 @@ struct screen_backend_ops {
 	void (*vdpy_surface_set_vga)(void *backend, struct surface *surf);
 	void (*vdpy_surface_update_vga)(void *backend, struct surface *surf);
 	void (*vdpy_set_modifier)(void *backend, int64_t modifier);
-	void (*vdpy_set_scaling)(void *backend, int x1, int y1, int x2, int y2);
+	void (*vdpy_set_scaling)(void *backend, int plane_id, int x1, int y1, int x2, int y2);
 	void (*vdpy_cursor_refresh)(void *backend);
 	void (*vdpy_display_info)(void *backend, struct display_info *display);
 	void (*vdpy_enable_vblank)(void *backend);
@@ -122,6 +124,12 @@ struct screen_backend_ops {
 		(void *data,unsigned int frame,int i), void *data);
 	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
 	void (*vdpy_cursor_define)(void *backend, struct cursor *cur);
+	void (*vdpy_get_plane_info)(void *backend, uint32_t *size, uint32_t *num, uint32_t *info);
+	void (*vdpy_set_rotation)(void *backend, uint32_t plane_id, uint64_t rotation);
+	void (*vdpy_get_plane_rotation)(void *backend, int plane_id, uint64_t *rotation, uint32_t *count);
+	void (*vdpy_update_sprite)(void *backend, int plane_id, struct surface *surf);
+	void (*vdpy_sprite_flush_sync)(void *backend);
+
 };
 
 struct vdpy_backend {
@@ -134,6 +142,8 @@ struct vdpy_backend {
 	void (*deinit_thread)();
 	void (*create_res)(int dmabuf_fd);
 	void (*destroy_res)(int dmabuf_fd);
+	void (*mplane_fallback)();
+	bool (*mplane_check)();
 };
 
 SET_DECLARE(vdpy_backend_set, struct vdpy_backend);
@@ -153,13 +163,20 @@ void vdpy_get_edid(int handle, int scanout_id, uint8_t *edid, size_t size);
 void vdpy_cursor_define(int handle, int scanout_id, struct cursor *cur);
 void vdpy_cursor_move(int handle, int scanout_id, uint32_t x, uint32_t y);
 void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id);
-void vdpy_set_scaling(int handle,int scanout_id, int x1, int y1, int x2, int y2);
+void vdpy_set_scaling(int handle,int scanout_id, int plane_id, int x1, int y1, int x2, int y2);
+void vdpy_set_rotation(int handle,int scanout_id, int plane_id, uint64_t rotation);
 int vdpy_backlight_update_status(int handle, uint32_t backlight_id, struct backlight_properties *props);
 int vdpy_get_backlight(int handle, uint32_t backlight_id, int32_t *brightness);
 int vdpy_get_backlight_info(int handle, uint32_t backlight_id, struct backlight_info *info);
 void vdpy_destroy_res(int dmabuf_fd);
 void vdpy_create_res(int dmabuf_fd);
 int vdpy_deinit(int handle);
+void vdpy_get_plane_info(int handle, int scanout_id, uint32_t *size, uint32_t *num, uint32_t *info);
+void vdpy_get_plane_rotation(int handle, int scanout_id, int plane_id, uint64_t *rotation, uint32_t *count);
+void vdpy_update_sprite(int handle, int scanout_id, int plane_id, struct surface *surf);
+void vdpy_sprite_flush_sync(int handle, int scanout_id);
+bool vdpy_mplane_check();
+void vdpy_mplane_fallback();
 void gfx_ui_deinit();
 
 #endif /* _VDISPLAY_H_ */

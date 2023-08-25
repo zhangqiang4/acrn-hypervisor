@@ -599,6 +599,56 @@ vdpy_get_display_info(int handle, int scanout_id, struct display_info *info)
 	}
 }
 
+void vdpy_set_rotation(int handle,int scanout_id, int plane_id, uint64_t rotation)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_set_rotation)
+		vscr->vscreen_ops->vdpy_set_rotation(vscr->backend, plane_id, rotation);
+}
+
+void
+vdpy_get_plane_rotation(int handle, int scanout_id, int plane_id, uint64_t *rotation, uint32_t *count)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_get_plane_rotation) {
+		vscr->vscreen_ops->vdpy_get_plane_rotation(vscr->backend, plane_id, rotation, count);
+	} else {
+		*rotation= 0;
+	}
+}
+
+void vdpy_sprite_flush_sync(int handle, int scanout_id)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_sprite_flush_sync)
+		vscr->vscreen_ops->vdpy_sprite_flush_sync(vscr->backend);
+}
+
+void vdpy_update_sprite(int handle, int scanout_id, int plane_id, struct surface *surf)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_update_sprite)
+		vscr->vscreen_ops->vdpy_update_sprite(vscr->backend, plane_id, surf);
+
+}
+
+void
+vdpy_get_plane_info(int handle, int scanout_id, uint32_t *size, uint32_t *num, uint32_t *info)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_get_plane_info)
+		vscr->vscreen_ops->vdpy_get_plane_info(vscr->backend, size, num, info);
+	else {
+		*size = 0;
+		*num = 0;
+	}
+}
+
 int
 vdpy_backlight_update_status(int handle, uint32_t backlight_id, struct backlight_properties *props)
 {
@@ -1105,11 +1155,11 @@ void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id)
 	vscr->vscreen_ops->vdpy_set_modifier(vscr->backend, modifier);
 }
 
-void vdpy_set_scaling(int handle,int scanout_id, int x1, int y1, int x2, int y2)
+void vdpy_set_scaling(int handle,int scanout_id, int plane_id, int x1, int y1, int x2, int y2)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
-	vscr->vscreen_ops->vdpy_set_scaling(vscr->backend, x1, y1, x2, y2);
+	vscr->vscreen_ops->vdpy_set_scaling(vscr->backend, plane_id, x1, y1, x2, y2);
 }
 
 static struct vdpy_backend *vdpy_find_backend(char *name)
@@ -1152,6 +1202,26 @@ static void deinit_backends()
 		pdp = *pdpp;
 		if(pdp->deinit)
 			pdp->deinit();
+	}
+}
+
+bool vdpy_mplane_check()
+{
+	struct vdpy_backend **pdpp, *pdp;
+	SET_FOREACH(pdpp, vdpy_backend_set) {
+		pdp = *pdpp;
+		if(pdp->mplane_check)
+			return pdp->mplane_check();
+	}
+}
+
+void vdpy_mplane_fallback()
+{
+	struct vdpy_backend **pdpp, *pdp;
+	SET_FOREACH(pdpp, vdpy_backend_set) {
+		pdp = *pdpp;
+		if(pdp->mplane_fallback)
+			pdp->mplane_fallback();
 	}
 }
 
