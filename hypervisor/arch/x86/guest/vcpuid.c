@@ -642,9 +642,6 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 			case CPUID_CACHE:
 				result = set_vcpuid_cache(vm);
 				break;
-			/* MONITOR/MWAIT */
-			case 0x05U:
-				break;
 			/* 0x06U */
 			case CPUID_THERMAL_POWER:
 				result = set_vcpuid_thermal_power(vm);
