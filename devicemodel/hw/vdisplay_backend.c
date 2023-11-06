@@ -761,8 +761,9 @@ static void vdpy_deinit_thread()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->deinit_thread)
+		if(pdp->deinit_thread) {
 			pdp->deinit_thread();
+		}
 	}
 }
 
@@ -1136,6 +1137,7 @@ void vdpy_surface_set_vga(int handle, int scanout_id, struct surface *surf)
 void vdpy_surface_update_vga(int handle, int scanout_id, struct surface *surf)
 {
 	struct screen *vscr;
+
 	if (handle != vdpy.s.n_connect) {
 		return;
 	}
@@ -1200,8 +1202,9 @@ static void deinit_backends()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->deinit)
+		if(pdp->deinit) {
 			pdp->deinit();
+		}
 	}
 }
 
@@ -1307,6 +1310,10 @@ int vdpy_parse_cmd_option(const char *opts)
                        scr->name = "lease";
                        vdpy.scrs_num++;
                        vdpy.pipe_num++;
+
+		} else if (tmp && strcasestr(str, "projection=")) {
+			scr->name = "projection";
+			vdpy.scrs_num++;
 		}
 
 		if(scr->name)
