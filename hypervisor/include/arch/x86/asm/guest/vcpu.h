@@ -561,7 +561,7 @@ void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs);
  * @param[inout] vcpu pointer to vcpu data structure
  * @param[in] mode the reset mode
  */
-void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum reset_mode mode);
+void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 
 bool sanitize_cr0_cr4_pattern(void);
 
@@ -655,7 +655,7 @@ void offline_vcpu(struct acrn_vcpu *vcpu);
  * @pre vcpu != NULL
  * @pre vcpu->state == VCPU_ZOMBIE
  */
-void reset_vcpu(struct acrn_vcpu *vcpu, enum reset_mode mode);
+void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 
 /**
  * @brief pause the vcpu and set new state
