@@ -8,7 +8,7 @@
 #define EFI_MMAP_H
 #include <types.h>
 
-#define MAX_EFI_MMAP_ENTRIES	350U
+#define MAX_EFI_MMAP_ENTRIES 500U
 
 void init_efi_mmap_entries(struct efi_info *uefi_info);
 
