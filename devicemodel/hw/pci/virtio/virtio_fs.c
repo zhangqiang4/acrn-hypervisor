@@ -23,12 +23,6 @@ static int virtio_fs_debug;
 #define VIRTIO_FS_S_VHOSTCAPS 	((1UL << VIRTIO_F_VERSION_1) | (1 << VIRTIO_RING_F_INDIRECT_DESC) | \
 	(1 << VIRTIO_RING_F_EVENT_IDX) | (1 << VIRTIO_F_NOTIFY_ON_EMPTY))
 
-/* Queue definitions.
- */
-#define VIRTIO_FS_HIPRIQ       0
-#define VIRTIO_FS_REQUESTQ     1
-#define VIRTIO_FS_QNUM         2
-
 /*
  * Virtqueue size.
  */
@@ -50,7 +44,7 @@ struct virtio_fs_config {
  */
 struct vhost_fs {
 	struct vhost_dev vhost_dev;
-	struct vhost_vq vqs[VIRTIO_FS_QNUM];
+	struct vhost_vq *vqs;
 	bool vhost_started;
 };
 
@@ -59,13 +53,15 @@ struct vhost_fs {
  */
 struct virtio_fs {
 	struct virtio_base base;
-	struct virtio_vq_info queues[VIRTIO_FS_QNUM];
+	int num_queues;
+	struct virtio_vq_info *queues;
 	pthread_mutex_t mtx;
 
 	struct virtio_fs_config config;
 	struct vhost_fs *vhost_fs;
 	int socket_fd;
 	uint64_t features; /* negotiated features */
+	struct virtio_ops ops;
 };
 
 struct virtio_fs_slot {
@@ -87,23 +83,11 @@ static int virtio_fs_cfgwrite(void *vdev, int offset, int size, uint32_t value);
 static void virtio_fs_neg_features(void *vdev, uint64_t negotiated_features);
 static void virtio_fs_set_status(void *vdev, uint64_t status);
 static void virtio_fs_teardown(void *param);
-static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int socket_fd);
+static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int socket_fd, int num_queues);
 static int vhost_fs_deinit(struct vhost_fs *vhost_fs);
 static int vhost_fs_start(struct vhost_fs *vhost_fs);
 static int vhost_fs_stop(struct vhost_fs *vhost_fs);
 static int virtio_fs_index_of(uint16_t bdf);
-
-static struct virtio_ops virtio_fs_ops = {
-	"virtio_fs", /* our name */
-	VIRTIO_FS_QNUM, /* supported virtqueue number */
-	sizeof(struct virtio_fs_config), /* config reg size */
-	virtio_fs_reset, /* reset */
-	NULL, /* device-wide qnotify */
-	virtio_fs_cfgread, /* read virtio config */
-	virtio_fs_cfgwrite, /* write virtio config */
-	virtio_fs_neg_features, /* apply negotiated features */
-	virtio_fs_set_status, /* called on guest set status */
-};
 
 static int vhost_user_socket_connect(char *socket_path)
 {
@@ -150,7 +134,7 @@ static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts, uint16_t bdf)
 	char *opt = NULL;
 	bool filled_tag = false;
 	bool filled_socket = false;
-	int socket_fd, idx;
+	int socket_fd, idx, num_queues;
 
 	if (opts == NULL) {
 		WPRINTF(("virtio_fs: the launch opts is NULL\n"));
@@ -162,6 +146,9 @@ static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts, uint16_t bdf)
 		WPRINTF(("virtio_fs: strdup returns NULL\n"));
 		return -1;
 	}
+
+	/* By default, the number of queues is 2, one for high-priority queue, one for request queue. */
+	num_queues = 2;
 
 	while ((opt = strsep(&vtopts, ",")) != NULL) {
 		if (!strncmp(opt, "tag", 3)) {
@@ -212,10 +199,19 @@ static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts, uint16_t bdf)
 			fs->socket_fd = socket_fd;
 			DPRINTF(("virtio_fs: socket fd is %d\n", socket_fd));
 			filled_socket = true;
+		} else if (!strncmp(opt, "num_queues", strlen("num_queues"))) {
+			(void)strsep(&opt, "=");
+			if (!opt)
+				goto opts_err;
+			if (dm_strtoi(opt, NULL, 10, &num_queues) || (num_queues < 2)) {
+				WPRINTF(("%s: invalid num queues, at least 2, but assigned to %s\n", __func__, opt));
+				goto opts_err;
+			}
 		} else {
 			WPRINTF(("virtio_fs: unknown args %s\n", opt));
 		}
 	};
+	fs->num_queues = num_queues;
 
 	if (filled_socket && filled_tag) {
 		free(devopts);
@@ -242,12 +238,25 @@ static int virtio_fs_index_of(uint16_t bdf)
 	return idx;
 }
 
+static void
+virtio_fs_init_ops(struct virtio_fs *fs)
+{
+	fs->ops.name = "virtio_fs";
+	fs->ops.nvq = fs->num_queues;
+	fs->ops.cfgsize = sizeof(struct virtio_fs_config);
+	fs->ops.reset = virtio_fs_reset;
+	fs->ops.cfgread = virtio_fs_cfgread;
+	fs->ops.cfgwrite = virtio_fs_cfgwrite;
+	fs->ops.apply_features = virtio_fs_neg_features;
+	fs->ops.set_status = virtio_fs_set_status;
+}
+
 static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	struct virtio_fs *fs = NULL;
 	pthread_mutexattr_t attr;
 	uint16_t bdf;
-	int rc;
+	int rc, i;
 
 	fs = calloc(1, sizeof(struct virtio_fs));
 	if (!fs) {
@@ -275,17 +284,25 @@ static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (rc)
 		WPRINTF(("virtio_fs: pthread_mutex_init failed with error %d!\n", rc));
 
-	virtio_linkup(&fs->base, &virtio_fs_ops, fs, dev, fs->queues, BACKEND_VHOST_USER);
+	fs->queues = calloc(fs->num_queues, sizeof(struct virtio_vq_info));
+	if (!fs->queues) {
+		WPRINTF(("virtio_fs: calloc fs->queues returns NULL\n"));
+		free(fs);
+		return -1;
+	}
+
+	virtio_fs_init_ops(fs);
+	virtio_linkup(&fs->base, &(fs->ops), fs, dev, fs->queues, BACKEND_VHOST_USER);
 	fs->base.mtx = &fs->mtx;
 
 	fs->base.device_caps = VIRTIO_FS_S_VHOSTCAPS;
 
-	fs->queues[VIRTIO_FS_HIPRIQ].qsize = VIRTIO_FS_RINGSZ;
-	fs->queues[VIRTIO_FS_HIPRIQ].notify = vhost_fs_handle_output;
-	fs->queues[VIRTIO_FS_REQUESTQ].qsize = VIRTIO_FS_RINGSZ;
-	fs->queues[VIRTIO_FS_REQUESTQ].notify = vhost_fs_handle_output;
+	for (i = 0; i < fs->num_queues; i++) {
+		fs->queues[i].qsize = VIRTIO_FS_RINGSZ;
+		fs->queues[i].notify = vhost_fs_handle_output;
+	}
 
-	fs->config.num_request_queues = 1;
+	fs->config.num_request_queues = fs->num_queues - 1;
 
 	/* initialize config space */
 	pci_set_cfgdata16(dev, PCIR_DEVICE, VIRTIO_TYPE_FS + 0x1040);
@@ -305,7 +322,7 @@ static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		return -1;
 	}
 
-	fs->vhost_fs = vhost_fs_init(&fs->base, 0, fs->socket_fd);
+	fs->vhost_fs = vhost_fs_init(&fs->base, 0, fs->socket_fd, fs->num_queues);
 	if (!fs->vhost_fs) {
 		WPRINTF(("vhost user fs init failed."));
 		free(fs);
@@ -388,10 +405,12 @@ static void virtio_fs_teardown(void *param)
 	if (!fs)
 		return;
 
+	if (fs->queues)
+		free(fs->queues);
 	free(fs);
 }
 
-static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int socket_fd)
+static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int socket_fd, int num_queues)
 {
 	struct vhost_fs *vhost_fs = NULL;
 	uint64_t dev_features = VIRTIO_FS_S_VHOSTCAPS;
@@ -403,8 +422,14 @@ static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int 
 		goto fail;
 	}
 
+	vhost_fs->vqs = calloc(num_queues, sizeof(struct vhost_vq));
+	if (!vhost_fs->vqs) {
+		WPRINTF(("vhost user fs calloc vhost_fs->vqs failed."));
+		goto fail;
+	}
+
 	/* pre-init before calling vhost_dev_init */
-	vhost_fs->vhost_dev.nvqs = ARRAY_SIZE(vhost_fs->vqs);
+	vhost_fs->vhost_dev.nvqs = num_queues;
 	vhost_fs->vhost_dev.vqs = vhost_fs->vqs;
 
 	rc = vhost_dev_init(&vhost_fs->vhost_dev, base, socket_fd, vq_idx, dev_features, 0, 0);
@@ -415,6 +440,8 @@ static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int 
 
 	return vhost_fs;
 fail:
+	if(vhost_fs && vhost_fs->vqs)
+		free(vhost_fs->vqs);
 	if (vhost_fs)
 		free(vhost_fs);
 	return NULL;
@@ -479,6 +506,8 @@ static void virtio_fs_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts
 			 * it is not what we want when just rebooting VM
 			 * let the acrn-dm releae the socket_fd when it exits
 			 */
+			if(fs->vhost_fs->vqs)
+				free(fs->vhost_fs->vqs);
 			free(fs->vhost_fs);
 			fs->vhost_fs = NULL;
 		}
