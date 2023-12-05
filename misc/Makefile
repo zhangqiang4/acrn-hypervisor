@@ -19,12 +19,15 @@ ifeq ($(RELEASE),n)
   DEBUG_OUT ?= $(shell mkdir -p $(OUT_DIR)/debug_tools;cd $(OUT_DIR)/debug_tools;pwd)
 endif
 
-.PHONY: all acrn-manager acrnbridge life_mngr acrn-crashlog acrnlog acrntrace
+.PHONY: all acrn-manager acrnbridge life_mngr acrn-crashlog acrnlog acrntrace ivshmem-timesync
 ifeq ($(RELEASE),n)
-all: acrn-manager acrnbridge acrn-crashlog acrnlog acrntrace
+all: acrn-manager acrnbridge acrn-crashlog acrnlog acrntrace ivshmem-timesync
 else
 all: acrn-manager acrnbridge
 endif
+
+ivshmem-timesync:
+	$(MAKE) -C $(T)/services/ivshmem-timesync OUT_DIR=$(SERVICES_OUT)
 
 acrn-manager:
 	$(MAKE) -C $(T)/services/acrn_manager OUT_DIR=$(SERVICES_OUT) RELEASE=$(RELEASE)
@@ -46,6 +49,7 @@ acrntrace:
 
 .PHONY: clean
 clean:
+	$(MAKE) -C $(T)/services/ivshmem-timesync OUT_DIR=$(SERVICES_OUT) clean
 	$(MAKE) -C $(T)/services/acrn_manager OUT_DIR=$(SERVICES_OUT) clean
 	$(MAKE) -C $(T)/services/life_mngr OUT_DIR=$(SERVICES_OUT) clean
 	$(MAKE) -C $(T)/debug_tools/acrn_crashlog OUT_DIR=$(DEBUG_OUT) clean
@@ -56,10 +60,13 @@ clean:
 .PHONY: install
 ifeq ($(RELEASE),n)
 install: acrn-manager-install acrnbridge-install acrn-crashlog-install \
-	acrnlog-install acrntrace-install
+	acrnlog-install acrntrace-install ivshmem-timesync-install
 else
 install: acrn-manager-install acrnbridge-install
 endif
+
+ivshmem-timesync-install:
+	$(MAKE) -C $(T)/services/ivshmem-timesync OUT_DIR=$(SERVICES_OUT) install
 
 acrn-manager-install:
 	$(MAKE) -C $(T)/services/acrn_manager OUT_DIR=$(SERVICES_OUT) install

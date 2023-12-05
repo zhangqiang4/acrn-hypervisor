@@ -6,6 +6,7 @@ usr/bin/debugger
 usr/bin/usercrash_c
 usr/bin/usercrash_s
 usr/bin/usercrash-wrapper
+usr/bin/ivshmem-timesync
 usr/share/acrn/crashlog/*
 lib/systemd/system/acrnlog.service
 lib/systemd/system/acrnprobe.service
