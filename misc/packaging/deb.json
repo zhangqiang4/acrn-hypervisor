@@ -134,5 +134,9 @@
 "launch_zephyr.sh":{
 			"source":"acrn-hypervisor/devicemodel/samples/nuc/launch_zephyr.sh",
 			"target":"usr/share/acrn/samples/nuc"
+			},
+"update_usb_port_sound_card.py":{
+			"source":"misc/packaging/update_usb_port_sound_card.py",
+			"target":"usr/share/acrn/udev"
 			}
 }
