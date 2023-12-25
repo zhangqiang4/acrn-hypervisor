@@ -77,7 +77,10 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
 			}
 			vector = rte.bits.vector;
 			dest = rte.bits.dest_field;
-			vlapic_receive_intr(vioapic->vm, level, dest, phys, delmode, vector, false);
+			int32_t ret = vlapic_receive_intr(vioapic->vm, level, dest, phys, delmode, vector, false);
+			if (ret != 0) {
+				pr_err("%s: fail to generate interrupt", __func__);
+			}
 		}
 	}
 }

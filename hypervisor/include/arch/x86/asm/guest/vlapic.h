@@ -178,7 +178,7 @@ int32_t vlapic_set_local_intr(struct acrn_vm *vm, uint16_t vcpu_id_arg, uint32_t
 int32_t vlapic_inject_msi(struct acrn_vm *vm, uint64_t addr, uint64_t data);
 
 
-void vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest,
+int32_t vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest,
 		bool phys, uint32_t delmode, uint32_t vec, bool rh);
 
 /**

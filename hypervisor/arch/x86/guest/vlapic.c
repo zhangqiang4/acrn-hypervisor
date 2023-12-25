@@ -1719,7 +1719,7 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 	return ret;
 }
 
-void
+int32_t
 vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 		uint32_t delmode, uint32_t vec, bool rh)
 {
@@ -1727,12 +1727,14 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 	uint16_t vcpu_id;
 	uint64_t dmask;
 	struct acrn_vcpu *target_vcpu;
+	int32_t ret = 0;
 
 	if ((delmode != IOAPIC_RTE_DELMODE_FIXED) &&
 			(delmode != IOAPIC_RTE_DELMODE_LOPRI) &&
 			(delmode != IOAPIC_RTE_DELMODE_EXINT)) {
 		dev_dbg(DBG_LEVEL_VLAPIC,
 			"vlapic intr invalid delmode %#x", delmode);
+		ret = -1;
 	} else {
 		lowprio = (delmode == IOAPIC_RTE_DELMODE_LOPRI) || rh;
 
@@ -1742,24 +1744,56 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 		 * 'dest' in the legacy xAPIC format.
 		 */
 		dmask = vlapic_calc_dest_noshort(vm, false, dest, phys, lowprio);
+		dev_dbg(DBG_LEVEL_VLAPIC, "%s: target_vcpu destination mask 0x%016lx", __func__, dmask);
 
-		for (vcpu_id = 0U; vcpu_id < vm->hw.created_vcpus; vcpu_id++) {
-			struct acrn_vlapic *vlapic;
-			if ((dmask & (1UL << vcpu_id)) != 0UL) {
+		enum vm_vlapic_mode vlapic_mode  = check_vm_vlapic_mode(vm);
+		bool lapic_pt = is_lapic_pt_configured(vm);
+		if (lapic_pt && (vlapic_mode == VM_VLAPIC_X2APIC)) {
+			union apic_icr icr;
+			uint32_t pdest = 0;
+			vcpu_id = ffs64(dmask);
+			while (vcpu_id != INVALID_BIT_INDEX) {
+				bitmap_clear_nolock(vcpu_id, &dmask);
 				target_vcpu = vcpu_from_vid(vm, vcpu_id);
+				pdest |= per_cpu(lapic_ldr, pcpuid_from_vcpu(target_vcpu));
+				vcpu_id = ffs64(dmask);
+			}
+			icr.value = 0UL;
+			icr.bits.dest_field = pdest;
+			icr.bits.vector = vec;
+			icr.bits.delivery_mode = delmode;
+			icr.bits.destination_mode = IOAPIC_RTE_DESTMODE_LOGICAL;
+			icr.bits.level = level;
 
-				/* only make request when vlapic enabled */
-				vlapic = vcpu_vlapic(target_vcpu);
-				if (vlapic_enabled(vlapic)) {
-					if (delmode == IOAPIC_RTE_DELMODE_EXINT) {
-						vcpu_inject_extint(target_vcpu);
-					} else {
-						vlapic_set_intr(target_vcpu, vec, level);
+			msr_write(MSR_IA32_EXT_APIC_ICR, icr.value);
+			dev_dbg(DBG_LEVEL_LAPICPT, "%s: icr.value 0x%016lx", __func__, icr.value);
+		} else if ((lapic_pt && (vlapic_mode == VM_VLAPIC_XAPIC)) || !lapic_pt) {
+			for (vcpu_id = 0U; vcpu_id < vm->hw.created_vcpus; vcpu_id++) {
+				struct acrn_vlapic *vlapic;
+				if ((dmask & (1UL << vcpu_id)) != 0UL) {
+					target_vcpu = vcpu_from_vid(vm, vcpu_id);
+
+					/* only make request when vlapic enabled */
+					vlapic = vcpu_vlapic(target_vcpu);
+					if (vlapic_enabled(vlapic)) {
+						if (delmode == IOAPIC_RTE_DELMODE_EXINT) {
+							vcpu_inject_extint(target_vcpu);
+						} else {
+							vlapic_set_intr(target_vcpu, vec, level);
+						}
 					}
 				}
 			}
+		} else {
+			/*
+			 * Returns error for VM_VLAPIC_DISABLED and VM_VLAPIC_TRANSITION
+			 * cases when LAPIC PT configured
+			 */
+			ret = -1;
 		}
 	}
+
+	return ret;
 }
 
 /*
@@ -1826,113 +1860,6 @@ vlapic_set_local_intr(struct acrn_vm *vm, uint16_t vcpu_id_arg, uint32_t lvt_ind
 }
 
 /**
- * @brief Inject MSI to target VM for case that local APIC is virtualized.
- *
- * @param[in] vm   Pointer to VM data structure
- * @param[in] addr MSI address.
- * @param[in] msg  MSI data.
- *
- * @retval 0 on success.
- * @retval -1 on error that addr is invalid.
- *
- * @pre vm != NULL
- */
-static int32_t inject_msi_for_non_lapic_pt(struct acrn_vm *vm, uint64_t addr, uint64_t msg)
-{
-	uint32_t delmode, vec;
-	uint32_t dest;
-	bool phys, rh;
-	int32_t ret;
-	union msi_addr_reg address;
-	union msi_data_reg data;
-
-	address.full = addr;
-	data.full = (uint32_t) msg;
-	dev_dbg(DBG_LEVEL_VLAPIC, "lapic MSI addr: %#lx msg: %#lx", address.full, data.full);
-
-	if (address.bits.addr_base == MSI_ADDR_BASE) {
-		/*
-		 * Extract the x86-specific fields from the MSI addr/msg
-		 * params according to the Intel Arch spec, Vol3 Ch 10.
-		 *
-		 * The PCI specification does not support level triggered
-		 * MSI/MSI-X so ignore trigger level in 'msg'.
-		 *
-		 * The 'dest' is interpreted as a logical APIC ID if both
-		 * the Redirection Hint and Destination Mode are '1' and
-		 * physical otherwise.
-		 */
-		dest = address.bits.dest_field;
-		phys = (address.bits.dest_mode == MSI_ADDR_DESTMODE_PHYS);
-		rh = (address.bits.rh == MSI_ADDR_RH);
-
-		delmode = (uint32_t)(data.bits.delivery_mode);
-		vec = (uint32_t)(data.bits.vector);
-
-		dev_dbg(DBG_LEVEL_VLAPIC, "lapic MSI %s dest %#x, vec %u",
-			phys ? "physical" : "logical", dest, vec);
-
-		vlapic_receive_intr(vm, LAPIC_TRIG_EDGE, dest, phys, delmode, vec, rh);
-		ret = 0;
-	} else {
-		dev_dbg(DBG_LEVEL_VLAPIC, "lapic MSI invalid addr %#lx", address.full);
-	        ret = -1;
-	}
-
-	return ret;
-}
-
-/**
- *@pre Pointer vm shall point to Service VM
- */
-static void inject_msi_for_lapic_pt(struct acrn_vm *vm, uint64_t addr, uint64_t data)
-{
-	union apic_icr icr;
-	struct acrn_vcpu *vcpu;
-	union msi_addr_reg vmsi_addr;
-	union msi_data_reg vmsi_data;
-	uint64_t vdmask = 0UL;
-	uint32_t vdest, dest = 0U;
-	uint16_t vcpu_id;
-	bool phys;
-
-	vmsi_addr.full = addr;
-	vmsi_data.full = (uint32_t)data;
-
-	dev_dbg(DBG_LEVEL_LAPICPT, "%s: msi_addr 0x%016lx, msi_data 0x%016lx",
-		__func__, addr, data);
-
-	if (vmsi_addr.bits.addr_base == MSI_ADDR_BASE) {
-		vdest = vmsi_addr.bits.dest_field;
-		phys = (vmsi_addr.bits.dest_mode == MSI_ADDR_DESTMODE_PHYS);
-		/*
-		 * calculate all reachable destination vcpu.
-		 * the delivery mode of vmsi will be forwarded to ICR delievry field
-		 * and handled by hardware.
-		 */
-		vdmask = vlapic_calc_dest_noshort(vm, false, vdest, phys, false);
-		dev_dbg(DBG_LEVEL_LAPICPT, "%s: vcpu destination mask 0x%016lx", __func__, vdmask);
-
-		vcpu_id = ffs64(vdmask);
-		while (vcpu_id != INVALID_BIT_INDEX) {
-			bitmap_clear_nolock(vcpu_id, &vdmask);
-			vcpu = vcpu_from_vid(vm, vcpu_id);
-			dest |= per_cpu(lapic_ldr, pcpuid_from_vcpu(vcpu));
-			vcpu_id = ffs64(vdmask);
-		}
-
-		icr.value = 0UL;
-		icr.bits.dest_field = dest;
-		icr.bits.vector = vmsi_data.bits.vector;
-		icr.bits.delivery_mode = vmsi_data.bits.delivery_mode;
-		icr.bits.destination_mode = MSI_ADDR_DESTMODE_LOGICAL;
-
-		msr_write(MSR_IA32_EXT_APIC_ICR, icr.value);
-		dev_dbg(DBG_LEVEL_LAPICPT, "%s: icr.value 0x%016lx", __func__, icr.value);
-	}
-}
-
-/**
  * @brief Inject MSI to target VM for both virtual local APIC and local APIC pass-through cases.
  *
  * @param[in] vm   Pointer to VM data structure.
@@ -1946,30 +1873,29 @@ static void inject_msi_for_lapic_pt(struct acrn_vm *vm, uint64_t addr, uint64_t 
  */
 int32_t vlapic_inject_msi(struct acrn_vm *vm, uint64_t addr, uint64_t data)
 {
-	int32_t ret = -1;
+	int32_t ret;
+	union msi_addr_reg vmsi_addr;
+	union msi_data_reg vmsi_data;
+	uint32_t vdest, delmode, vec;
+	bool phys, rh;
 
-	/* For target cpu with lapic pt, send ipi instead of injection via vlapic */
-	if (is_lapic_pt_configured(vm)) {
-		enum vm_vlapic_mode vlapic_mode = check_vm_vlapic_mode(vm);
+	vmsi_addr.full = addr;
+	vmsi_data.full = (uint32_t)data;
 
-		if (vlapic_mode == VM_VLAPIC_X2APIC) {
-			/*
-			 * All the vCPUs of VM are in x2APIC mode and LAPIC is PT
-			 * Inject the vMSI as an IPI directly to VM
-			 */
-			inject_msi_for_lapic_pt(vm, addr, data);
-			ret = 0;
-		} else if (vlapic_mode == VM_VLAPIC_XAPIC) {
-			/*
-			 * All the vCPUs of VM are in xAPIC and use vLAPIC
-			 * Inject using vLAPIC
-			 */
-			ret = inject_msi_for_non_lapic_pt(vm, addr, data);
-		} else {
-			/* Returns error for VM_VLAPIC_DISABLED and VM_VLAPIC_TRANSITION cases*/
-		}
+	dev_dbg(DBG_LEVEL_VLAPIC, "%s: vmsi_addr 0x%016lx, vmsi_data 0x%016lx",
+		__func__, addr, data);
+
+	if (vmsi_addr.bits.addr_base == MSI_ADDR_BASE) {
+		vdest = vmsi_addr.bits.dest_field;
+		phys = (vmsi_addr.bits.dest_mode == MSI_ADDR_DESTMODE_PHYS);
+		rh = (vmsi_addr.bits.rh == MSI_ADDR_RH);
+		delmode = (uint32_t)(vmsi_data.bits.delivery_mode);
+		vec = (uint32_t)(vmsi_data.bits.vector);
+
+		ret = vlapic_receive_intr(vm, LAPIC_TRIG_EDGE, vdest, phys, delmode, vec, rh);
 	} else {
-		ret = inject_msi_for_non_lapic_pt(vm, addr, data);
+		dev_dbg(DBG_LEVEL_VLAPIC, "lapic MSI invalid addr %#lx", vmsi_addr.full);
+	        ret = -1;
 	}
 
 	return ret;
