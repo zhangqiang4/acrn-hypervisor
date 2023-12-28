@@ -1640,6 +1640,32 @@ fail:
 static int
 acpiphp_deinit(struct vmctx *ctx)
 {
+	struct inout_port port_pciu, port_pcid, port_bus, port_slot;
+
+	memset(&port_pciu, 0, sizeof(struct inout_port));
+	port_pciu.name = "acpiphp";
+	port_pciu.port = 0x0E00;
+	port_pciu.size = 4;
+	unregister_inout(&port_pciu);
+
+	memset(&port_pcid, 0, sizeof(struct inout_port));
+	port_pcid.name = "acpiphp";
+	port_pcid.port = 0x0E04;
+	port_pcid.size = 4;
+	unregister_inout(&port_pcid);
+
+	memset(&port_bus, 0, sizeof(struct inout_port));
+	port_bus.name = "acpiphp";
+	port_bus.port = 0x0E08;
+	port_bus.size = 4;
+	unregister_inout(&port_bus);
+
+	memset(&port_slot, 0, sizeof(struct inout_port));
+	port_slot.name = "acpiphp";
+	port_slot.port = 0x0E0C;
+	port_slot.size = 4;
+	unregister_inout(&port_slot);
+
 	return 0;
 }
 
@@ -2086,6 +2112,7 @@ deinit_pci(struct vmctx *ctx)
 			}
 		}
 	}
+	acpiphp_deinit(ctx);
 }
 
 static void
