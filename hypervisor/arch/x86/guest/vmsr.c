@@ -831,7 +831,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_PLATFORM_INFO:
 	{
-		if (is_service_vm(vcpu->vm)) {
+		if (is_service_vm(vcpu->vm) || is_vhwp_configured(vcpu->vm)) {
 			v = msr_read(msr);
 			v &= MSR_PLATFORM_INFO_MAX_NON_TURBO_LIM_RATIO_MASK |
 			     MSR_PLATFORM_INFO_MAX_EFFICIENCY_RATIO_MASK |
