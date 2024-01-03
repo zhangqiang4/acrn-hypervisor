@@ -33,6 +33,8 @@ static int virtio_fs_debug;
 #define VIRTIO_FS_RINGSZ       256
 #define VIRTIO_FS_MAXSEGS      256
 
+#define MAX_VIRTIO_FS_INSTANCES	16
+
 struct virtio_fs_config {
 	/* Filesystem name (UTF-8, not NUL-terminated, padded with NULs) */
 	__u8 tag[36];
@@ -47,7 +49,6 @@ struct virtio_fs_config {
 struct vhost_fs {
 	struct vhost_dev vhost_dev;
 	struct vhost_vq vqs[VIRTIO_FS_QNUM];
-	int socket_fd;
 	bool vhost_started;
 };
 
@@ -61,10 +62,22 @@ struct virtio_fs {
 
 	struct virtio_fs_config config;
 	struct vhost_fs *vhost_fs;
+	int socket_fd;
 	uint64_t features; /* negotiated features */
 };
 
-static int g_socket_fd = -1;
+struct virtio_fs_slot {
+	uint16_t pci_bdf;
+	int	socket_fd;
+};
+
+struct vfs_slots {
+	struct virtio_fs_slot slots[MAX_VIRTIO_FS_INSTANCES];
+	int nr_slots;
+};
+
+static struct vfs_slots g_vfs_slots;
+
 
 static void virtio_fs_reset(void *vdev);
 static int virtio_fs_cfgread(void *vdev, int offset, int size, uint32_t *retval);
@@ -76,6 +89,7 @@ static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int 
 static int vhost_fs_deinit(struct vhost_fs *vhost_fs);
 static int vhost_fs_start(struct vhost_fs *vhost_fs);
 static int vhost_fs_stop(struct vhost_fs *vhost_fs);
+static int virtio_fs_index_of(uint16_t bdf);
 
 static struct virtio_ops virtio_fs_ops = {
 	"virtio_fs", /* our name */
@@ -123,14 +137,14 @@ static void vhost_fs_handle_output(void *vdev, struct virtio_vq_info *vq)
 	/* do nothing */
 }
 
-static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts)
+static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts, uint16_t bdf)
 {
 	char *devopts = NULL;
 	char *vtopts = NULL;
 	char *opt = NULL;
 	bool filled_tag = false;
 	bool filled_socket = false;
-	int socket_fd;
+	int socket_fd, idx;
 
 	if (opts == NULL) {
 		WPRINTF(("virtio_fs: the launch opts is NULL\n"));
@@ -159,19 +173,36 @@ static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts)
 			if (!opt)
 				goto opts_err;
 
+			idx = virtio_fs_index_of(bdf);
 
-			if (g_socket_fd > 0) {
-				socket_fd = g_socket_fd;
+			/* For the socket connect action, for each virtio-fs slot instance,
+			 * we only connect once during the entire acrn-dm process lifetime.
+			 * It is due to the virtiofsd daemon design, the daemon only accepts
+			 * the first connection
+			 */
+			if (idx >= 0) {
+				socket_fd = g_vfs_slots.slots[idx].socket_fd;
+				DPRINTF(("virtio_fs: reuse this slot's socket and virtiofsd, slot:%d\n", bdf));
 			} else {
-				//@todo: this fd should be created in other function
 				socket_fd = vhost_user_socket_connect(opt);
-				g_socket_fd = socket_fd;
+				DPRINTF(("virtio_fs: first connect virtiofsd for this slot:%d\n", bdf));
+
+				if (socket_fd < 0) {
+					WPRINTF(("virtio_fs: socket connection failed\n"));
+					goto opts_err;
+				}
+
+				if (g_vfs_slots.nr_slots >= MAX_VIRTIO_FS_INSTANCES) {
+					WPRINTF(("virtio_fs: cannot support so many virtio-fs instances, "
+					"support MAX %d virtio_fs instances per VM\n", MAX_VIRTIO_FS_INSTANCES));
+					goto opts_err;
+				}
+				g_vfs_slots.slots[g_vfs_slots.nr_slots].pci_bdf = bdf;
+				g_vfs_slots.slots[g_vfs_slots.nr_slots++].socket_fd = socket_fd;
 			}
+
+			fs->socket_fd = socket_fd;
 			DPRINTF(("virtio_fs: socket fd is %d\n", socket_fd));
-			if (socket_fd < 0) {
-				WPRINTF(("virtio_fs: socket connection failed\n"));
-				goto opts_err;
-			}
 			filled_socket = true;
 		} else {
 			WPRINTF(("virtio_fs: unknown args %s\n", opt));
@@ -189,10 +220,25 @@ opts_err:
 	return -1;
 }
 
+static int virtio_fs_index_of(uint16_t bdf)
+{
+	int idx = -1;
+
+	for (int i = 0; i < g_vfs_slots.nr_slots; i++) {
+		if (g_vfs_slots.slots[i].pci_bdf == bdf) {
+			idx = i;
+			break;
+		}
+	}
+
+	return idx;
+}
+
 static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	struct virtio_fs *fs = NULL;
 	pthread_mutexattr_t attr;
+	uint16_t bdf;
 	int rc;
 
 	fs = calloc(1, sizeof(struct virtio_fs));
@@ -201,10 +247,14 @@ static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		return -1;
 	}
 
-	rc = virtio_fs_parse_opts(fs, opts);
+	bdf = PCI_BDF(dev->bus, dev->slot, dev->func);
+
+	rc = virtio_fs_parse_opts(fs, opts, bdf);
 	if (rc) {
+		free(fs);
 		return -1;
 	}
+
 	/* init mutex attribute properly to avoid deadlock */
 	rc = pthread_mutexattr_init(&attr);
 	if (rc)
@@ -243,10 +293,11 @@ static int virtio_fs_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	if (virtio_set_modern_bar(&fs->base, false)) {
 		WPRINTF(("vtfs: set modern bar error\n"));
+		free(fs);
 		return -1;
 	}
 
-	fs->vhost_fs = vhost_fs_init(&fs->base, 0, g_socket_fd);
+	fs->vhost_fs = vhost_fs_init(&fs->base, 0, fs->socket_fd);
 	if (!fs->vhost_fs) {
 		WPRINTF(("vhost user fs init failed."));
 		free(fs);
@@ -343,8 +394,6 @@ static struct vhost_fs *vhost_fs_init(struct virtio_base *base, int vq_idx, int 
 		WPRINTF(("vhost init out of memory\n"));
 		goto fail;
 	}
-
-	vhost_fs->socket_fd = socket_fd;
 
 	/* pre-init before calling vhost_dev_init */
 	vhost_fs->vhost_dev.nvqs = ARRAY_SIZE(vhost_fs->vqs);
