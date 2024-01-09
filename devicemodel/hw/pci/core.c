@@ -943,7 +943,7 @@ pci_emul_free_bars(struct pci_vdev *pdi)
 {
 	int i;
 
-	for (i = 0; i < PCI_BARMAX; i++)
+	for (i = 0; i <= PCI_BARMAX; i++)
 		pci_emul_free_bar(pdi, i);
 }
 
