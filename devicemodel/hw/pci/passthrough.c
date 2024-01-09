@@ -288,7 +288,6 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 {
 	int i, error = 0;
 	struct pci_vdev *dev;
-	struct pci_bar_io bar;
 	enum pcibar_type bartype;
 	uint64_t base, size;
 	uint32_t vbar_lo32;
@@ -299,28 +298,22 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 	 * Initialize BAR registers
 	 */
 	for (i = 0; i <= PCI_BARMAX; i++) {
-		bzero(&bar, sizeof(bar));
-		bar.sel = ptdev->sel;
-		bar.reg = PCIR_BAR(i);
-
-		bar.base = read_config(ptdev->phys_dev, bar.reg, 4);
-		bar.length = ptdev->phys_dev->regions[i].size;
-
-		if (PCI_BAR_IO(bar.base)) {
+		/* TODO:
+		 * PCI device mem type depends on libpciaccess, version check is needed
+		 * libpciaccess version is needed to be great than or equal to 0.17
+		 * otherwise is_64, is_IO, is_prefetchable will be always zero.
+		 */
+		if (ptdev->phys_dev->regions[i].is_IO) {
 			bartype = PCIBAR_IO;
-			base = bar.base & PCIM_BAR_IO_BASE;
 		} else {
-			switch (bar.base & PCIM_BAR_MEM_TYPE) {
-			case PCIM_BAR_MEM_64:
+			if (ptdev->phys_dev->regions[i].is_64) {
 				bartype = PCIBAR_MEM64;
-				break;
-			default:
+			} else {
 				bartype = PCIBAR_MEM32;
-				break;
 			}
-			base = bar.base & PCIM_BAR_MEM_BASE;
 		}
-		size = bar.length;
+		base = ptdev->phys_dev->regions[i].base_addr;
+		size = ptdev->phys_dev->regions[i].size;
 
 		if (bartype != PCIBAR_IO) {
 			/* note here PAGE_MASK is 0xFFFFF000 */
@@ -370,10 +363,11 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 		if (bartype == PCIBAR_MEM32 ||  bartype == PCIBAR_MEM64) {
 			vbar_lo32 = pci_get_cfgdata32(dev, PCIR_BAR(i));
 
-			if (bar.base & PCIM_BAR_MEM_PREFETCH)
+			if (ptdev->phys_dev->regions[i].is_prefetchable) {
 				vbar_lo32 |= PCIM_BAR_MEM_PREFETCH;
-			else
+			} else {
 				vbar_lo32 &= ~PCIM_BAR_MEM_PREFETCH;
+			}
 
 			pci_set_cfgdata32(dev, PCIR_BAR(i), vbar_lo32);
 		}
