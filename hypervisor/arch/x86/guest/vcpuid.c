@@ -172,6 +172,13 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 			if ((cr4_reserved_mask & CR4_PKS) != 0UL) {
 				entry->ecx &= ~CPUID_ECX_PKS;
 			}
+		} else if (subleaf == 1U) {
+			/* only expose AVX_VNNI */
+			cpuid_subleaf(leaf, subleaf, &entry->eax, &entry->ebx, &entry->ecx, &entry->edx);
+			entry->eax &= (CPUID_EAX_AVX_VNNI | CPUID_EAX_AVX512_BF16);
+			entry->ebx = 0U;
+			entry->ecx = 0U;
+			entry->edx = 0U;
 		} else {
 			entry->eax = 0U;
 			entry->ebx = 0U;
@@ -645,9 +652,9 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 			 /* 0x07U */
 			case CPUID_EXTEND_FEATURE:
 				init_vcpuid_entry(i, 0U, CPUID_CHECK_SUBLEAF, &entry);
-				if (entry.eax != 0U) {
-					pr_warn("vcpuid: only support subleaf 0 for cpu leaf 07h");
-					entry.eax = 0U;
+				if (entry.eax > 1U) {
+					pr_warn("vcpuid: only support subleaf 0,1 for cpu leaf 07h");
+					entry.eax = 1U;
 				}
 				if (is_vsgx_supported(vm->vm_id)) {
 					entry.ebx |= CPUID_EBX_SGX;
@@ -660,6 +667,11 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 				}
 #endif
 				result = set_vcpuid_entry(vm, &entry);
+				if ((result == 0) && (entry.eax == 1U)) {
+					/* init subleaf 1 */
+					init_vcpuid_entry(i, 1U, CPUID_CHECK_SUBLEAF, &entry);
+					result = set_vcpuid_entry(vm, &entry);
+				}
 				break;
 			/* 0x12U */
 			case CPUID_SGX_CAP:
