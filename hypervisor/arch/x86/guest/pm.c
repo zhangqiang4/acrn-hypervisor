@@ -11,6 +11,7 @@
 #include <logmsg.h>
 #include <platform_acpi_info.h>
 #include <asm/guest/guest_pm.h>
+#include <asm/guest/optee.h>
 #include <asm/per_cpu.h>
 #include <asm/platform_caps.h>
 
@@ -184,9 +185,16 @@ static inline void enter_s3(struct acrn_vm *vm, uint32_t pm1a_cnt_val, uint32_t 
 	guest_wakeup_vec32 = *(vm->pm.sx_state_data->wake_vector_32);
 	clac();
 
+	struct acrn_vm *tee_vm = get_tee_vm();
+	if (tee_vm != NULL) {
+		freeze_vm(tee_vm);
+	}
 	pause_vm(vm);	/* pause Service VM before suspend system */
 	host_enter_s3(vm->pm.sx_state_data, pm1a_cnt_val, pm1b_cnt_val);
 	resume_vm_from_s3(vm, guest_wakeup_vec32);	/* jump back to vm */
+	if (tee_vm != NULL) {
+		thaw_vm(tee_vm);
+	}
 	put_vm_lock(vm);
 }
 

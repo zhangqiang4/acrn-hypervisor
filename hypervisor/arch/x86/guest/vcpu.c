@@ -240,6 +240,7 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	uint64_t vmx_rev_id;
 
 	vcpu->launched = false;
+	vcpu->frozen = false;
 	vcpu->arch.nr_sipi = 0U;
 
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;

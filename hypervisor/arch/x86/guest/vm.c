@@ -1604,6 +1604,10 @@ void launch_vms(uint16_t pcpu_id)
 					service_vm_ptr = &vm_array[vm_id];
 				}
 
+				if ((vm_config->guest_flags & GUEST_FLAG_TEE) != 0) {
+					set_tee_vm(&vm_array[vm_id]);
+				}
+
 				/*
 				 * We can only start a VM when there is no error in prepare_vm.
 				 * Otherwise, print out the corresponding error.

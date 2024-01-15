@@ -106,6 +106,8 @@
 
 #define ACRN_REQUEST_SMP_CALL			11U
 
+#define ACRN_REQUEST_ENTER_REFRIGERATOR		12U
+
 /**
  * @}
  */
@@ -163,7 +165,8 @@ enum vm_cpu_mode {
 #define	VCPU_EVENT_VIRTUAL_INTERRUPT	1
 #define	VCPU_EVENT_SYNC_WBINVD		2
 #define VCPU_EVENT_SPLIT_LOCK		3
-#define	VCPU_EVENT_NUM			4
+#define	VCPU_EVENT_THAW			4
+#define	VCPU_EVENT_NUM			5
 
 
 enum reset_mode;
@@ -294,6 +297,7 @@ struct acrn_vcpu {
 
 	struct thread_object thread_obj;
 	bool launched; /* Whether the vcpu is launched on target pcpu */
+	bool frozen;
 
 	struct instr_emul_ctxt inst_ctxt;
 	struct io_request req; /* used by io/ept emulation */

@@ -147,6 +147,7 @@ enum vm_state {
 	VM_RUNNING,	/**< VM running */
 	VM_READY_TO_POWEROFF,     /**< RTVM only, it is trying to poweroff itself */
 	VM_PAUSED,	/**< VM paused */
+	VM_FROZEN,	/**< VM is forced to be frozen, currently only for TEE VM */
 };
 
 /**

@@ -14,6 +14,7 @@
 #include <asm/guest/vcpu.h>
 #include <asm/guest/vmcs.h>
 #include <asm/guest/vm.h>
+#include <asm/guest/optee.h>
 #include <asm/guest/lock_instr_emul.h>
 #include <trace.h>
 #include <logmsg.h>
@@ -378,6 +379,9 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 				handle_smp_call();
 			}
 
+			if (bitmap_test_and_clear_lock(ACRN_REQUEST_ENTER_REFRIGERATOR, pending_req_bits)) {
+				enter_refrigerator(vcpu);
+			}
 		}
 	}
 
