@@ -58,6 +58,7 @@ enum {
 	VIRTIO_SND_R_PCM_RELEASE,
 	VIRTIO_SND_R_PCM_START,
 	VIRTIO_SND_R_PCM_STOP,
+	VIRTIO_SND_R_PCM_PENDING = 0x0190,
 
 	/* channel map control request types */
 	VIRTIO_SND_R_CHMAP_INFO = 0x0200,
