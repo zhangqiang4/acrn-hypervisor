@@ -1694,10 +1694,12 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 				struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
 				if (is_lapic_pt_configured(vcpu->vm)) {
+					uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 					/* vlapic need to be reset to make sure it is in correct state */
 					vlapic_reset(vlapic, &ptapic_ops, VLAPIC_POWER_UP);
 					vcpu->arch.lapic_pt_enabled = true;
-					per_cpu(mode_to_idle, pcpuid_from_vcpu(vcpu)) = IDLE_MODE_PAUSE;
+					per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_PAUSE;
+					per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
 				}
 				vlapic->msr_apicbase = new;
 				vlapic_build_x2apic_id(vlapic);
