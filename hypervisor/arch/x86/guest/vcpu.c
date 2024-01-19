@@ -237,7 +237,7 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 }
 
 /* As a vcpu reset internal API, DO NOT touch any vcpu state transition in this function. */
-static void vcpu_reset_internal(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
+static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	int32_t i;
 	struct acrn_vlapic *vlapic;
@@ -249,6 +249,7 @@ static void vcpu_reset_internal(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mod
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;
 	vcpu->arch.cur_context = NORMAL_WORLD;
 	vcpu->arch.lapic_pt_enabled = false;
+	per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_HLT;
 	vcpu->arch.irq_window_enabled = false;
 	vcpu->arch.emulating_lock = false;
 	(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
@@ -535,22 +536,9 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 		per_cpu(ever_run_vcpu, pcpu_id) = vcpu;
 
 		if (is_lapic_pt_configured(vm) || is_using_init_ipi()) {
-			/* Lapic_pt pCPU does not enable irq in root mode. So it
-			 * should be set to PAUSE idle mode.
-			 * At this point the pCPU is possibly in HLT idle. And the
-			 * kick mode is to be set to INIT kick, which will not be
-			 * able to wake root mode HLT. So a kick(if pCPU is in HLT
-			 * idle, the kick mode is certainly ipi kick) will change
-			 * it to PAUSE idle right away.
-			 */
-			if (per_cpu(mode_to_idle, pcpu_id) == IDLE_MODE_HLT) {
-				per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_PAUSE;
-				kick_pcpu(pcpu_id);
-			}
 			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
 		} else {
 			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_IPI;
-			per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_HLT;
 		}
 		pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
 			per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
@@ -632,7 +620,7 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 		vcpu_set_state(vcpu, VCPU_INIT);
 
 		init_xsave(vcpu);
-		vcpu_reset_internal(vcpu, VCPU_POWER_UP);
+		vcpu_reset_internal(pcpu_id, vcpu, VCPU_POWER_UP);
 		(void)memset((void *)&vcpu->req, 0U, sizeof(struct io_request));
 		vm->hw.created_vcpus++;
 		ret = 0;
@@ -868,7 +856,7 @@ void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	pr_dbg("vcpu%hu reset", vcpu->vcpu_id);
 
-	vcpu_reset_internal(vcpu, mode);
+	vcpu_reset_internal(pcpuid_from_vcpu(vcpu), vcpu, mode);
 	vcpu_set_state(vcpu, VCPU_INIT);
 }
 

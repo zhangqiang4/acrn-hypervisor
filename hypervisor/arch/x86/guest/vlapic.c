@@ -1697,6 +1697,7 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 					/* vlapic need to be reset to make sure it is in correct state */
 					vlapic_reset(vlapic, &ptapic_ops, VLAPIC_POWER_UP);
 					vcpu->arch.lapic_pt_enabled = true;
+					per_cpu(mode_to_idle, pcpuid_from_vcpu(vcpu)) = IDLE_MODE_PAUSE;
 				}
 				vlapic->msr_apicbase = new;
 				vlapic_build_x2apic_id(vlapic);
