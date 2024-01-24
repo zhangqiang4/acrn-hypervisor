@@ -808,6 +808,7 @@ static inline void clac(void)
 	asm volatile ("clac" : : : "memory");
 }
 
+enum pcpu_boot_state pcpu_get_current_state(uint16_t pcpu_id);
 /*
  * @post return <= MAX_PCPU_NUM
  */

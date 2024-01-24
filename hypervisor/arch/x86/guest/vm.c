@@ -878,7 +878,7 @@ static bool is_ready_for_system_shutdown(void)
 	return ret;
 }
 
-static int32_t offline_lapic_pt_enabled_pcpus(const struct acrn_vm *vm, uint64_t pcpu_mask)
+static int32_t offline_lapic_pt_pcpus(const struct acrn_vm *vm, uint64_t pcpu_mask)
 {
 	int32_t ret = 0;
 	uint16_t i;
@@ -912,10 +912,18 @@ static int32_t offline_lapic_pt_enabled_pcpus(const struct acrn_vm *vm, uint64_t
 	}
 
 	wait_pcpus_offline(mask);
-	if (!start_pcpus(mask)) {
-		pr_fatal("Failed to start all cpus in mask(0x%lx)", mask);
+	return ret;
+}
+
+static int32_t online_lapic_pt_pcpus(uint64_t pcpu_mask)
+{
+	int32_t ret = 0;
+
+	if (!start_pcpus(pcpu_mask)) {
+		pr_fatal("Failed to start all cpus in mask(0x%lx)", pcpu_mask);
 		ret = -ETIMEDOUT;
 	}
+
 	return ret;
 }
 
@@ -951,11 +959,15 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 
 	mask = lapic_pt_enabled_pcpu_bitmap(vm);
 	if (mask != 0UL) {
-		ret = offline_lapic_pt_enabled_pcpus(vm, mask);
+		ret = offline_lapic_pt_pcpus(vm, mask);
 	}
 
 	foreach_vcpu(i, vm, vcpu) {
 		offline_vcpu(vcpu);
+	}
+
+	if (mask != 0UL) {
+		ret = online_lapic_pt_pcpus(mask);
 	}
 
 	/* after guest_flags not used, then clear it */
@@ -1003,11 +1015,15 @@ int32_t reset_vm(struct acrn_vm *vm, enum vm_reset_mode mode)
 
 	mask = lapic_pt_enabled_pcpu_bitmap(vm);
 	if (mask != 0UL) {
-		ret = offline_lapic_pt_enabled_pcpus(vm, mask);
+		ret = offline_lapic_pt_pcpus(vm, mask);
 	}
 
 	foreach_vcpu(i, vm, vcpu) {
 		reset_vcpu(vcpu, VCPU_COLD_RESET);
+	}
+
+	if (mask != 0UL) {
+		ret = online_lapic_pt_pcpus(mask);
 	}
 
 	/*

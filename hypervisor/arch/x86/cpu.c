@@ -92,6 +92,12 @@ static void pcpu_set_current_state(uint16_t pcpu_id, enum pcpu_boot_state state)
 	per_cpu(boot_state, pcpu_id) = state;
 }
 
+enum pcpu_boot_state pcpu_get_current_state(uint16_t pcpu_id)
+{
+	/* Get state for the specified CPU */
+	return per_cpu(boot_state, pcpu_id);
+}
+
 /*
  * @post return <= MAX_PCPU_NUM
  */
@@ -499,9 +505,6 @@ void cpu_dead(void)
 
 	deinit_sched(pcpu_id);
 	if (bitmap_test(pcpu_id, &pcpu_active_bitmap)) {
-		/* clean up native stuff */
-		vmx_off();
-
 		stac();
 		flush_cache_range((void *)get_hv_image_base(), get_hv_ram_size());
 		clac();
@@ -510,6 +513,13 @@ void cpu_dead(void)
 		pcpu_set_current_state(pcpu_id, PCPU_STATE_DEAD);
 		bitmap_clear_lock(pcpu_id, &pcpu_active_bitmap);
 
+		/* clean up native stuff */
+		/* In order to put pCPU dead, an INIT ipi will be sent to kick
+		 * pCPU in x2apic mode when lapic_pt_enalbed is true. However,
+		 * if the pCPU is already in idle thread, the INIT will be
+		 * blocked until vmxoff is executed.
+		 * */
+		vmx_off();
 		/* Halt the CPU */
 		do {
 			asm_hlt();

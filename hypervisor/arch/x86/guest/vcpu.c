@@ -236,6 +236,7 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 	}
 }
 
+static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 /* As a vcpu reset internal API, DO NOT touch any vcpu state transition in this function. */
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
@@ -276,6 +277,11 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vlapic_reset(vlapic, apicv_ops, lapic_mode);
 
 	reset_vcpu_regs(vcpu, mode);
+
+	/* Need to rebuild vcpu thread stack if pcpu offline */
+	if (pcpu_get_current_state(pcpuid_from_vcpu(vcpu)) == PCPU_STATE_DEAD) {
+		vcpu->thread_obj.host_sp = build_stack_frame(vcpu);
+	}
 
 	for (i = 0; i < VCPU_EVENT_NUM; i++) {
 		reset_event(&vcpu->events[i]);
