@@ -1088,6 +1088,9 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 				target_vcpu->vcpu_id);
 
 			if (target_vcpu->state != VCPU_INIT) {
+				/* TODO: handle while vcpu is running in x2apic
+				 * mode if lapic_pt_enalbed is true.
+				 */
 				/* put target vcpu to INIT state and wait for SIPI */
 				zombie_vcpu(target_vcpu, VCPU_ZOMBIE);
 				reset_vcpu(target_vcpu, VCPU_INIT_RESET);

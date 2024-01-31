@@ -254,14 +254,17 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vcpu->arch.emulating_lock = false;
 	(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
 
-	per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_HLT;
-	if (is_using_init_ipi()) {
-		per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
-	} else {
-		per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_IPI;
+	/* vcpu init reset won't change local apic state */
+	if (mode != VCPU_INIT_RESET) {
+		per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_HLT;
+		if (is_using_init_ipi()) {
+			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
+		} else {
+			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_IPI;
+		}
+		pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
+			per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
 	}
-	pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
-		per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
 
 	for (i = 0; i < NR_WORLD; i++) {
 		(void)memset((void *)(&vcpu->arch.contexts[i]), 0U,
