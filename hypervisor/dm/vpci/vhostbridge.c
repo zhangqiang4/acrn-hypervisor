@@ -161,7 +161,7 @@ static int32_t read_vhostbridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 static int32_t write_vhostbridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 	uint32_t bytes, uint32_t val)
 {
-	if (!is_bar_offset(PCI_BAR_COUNT, offset)) {
+	if (!is_bar_offset(PCI_BAR_COUNT, offset) && (offset != PCIR_BIOS)) {
 		pci_vdev_write_vcfg(vdev, offset, bytes, val);
 	}
 	return 0;
