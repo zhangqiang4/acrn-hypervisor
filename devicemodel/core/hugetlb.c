@@ -163,17 +163,14 @@ static int unlock_acrn_hugetlb(void)
 	return 0;
 }
 
-
-static void close_hugetlbfs(int level)
+static void close_all_hugetlbfs()
 {
-	if (level >= HUGETLB_LV_MAX) {
-		pr_err("exceed max hugetlb level");
-		return;
-	}
-
-	if (hugetlb_priv[level].fd >= 0) {
-		close(hugetlb_priv[level].fd);
-		hugetlb_priv[level].fd = -1;
+	int level;
+	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
+		if (hugetlb_priv[level].fd >= 0) {
+			close(hugetlb_priv[level].fd);
+			hugetlb_priv[level].fd = -1;
+		}
 	}
 }
 
@@ -531,6 +528,9 @@ static bool hugetlb_reserve_pages(void)
 	return true;
 }
 
+/* init huge tlb
+ * return value: true: success; false: failure
+ */
 bool init_hugetlb(void)
 {
 	char path[MAX_PATH_LEN] = {0};
@@ -539,7 +539,7 @@ bool init_hugetlb(void)
 	int fd;
 	size_t len;
 
-	/* Try to create the dir of /run/hugetlb/acrn */
+	/* Try to create the dir of /run/hugepage/acrn */
 	snprintf(path, MAX_PATH_LEN, "%s/", ACRN_HUGETLB_LOCK_DIR);
 	len = strnlen(path, MAX_PATH_LEN);
 	for (i = 1; i < len; i++) {
@@ -569,26 +569,22 @@ bool init_hugetlb(void)
 	else if (level == HUGETLB_LV2) /* mount fail for level 2 */
 		pr_warn("WARNING: only level 1 hugetlb supported");
 
+	hugetlb_lv_max = level;
+
 	lock_fd = open(ACRN_HUGETLB_LOCK_FILE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 	if (lock_fd < 0) {
+		close_all_hugetlbfs();
+		hugetlb_lv_max = 0;
 		return false;
 	}
 	lseek(lock_fd, SEEK_SET, LOCK_OFFSET_START);
-
-	hugetlb_lv_max = level;
 
 	return true;
 }
 
 void uninit_hugetlb(void)
 {
-	int level;
-	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
-		if (hugetlb_priv[level].fd > 0)
-			close(hugetlb_priv[level].fd);
-		hugetlb_priv[level].fd = -1;
-	}
-
+	close_all_hugetlbfs();
 	close(lock_fd);
 }
 
@@ -825,26 +821,20 @@ err:
 		munmap(ptr, total_size);
 		ptr = NULL;
 	}
-	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
-		close_hugetlbfs(level);
-	}
 
+	close_all_hugetlbfs();
 	return -ENOMEM;
 }
 
 void hugetlb_unsetup_memory(struct vmctx *ctx)
 {
-	int level;
-
 	if (total_size > 0) {
 		munmap(ptr, total_size);
 		total_size = 0;
 		ptr = NULL;
 	}
 
-	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
-		close_hugetlbfs(level);
-	}
+	close_all_hugetlbfs();
 }
 
 bool vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
