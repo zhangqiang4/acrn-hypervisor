@@ -755,7 +755,7 @@ static int vhost_u_set_mem_table(struct vhost_dev *vdev)
 	struct vhost_user_mem_region *vu_mem_regs;
 	struct vm_mmap_mem_region *vm_mem_reg;
 	uint64_t next_gpa = 0;
-	int *fds, rc, nregions = 0;
+	int *fds, rc, nregions = 0, ret = 0;
 
 	vu_mem_regs = calloc(1, sizeof(*vu_mem_regs) * MAX_VM_MEM_REGION);
 	fds = calloc(1, sizeof(*fds) * MAX_VM_MEM_REGION);
@@ -763,7 +763,8 @@ static int vhost_u_set_mem_table(struct vhost_dev *vdev)
 
 	if (!vu_mem_regs || !fds || !vm_mem_reg) {
 		WPRINTF("vhost-user: out of memory\n");
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	ctx = vdev->base->dev->vmctx;
@@ -797,16 +798,17 @@ static int vhost_u_set_mem_table(struct vhost_dev *vdev)
 	}
 
 	rc = __vhost_u_set_mem_table(vdev, vu_mem_regs, nregions, fds);
+	if (rc < 0) {
+		WPRINTF("set_mem_table failed, errno is (%s)\n", strerror(errno));
+		ret = -1;
+		goto end;
+	}
 
+end:
 	free(vu_mem_regs);
 	free(fds);
 	free(vm_mem_reg);
-	if (rc < 0) {
-		WPRINTF("set_mem_table failed, errno is (%s)\n", strerror(errno));
-		return -1;
-	}
-
-	return 0;
+	return ret;
 }
 
 static int vhost_u_init(struct vhost_dev *vdev, struct virtio_base *base,
