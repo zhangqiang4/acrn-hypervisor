@@ -119,11 +119,15 @@ static int vhost_user_socket_connect(char *socket_path)
 
 	/*s_un.sun_path is a 108 char array*/
 	rc = snprintf(s_un.sun_path, sizeof(s_un.sun_path), "%s", socket_path);
-	if (rc < 0 || rc >= sizeof(s_un.sun_path))
+	if (rc < 0 || rc >= sizeof(s_un.sun_path)) {
+		WPRINTF(("Socket: copy socket path failed\n"));
+		close(socket_fd);
 		return -1;
+	}
 
 	if (connect(socket_fd, (struct sockaddr *)&s_un, sizeof(s_un)) < 0) {
 		WPRINTF(("Socket connect failed errno (%s), socket path is  %s\n", strerror(errno), socket_path));
+		close(socket_fd);
 		return -1;
 	}
 
@@ -195,6 +199,8 @@ static bool virtio_fs_parse_opts(struct virtio_fs *fs, char *opts, uint16_t bdf)
 				if (g_vfs_slots.nr_slots >= MAX_VIRTIO_FS_INSTANCES) {
 					WPRINTF(("virtio_fs: cannot support so many virtio-fs instances, "
 					"support MAX %d virtio_fs instances per VM\n", MAX_VIRTIO_FS_INSTANCES));
+					/* Not store this socket_fd to g_vfs_slots, close it directly */
+					close(socket_fd);
 					goto opts_err;
 				}
 				g_vfs_slots.slots[g_vfs_slots.nr_slots].pci_bdf = bdf;
