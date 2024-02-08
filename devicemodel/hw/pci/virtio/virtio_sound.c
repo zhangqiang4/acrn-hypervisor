@@ -156,6 +156,8 @@ struct virtio_sound_pcm {
 
 	struct virtio_sound_chmap *chmaps[VIRTIO_SOUND_CHMAPS];
 	uint32_t chmap_cnt;
+
+	FILE *dbg_fd;
 };
 
 struct vbs_ctl_elem {
@@ -215,6 +217,13 @@ static int virtio_sound_create_poll_fds(struct virtio_sound_pcm *stream);
 static int virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream);
 
 static struct virtio_sound *vsound = NULL;
+
+/*	environment variable: VIRTIO_SOUND_WRITE2FILE
+	0: no file 1: write to alsa 2: receive from BE */
+static int write2file = 0;
+/* environment variable: VIRTIO_SOUND_PRINT_CTRL_MSG
+	0: no print 1: print received msg 2: receive and transfer process */
+static int print_ctrl_msg = 0;
 
 static struct virtio_ops virtio_snd_ops = {
 	"virtio_sound",		/* our name */
@@ -318,6 +327,15 @@ static const uint8_t virtio_sound_s2v_chmap[] = {
 	VIRTIO_SND_CHMAP_BRC
 };
 
+static void
+virtio_sound_create_write_fd(struct virtio_sound_pcm *stream)
+{
+	char path[VIRTIO_SOUND_CTRL_PATH] = {0};
+
+	snprintf(path, VIRTIO_SOUND_CTRL_PATH, "~/vsnd%d-%ld", stream->id, time(NULL));
+	stream->dbg_fd = fopen(path, "w");
+}
+
 static inline int
 virtio_sound_get_frame_size(struct virtio_sound_pcm *stream)
 {
@@ -379,7 +397,7 @@ virtio_sound_notify_xfer(struct virtio_sound *virt_snd, struct virtio_vq_info *v
 {
 	struct virtio_sound_msg_node *msg_node;
 	struct virtio_snd_pcm_xfer *xfer_hdr;
-	int n, s = -1;
+	int n, s = -1, i, frame_size;
 
 	while (vq_has_descs(vq)) {
 		msg_node = malloc(sizeof(struct virtio_sound_msg_node));
@@ -418,6 +436,13 @@ virtio_sound_notify_xfer(struct virtio_sound *virt_snd, struct virtio_vq_info *v
 			STAILQ_INSERT_TAIL(&virt_snd->streams[s]->head, msg_node, link);
 		}
 		pthread_mutex_unlock(&virt_snd->streams[s]->mtx);
+		if (write2file == 2 && virt_snd->streams[s]->dbg_fd != NULL) {
+			frame_size = virtio_sound_get_frame_size(virt_snd->streams[s]);
+			for (i = msg_node->start_seg; i < msg_node->cnt - 1; i++) {
+				fwrite(msg_node->iov[i].iov_base + msg_node->start_pos, msg_node->iov[i].iov_len,
+					frame_size, virt_snd->streams[s]->dbg_fd);
+			}
+		}
 	}
 	if (s >= 0 && virt_snd->streams[s]->status == VIRTIO_SND_BE_PENDING) {
 		if (STAILQ_NEXT(STAILQ_FIRST(&virt_snd->streams[s]->head), link) == NULL)
@@ -684,6 +709,9 @@ virtio_sound_xfer(struct virtio_sound_pcm *stream)
 				memcpy(buf, msg_node->iov[i].iov_base + msg_node->start_pos, to_copy * frame_size);
 			} else {
 				memcpy(msg_node->iov[i].iov_base + msg_node->start_pos, buf, to_copy * frame_size);
+			}
+			if (write2file == 1 && stream->dbg_fd != NULL) {
+				fwrite(msg_node->iov[i].iov_base + msg_node->start_pos, to_copy, frame_size, stream->dbg_fd);
 			}
 
 			xfer += to_copy;
@@ -1128,6 +1156,8 @@ virtio_sound_r_pcm_prepare(struct virtio_sound_pcm *stream, struct virtio_sound_
 		WPRINTF("%s: stream %s prepare fail!\n", __func__, stream->dev_name);
 		goto err;
 	}
+	if (write2file != 0 && stream->dbg_fd == NULL)
+		virtio_sound_create_write_fd(stream);
 
 	stream->status = VIRTIO_SND_BE_PRE;
 	virtio_sound_update_iov_cnt(virtio_sound_get_device(), stream->dir);
@@ -1146,11 +1176,15 @@ virtio_sound_r_pcm_release(struct virtio_sound_pcm *stream, struct virtio_sound_
 
 	stream->status = VIRTIO_SND_BE_RELEASE;
 	virtio_sound_clean_vq(stream);
-	if(stream->handle) {
+	if (stream->handle) {
 		if (snd_pcm_close(stream->handle) < 0) {
 			WPRINTF("%s: stream %s close error!\n", __func__, stream->dev_name);
 		}
 		stream->handle = NULL;
+	}
+	if (stream->dbg_fd) {
+		fclose(stream->dbg_fd);
+		stream->dbg_fd = NULL;
 	}
 	stream->status = VIRTIO_SND_BE_INITED;
 	ret->code = VIRTIO_SND_S_OK;
@@ -1677,6 +1711,8 @@ virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout)
 	}
 	*timeout = -1;
 	hdr = (struct virtio_snd_hdr *)ctrl.iov[0].iov_base;
+	if (print_ctrl_msg > 1)
+		WPRINTF("%s: deal ctrl msg 0x%x\n", __func__, hdr->code);
 	switch (hdr->code) {
 		case VIRTIO_SND_R_PCM_SET_PARAMS:
 			err = virtio_sound_r_set_params(stream, &ctrl);
@@ -1737,6 +1773,7 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 	struct virtio_snd_pcm_hdr *pcm = (struct virtio_snd_pcm_hdr *)iov[0].iov_base;
 	struct virtio_sound_ctrl_msg ctrl;
 	struct virtio_snd_hdr *ret = iov[1].iov_base;
+	struct virtio_snd_query_info *info = NULL;
 	int s, size;
 
 	ctrl.idx = idx;
@@ -1760,7 +1797,10 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 		virtio_sound_release_ctrl_msg(&ctrl, iov[1].iov_len);
 		return -1;
 	}
-
+	if (print_ctrl_msg > 1) {
+		info = (struct virtio_snd_query_info *)iov[0].iov_base;
+		WPRINTF("%s: send ctrl msg 0x%x\n", __func__, info->hdr.code);
+	}
 	size = write(virt_snd->streams[s]->ctrl_fd[1], (char *)&ctrl, sizeof(ctrl));
 	if (size != sizeof(ctrl)) {
 		WPRINTF("%s: write error %d!\n", __func__, size);
@@ -1788,6 +1828,8 @@ virtio_sound_notify_ctl(void *vdev, struct virtio_vq_info *vq)
 		}
 
 		hdr = (struct virtio_snd_hdr *)iov[0].iov_base;
+		if (print_ctrl_msg > 0)
+				WPRINTF("Receive ctrl msg: 0x%x\n", hdr->code);
 		switch (hdr->code) {
 			case VIRTIO_SND_R_JACK_INFO:
 				ret_len = virtio_sound_r_jack_info (virt_snd, iov, n);
@@ -2076,6 +2118,7 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 			return -1;
 		}
 	}
+	stream->dbg_fd = NULL;
 	err = virtio_sound_create_pcm_thread(stream);
 	if (err) {
 		WPRINTF("%s: stream create thread failed!\n", __func__);
@@ -2656,6 +2699,10 @@ virtio_sound_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	}
 	virtio_sound_cfg_init(virt_snd);
 	virt_snd->status = VIRTIO_SND_BE_INITED;
+	if (getenv("VIRTIO_SOUND_WRITE2FILE") != NULL)
+		write2file = atoi(getenv("VIRTIO_SOUND_WRITE2FILE"));
+	if (getenv("VIRTIO_SOUND_PRINT_CTRL_MSG") != NULL)
+		print_ctrl_msg = atoi(getenv("VIRTIO_SOUND_PRINT_CTRL_MSG"));
     return 0;
 }
 
