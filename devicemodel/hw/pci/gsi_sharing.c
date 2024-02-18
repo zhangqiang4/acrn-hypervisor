@@ -112,49 +112,6 @@ check_msi_capability(char *dev_name)
 	return 0;
 }
 
-int
-create_gsi_sharing_groups(void)
-{
-	uint8_t gsi;
-	char *dev_name;
-	int i, error, msi_support;
-	struct gsi_sharing_group *group = NULL, *temp = NULL;
-
-	error = pciaccess_init();
-	if (error < 0)
-		return error;
-
-	for (i = 0; i < num_gsi_dev_mapping_tables; i++) {
-		dev_name = gsi_dev_mapping_tables[i].dev_name;
-		gsi = gsi_dev_mapping_tables[i].gsi;
-
-		/* skip the devices that support MSI/MSI-x */
-		msi_support = check_msi_capability(dev_name);
-		if (msi_support == 1)
-			continue;
-
-		/* insert the device into gsi_sharing_group */
-		error = update_gsi_sharing_info(dev_name, gsi);
-		if (error < 0)
-			return error;
-	}
-
-	pciaccess_cleanup();
-
-	/*
-	 * clean up gsg_head - the list for gsi_sharing_group
-	 * delete the element without gsi sharing condition (shared_dev_num < 2)
-	 */
-	list_foreach_safe(group, &gsg_head, gsg_list, temp) {
-		if (group->shared_dev_num < 2) {
-			LIST_REMOVE(group, gsg_list);
-			free(group);
-		}
-	}
-
-	return 0;
-}
-
 /*
  * update passthrough info in gsi_sharing_group
  * set assigned_to_this_vm as 1 if the PCI device is assigned to current VM
@@ -182,7 +139,7 @@ update_pt_info(uint16_t phys_bdf)
 int
 check_gsi_sharing_violation(void)
 {
-	struct gsi_sharing_group *group, *temp;
+	struct gsi_sharing_group *group;
 	int i, error, violation;
 
 	error = 0;
@@ -225,12 +182,52 @@ check_gsi_sharing_violation(void)
 		error = -EINVAL;
 		break;
 	}
+	return error;
+}
 
-	/* destroy the gsg_head after all the checks have been done */
+void
+gsi_sharing_groups_deinit(void)
+{
+	struct gsi_sharing_group *group = NULL, *temp = NULL;
+	/*
+	 * clean up gsg_head - the list for gsi_sharing_group
+	 */
 	list_foreach_safe(group, &gsg_head, gsg_list, temp) {
 		LIST_REMOVE(group, gsg_list);
 		free(group);
 	}
 
-	return error;
+}
+
+int
+gsi_sharing_groups_init(void)
+{
+	uint8_t gsi;
+	char *dev_name;
+	int i, error, msi_support;
+
+	error = pciaccess_init();
+	if (error < 0)
+		return error;
+
+	for (i = 0; i < num_gsi_dev_mapping_tables; i++) {
+		dev_name = gsi_dev_mapping_tables[i].dev_name;
+		gsi = gsi_dev_mapping_tables[i].gsi;
+
+		/* skip the devices that support MSI/MSI-x */
+		msi_support = check_msi_capability(dev_name);
+		if (msi_support == 1)
+			continue;
+
+		/* insert the device into gsi_sharing_group */
+		error = update_gsi_sharing_info(dev_name, gsi);
+		if (error < 0) {
+			pciaccess_cleanup();
+			return error;
+		}
+	}
+
+	pciaccess_cleanup();
+
+	return 0;
 }

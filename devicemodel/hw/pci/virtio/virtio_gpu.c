@@ -1709,20 +1709,23 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (rc) {
 		pr_err("%s: mutexattr init failed with error %d.\n",
 			       __func__, rc);
-		return rc;
+		goto failed_gpu;
 	}
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (rc) {
 		pr_err("%s: mutexattr_settype failed with error %d.\n",
 			       __func__, rc);
-		return rc;
+		pthread_mutexattr_destroy(&attr);
+		goto failed_gpu;
 	}
 	rc = pthread_mutex_init(&gpu->mtx, &attr);
 	if (rc) {
 		pr_err("%s: pthread_mutex_init failed with error %d.\n",
 			       __func__,rc);
-		return rc;
+		pthread_mutexattr_destroy(&attr);
+		goto failed_gpu;
 	}
+	pthread_mutexattr_destroy(&attr);
 
 	/* register the virtio_gpu_ops to virtio framework */
 	virtio_linkup(&gpu->base,
@@ -1739,13 +1742,14 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	if ((gpu->scanout_num < 0) || (gpu->scanout_num > VDPY_MAX_NUM)) {
 		pr_err("%s: return incorrect scanout num %d\n", gpu->scanout_num);
-		return -1;
+		rc = -1;
+		goto failed_mutex_init;
 	}
 	gpu->gpu_scanouts = calloc(gpu->scanout_num, sizeof(struct virtio_gpu_scanout));
 	if (gpu->gpu_scanouts == NULL) {
 		pr_err("%s: out of memory for gpu_scanouts\n", __func__);
-		free(gpu);
-		return -1;
+		rc = -1;
+		goto failed_mutex_init;
 	}
 
 	if (vm_allow_dmabuf(gpu->base.dev->vmctx)) {
@@ -1828,10 +1832,16 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	vdpy_get_edid(gpu->vdpy_handle, 0, gpu->edid, VIRTIO_GPU_EDID_SIZE);
 	/* VGA ioports regs [0x400~0x41f] */
 	gpu->vga.gc = gc_init(info.width, info.height, ctx->fb_base);
+	if (gpu->vga.gc == NULL) {
+		pr_err("%s: fail to init gc.\n", __func__);
+		rc = -1;
+		goto failed_scanouts;
+	}
 	gpu->vga.dev = vga_init(gpu->vga.gc, 0);
 	if (gpu->vga.dev == NULL) {
 		pr_err("%s: fail to init vga.\n", __func__);
-		return -1;
+		rc = -1;
+		goto failed_gc;
 	}
 	/* Bochs Display regs [0x500~0x516]*/
 	gpu->vga.vberegs.xres = info.width;
@@ -1880,12 +1890,12 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	rc = virtio_intr_init(&gpu->base, 4, virtio_uses_msix());
 	if (rc) {
 		pr_err("%s, interrupt_init failed.\n", __func__);
-		return rc;
+		goto failed_vga;
 	}
 	rc = virtio_set_modern_pio_bar(&gpu->base, 5);
 	if (rc) {
 		pr_err("%s, set modern io bar(BAR5) failed.\n", __func__);
-		return rc;
+		goto failed_vga;
 	}
 
 	pthread_mutex_init(&gpu->vga_thread_mtx, NULL);
@@ -1899,6 +1909,17 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pthread_create(&gpu->vga.tid, NULL, virtio_gpu_vga_render, (void*)gpu);
 
 	return 0;
+failed_vga:
+	vga_deinit(&gpu->vga);
+failed_gc:
+	gc_deinit(gpu->vga.gc);
+failed_scanouts:
+	free(gpu->gpu_scanouts);
+failed_mutex_init:
+	pthread_mutex_destroy(&gpu->mtx);
+failed_gpu:
+	free(gpu);
+	return rc;
 }
 
 static void

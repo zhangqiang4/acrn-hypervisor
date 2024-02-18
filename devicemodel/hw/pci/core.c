@@ -1841,7 +1841,9 @@ init_pci(struct vmctx *ctx)
 	pci_emul_membase32 = vm_get_lowmem_limit(ctx);
 	pci_emul_membase64 = PCI_EMUL_MEMBASE64;
 
-	create_gsi_sharing_groups();
+	error = gsi_sharing_groups_init();
+	if (error)
+		goto gsi_sharing_groups_fail;
 
 	for (bus = 0; bus < MAXBUSES; bus++) {
 		bi = pci_businfo[bus];
@@ -1938,7 +1940,7 @@ init_pci(struct vmctx *ctx)
 			}
 			if ((reserved_bar_regions[i].end + 1) > bi->iolimit) {
 				bi->iolimit = reserved_bar_regions[i].end + 1;
-			}	
+			}
 		}
 	}
 
@@ -2054,6 +2056,8 @@ pci_emul_init_fail:
 		}
 	}
 
+gsi_sharing_groups_fail:
+	gsi_sharing_groups_deinit();
 	acpiphp_deinit(ctx);
 
 	return error;
@@ -2112,6 +2116,7 @@ deinit_pci(struct vmctx *ctx)
 			}
 		}
 	}
+	gsi_sharing_groups_deinit();
 	acpiphp_deinit(ctx);
 }
 
