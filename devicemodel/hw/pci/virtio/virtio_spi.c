@@ -294,7 +294,7 @@ static uint8_t spidev_transfer_physical(struct vspidev *vspidev, struct virtio_s
 	struct vspidev_physical_data *data = vspidev->priv;
 	int fd = data->fd;
 
-	if (fd <= 0) {
+	if (fd < 0) {
 		WPRINTF("Not a valid fd to access spidev%d.%d",
 				data->bus, data->cs);
 		ret = -1;
@@ -485,7 +485,7 @@ static uint8_t spidev_transfer_tcp(struct vspidev *vspidev, struct virtio_spi_tr
 	struct vspidev_tcp_data *data = vspidev->priv;
 	int fd = data->fd;
 
-	if (fd <= 0) {
+	if (fd < 0) {
 		WPRINTF("Not a valid fd to access spidev emulated at port %d\n",
 				data->port);
 		ret = -1;
@@ -833,7 +833,7 @@ virtio_spi_evt_listen(struct virtio_spi *vspi)
 
 	if (vspi->evt_listen_port) {
 		fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
-		if (fd <= 0) {
+		if (fd < 0) {
 		    WPRINTF("vspi event: socket creation failed...\n");
 		    return;
 		} else {
