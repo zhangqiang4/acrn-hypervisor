@@ -546,6 +546,8 @@ struct virtio_spi_config {
 	uint16_t cs_num;
 }__attribute__((packed));
 
+#define VSPI_EVT_INJECTOR
+
 /*
  * Virtio SPI Controller
  */
@@ -560,14 +562,16 @@ struct virtio_spi {
 	pthread_mutex_t req_mtx;
 	pthread_cond_t req_cond;
 
-	/* for the tcp based event proxy */
 	pthread_mutex_t evt_mtx;
+#ifdef VSPI_EVT_INJECTOR
+	/* for the tcp based event proxy */
 	int evt_listen_port;
 	struct mevent *mevent_listen;	/* poll the listen fd */
 	struct mevent *mevent_event;	/* poll the event injector fd */
 	int evt_listen_fd;
 	int evt_fd;
 	bool evt_port_opened;
+#endif
 
 	int in_process;
 	int closing;
@@ -747,33 +751,41 @@ void vspidev_inject_irq(struct vspidev *vspidev, uint8_t irq_status)
 	pthread_mutex_unlock(&vspidev->vspi->evt_mtx);
 }
 
+#ifdef VSPI_EVT_INJECTOR
+
 static void
 vspi_event_handler(int fd, enum ev_type ev, void *arg)
 {
 	struct virtio_spi *vspi = (struct virtio_spi *)arg;
 	uint8_t cs;
-	int rc = -1;
+	int rc;
 
-	// handle all injected events?
-	rc = recv(vspi->evt_fd, &cs, 1, 0);
-	if (rc <= 0 && errno != EAGAIN) {
-		if (vspi->mevent_event) {
-			mevent_delete(vspi->mevent_event);
-			vspi->mevent_event = NULL;
+	while(1) {
+		rc = recv(vspi->evt_fd, &cs, 1, 0);
+		/*
+		 * rc == 0, remote disconnection
+		 * rc < 0 && errno == EAGAIN, no more data to recv
+		 * rc < 0 && errno != EAGAIN, other unintentional error
+		 */
+		if (rc <= 0) {
+			if ((rc != -1) || (errno != EAGAIN)) {
+				/* 
+				 * vspi->evt_fd will be closed and vspi->evt_port_opened will
+				 * be set to false in mevent teardown callback.
+				 */
+				mevent_delete(vspi->mevent_event);
+				vspi->mevent_event = NULL;
+				WPRINTF("%s: connection closed, rc = %d, errno = %d\n",
+					__func__, rc, errno);
+			}
+			break;
 		}
-		if (vspi->evt_fd > 0) {
-			close(vspi->evt_fd);
-			vspi->evt_fd = -1;
-		}
-		vspi->evt_port_opened = false;
-		WPRINTF("%s: connection closed, rc = %d, errno = %d\n",
-			__func__, rc, errno);
-	}
 
-	if (cs >= vspi->spidev_num) {
-		WPRINTF("%s try to inject event for a non-existent spi device, ignored!\n", __func__);
-	} else {
-		vspidev_inject_irq(vspi->vspidevs[cs], VIRTIO_SPI_IRQ_STATUS_VALID);
+		if (cs >= vspi->spidev_num) {
+			WPRINTF("%s try to inject event for a non-existent spi device, ignored!\n", __func__);
+		} else {
+			vspidev_inject_irq(vspi->vspidevs[cs], VIRTIO_SPI_IRQ_STATUS_VALID);
+		}
 	}
 }
 
@@ -785,7 +797,7 @@ vspi_mevent_teardown(void *param)
 	if (!vspi || !vspi->evt_port_opened)
 		return;
 
-	if (vspi->evt_fd > 0) {
+	if (vspi->evt_fd != -1) {
 		close(vspi->evt_fd);
 		vspi->evt_fd = -1;
 	}
@@ -817,8 +829,7 @@ vspi_event_proxy_accept(int fd __attribute__((unused)),
 
 	vspi->evt_port_opened = true;
 	vspi->evt_fd = s;
-	// TODO allow reconnection after disconnection.
-	vspi->mevent_event = mevent_add(s, EVF_READ, vspi_event_handler, vspi,
+	vspi->mevent_event = mevent_add(s, EVF_READ_ET, vspi_event_handler, vspi,
 		vspi_mevent_teardown, vspi);
 	if (!vspi->mevent_event)
 		WPRINTF("vspi event: failed to add mevent for event injector\n");
@@ -826,42 +837,80 @@ vspi_event_proxy_accept(int fd __attribute__((unused)),
 }
 
 static void
-virtio_spi_evt_listen(struct virtio_spi *vspi)
+vspi_listen_event_teardown(void *param)
+{
+	struct virtio_spi *vspi = (struct virtio_spi *)param;
+
+	if (vspi->evt_listen_fd != -1) {
+		close(vspi->evt_listen_fd);
+		vspi->evt_listen_fd = -1;
+	}
+}
+
+static void
+virtio_spi_start_evt_injector(struct virtio_spi *vspi, int port)
 {
 	int fd;
 	struct sockaddr_in addr;
 
-	if (vspi->evt_listen_port) {
-		fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
-		if (fd < 0) {
-		    WPRINTF("vspi event: socket creation failed...\n");
-		    return;
-		} else {
-		    DPRINTF("vspi event: Socket successfully created..\n");
-		}
-		vspi->evt_listen_fd = fd;
+	if (port <= 0)
+		return;
+	vspi->evt_listen_port = port;
 
-		addr.sin_family = AF_INET;
-		addr.sin_addr.s_addr = htonl(INADDR_ANY);
-		addr.sin_port = htons(vspi->evt_listen_port);
-		if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-			WPRINTF("vspi event: bind failed, errno = %d\n",
-				errno);
-			return;
+	fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
+	if (fd < 0) {
+	    WPRINTF("vspi event: socket creation failed...\n");
+	    return;
+	} else {
+	    DPRINTF("vspi event: Socket successfully created..\n");
+	}
+	vspi->evt_listen_fd = fd;
+
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	addr.sin_port = htons(vspi->evt_listen_port);
+	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		WPRINTF("vspi event: bind failed, errno = %d\n", errno);
+		goto close_listen_fd;
+	}
+	if (listen(fd, 1) < 0) {
+		WPRINTF("vspi event: listen failed, errno = %d\n", errno);
+		goto close_listen_fd;
+	}
+	vspi->evt_port_opened = false;
+	vspi->mevent_listen = mevent_add(fd, EVF_READ_ET,
+			vspi_event_proxy_accept, vspi,
+			vspi_listen_event_teardown, vspi);
+	if (!vspi->mevent_listen) {
+		WPRINTF("vspi event: mevent_add failed\n");
+		goto close_listen_fd;
+	}
+	return;
+
+close_listen_fd:
+	close(vspi->evt_listen_fd);
+	vspi->evt_listen_fd = -1;
+	return;
+}
+
+static void
+virtio_spi_stop_evt_injector(struct virtio_spi *vspi)
+{
+	if (vspi->evt_listen_port) {
+		if (vspi->mevent_event) {
+			mevent_delete(vspi->mevent_event);
+			vspi->mevent_event = NULL;
 		}
-		if (listen(fd, 1) < 0) {
-			WPRINTF("vspi event: listen failed, errno = %d\n",
-				errno);
-			return;
-		}
-		vspi->evt_port_opened = false;
-		vspi->mevent_listen = mevent_add(fd, EVF_READ, vspi_event_proxy_accept, vspi, NULL, NULL);
-		if (!vspi->mevent_listen) {
-			WPRINTF("vspi event: mevent_add failed\n");
-			return;
+		if (vspi->mevent_listen) {
+			mevent_delete(vspi->mevent_listen);
+			vspi->mevent_listen = NULL;
 		}
 	}
 }
+#else
+static void virtio_spi_start_evt_injector(struct virtio_spi *vspi, int port) {}
+static void virtio_spi_stop_evt_injector(struct virtio_spi *vspi) {}
+#endif
 
 static int
 virtio_spi_parse(struct virtio_spi *vspi, char *optstr)
@@ -869,19 +918,18 @@ virtio_spi_parse(struct virtio_spi *vspi, char *optstr)
 	char *cp, *type, *t;
 	struct vspidev *vspidev;
 	struct vspidev_be *vspidev_be;
-	int ret;
+	int ret, port;
 
 	while (optstr != NULL) {
 		cp = strsep(&optstr, ",");
 		if (cp != NULL && *cp !='\0') {
 			type = strsep(&cp, ":");
 			if (strncmp("evt-port", type, 8) == 0) {
-				if (dm_strtoi(cp, &t, 10, &vspi->evt_listen_port)
-						|| vspi->evt_listen_port < 0) {
+				if (dm_strtoi(cp, &t, 10, &port) || port < 0) {
 					WPRINTF("%s: fail to parse evt-port\n", __func__);
 					return -1;
 				}
-				virtio_spi_evt_listen(vspi);
+				virtio_spi_start_evt_injector(vspi, port);
 				continue;
 			}
 			vspidev_be = find_vspidev_be_from_name(type);
@@ -943,6 +991,10 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		WPRINTF("calloc returns NULL\n");
 		return -ENOMEM;
 	}
+#ifdef VSPI_EVT_INJECTOR
+	vspi->evt_listen_fd = -1;
+	vspi->evt_fd = -1;
+#endif
 
 	if (virtio_spi_parse(vspi, opts)) {
 		WPRINTF("failed to parse parameters\n");
@@ -1003,6 +1055,7 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 fail:
 	pthread_mutex_destroy(&vspi->mtx);
 mtx_fail:
+	virtio_spi_stop_evt_injector(vspi);
 	vspi_remove_devices(vspi);
 	free(vspi);
 	return rc;
@@ -1016,6 +1069,8 @@ virtio_spi_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (dev->arg) {
 		DPRINTF("deinit\n");
 		vspi = (struct virtio_spi *) dev->arg;
+		virtio_spi_stop_evt_injector(vspi);
+		vspi_remove_devices(vspi);
 		virtio_spi_req_stop(vspi);
 		vspi_remove_devices(vspi);
 		pthread_mutex_destroy(&vspi->req_mtx);
