@@ -1077,6 +1077,8 @@ virtio_spi_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		pthread_mutex_destroy(&vspi->mtx);
 		pthread_mutex_destroy(&vspi->evt_mtx);
 		virtio_spi_reset(vspi);
+		acpi_spi_controller_num--;
+		assert(acpi_spi_controller_num >= 0);
 		free(vspi);
 		dev->arg = NULL;
 	}
