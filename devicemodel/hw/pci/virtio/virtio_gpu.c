@@ -54,6 +54,7 @@
 #define VIRTIO_GPU_F_MODIFIER		5
 #define VIRTIO_GPU_F_SCALING		6
 #define VIRTIO_GPU_F_VBLANK		7
+#define VIRTIO_GPU_F_BACKLIGHT		8
 
 /*
  * Host capabilities
@@ -96,6 +97,7 @@ struct virtio_gpu_config {
 	uint32_t num_scanouts;
 	uint32_t num_capsets;
 	uint32_t num_pipe;
+	uint32_t num_backlight;
 };
 
 /*
@@ -120,10 +122,14 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_CMD_SET_MODIFIER,
 	VIRTIO_GPU_CMD_SET_SCALING,
 
-
 	/* cursor commands */
 	VIRTIO_GPU_CMD_UPDATE_CURSOR = 0x0300,
 	VIRTIO_GPU_CMD_MOVE_CURSOR,
+
+	/* backlight cmd */
+	VIRTIO_GPU_CMD_BACKLIGHT_UPDATE_STATUS = 0x0400,
+	VIRTIO_GPU_CMD_BACKLIGHT_GET,
+	VIRTIO_GPU_CMD_BACKLIGHT_QUERY,
 
 	/* success responses */
 	VIRTIO_GPU_RESP_OK_NODATA = 0x1100,
@@ -133,6 +139,7 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_RESP_OK_EDID,
 	VIRTIO_GPU_RESP_OK_RESOURCE_UUID,
 	VIRTIO_GPU_RESP_OK_MAP_INFO,
+	VIRTIO_GPU_RESP_OK_BACKLIGHT_GET,
 
 	/* error responses */
 	VIRTIO_GPU_RESP_ERR_UNSPEC = 0x1200,
@@ -364,6 +371,45 @@ struct virtio_gpu_set_scaling {
 	struct virtio_gpu_ctrl_hdr hdr;
 	struct virtio_gpu_rect dst;
 	uint32_t scanout_id;
+	uint32_t padding;
+};
+
+/* VIRTIO_GPU_CMD_BACKLIGHT_UPDATE_STATUS */
+struct virtio_gpu_backlight_update_status {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t backlight_id;
+	int32_t brightness;
+	int32_t power;
+	uint32_t padding;
+};
+
+/* VIRTIO_GPU_CMD_BACKLIGHT_GET */
+struct virtio_gpu_get_brightness {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t backlight_id;
+	uint32_t padding;
+};
+
+struct virtio_gpu_resp_brightness {
+	struct virtio_gpu_ctrl_hdr hdr;
+	int32_t brightness;
+	uint32_t padding;
+};
+
+/* VIRTIO_GPU_CMD_BACKLIGHT_QUERY */
+struct virtio_gpu_get_backlight_info {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t backlight_id;
+	uint32_t padding;
+};
+
+struct virtio_gpu_resp_backlight_info {
+	struct virtio_gpu_ctrl_hdr hdr;
+	int32_t brightness;
+	int32_t max_brightness;
+	int32_t power;
+	int32_t type;
+	int32_t scale;
 	uint32_t padding;
 };
 
@@ -600,6 +646,9 @@ virtio_gpu_neg_features(void *vdev, uint64_t negotiated_features)
 
 	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_SCALING))
 		pr_err("feature VIRTIO_GPU_F_SCALING is not supported by guest \r\n");
+
+	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_BACKLIGHT))
+		pr_dbg("please use frontend virtio gpu driver with feature  VIRTIO_GPU_F_BACKLIGHT \r\n");
 }
 
 static void
@@ -1451,6 +1500,83 @@ virtio_gpu_cmd_set_scaling(struct virtio_gpu_command *cmd)
 }
 
 static void
+virtio_gpu_cmd_backlight_update_status(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_backlight_update_status req;
+	struct virtio_gpu_ctrl_hdr resp;
+	struct virtio_gpu *gpu;
+	struct backlight_properties props;
+
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	props.brightness = req.brightness;
+	props.power = req.power;
+	vdpy_backlight_update_status(gpu->vdpy_handle, req.backlight_id, &props);
+	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
+	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
+	return;
+}
+
+static void
+virtio_gpu_cmd_get_brightness(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_get_brightness req;
+	struct virtio_gpu_resp_brightness resp;
+	struct virtio_gpu *gpu;
+	int32_t brightness = 0;
+	int ret = 0;
+
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	virtio_gpu_update_resp_fence(&cmd->hdr, &resp.hdr);
+	ret = vdpy_get_backlight(gpu->vdpy_handle, req.backlight_id, &brightness);
+	if (ret < 0) {
+		pr_err("%s: failure, id:%d ret:%d\n", __func__, req.backlight_id, ret);
+		resp.hdr.type = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+		memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+		return;
+	}
+	resp.brightness = brightness;
+	resp.hdr.type = VIRTIO_GPU_RESP_OK_BACKLIGHT_GET;
+	memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+}
+
+static void
+virtio_gpu_cmd_get_backlight_info(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_get_backlight_info req;
+	struct virtio_gpu_resp_backlight_info resp;
+	struct virtio_gpu *gpu;
+	struct backlight_info info;
+	int ret = 0;
+
+	memset(&info, 0, sizeof(info));
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	virtio_gpu_update_resp_fence(&cmd->hdr, &resp.hdr);
+	ret = vdpy_get_backlight_info(gpu->vdpy_handle, req.backlight_id, &info);
+	if (ret < 0) {
+		pr_err("%s: failure, id:%d ret:%d\n", __func__, req.backlight_id, ret);
+		resp.hdr.type = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+		memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+		return;
+	}
+	resp.brightness = info.brightness;
+	resp.max_brightness = info.max_brightness;
+	resp.power = info.power;
+	resp.type = info.type;
+	resp.scale = info.scale;
+	resp.hdr.type = VIRTIO_GPU_RESP_OK_BACKLIGHT_GET;
+	memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+}
+
+static void
 virtio_gpu_cmd_set_scanout_blob(struct virtio_gpu_command *cmd)
 {
 	struct virtio_gpu_set_scanout_blob req;
@@ -1626,6 +1752,15 @@ virtio_gpu_ctrl_bh(void *data)
 			break;
 		case VIRTIO_GPU_CMD_SET_SCALING:
 			virtio_gpu_cmd_set_scaling(&cmd);
+			break;
+		case VIRTIO_GPU_CMD_BACKLIGHT_UPDATE_STATUS:
+			virtio_gpu_cmd_backlight_update_status(&cmd);
+			break;
+		case VIRTIO_GPU_CMD_BACKLIGHT_GET:
+			virtio_gpu_cmd_get_brightness(&cmd);
+			break;
+		case VIRTIO_GPU_CMD_BACKLIGHT_QUERY:
+			virtio_gpu_cmd_get_backlight_info(&cmd);
 			break;
 		default:
 			virtio_gpu_cmd_unspec(&cmd);
@@ -1946,6 +2081,10 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		gpu->irq_bh[i-2].data = &gpu->vq[i];
 	}
 
+	if(gpu->vdpy_if.backlight_num) {
+		gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_BACKLIGHT);
+	}
+
 	gpu->vga_bh.task_cb = virtio_gpu_vga_bh;
 	gpu->vga_bh.data = gpu;
 
@@ -1955,6 +2094,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	gpu->cfg.num_scanouts = gpu->vdpy_if.scanout_num;
 	gpu->cfg.num_capsets = 0;
 	gpu->cfg.num_pipe = gpu->vdpy_if.pipe_num;
+	gpu->cfg.num_backlight = gpu->vdpy_if.backlight_num;
 
 
 	/* config the device id and vendor id according to spec */

@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include "log.h"
 #include "vdisplay.h"
 #include "atomic.h"
@@ -55,6 +57,8 @@ static struct display {
 	int scrs_num;
 	int pipe_num;
 
+	int backlight_num;
+	char *backlight[MAX_BACKLIGHT_DEVICE];
 	pthread_t tid;
 	/* Add one UI_timer(33ms) to render the buffers from guest_vm */
 	struct acrn_timer ui_timer;
@@ -595,7 +599,48 @@ vdpy_get_display_info(int handle, int scanout_id, struct display_info *info)
 	}
 }
 
+int
+vdpy_backlight_update_status(int handle, uint32_t backlight_id, struct backlight_properties *props)
+{
+	int ret = 0;
 
+	if (handle != vdpy.s.n_connect)
+		return -1;
+	if (backlight_id >= vdpy.backlight_num)
+		return -1;
+
+	ret = set_backlight_brightness(vdpy.backlight[backlight_id], props->brightness);
+	ret = set_backlight_power(vdpy.backlight[backlight_id], props->power);
+	return ret;
+}
+
+int
+vdpy_get_backlight(int handle, uint32_t backlight_id, int32_t *brightness)
+{
+	int ret = 0;
+
+	if (handle != vdpy.s.n_connect)
+		return -1;
+	if (backlight_id >= vdpy.backlight_num)
+		return -1;
+
+	ret = get_backlight_brightness(vdpy.backlight[backlight_id], brightness);
+	return ret;
+}
+
+int
+vdpy_get_backlight_info(int handle, uint32_t backlight_id, struct backlight_info *info)
+{
+	int ret = 0;
+
+	if (handle != vdpy.s.n_connect)
+		return -1;
+	if (backlight_id >= vdpy.backlight_num)
+		return -1;
+
+	ret = get_backlight_brightness_info(vdpy.backlight[backlight_id], info);
+	return ret;
+}
 
 static void
 vdpy_sdl_ui_timer(void *data, uint64_t nexp)
@@ -859,6 +904,7 @@ vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,in
 	if (vdpy_if) {
 		vdpy_if->scanout_num = vdpy.scrs_num;
 		vdpy_if->pipe_num = vdpy.pipe_num;
+		vdpy_if->backlight_num = vdpy.backlight_num;
 		for(count=0; count< vdpy.scrs_num; count++) {
 			vdpy_vblank_init(count,func,data);
 		}
@@ -1157,8 +1203,22 @@ int vdpy_parse_cmd_option(const char *opts)
 	vdpy.scrs = scr;
 	vdpy.scrs_num = 0;
 	vdpy.pipe_num = 0;
+	vdpy.backlight_num = 0;
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
+		if (strcasestr(str, "backlight=")) {
+			if((strncmp(str, "backlight", 9) == 0)) {
+				strsep(&str, "=");
+				if (vdpy.backlight_num <= MAX_BACKLIGHT_DEVICE &&
+						strlen(str) > 0 && check_backlist_device(str) >= 0) {
+					vdpy.backlight[vdpy.backlight_num] = strdup(str);
+					pr_info("backlight dev:%s\n", str);
+					vdpy.backlight_num++;
+				}
+			}
+
+			continue;
+		}
 		scr = vdpy.scrs + vdpy.scrs_num;
 		subtmp = strcasestr(str, "timer-vblank");
 		if (subtmp) {

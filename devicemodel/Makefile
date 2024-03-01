@@ -110,6 +110,7 @@ SRCS += hw/vdisplay_backend.c
 SRCS += hw/sdl.c
 SRCS += hw/vga.c
 SRCS += hw/gc.c
+SRCS += hw/backlight.c
 SRCS += hw/pci/virtio/virtio.c
 SRCS += hw/pci/virtio/virtio_kernel.c
 SRCS += hw/pci/virtio/vhost_user.c

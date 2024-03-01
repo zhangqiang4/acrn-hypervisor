@@ -12,6 +12,7 @@
 #include <sys/queue.h>
 #include <pixman.h>
 #include "dm.h"
+#include "backlight.h"
 
 #define VDPY_MAX_NUM 4
 
@@ -104,6 +105,7 @@ struct cursor {
 struct vdpy_if {
 	int scanout_num;
 	int pipe_num;
+	int backlight_num;
 };
 
 struct screen_backend_ops {
@@ -152,6 +154,9 @@ void vdpy_cursor_define(int handle, int scanout_id, struct cursor *cur);
 void vdpy_cursor_move(int handle, int scanout_id, uint32_t x, uint32_t y);
 void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id);
 void vdpy_set_scaling(int handle,int scanout_id, int x1, int y1, int x2, int y2);
+int vdpy_backlight_update_status(int handle, uint32_t backlight_id, struct backlight_properties *props);
+int vdpy_get_backlight(int handle, uint32_t backlight_id, int32_t *brightness);
+int vdpy_get_backlight_info(int handle, uint32_t backlight_id, struct backlight_info *info);
 void vdpy_destroy_res(int dmabuf_fd);
 void vdpy_create_res(int dmabuf_fd);
 int vdpy_deinit(int handle);
