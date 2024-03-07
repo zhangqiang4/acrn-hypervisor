@@ -64,7 +64,12 @@ void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 			struct acrn_vcpu *vcpu = get_ever_run_vcpu(pcpu_id);
 
 			if ((vcpu != NULL) && (is_lapic_pt_enabled(vcpu))) {
-				vcpu_make_request(vcpu, ACRN_REQUEST_SMP_CALL);
+				if (vcpu->state == VCPU_RUNNING) {
+					vcpu_make_request(vcpu, ACRN_REQUEST_SMP_CALL);
+				} else {
+					pr_err("vm%d:vcpu%d for lapic_pt is not running, can't handle smp call!", vcpu->vm->vm_id, vcpu->vcpu_id);
+					bitmap_clear_nolock(pcpu_id, &smp_call_mask);
+				}
 			} else {
 				send_single_ipi(pcpu_id, NOTIFY_VCPU_VECTOR);
 			}
