@@ -1660,6 +1660,11 @@ virtio_gpu_vga_render(void *param)
 	gpu->vga.surf.stride = 0;
 	/* The below logic needs to be refined */
 	while(gpu->vga.enable) {
+		if (!(gpu->vga.vberegs.enable & VBE_DISPI_ENABLED)) {
+			usleep(33000);
+			continue;
+		}
+
 		if ((gpu->vga.gc->gc_image->vgamode) && (gpu->vga.dev != NULL)) {
 			vga_render(gpu->vga.gc, gpu->vga.dev);
 			break;
@@ -1826,6 +1831,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 				(uint64_t)ctx->fb_base, prot) != 0) {
 		pr_err("%s: fail to map VGA framebuffer to bar0.\n", __func__);
 	}
+	memset(ctx->fb_base, 0, VIRTIO_GPU_VGA_FB_SIZE);
 
 	/** BAR2: VGA & Virtio Modern regs **/
 	/* EDID data blob [0x000~0x3ff] */
