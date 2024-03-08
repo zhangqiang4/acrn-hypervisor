@@ -834,6 +834,14 @@ virtio_sound_pcm_thread(void *param)
 	}
 	do {
 		err = poll(stream->poll_fd, stream->pfd_count, timeout);
+		if (err < 0) {
+			continue;
+		}
+		/*
+		 * For VIRTIO_SND_BE_STARTING state, PCM stream will wait
+		 * for poll timeout(about a period time) to avoid FE offset ptr
+		 * close loop before start.
+		 */
 		if (stream->status == VIRTIO_SND_BE_STARTING) {
 			timeout = -1;
 			stream->status = VIRTIO_SND_BE_START;
@@ -1233,6 +1241,8 @@ virtio_sound_r_pcm_start(struct virtio_sound_pcm *stream, struct virtio_sound_ct
 		stream->status = VIRTIO_SND_BE_START;
 		if (virtio_sound_create_poll_fds(stream) < 0) {
 			WPRINTF("%s: stream create pool fd failed!\n", __func__);
+			ret->code = VIRTIO_SND_S_BAD_MSG;
+			virtio_sound_release_ctrl_msg(ctrl, ctrl->iov[1].iov_len);
 			return -1;
 		}
 	}
@@ -1251,11 +1261,19 @@ static int
 virtio_sound_r_pcm_stop(struct virtio_sound_pcm *stream, struct virtio_sound_ctrl_msg *ctrl)
 {
 	struct virtio_snd_hdr *ret = ctrl->iov[1].iov_base;
+	int err;
+
 	if (stream->handle != NULL && snd_pcm_drop(stream->handle) < 0) {
 		WPRINTF("%s: stream %s drop error!\n", __func__, stream->dev_name);
 	}
 	stream->status = VIRTIO_SND_BE_STOP;
-	virtio_sound_create_poll_fds(stream);
+	err = virtio_sound_create_poll_fds(stream);
+	if (err) {
+		WPRINTF("%s: stream create pool fd failed!\n", __func__);
+		ret->code = VIRTIO_SND_S_BAD_MSG;
+		virtio_sound_release_ctrl_msg(ctrl, ctrl->iov[1].iov_len);
+		return -1;
+	}
 
 	ret->code = VIRTIO_SND_S_OK;
 	virtio_sound_release_ctrl_msg(ctrl, ctrl->iov[1].iov_len);
@@ -1702,7 +1720,7 @@ virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout)
 
 	/* loop read control events */
 	do {
-		size = read(stream->ctrl_fd[0], &ctrl + cnt, sizeof(ctrl) - cnt);
+		size = read(stream->ctrl_fd[0], (char *)&ctrl + cnt, sizeof(ctrl) - cnt);
 		cnt += size;
 	} while (size > 0 && cnt < sizeof(ctrl));
 	if (cnt != sizeof(ctrl)) {
@@ -1733,7 +1751,7 @@ virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout)
 			err = virtio_sound_r_pcm_pending(stream, &ctrl, timeout);
 			break;
 		default:
-			WPRINTF("%s: unsupported request 0x%X!\n", __func__);
+			WPRINTF("%s: unsupported request 0x%X!\n", __func__, hdr->code);
 			err = -1;
 			break;
 	}
@@ -1752,15 +1770,22 @@ virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream)
 	iov = malloc(sizeof(struct iovec));
 	if (info == NULL || iov == NULL) {
 		WPRINTF("%s: malloc iov(%p) & info(%p) fail!\n", __func__, iov, info);
+		if (info)
+			free(info);
+		if (iov)
+			free(iov);
 		return -1;
 	}
 	info->hdr.code = VIRTIO_SND_R_PCM_PENDING;
 	iov->iov_base = info;
 	ctrl.iov = iov;
+	ctrl.idx = 0;
 
 	size = write(stream->ctrl_fd[1], (char *)&ctrl, sizeof(ctrl));
 	if (size != sizeof(ctrl)) {
 		WPRINTF("%s: write error %d!\n", __func__, size);
+		free(info);
+		free(iov);
 		return -1;
 	}
 	return 0;
@@ -1777,10 +1802,15 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 	int s, size;
 
 	ctrl.idx = idx;
-	ctrl.iov = NULL;
 
 	if (n != 2) {
 		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		return -1;
+	}
+	if ((s = pcm->stream_id) >= virt_snd->stream_cnt) {
+		WPRINTF("%s: invalid stream %d!\n", __func__, s);
+		ret->code = VIRTIO_SND_S_BAD_MSG;
+		virtio_sound_release_ctrl_msg(&ctrl, iov[1].iov_len);
 		return -1;
 	}
 
@@ -1791,19 +1821,16 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 		return -1;
 	}
 	memcpy(ctrl.iov, iov, sizeof(struct iovec) * 2);
-	if ((s = pcm->stream_id) >= virt_snd->stream_cnt) {
-		WPRINTF("%s: invalid stream %d!\n", __func__, s);
-		ret->code = VIRTIO_SND_S_BAD_MSG;
-		virtio_sound_release_ctrl_msg(&ctrl, iov[1].iov_len);
-		return -1;
-	}
+
 	if (print_ctrl_msg > 1) {
 		info = (struct virtio_snd_query_info *)iov[0].iov_base;
 		WPRINTF("%s: send ctrl msg 0x%x\n", __func__, info->hdr.code);
 	}
+
 	size = write(virt_snd->streams[s]->ctrl_fd[1], (char *)&ctrl, sizeof(ctrl));
 	if (size != sizeof(ctrl)) {
 		WPRINTF("%s: write error %d!\n", __func__, size);
+		free(ctrl.iov);
 		return -1;
 	}
 	return 0;
