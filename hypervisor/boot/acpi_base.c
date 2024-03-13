@@ -167,15 +167,12 @@ void *get_acpi_tbl(const char *signature)
 	return hpa2hva(addr);
 }
 
-/* TODO: As ACRN supports only x2APIC mode, we need to
- * check upon using x2APIC APIC entries (Type 9) in MADT instead
- * of Type 0
- */
 static uint16_t
 local_parse_madt(struct acpi_table_madt *madt, uint32_t lapic_id_array[MAX_PCPU_NUM])
 {
 	uint16_t pcpu_num = 0U;
 	struct acpi_madt_local_apic *processor;
+	struct acpi_madt_x2apic *processor_x2apic;
 	struct acpi_table_madt *madt_ptr;
 	void *first, *end, *iterator;
 	struct acpi_subtable_header *entry;
@@ -199,6 +196,16 @@ local_parse_madt(struct acpi_table_madt *madt, uint32_t lapic_id_array[MAX_PCPU_
 				}
 				pcpu_num++;
 			}
+		} else if (entry->type == ACPI_MADT_TYPE_X2APIC) {
+			processor_x2apic = (struct acpi_madt_x2apic *)iterator;
+			if ((processor_x2apic->lapic_flags & ACPI_MADT_ENABLED) != 0U) {
+				if (pcpu_num < MAX_PCPU_NUM) {
+					lapic_id_array[pcpu_num] = processor_x2apic->processor_id;
+				}
+				pcpu_num++;
+			}
+		} else {
+			/* do nothing */
 		}
 	}
 
