@@ -74,6 +74,7 @@ local_parse_madt(struct acpi_table_madt *madt)
 	uint16_t pcpu_num = 0U;
 	int ret = 0;
 	struct acpi_madt_local_apic *processor;
+	struct acpi_madt_x2apic *processor_x2apic;
 	struct acpi_table_madt *madt_ptr;
 	void *first, *end, *iterator;
 	struct acpi_subtable_header *entry;
@@ -97,6 +98,16 @@ local_parse_madt(struct acpi_table_madt *madt)
 				}
 				pcpu_num++;
 			}
+		} else if (entry->type == ACPI_MADT_TYPE_X2APIC) {
+			processor_x2apic = (struct acpi_madt_x2apic *)iterator;
+			if ((processor_x2apic->lapic_flags & ACPI_MADT_ENABLED) != 0U) {
+				if (pcpu_num < ACRN_PLATFORM_LAPIC_IDS_MAX) {
+					lapic_ids[pcpu_num] = processor_x2apic->processor_id;
+				}
+				pcpu_num++;
+			}
+		} else {
+			/* do nothing */
 		}
 	}
 
