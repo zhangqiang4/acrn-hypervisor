@@ -581,6 +581,7 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			iothread_free_options(&iot_opt);
 			if (ioctx_base == NULL) {
 				pr_err("%s: Fails to create iothread context instance \n", __func__);
+				free(opts_start);
 				return -1;
 			}
 		}
@@ -603,7 +604,8 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	blk = calloc(1, sizeof(struct virtio_blk));
 	if (!blk) {
 		WPRINTF(("virtio_blk: calloc returns NULL\n"));
-		return -1;
+		rc = -1;
+		goto failed_blk;
 	}
 
 	blk->iothrds_info.ioctx_base = ioctx_base;
@@ -617,16 +619,15 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	blk->vqs = calloc(blk->num_vqs, sizeof(struct virtio_vq_info));
 	if (!blk->vqs) {
 		WPRINTF(("virtio_blk: calloc vqs returns NULL\n"));
-		free(blk);
-		return -1;
+		rc = -1;
+		goto failed_blk_vqs;
 	}
 	blk->ios = calloc(blk->num_vqs * VIRTIO_BLK_RINGSZ,
 		sizeof(struct virtio_blk_ioreq));
 	if (!blk->ios) {
 		WPRINTF(("virtio_blk: calloc ios returns NULL\n"));
-		free(blk->vqs);
-		free(blk);
-		return -1;
+		rc = -1;
+		goto failed_blk_ios;
 	}
 
 	for (j = 0; j < num_vqs; j++) {
@@ -643,17 +644,26 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	/* init mutex attribute properly to avoid deadlock */
 	rc = pthread_mutexattr_init(&attr);
-	if (rc)
+	if (rc) {
 		DPRINTF(("mutexattr init failed with erro %d!\n", rc));
+		goto failed_mutex;
+	}
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-	if (rc)
+	if (rc) {
 		DPRINTF(("virtio_blk: mutexattr_settype failed with "
 					"error %d!\n", rc));
+		pthread_mutexattr_destroy(&attr);
+		goto failed_mutex;
+	}
 
 	rc = pthread_mutex_init(&blk->mtx, &attr);
-	if (rc)
+	if (rc) {
 		DPRINTF(("virtio_blk: pthread_mutex_init failed with "
 					"error %d!\n", rc));
+		pthread_mutexattr_destroy(&attr);
+		goto failed_mutex;
+	}
+	pthread_mutexattr_destroy(&attr);
 
 	virtio_blk_init_ops(blk, num_vqs);
 
@@ -711,11 +721,8 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		pci_set_cfgdata16(dev, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
 	if (virtio_interrupt_init(&blk->base, virtio_uses_msix())) {
-		/* call close only for valid bctxt */
-		if (!blk->dummy_bctxt)
-			blockif_close(blk->bc);
-		free(blk);
-		return -1;
+		rc = -1;
+		goto failed_intr;
 	}
 	virtio_set_io_bar(&blk->base, 0);
 
@@ -731,6 +738,18 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	}
 
 	return 0;
+failed_intr:
+	pthread_mutex_destroy(&blk->mtx);
+failed_mutex:
+	free(blk->ios);
+failed_blk_ios:
+	free(blk->vqs);
+failed_blk_vqs:
+	free(blk);
+failed_blk:
+	if (!dummy_bctxt)
+		blockif_close(bctxt);
+	return rc;
 }
 
 static void
@@ -749,6 +768,7 @@ virtio_blk_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 				WPRINTF(("vrito_blk: Failed to flush before close\n"));
 			blockif_close(bctxt);
 		}
+		pthread_mutex_destroy(&blk->mtx);
 		virtio_reset_dev(&blk->base);
 		if (blk->ios)
 			free(blk->ios);
