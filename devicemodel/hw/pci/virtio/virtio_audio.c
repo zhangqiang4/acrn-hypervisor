@@ -294,8 +294,10 @@ virtio_audio_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	/* init mutex attribute properly */
 	rc = pthread_mutexattr_init(&attr);
-	if (rc)
+	if (rc) {
 		DPRINTF(("mutexattr init failed with erro %d!\n", rc));
+		goto failed_mutex;
+	}
 
 	if (virtio_uses_msix()) {
 		rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
@@ -308,10 +310,18 @@ virtio_audio_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			DPRINTF(("virtio_intx: mutexattr_settype "
 				 "failed with error %d!\n", rc));
 	}
+	if (rc) {
+		pthread_mutexattr_destroy(&attr);
+		goto failed_mutex;
+	}
 
 	rc = pthread_mutex_init(&virt_audio->mtx, &attr);
-	if (rc)
+	if (rc) {
 		DPRINTF(("mutex init failed with error %d!\n", rc));
+		pthread_mutexattr_destroy(&attr);
+		goto failed_mutex;
+	}
+	pthread_mutexattr_destroy(&attr);
 
 	virtio_linkup(&virt_audio->base,
 		      &virtio_audio_ops_k,
@@ -324,8 +334,7 @@ virtio_audio_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (rc < 0) {
 		WPRINTF(("virtio_audio: VBS-K init failed,error %d!\n", rc));
 		virt_audio->vbs_k.kstatus = VIRTIO_DEV_INIT_FAILED;
-		free(virt_audio);
-		return -1;
+		goto failed_kernel_init;
 	}
 	virt_audio->vbs_k.kstatus = VIRTIO_DEV_INIT_SUCCESS;
 	virt_audio->base.mtx = &virt_audio->mtx;
@@ -345,12 +354,20 @@ virtio_audio_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pci_set_cfgdata16(dev, PCIR_SUBVEND_0, INTEL_VENDOR_ID);
 
 	if (virtio_interrupt_init(&virt_audio->base, virtio_uses_msix())) {
-		free(virt_audio);
-		return -1;
+		rc = -1;
+		goto failed_kernel_init;
 	}
 	virtio_set_io_bar(&virt_audio->base, 0);
 
 	return 0;
+failed_kernel_init:
+	if (virt_audio->vbs_k.audio_fd >= 0) {
+		close(virt_audio->vbs_k.audio_fd);
+	}
+	pthread_mutex_destroy(&virt_audio->mtx);
+failed_mutex:
+	free(virt_audio);
+	return rc;
 }
 
 static void
