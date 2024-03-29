@@ -491,7 +491,8 @@ static bool hugetlb_reserve_pages(void)
 		reserve_more_pages(level);
 
 		/* check if reserved enough pages */
-		if (hugetlb_priv[level].pages_delta <= 0)
+		left_gap = hugetlb_priv[level].pages_delta;
+		if (left_gap <= 0)
 			continue;
 
 		/* probably system allocates fewer pages than needed
@@ -500,7 +501,6 @@ static bool hugetlb_reserve_pages(void)
 		 * so if that, it needs the next level to handle it.
 		 */
 		if (level > HUGETLB_LV1) {
-			left_gap = hugetlb_priv[level].pages_delta;
 			pg_size = hugetlb_priv[level].pg_size;
 			hugetlb_priv[level - 1].pages_delta += (size_t)left_gap
 				* (pg_size / hugetlb_priv[level - 1].pg_size);
@@ -619,6 +619,11 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 		}
 		hugetlb_priv[level].fd = fd;
 	}
+
+	if (level == HUGETLB_LV1) /* mount fail for level 1 */
+		goto err;
+	else if (level == HUGETLB_LV2) /* mount fail for level 2 */
+		pr_warn("WARNING: only level 1 hugetlb supported");
 
 	if (ALIGN_CHECK(ctx->lowmem, hugetlb_priv[HUGETLB_LV1].pg_size) ||
 		ALIGN_CHECK(ctx->highmem, hugetlb_priv[HUGETLB_LV1].pg_size) ||
