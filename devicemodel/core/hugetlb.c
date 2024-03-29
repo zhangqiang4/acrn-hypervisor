@@ -627,16 +627,6 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 		pr_err("Memory size is not aligned to 2M.\n");
 		goto err;
 	}
-	/* all memory should be at least aligned with
-	 * hugetlb_priv[HUGETLB_LV1].pg_size */
-	ctx->lowmem =
-		ALIGN_DOWN(ctx->lowmem, hugetlb_priv[HUGETLB_LV1].pg_size);
-	ctx->fbmem =
-		ALIGN_DOWN(ctx->fbmem, hugetlb_priv[HUGETLB_LV1].pg_size);
-	ctx->biosmem =
-		ALIGN_DOWN(ctx->biosmem, hugetlb_priv[HUGETLB_LV1].pg_size);
-	ctx->highmem =
-		ALIGN_DOWN(ctx->highmem, hugetlb_priv[HUGETLB_LV1].pg_size);
 
 	total_size = ctx->highmem_gpa_base + ctx->highmem;
 
