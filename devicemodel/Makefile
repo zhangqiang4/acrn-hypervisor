@@ -77,7 +77,13 @@ LDFLAGS += -Wl,-z,relro,-z,now
 LDFLAGS += -pie
 LDFLAGS += -L$(TOOLS_OUT)/services
 
-LIBS = -lrt
+EXT_LDFLAGS ?=
+LDFLAGS += $(EXT_LDFLAGS)
+
+EXT_LIBS ?=
+LIBS = $(EXT_LIBS)
+
+LIBS += -lrt
 LIBS += -lpthread
 LIBS += -lcrypto
 LIBS += -luring
@@ -229,6 +235,12 @@ all: $(DM_OBJDIR)/$(PROGRAM)
 
 $(DM_OBJDIR)/$(PROGRAM): $(OBJS)
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LIBS)
+	@if [ ! -z "$(EXT_LIBS)" ];then\
+		echo "*************************************************";\
+		echo "External libraries linked in: $(EXT_LIBS)";\
+		echo "External libraries LDFLAGS: $(EXT_LDFLAGS)";\
+		echo "*************************************************";\
+	fi;\
 
 clean:
 	rm -rf $(DM_OBJDIR)
