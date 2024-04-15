@@ -22,6 +22,7 @@
 #include <linux/udmabuf.h>
 #include <sys/stat.h>
 #include <stdio.h>
+#include <xf86drm.h>
 
 #include "dm.h"
 #include "pci_core.h"
@@ -1445,9 +1446,103 @@ static int udmabuf_fd(void)
 	return udmabuf;
 }
 
-static struct dma_buf_info *virtio_gpu_create_udmabuf(struct virtio_gpu *gpu,
-					struct virtio_gpu_mem_entry *entries,
-					int nr_entries)
+struct drm_i915_gem_deviceptr_item {
+	__u64 offset;
+	__u64 size;
+};
+
+/**
+ * Create a DRM GEM object from scatter list of device memory addresses
+ */
+struct drm_i915_gem_deviceptr {
+	__u32 vid;
+	/* Must be zero */
+	__u32 flags;
+	__u32 count;
+	/**
+	 * @handle: Returned handle for the object.
+	 *
+	 * Object handles are nonzero.
+	 */
+	__u32 handle;
+	struct drm_i915_gem_deviceptr_item *items;
+};
+
+#define DRM_I915_GEM_DEVICEPTR		0x3d
+
+#define DRM_IOCTL_I915_GEM_DEVICEPTR			DRM_IOWR (DRM_COMMAND_BASE + DRM_I915_GEM_DEVICEPTR, struct drm_i915_gem_deviceptr)
+
+static int i915_fd(void)
+{
+	static int fd = -1;
+
+	if (fd >= 0)
+		return fd;
+
+	fd = open("/dev/dri/renderD129", O_RDWR);
+	if (fd < 0) {
+		pr_err("failed to open fd for i915: %s.", strerror(errno));
+	}
+	return fd;
+}
+
+static struct dma_buf_info *
+virtio_gpu_create_dmabuf_deviceptr(struct virtio_gpu *gpu,
+				struct virtio_gpu_mem_entry *entries,
+				int nr_entries)
+{
+	struct dma_buf_info *info;
+	struct drm_i915_gem_deviceptr *deviceptr;
+	struct drm_i915_gem_deviceptr_item *items;
+	int i = 0, ret;
+	int fd, dmabuf_fd;
+
+	deviceptr = malloc(sizeof(*deviceptr));
+	items = malloc(nr_entries * sizeof(*items));
+	info = malloc(sizeof(*info));
+	fd = i915_fd();
+	if (!deviceptr || !items || !info || fd < 0) {
+		fprintf(stderr, "failed to allocate memory\n");
+		goto err;
+	}
+	memset(deviceptr, 0, sizeof(*deviceptr));
+
+	deviceptr->vid = 1;
+	deviceptr->flags = 0;
+	deviceptr->count = nr_entries;
+	deviceptr->items = items;
+	for (i = 0; i < nr_entries; ++i) {
+		items[i].offset = entries[i].addr;
+		items[i].size = entries[i].length;
+	}
+	ret = drmIoctl(fd, DRM_IOCTL_I915_GEM_DEVICEPTR, deviceptr);
+	if (ret) {
+		fprintf(stderr, "failed to create bo, error: %s\n", strerror(errno));
+		goto err;
+	}
+	ret = drmPrimeHandleToFD(fd, deviceptr->handle, DRM_CLOEXEC | DRM_RDWR, &dmabuf_fd);
+	/* Not matter exporting is successful or not, need to close the handle */
+	drmCloseBufferHandle(fd, deviceptr->handle);
+	if (ret) {
+		fprintf(stderr, "failed to export buffer as fd: %s\n", strerror(errno));
+		goto err;
+	}
+	info->dmabuf_fd = dmabuf_fd;
+	atomic_store(&info->ref_count, 1);
+	free(deviceptr);
+	free(items);
+	return info;
+err:
+	free(info);
+	free(deviceptr);
+	free(items);
+	return NULL;
+}
+
+static struct dma_buf_info *
+virtio_gpu_create_dmabuf_udmabuf(struct virtio_gpu *gpu,
+				struct virtio_gpu_mem_entry *entries,
+				int nr_entries)
 {
 	struct udmabuf_create_list *list;
 	int udmabuf, i, dmabuf_fd;
@@ -1525,6 +1620,26 @@ static struct dma_buf_info *virtio_gpu_create_udmabuf(struct virtio_gpu *gpu,
 	}
 	free(list);
 	return info;
+}
+
+enum memory_type {
+	MEMORY_TYPE_MEMFD,
+	MEMORY_TYPE_I915_DEVICE,
+};
+
+static struct dma_buf_info *
+virtio_gpu_create_dmabuf(struct virtio_gpu *gpu,
+			struct virtio_gpu_mem_entry *entries,
+			int nr_entries,
+			enum memory_type type)
+{
+	switch (type) {
+	case MEMORY_TYPE_MEMFD:
+		return virtio_gpu_create_dmabuf_udmabuf(gpu, entries, nr_entries);
+	case MEMORY_TYPE_I915_DEVICE:
+		return virtio_gpu_create_dmabuf_deviceptr(gpu, entries, nr_entries);
+	}
+	return NULL;
 }
 
 static void
@@ -1608,9 +1723,15 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 		}
 		if (req.size > CURSOR_BLOB_SIZE) {
 			/* Try to create the dma buf */
-			r2d->dma_info = virtio_gpu_create_udmabuf(cmd->gpu,
-					entries,
-					req.nr_entries);
+			r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
+								entries,
+								req.nr_entries,
+								MEMORY_TYPE_I915_DEVICE);
+			if (r2d->dma_info == NULL)
+				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
+									entries,
+									req.nr_entries,
+									MEMORY_TYPE_MEMFD);
 			if (r2d->dma_info == NULL) {
 				free(entries);
 				resp.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
