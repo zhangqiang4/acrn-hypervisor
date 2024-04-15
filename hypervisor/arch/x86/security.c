@@ -218,9 +218,8 @@ void set_fs_base(void)
 	struct stack_canary *psc = &get_cpu_var(stk_canary);
 
 	/*
-	 *  1) Leave initialized canary untouched when this function
-	 *     is called again such as on resuming from S3.
-	 *  2) Do some retries in case 'get_random_value()' returns 0.
+	 *  1) Restore canary value on given pCPU if it has been configured.
+	 *  2) Do retry in case 'get_random_value()' returns 0.
 	 */
 	for (retry = 0; (retry < 5) && (psc->canary == 0UL); retry++) {
 		psc->canary = get_random_value();
