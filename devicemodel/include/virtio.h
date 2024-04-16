@@ -194,6 +194,7 @@ enum {
 #define	VIRTIO_TYPE_RPMSG	7
 #define	VIRTIO_TYPE_SCSI	8
 #define	VIRTIO_TYPE_9P		9
+#define	VIRTIO_TYPE_GPU		16
 #define	VIRTIO_TYPE_INPUT	18
 #define	VIRTIO_TYPE_SOUND	25
 #define	VIRTIO_TYPE_FS		26
@@ -213,7 +214,6 @@ enum {
 #define	VIRTIO_TYPE_GPIO	0xFFF7
 #define	VIRTIO_TYPE_I2C		0xFFF6
 #define	VIRTIO_TYPE_SPI		0xFFF5
-#define	VIRTIO_TYPE_GPU		0x1100
 
 /*
  * PCI vendor/device IDs
