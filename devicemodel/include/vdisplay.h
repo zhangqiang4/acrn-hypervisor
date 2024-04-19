@@ -108,6 +108,7 @@ struct vdpy_if {
 	int scanout_num;
 	int pipe_num;
 	int backlight_num;
+	int vfid;
 };
 
 struct screen_backend_ops {

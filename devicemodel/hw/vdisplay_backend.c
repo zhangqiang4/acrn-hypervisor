@@ -56,6 +56,7 @@ static struct display {
 	struct screen *scrs;
 	int scrs_num;
 	int pipe_num;
+	int vfid;
 
 	int backlight_num;
 	char *backlight[MAX_BACKLIGHT_DEVICE];
@@ -956,6 +957,7 @@ vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,in
 		vdpy_if->scanout_num = vdpy.scrs_num;
 		vdpy_if->pipe_num = vdpy.pipe_num;
 		vdpy_if->backlight_num = vdpy.backlight_num;
+		vdpy_if->vfid = vdpy.vfid;
 		for(count=0; count< vdpy.scrs_num; count++) {
 			vdpy_vblank_init(count,func,data);
 		}
@@ -1264,7 +1266,7 @@ static int vdpy_set_para(char *name, char *tmp)
 int vdpy_parse_cmd_option(const char *opts)
 {
 	char *str, *stropts, *tmp, *subtmp;
-	int error;
+	int error, snum, vfid = 0;
 	struct screen *scr;
 
 	error = 0;
@@ -1278,6 +1280,7 @@ int vdpy_parse_cmd_option(const char *opts)
 	vdpy.scrs_num = 0;
 	vdpy.pipe_num = 0;
 	vdpy.backlight_num = 0;
+	vdpy.vfid = 0;
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
 		if (strcasestr(str, "backlight=")) {
@@ -1315,6 +1318,14 @@ int vdpy_parse_cmd_option(const char *opts)
 		} else if (tmp && strcasestr(str, "projection=")) {
 			scr->name = "projection";
 			vdpy.scrs_num++;
+		}
+
+		if (strcasestr(str, "dgpu-vfid=")) {
+			snum = sscanf(str, "dgpu-vfid=%d", &vfid);
+			if (snum == 1)
+				vdpy.vfid = vfid;
+			else
+				pr_err("invalid value for vfid: %s\n", str);
 		}
 
 		if(scr->name)

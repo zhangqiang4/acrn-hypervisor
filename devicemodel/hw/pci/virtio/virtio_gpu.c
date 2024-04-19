@@ -1497,6 +1497,9 @@ virtio_gpu_create_dmabuf_deviceptr(struct virtio_gpu *gpu,
 	int i = 0, ret;
 	int fd, dmabuf_fd;
 
+	if (gpu->vdpy_if.vfid <= 0)
+		return NULL;
+
 	deviceptr = malloc(sizeof(*deviceptr));
 	items = malloc(nr_entries * sizeof(*items));
 	info = malloc(sizeof(*info));
@@ -1507,7 +1510,7 @@ virtio_gpu_create_dmabuf_deviceptr(struct virtio_gpu *gpu,
 	}
 	memset(deviceptr, 0, sizeof(*deviceptr));
 
-	deviceptr->vid = 1;
+	deviceptr->vid = gpu->vdpy_if.vfid;
 	deviceptr->flags = 0;
 	deviceptr->count = nr_entries;
 	deviceptr->items = items;
