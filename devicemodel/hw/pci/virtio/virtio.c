@@ -43,7 +43,7 @@
 #include "iothread.h"
 #include "vmmapi.h"
 #include <errno.h>
-
+#include "virtio_be.h"
 /*
  * Functions for dealing with generalized "virtual devices" as
  * defined by <https://www.google.com/#output=search&q=virtio+spec>
@@ -56,11 +56,10 @@
  */
 #define DEV_STRUCT(vs) ((void *)(vs))
 
-static uint8_t virtio_poll_enabled;
+static uint8_t virtio_poll_enabled = 0;
 static size_t virtio_poll_interval;
 
-static
-void iothread_handler(void *arg)
+void dm_virtio_iothread_handler(void *arg)
 {
 	struct virtio_iothread *viothrd = arg;
 	struct virtio_base *base = viothrd->base;
@@ -82,8 +81,14 @@ void iothread_handler(void *arg)
 	}
 }
 
+static
+void iothread_handler(void *arg)
+{
+	vb_ops->iothread(arg);
+}
+
 void
-virtio_set_iothread(struct virtio_base *base,
+dm_virtio_set_iothread(struct virtio_base *base,
 			  bool is_register)
 {
 	struct virtio_vq_info *vq;
@@ -185,6 +190,54 @@ virtio_poll_timer(void *arg, uint64_t nexp)
 }
 
 /**
+ * @brief Deliver an interrupt to guest on the given virtqueue.
+ *
+ * The interrupt could be MSI-X or a generic MSI interrupt.
+ *
+ * @param vb Pointer to struct virtio_base.
+ * @param vq Pointer to struct virtio_vq_info.
+ */
+void
+dm_vq_interrupt(struct virtio_base *vb, struct virtio_vq_info *vq)
+{
+	if (pci_msix_enabled(vb->dev))
+		pci_generate_msix(vb->dev, vq->msix_idx);
+	else {
+		VIRTIO_BASE_LOCK(vb);
+		vb->isr |= VIRTIO_PCI_ISR_QUEUES;
+		pci_generate_msi(vb->dev, 0);
+		pci_lintr_assert(vb->dev);
+		VIRTIO_BASE_UNLOCK(vb);
+	}
+}
+
+/**
+ * @brief Deliver an config changed interrupt to guest.
+ *
+ * MSI-X or a generic MSI interrupt with config changed event.
+ *
+ * @param vb Pointer to struct virtio_base.
+ */
+void
+dm_virtio_config_changed(struct virtio_base *vb)
+{
+	if (!(vb->status & VIRTIO_CONFIG_S_DRIVER_OK))
+		return;
+
+	vb->config_generation++;
+
+	if (pci_msix_enabled(vb->dev))
+		pci_generate_msix(vb->dev, vb->msix_cfg_idx);
+	else {
+		VIRTIO_BASE_LOCK(vb);
+		vb->isr |= VIRTIO_PCI_ISR_CONFIG;
+		pci_generate_msi(vb->dev, 0);
+		pci_lintr_assert(vb->dev);
+		VIRTIO_BASE_UNLOCK(vb);
+	}
+}
+
+/**
  * @brief Link a virtio_base to its constants, the virtio device,
  * and the PCI emulation.
  *
@@ -195,7 +248,7 @@ virtio_poll_timer(void *arg, uint64_t nexp)
  * @param queues Pointer to struct virtio_vq_info, normally an array.
  */
 void
-virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
+dm_virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
 	      void *pci_virtio_dev, struct pci_vdev *dev,
 	      struct virtio_vq_info *queues,
 	      int backend_type)
@@ -257,7 +310,7 @@ virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
  * @param base Pointer to struct virtio_base.
  */
 void
-virtio_reset_dev(struct virtio_base *base)
+dm_virtio_reset_dev(struct virtio_base *base)
 {
 	struct virtio_vq_info *vq;
 	int i, nvq;
@@ -269,6 +322,7 @@ virtio_reset_dev(struct virtio_base *base)
 	base->polling_in_progress = 0;
 	if (base->iothread)
 		virtio_set_iothread(base, false);
+
 
 	nvq = base->vops->nvq;
 	for (vq = base->queues, i = 0; i < nvq; vq++, i++) {
@@ -304,7 +358,7 @@ virtio_reset_dev(struct virtio_base *base)
  * @param barnum Which BAR[0..5] to use.
  */
 void
-virtio_set_io_bar(struct virtio_base *base, int barnum)
+dm_virtio_set_io_bar(struct virtio_base *base, int barnum)
 {
 	size_t size;
 
@@ -332,7 +386,7 @@ virtio_set_io_bar(struct virtio_base *base, int barnum)
  * @return 0 on success and non-zero on fail.
  */
 int
-virtio_intr_init(struct virtio_base *base, int barnum, int use_msix)
+dm_virtio_intr_init(struct virtio_base *base, int barnum, int use_msix)
 {
 	int nvec;
 
@@ -1272,7 +1326,7 @@ virtio_set_modern_mmio_bar(struct virtio_base *base, int barnum)
  * Set virtio modern PIO BAR (usually 2) to map notify capability.
  */
 int
-virtio_set_modern_pio_bar(struct virtio_base *base, int barnum)
+dm_virtio_set_modern_pio_bar(struct virtio_base *base, int barnum)
 {
 	int rc;
 	struct virtio_pci_notify_cap notify_pio = {
@@ -1318,7 +1372,7 @@ virtio_set_modern_pio_bar(struct virtio_base *base, int barnum)
  * @return 0 on success and non-zero on fail.
  */
 int
-virtio_set_modern_bar(struct virtio_base *base, bool use_notify_pio)
+dm_virtio_set_modern_bar(struct virtio_base *base, bool use_notify_pio)
 {
 	struct virtio_ops *vops;
 	int rc = 0;
@@ -1910,7 +1964,7 @@ virtio_pci_modern_pio_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
  * @return register value.
  */
 uint64_t
-virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
+dm_virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 		int baridx, uint64_t offset, int size)
 {
 	struct virtio_base *base = dev->arg;
@@ -1954,7 +2008,7 @@ virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
  * @param value Data value to be written into register.
  */
 void
-virtio_pci_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
+dm_virtio_pci_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 		 int baridx, uint64_t offset, int size, uint64_t value)
 {
 	struct virtio_base *base = dev->arg;
@@ -2012,7 +2066,7 @@ acrn_parse_virtio_poll_interval(const char *optarg)
 	return 0;
 }
 
-int virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_register, int fd)
+int dm_virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_register, int fd)
 {
 	struct acrn_ioeventfd ioeventfd = {0};
 	struct pcibar *bar;

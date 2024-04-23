@@ -25,6 +25,7 @@
 #include "vmmapi.h"
 #include "log.h"
 #include "pci_core.h"
+#include "virtio_be.h"
 
 #define INTR_STORM_MONITOR_PERIOD	10 /* 10 seconds */
 #define INTR_STORM_THRESHOLD	100000 /* 10K times per second */
@@ -275,7 +276,7 @@ int set_wakeup_timer(time_t t)
 static LIST_HEAD(vm_ops_list, vm_ops) vm_ops_head;
 static pthread_mutex_t vm_ops_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-int monitor_register_vm_ops(struct monitor_vm_ops *mops, void *arg,
+int dm_monitor_register_vm_ops(struct monitor_vm_ops *mops, void *arg,
 			    const char *name)
 {
 	struct vm_ops *ops;

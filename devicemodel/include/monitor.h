@@ -14,6 +14,7 @@
 
 #ifndef MONITOR_H
 #define MONITOR_H
+#include "virtio_be.h"
 
 int monitor_init(struct vmctx *ctx);
 void monitor_close(void);
@@ -28,7 +29,7 @@ struct monitor_vm_ops {
 	int (*rescan)(void *arg, char *devargs);
 };
 
-int monitor_register_vm_ops(struct monitor_vm_ops *ops, void *arg,
+int dm_monitor_register_vm_ops(struct monitor_vm_ops *ops, void *arg,
 			    const char *name);
 
 /* helper functions for vm_ops callback developer */

@@ -39,6 +39,7 @@
 #include <linux/memfd.h>
 
 #include "vmmapi.h"
+#include "virtio_be.h"
 
 extern char *vmname;
 
@@ -832,7 +833,7 @@ void hugetlb_unsetup_memory(struct vmctx *ctx)
 	close_all_hugetlbfs();
 }
 
-bool vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
+bool dm_vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
 			struct vm_mmap_mem_region *ret_region)
 {
 	int i;
@@ -848,7 +849,7 @@ bool vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
 }
 
 bool
-vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
+dm_vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 			struct vm_mem_region *ret_region)
 {
 	int i;
@@ -875,7 +876,7 @@ vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 	return ret;
 }
 
-bool vm_allow_dmabuf(struct vmctx *ctx)
+bool dm_vm_allow_dmabuf(struct vmctx *ctx)
 {
 	uint32_t mem_flags;
 

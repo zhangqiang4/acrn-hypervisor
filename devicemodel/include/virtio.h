@@ -133,6 +133,7 @@
 #include "types.h"
 #include "timer.h"
 #include "iothread.h"
+#include "virtio_be.h"
 
 /**
  * @brief virtio API
@@ -510,53 +511,8 @@ vq_has_descs(struct virtio_vq_info *vq)
 
 }
 
-/**
- * @brief Deliver an interrupt to guest on the given virtqueue.
- *
- * The interrupt could be MSI-X or a generic MSI interrupt.
- *
- * @param vb Pointer to struct virtio_base.
- * @param vq Pointer to struct virtio_vq_info.
- */
-static inline void
-vq_interrupt(struct virtio_base *vb, struct virtio_vq_info *vq)
-{
-	if (pci_msix_enabled(vb->dev))
-		pci_generate_msix(vb->dev, vq->msix_idx);
-	else {
-		VIRTIO_BASE_LOCK(vb);
-		vb->isr |= VIRTIO_PCI_ISR_QUEUES;
-		pci_generate_msi(vb->dev, 0);
-		pci_lintr_assert(vb->dev);
-		VIRTIO_BASE_UNLOCK(vb);
-	}
-}
-
-/**
- * @brief Deliver an config changed interrupt to guest.
- *
- * MSI-X or a generic MSI interrupt with config changed event.
- *
- * @param vb Pointer to struct virtio_base.
- */
-static inline void
-virtio_config_changed(struct virtio_base *vb)
-{
-	if (!(vb->status & VIRTIO_CONFIG_S_DRIVER_OK))
-		return;
-
-	vb->config_generation++;
-
-	if (pci_msix_enabled(vb->dev))
-		pci_generate_msix(vb->dev, vb->msix_cfg_idx);
-	else {
-		VIRTIO_BASE_LOCK(vb);
-		vb->isr |= VIRTIO_PCI_ISR_CONFIG;
-		pci_generate_msi(vb->dev, 0);
-		pci_lintr_assert(vb->dev);
-		VIRTIO_BASE_UNLOCK(vb);
-	}
-}
+void dm_vq_interrupt(struct virtio_base *vb, struct virtio_vq_info *vq);
+void dm_virtio_config_changed(struct virtio_base *vb);
 
 struct iovec;
 
@@ -571,7 +527,7 @@ struct iovec;
  * @param queues Pointer to struct virtio_vq_info, normally an array.
  * @param backend_type can be VBSU, VBSK or VHOST
  */
-void virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
+void dm_virtio_linkup(struct virtio_base *base, struct virtio_ops *vops,
 		   void *pci_virtio_dev, struct pci_vdev *dev,
 		   struct virtio_vq_info *queues,
 		   int backend_type);
@@ -612,7 +568,7 @@ int virtio_interrupt_init(struct virtio_base *base, int use_msix);
  *
  * @return 0 on success and non-zero on fail.
  */
-int virtio_intr_init(struct virtio_base *base, int barnum, int use_msix);
+int dm_virtio_intr_init(struct virtio_base *base, int barnum, int use_msix);
 
 /**
  * @brief Reset device (device-wide).
@@ -626,7 +582,7 @@ int virtio_intr_init(struct virtio_base *base, int barnum, int use_msix);
  *
  * @param base Pointer to struct virtio_base.
  */
-void virtio_reset_dev(struct virtio_base *base);
+void dm_virtio_reset_dev(struct virtio_base *base);
 
 /**
  * @brief Set I/O BAR (usually 0) to map PCI config registers.
@@ -634,7 +590,7 @@ void virtio_reset_dev(struct virtio_base *base);
  * @param base Pointer to struct virtio_base.
  * @param barnum Which BAR[0..5] to use.
  */
-void virtio_set_io_bar(struct virtio_base *base, int barnum);
+void dm_virtio_set_io_bar(struct virtio_base *base, int barnum);
 
 /**
  * @brief Walk through the chain of descriptors involved in a request
@@ -708,7 +664,7 @@ void vq_clear_used_ring_flags(struct virtio_base *base, struct virtio_vq_info *v
  *
  * @return register value.
  */
-uint64_t virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
+uint64_t dm_virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 			 int baridx, uint64_t offset, int size);
 
 /**
@@ -725,7 +681,7 @@ uint64_t virtio_pci_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
  * @param size Access range in bytes.
  * @param value Data value to be written into register.
  */
-void virtio_pci_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
+void dm_virtio_pci_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 		      int baridx, uint64_t offset, int size, uint64_t value);
 
 /**
@@ -740,7 +696,7 @@ void virtio_pci_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
  *
  * @return 0 on success and non-zero on fail.
  */
-int virtio_set_modern_bar(struct virtio_base *base, bool use_notify_pio);
+int dm_virtio_set_modern_bar(struct virtio_base *base, bool use_notify_pio);
 
 /**
  * @}
@@ -760,8 +716,10 @@ uint32_t virtio_isr_cfg_read(
 		struct pci_vdev *dev, uint64_t offset, int size);
 uint32_t virtio_device_cfg_read(
 		struct pci_vdev *dev, uint64_t offset, int size);
-int virtio_set_modern_pio_bar(
+int dm_virtio_set_modern_pio_bar(
 		struct virtio_base *base, int barnum);
-
-int virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_register, int fd);
+void dm_virtio_iothread_handler(void *arg);
+void dm_virtio_set_iothread(struct virtio_base *base,
+		bool is_register);
+int dm_virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_register, int fd);
 #endif	/* _VIRTIO_H_ */

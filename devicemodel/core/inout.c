@@ -31,6 +31,7 @@
 
 #include "inout.h"
 #include "log.h"
+#include "virtio_be.h"
 SET_DECLARE(inout_port_set, struct inout_port);
 
 #define	MAX_IOPORTS	(1 << 16)
@@ -146,7 +147,7 @@ init_inout(void)
 }
 
 int
-register_inout(struct inout_port *iop)
+dm_register_inout(struct inout_port *iop)
 {
 	int i;
 
@@ -178,9 +179,8 @@ register_inout(struct inout_port *iop)
 }
 
 int
-unregister_inout(struct inout_port *iop)
+dm_unregister_inout(struct inout_port *iop)
 {
-
 	if (!VERIFY_IOPORT(iop->port, iop->size)) {
 		pr_err("invalid input: port:0x%x, size:%d",
 				iop->port, iop->size);

@@ -40,6 +40,7 @@
 
 #include "mem.h"
 #include "tree.h"
+#include "virtio_be.h"
 
 #define MEMNAMESZ (80)
 
@@ -215,13 +216,13 @@ register_mem_int(struct mmio_rb_tree *rbt, struct mem_range *memp)
 }
 
 int
-register_mem(struct mem_range *memp)
+dm_register_mem(struct mem_range *memp)
 {
 	return register_mem_int(&mmio_rb_root, memp);
 }
 
 int
-register_mem_fallback(struct mem_range *memp)
+dm_register_mem_fallback(struct mem_range *memp)
 {
 	return register_mem_int(&mmio_rb_fallback, memp);
 }

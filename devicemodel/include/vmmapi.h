@@ -101,11 +101,12 @@ struct vm_mem_region {
 	int fd;
 };
 
-bool	vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
+bool	acrn_has_cap(uint64_t cap);
+bool	dm_vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
 			struct vm_mmap_mem_region *ret_region);
-bool	vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
+bool	dm_vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 			     struct vm_mem_region *ret_region);
-bool    vm_allow_dmabuf(struct vmctx *ctx);
+bool    dm_vm_allow_dmabuf(struct vmctx *ctx);
 /*
  * Create a device memory segment identified by 'segid'.
  *
@@ -136,7 +137,7 @@ bool	init_hugetlb(void);
 void	uninit_hugetlb(void);
 int	hugetlb_setup_memory(struct vmctx *ctx);
 void	hugetlb_unsetup_memory(struct vmctx *ctx);
-void	*vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len);
+void	*dm_vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len);
 uint32_t vm_get_lowmem_limit(struct vmctx *ctx);
 size_t	vm_get_lowmem_size(struct vmctx *ctx);
 size_t	vm_get_highmem_size(struct vmctx *ctx);
@@ -168,8 +169,8 @@ int	vm_intr_monitor(struct vmctx *ctx, void *intr_buf);
 void	vm_stop_watchdog(struct vmctx *ctx);
 void	vm_reset_watchdog(struct vmctx *ctx);
 
-int	vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args);
-int	vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args);
+int	dm_vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args);
+int	dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args);
 
 /*
  * Return a string describing the meaning of the `error' code.

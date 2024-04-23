@@ -827,6 +827,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/public/acrn_hv_defs.h \
                           ../devicemodel/include/virtio.h \
                           ../devicemodel/include/virtio_kernel.h \
+                          ../devicemodel/include/virtio_be.h \
                           ../devicemodel/include/vhost.h \
                           ../devicemodel/include/dm.h \
                           ../devicemodel/include/pci_core.h \

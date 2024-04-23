@@ -44,6 +44,7 @@
 #include "mevent.h"
 #include "errno.h"
 
+#include "virtio_be.h"
 #include "dm.h"
 #include "pci_core.h"
 #include "log.h"
@@ -420,7 +421,7 @@ vm_unsetup_memory(struct vmctx *ctx)
  * The instruction emulation code depends on this behavior.
  */
 void *
-vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len)
+dm_vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len)
 {
 
 	if (ctx->lowmem > 0) {
@@ -727,9 +728,10 @@ vm_intr_monitor(struct vmctx *ctx, void *intr_buf)
 }
 
 int
-vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args)
+dm_vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args)
 {
 	int error;
+
 	error = ioctl(ctx->fd, ACRN_IOCTL_IOEVENTFD, args);
 	if (error) {
 		pr_err("ACRN_IOCTL_IOEVENTFD ioctl() returned an error: %s\n", errormsg(errno));
@@ -738,9 +740,10 @@ vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args)
 }
 
 int
-vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args)
+dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args)
 {
 	int error;
+
 	error = ioctl(ctx->fd, ACRN_IOCTL_IRQFD, args);
 	if (error) {
 		pr_err("ACRN_IOCTL_IRQFD ioctl() returned an error: %s\n", errormsg(errno));

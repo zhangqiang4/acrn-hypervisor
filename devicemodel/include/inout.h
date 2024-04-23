@@ -31,6 +31,7 @@
 
 #include "types.h"
 #include "acrn_common.h"
+#include "virtio_be.h"
 struct vmctx;
 
 /*
@@ -71,7 +72,7 @@ struct inout_port {
 
 void	init_inout(void);
 int	emulate_inout(struct vmctx *ctx, int *pvcpu, struct acrn_pio_request *req);
-int	register_inout(struct inout_port *iop);
-int	unregister_inout(struct inout_port *iop);
+int	dm_register_inout(struct inout_port *iop);
+int	dm_unregister_inout(struct inout_port *iop);
 
 #endif	/* _INOUT_H_ */

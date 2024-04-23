@@ -36,6 +36,7 @@
 #include "types.h"
 #include "pcireg.h"
 #include "log.h"
+#include "virtio_be.h"
 
 #define	PCI_BARMAX	PCIR_MAX_BAR_0	/* BAR registers in a Type 0 header */
 #define	PCI_BDF(b, d, f) (((b & 0xFF) << 8) | ((d & 0x1F) << 3) | ((f & 0x7)))
@@ -136,6 +137,14 @@ enum lintr_stat {
 	ASSERTED,
 	PENDING
 };
+
+struct funcinfo {
+	char	*fi_name;
+	char	*fi_param;
+	char	*fi_param_saved; /* save for reboot */
+	struct pci_vdev *fi_devi;
+};
+
 
 #define PCI_ROMBAR	(PCIR_MAX_BAR_0 + 1) /* ROM BAR index in Type 0 Header */
 struct pci_vdev {
@@ -330,14 +339,14 @@ void	pci_callback(void);
  * @Return 0 indicates that the allocation is successful.
  *         error indicates that it fails in the allocation of bar region.
  */
-int	pci_emul_alloc_bar(struct pci_vdev *pdi, int idx,
+int	dm_pci_emul_alloc_bar(struct pci_vdev *pdi, int idx,
 			   enum pcibar_type type, uint64_t size);
 int	pci_emul_alloc_pbar(struct pci_vdev *pdi, int idx,
 			    uint64_t hostbase, enum pcibar_type type,
 			    uint64_t size);
 void	pci_emul_free_bar(struct pci_vdev *pdi, int idx);
 void	pci_emul_free_bars(struct pci_vdev *pdi);
-int	pci_emul_add_capability(struct pci_vdev *dev, u_char *capdata,
+int	dm_pci_emul_add_capability(struct pci_vdev *dev, u_char *capdata,
 				int caplen);
 int	pci_emul_find_capability(struct pci_vdev *dev, uint8_t capid,
 				 int *p_capoff);
@@ -402,8 +411,8 @@ int	check_gsi_sharing_violation(void);
 int	pciaccess_init(void);
 void	pciaccess_cleanup(void);
 int	parse_bdf(char *s, int *bus, int *dev, int *func, int base);
-struct pci_vdev *pci_get_vdev_info(int slot);
-
+struct pci_vdev *dm_pci_get_vdev_info(int slot);
+struct pci_vdev_ops *pci_emul_finddev(char *name);
 
 /**
  * @brief Set virtual PCI device's configuration space in 1 byte width

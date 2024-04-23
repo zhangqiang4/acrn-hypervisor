@@ -30,6 +30,7 @@
 #define	_MEM_H_
 #include "types.h"
 #include "hsm_ioctl_defs.h"
+#include "virtio_be.h"
 
 struct vmctx;
 
@@ -51,8 +52,8 @@ struct mem_range {
 #define	MEM_F_IMMUTABLE		0x4	/* mem_range cannot be unregistered */
 
 int	emulate_mem(struct vmctx *ctx, struct acrn_mmio_request *mmio_req);
-int	register_mem(struct mem_range *memp);
-int	register_mem_fallback(struct mem_range *memp);
+int	dm_register_mem(struct mem_range *memp);
+int	dm_register_mem_fallback(struct mem_range *memp);
 int	unregister_mem(struct mem_range *memp);
 int	unregister_mem_fallback(struct mem_range *memp);
 void	init_mem(void);

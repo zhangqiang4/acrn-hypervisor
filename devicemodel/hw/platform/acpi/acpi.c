@@ -1304,7 +1304,7 @@ acpi_build(struct vmctx *ctx, int ncpu)
 			pr_err("Error: Size of vRTCT (%d bytes) overflows.\n", vrtct_len);
 			return -1;
 		}
-		memcpy(vm_map_gpa(ctx, ACPI_BASE + RTCT_OFFSET, vrtct_len), vrtct, vrtct_len);
+		memcpy(paddr_guest2host(ctx, ACPI_BASE + RTCT_OFFSET, vrtct_len), vrtct, vrtct_len);
 	}
 
 	return err;

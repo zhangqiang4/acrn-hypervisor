@@ -49,6 +49,7 @@
 #include "sw_load.h"
 #include "log.h"
 #include "vdisplay.h"
+#include "virtio_be.h"
 
 #define CONF1_ADDR_PORT    0x0cf8
 #define CONF1_DATA_PORT    0x0cfc
@@ -59,12 +60,6 @@
 #define MAXSLOTS	(PCI_SLOTMAX + 1)
 #define	MAXFUNCS	(PCI_FUNCMAX + 1)
 
-struct funcinfo {
-	char	*fi_name;
-	char	*fi_param;
-	char	*fi_param_saved; /* save for reboot */
-	struct pci_vdev *fi_devi;
-};
 
 struct intxinfo {
 	int	ii_count;
@@ -105,7 +100,6 @@ struct io_rsvd_rgn reserved_bar_regions[REGION_NUMS];
 #define	PCI_EMUL_ECFG_SIZE	(MAXBUSES * 1024 * 1024)    /* 1MB per bus */
 SYSRES_MEM(PCI_EMUL_ECFG_BASE, PCI_EMUL_ECFG_SIZE);
 
-static struct pci_vdev_ops *pci_emul_finddev(char *name);
 static void pci_lintr_route(struct pci_vdev *dev);
 static void pci_lintr_update(struct pci_vdev *dev);
 static void pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot,
@@ -610,7 +604,7 @@ pci_emul_alloc_resource(uint64_t *baseptr, uint64_t limit, uint64_t size,
 }
 
 int
-pci_emul_alloc_bar(struct pci_vdev *pdi, int idx, enum pcibar_type type,
+dm_pci_emul_alloc_bar(struct pci_vdev *pdi, int idx, enum pcibar_type type,
 		   uint64_t size)
 {
 	return pci_emul_alloc_pbar(pdi, idx, 0, type, size);
@@ -949,7 +943,7 @@ pci_emul_free_bars(struct pci_vdev *pdi)
 
 #define	CAP_START_OFFSET	0x40
 int
-pci_emul_add_capability(struct pci_vdev *dev, u_char *capdata, int caplen)
+dm_pci_emul_add_capability(struct pci_vdev *dev, u_char *capdata, int caplen)
 {
 	int i, capoff, reallen;
 	uint16_t sts;
@@ -1024,7 +1018,7 @@ pci_emul_find_capability(struct pci_vdev *dev, uint8_t capid, int *p_capoff)
 	return -1;
 }
 
-static struct pci_vdev_ops *
+struct pci_vdev_ops *
 pci_emul_finddev(char *name)
 {
 	struct pci_vdev_ops **pdpp, *pdp;
@@ -3136,7 +3130,7 @@ pci_emul_dior(struct vmctx *ctx, int vcpu, struct pci_vdev *dev, int baridx,
 }
 
 struct pci_vdev*
-pci_get_vdev_info(int slot)
+dm_pci_get_vdev_info(int slot)
 {
 	struct businfo *bi;
 	struct slotinfo *si;
