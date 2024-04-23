@@ -1,0 +1,125 @@
+/*
+ * Copyright (C) 2024 Intel Corporation
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+#include <errno.h>
+#include <error.h>
+#include <string.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include "log.h"
+#include "shmem.h"
+
+#define MAX_VECTORS 1
+
+#define IVSHMEM_BAR0_SIZE  256
+
+struct ivshm_listener_data {
+	int vector;
+	int evt_fd;
+};
+
+#define IVSHM_ADD_LISTENER	_IOW('u', 100, struct ivshm_listener_data)
+#define IVSHM_GET_MMIO_SZ	_IOR('u', 101, unsigned long long)
+
+/** Maximum number of clients allowed to connect to a shared memory region */
+#define GUEST_SHM_MAX_CLIENTS	16
+
+/** Register layout for a region control page */
+struct guest_shm_control {
+	uint32_t		status;	/**< lower 16 bits: pending notification bitset, upper 16 bits: current active clients (R/O) */
+	uint32_t		idx;	/**< connection index for this client (R/O) */
+	uint32_t		notify;	/**< write a bitset of clients to notify */
+	uint32_t		detach; /**< write here to detach from the shared memory region */
+};
+
+static int shmem_open(const char *devpath, struct shmem_info *info, int evt_fds[], int nr_ent_fds)
+{
+	struct ivshm_listener_data data;
+	struct guest_shm_control *ctrl;
+	char ivshm_path[64];
+	int ivshm_fd, iregion_fd;
+	int i;
+	char *idx;
+
+	pr_info("%s, nr_ent_fds:%d___\r\n", __func__, nr_ent_fds);
+	memset(info, 0, sizeof(struct shmem_info));
+
+	idx = strstr(devpath, ".");
+	if (!idx)
+		error(1, errno, "cannot infer ivshm path from %s", devpath);
+	memcpy(ivshm_path, devpath, idx - devpath);
+	ivshm_path[idx - devpath] = '\0';
+
+	ivshm_fd = open(ivshm_path, O_RDWR);
+	if (ivshm_fd < 0)
+		error(1, errno, "cannot open %s", devpath);
+
+	iregion_fd = open(devpath, O_RDWR);
+	if (iregion_fd < 0)
+		error(1, errno, "cannot open %s", devpath);
+
+	info->mmio_base = mmap(NULL, IVSHMEM_BAR0_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, ivshm_fd, 0);
+	if (info->mmio_base == MAP_FAILED)
+		error(1, errno, "mmap of registers failed");
+
+	if (ioctl(iregion_fd, IVSHM_GET_MMIO_SZ, &info->mem_size) < 0)
+		error(1, errno, "failed to get ivshm mmio size");
+
+	pr_info("%s, mem_size: 0x%lx___\r\n", __func__, info->mem_size);
+	info->mem_base = mmap(NULL, info->mem_size, PROT_READ | PROT_WRITE, MAP_SHARED, iregion_fd, 0);
+	if (info->mem_base == MAP_FAILED)
+		error(1, errno, "mmap of shared memory failed");
+	info->mem_fd = iregion_fd;
+
+	info->nr_vecs = min(MAX_VECTORS, nr_ent_fds);
+	for (i = 0; i < info->nr_vecs; i++) {
+		data.vector = i;
+		data.evt_fd = evt_fds[i];
+		if (ioctl(iregion_fd, IVSHM_ADD_LISTENER, &data) < 0)
+			error(1, errno, "cannot bind interrupt vector %d", i);
+
+	}
+
+	ctrl = (struct guest_shm_control *)info->mmio_base;
+	info->this_id = mmio_read32(&ctrl->idx);
+	info->peer_id = -1;
+
+	close(ivshm_fd);
+
+	info->ops = &ivshm_guest_shm_ops;
+
+	return 0;
+}
+
+static void shmem_close(struct shmem_info *info)
+{
+	if (info->mem_base) {
+		munmap(info->mem_base, info->mem_size);
+		info->mem_base = NULL;
+		info->mem_size = 0;
+		close(info->mem_fd);
+	}
+}
+
+static void shmem_notify_peer(struct shmem_info *info, int vector)
+{
+	struct guest_shm_control *ctrl = (struct guest_shm_control *)info->mmio_base;
+
+	mmio_write32(&ctrl->notify, (1 << info->peer_id));
+}
+
+struct shmem_ops ivshm_guest_shm_ops = {
+	.name = "ivshm-guest-shm",
+
+	.open = shmem_open,
+	.close = shmem_close,
+	.notify_peer = shmem_notify_peer,
+};
