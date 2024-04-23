@@ -30,6 +30,7 @@
 #include "console.h"
 #include "vga.h"
 #include "atomic.h"
+#include "virtio_be.h"
 
 /*
  * Queue definitions.
@@ -1817,6 +1818,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pci_set_cfgdata16(dev, PCIR_REVID, 1);
 	pci_set_cfgdata8(dev, PCIR_CLASS, PCIC_DISPLAY);
 	pci_set_cfgdata8(dev, PCIR_SUBCLASS, PCIS_DISPLAY_VGA);
+
 	pci_set_cfgdata16(dev, PCIR_SUBDEV_0, VIRTIO_TYPE_GPU);
 	pci_set_cfgdata16(dev, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
@@ -1827,11 +1829,13 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	/** BAR0: VGA framebuffer **/
 	pci_emul_alloc_bar(dev, 0, PCIBAR_MEM32, VIRTIO_GPU_VGA_FB_SIZE);
 	prot = PROT_READ | PROT_WRITE;
-	if (vm_map_memseg_vma(ctx, VIRTIO_GPU_VGA_FB_SIZE, dev->bar[0].addr,
-				(uint64_t)ctx->fb_base, prot) != 0) {
-		pr_err("%s: fail to map VGA framebuffer to bar0.\n", __func__);
+	if (!only_be) {
+		if (vm_map_memseg_vma(ctx, VIRTIO_GPU_VGA_FB_SIZE, dev->bar[0].addr,
+					(uint64_t)ctx->fb_base, prot) != 0) {
+			pr_err("%s: fail to map VGA framebuffer to bar0.\n", __func__);
+		}
+		memset(ctx->fb_base, 0, VIRTIO_GPU_VGA_FB_SIZE);
 	}
-	memset(ctx->fb_base, 0, VIRTIO_GPU_VGA_FB_SIZE);
 
 	/** BAR2: VGA & Virtio Modern regs **/
 	/* EDID data blob [0x000~0x3ff] */

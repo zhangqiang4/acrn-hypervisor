@@ -34,6 +34,7 @@
 #include "macros.h"
 #include "pm.h"
 #include "hsm_ioctl_defs.h"
+#include <stdbool.h>
 
 /*
  * API version for out-of-tree consumers for making compile time decisions.

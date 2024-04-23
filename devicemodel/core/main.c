@@ -72,6 +72,7 @@
 #include "vdisplay.h"
 #include "iothread.h"
 #include "vm_event.h"
+#include "virtio_be.h"
 
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
 
@@ -103,8 +104,9 @@ bool is_winvm;
 bool skip_pci_mem64bar_workaround = false;
 bool gfx_ui = false;
 bool ovmf_loaded = false;
+bool only_be = false;
 
-static int guest_ncpus;
+static int guest_ncpus = 1;
 static int virtio_msix = 1;
 static bool debugexit_enabled;
 static int pm_notify_channel;
@@ -884,6 +886,7 @@ enum {
 	CMD_OPT_PM_BY_VUART,
 	CMD_OPT_WINDOWS,
 	CMD_OPT_FORCE_VIRTIO_MSI,
+	CMD_OPT_BE,
 };
 
 static struct option long_options[] = {
@@ -901,6 +904,7 @@ static struct option long_options[] = {
 	{"gvtargs",		required_argument,	0, 'G' },
 	{"help",		no_argument,		0, 'h' },
 	{"mac_seed",		required_argument,	0, CMD_OPT_MAC_SEED},
+	{"acrn_be",		no_argument,		0, CMD_OPT_BE},
 
 	/* Following cmd option only has long option */
 #ifdef CONFIG_VM_CFG
@@ -949,6 +953,17 @@ vm_init_asyncio(struct vmctx *ctx, uint64_t base)
 	return vm_setup_asyncio(ctx, base);
 }
 
+static int
+is_acrn_be(int argc, char *argv[])
+{
+	pr_info("is_acrn_be %s\n", argv[1]);
+	if (strcmp("--acrn_be", argv[1]) == 0) {
+		only_be = true;
+		return 1;
+	}
+	return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -956,7 +971,7 @@ main(int argc, char *argv[])
 	int max_vcpus, mptgen;
 	struct vmctx *ctx;
 	size_t memsize;
-	int option_idx = 0;
+	int option_idx = 0, param_order = 0;
 
 	progname = basename(argv[0]);
 	memsize = 256 * MB;
@@ -974,13 +989,14 @@ main(int argc, char *argv[])
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
 		fprintf(stderr, "cannot register handler for SIGPIPE\n");
 
-	if (parse_madt()) {
+	if (!is_acrn_be(argc, argv) && parse_madt()) {
 		pr_err("Failed to parse the MADT table\n");
 		exit(1);
 	}
 
 	while ((c = getopt_long(argc, argv, optstr, long_options,
 			&option_idx)) != -1) {
+		param_order++;
 		switch (c) {
 		case 'A':
 			pr_info("The '-A' parameter is obsolete and ignored. "
@@ -1138,6 +1154,13 @@ main(int argc, char *argv[])
 		case CMD_OPT_FORCE_VIRTIO_MSI:
 			virtio_msix = 0;
 			break;
+		case CMD_OPT_BE:
+			if (param_order != 1) {
+				errx(EX_USAGE, "If use 'acrn-be', it should be the first parameter \n");
+				exit(1);
+			}
+			acrn_be(argc, argv);
+			exit(1);
 		case 'h':
 			usage(0);
 		default:

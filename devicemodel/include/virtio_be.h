@@ -222,4 +222,5 @@ void virtio_config_changed(struct virtio_base *vb);
  */
 void vq_interrupt(struct virtio_base *vb, struct virtio_vq_info *vq);
 
+int acrn_be(int argc, char *argv[]);
 #endif  /* __VIRTIO_VACKENDS_H__ */
