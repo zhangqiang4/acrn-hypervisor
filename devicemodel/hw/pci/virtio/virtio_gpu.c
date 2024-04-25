@@ -57,7 +57,8 @@
 #define VIRTIO_GPU_F_VBLANK		7
 #define VIRTIO_GPU_F_BACKLIGHT		8
 #define VIRTIO_GPU_F_MULTI_PLANE	9
-#define VIRTIO_GPU_F_ROTATION  10 
+#define VIRTIO_GPU_F_ROTATION		10
+#define VIRTIO_GPU_F_ALLOW_P2P		13
 /*
  * Host capabilities
  */
@@ -1479,9 +1480,10 @@ static int i915_fd(void)
 	if (fd >= 0)
 		return fd;
 
+	/* TODO: We assume dGPU goes in the second place for now. */
 	fd = open("/dev/dri/renderD129", O_RDWR);
 	if (fd < 0) {
-		pr_err("failed to open fd for i915: %s.", strerror(errno));
+		pr_err("failed to open fd for i915: %s", strerror(errno));
 	}
 	return fd;
 }
@@ -2448,6 +2450,9 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_VBLANK);
 		gpu->irq_bh = calloc(gpu->vdpy_if.pipe_num, sizeof(struct vdpy_display_bh));
 	}
+
+	if (gpu->vdpy_if.vfid)
+		gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_ALLOW_P2P);
 
 	for(i=2; i< 2 + gpu->vdpy_if.pipe_num; i++) {
 		gpu->vq[i].qsize = VIRTIO_GPU_RINGSZ;
