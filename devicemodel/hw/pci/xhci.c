@@ -1096,6 +1096,7 @@ pci_xhci_dev_destroy(struct pci_xhci_dev_emu *de)
 				pci_xhci_free_usb_xfer(de, vdep->ep_xfer);
 				vdep->ep_xfer = NULL;
 			}
+			acrn_timer_deinit(&de->eps[i].isoc_timer);
 		}
 		if (ue->ue_devtype == USB_DEV_PORT_MAPPER)
 			free(ue);
@@ -1763,6 +1764,8 @@ pci_xhci_init_ep(struct pci_xhci_dev_emu *dev, int epid, uint32_t slot)
 	devep->timer_data.epnum = epid;
 	devep->timer_data.dir = (epid & 0x1) ? TOKEN_IN : TOKEN_OUT;
 	devep->isoc_timer.clockid = CLOCK_MONOTONIC;
+	if (devep->isoc_timer.fd > 0)
+		return 0;
 	rc = acrn_timer_init(&devep->isoc_timer, pci_xhci_isoc_handler,
 			&devep->timer_data);
 	if (rc < 0) {
