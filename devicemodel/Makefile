@@ -77,10 +77,10 @@ LDFLAGS += -Wl,-z,relro,-z,now
 LDFLAGS += -pie
 LDFLAGS += -L$(TOOLS_OUT)/services
 
-EXT_LDFLAGS ?=
+EXT_LDFLAGS ?= -L$(BASEDIR)/../misc/services/extlibs
 LDFLAGS += $(EXT_LDFLAGS)
 
-EXT_LIBS ?=
+EXT_LIBS ?= -Wl,--whole-archive -lacrnext -Wl,--no-whole-archive
 LIBS = $(EXT_LIBS)
 
 LIBS += -lrt
@@ -96,6 +96,7 @@ LIBS += -lSDL2
 LIBS += -lEGL
 LIBS += -lGLESv2
 LIBS += -lasound
+LIBS += -ldrm
 
 
 # lib
