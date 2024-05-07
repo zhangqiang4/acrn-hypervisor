@@ -114,6 +114,7 @@ int	blockif_write(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_flush(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_discard(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_cancel(struct blockif_ctxt *bc, struct blockif_req *breq);
+void	blockif_reset(struct blockif_ctxt *bc);
 int	blockif_close(struct blockif_ctxt *bc);
 uint8_t	blockif_get_wce(struct blockif_ctxt *bc);
 void	blockif_set_wce(struct blockif_ctxt *bc, uint8_t wce);

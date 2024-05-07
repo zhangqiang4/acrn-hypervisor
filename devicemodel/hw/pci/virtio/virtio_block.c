@@ -181,8 +181,10 @@ virtio_blk_reset(void *vdev)
 	DPRINTF(("virtio_blk: device reset requested !\n"));
 	virtio_reset_dev(&blk->base);
 	/* Reset virtio-blk device only on valid bctxt*/
-	if (!blk->dummy_bctxt)
+	if (!blk->dummy_bctxt) {
+		blockif_reset(blk->bc);
 		blockif_set_wce(blk->bc, blk->original_wce);
+	}
 }
 
 static void

@@ -553,8 +553,10 @@ ahci_reset(struct pci_ahci_vdev *ahci_dev)
 		ahci_dev->port[i].ie = 0;
 		ahci_dev->port[i].is = 0;
 		ahci_dev->port[i].cmd = (AHCI_P_CMD_SUD | AHCI_P_CMD_POD);
-		if (ahci_dev->port[i].bctx)
+		if (ahci_dev->port[i].bctx) {
+			blockif_reset(ahci_dev->port[i].bctx);
 			ahci_dev->port[i].cmd |= AHCI_P_CMD_CPS;
+		}
 		ahci_dev->port[i].sctl = 0;
 		ahci_port_reset(&ahci_dev->port[i]);
 	}

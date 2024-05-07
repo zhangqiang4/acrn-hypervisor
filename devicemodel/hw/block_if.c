@@ -142,6 +142,7 @@ struct blockif_ctxt {
 	int			fd;
 	int			isblk;
 	int			candiscard;
+	int			failed_discard;
 	int			rdonly;
 	off_t			size;
 	int			sub_file_assign;
@@ -325,7 +326,7 @@ blockif_process_discard(struct blockif_ctxt *bc, struct blockif_req *br)
 	err = 0;
 	n_range = 0;
 	segment = 0;
-	if (!bc->candiscard)
+	if (!bc->candiscard || bc->failed_discard)
 		return EOPNOTSUPP;
 
 	if (bc->rdonly)
@@ -374,6 +375,7 @@ blockif_process_discard(struct blockif_ctxt *bc, struct blockif_req *br)
 		if (err) {
 			WPRINTF(("Failed to discard offset=%ld nbytes=%ld err code: %d\n",
 				 arg[i][0], arg[i][1], err));
+			bc->failed_discard = 1;
 			return err;
 		}
 	}
@@ -1308,7 +1310,6 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 	off_t sub_file_start_lba, sub_file_size;
 	int sub_file_assign;
 	int max_discard_sectors, max_discard_seg, discard_sector_alignment;
-	off_t probe_arg[] = {0, 0};
 	int aio_mode;
 	int bypass_host_cache, open_flag, bst_block;
 
@@ -1487,14 +1488,6 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 		DPRINTF(("block partition physical sector size is 0x%lx\n",
 			 psectsz));
 
-		if (candiscard) {
-			err_code = ioctl(fd, BLKDISCARD, probe_arg);
-			if (err_code) {
-				WPRINTF(("not support DISCARD\n"));
-				candiscard = 0;
-			}
-		}
-
 	} else {
 		if (size < DEV_BSIZE || (size & (DEV_BSIZE - 1))) {
 			WPRINTF(("%s size not corret, should be multiple of %d\n",
@@ -1559,6 +1552,7 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 
 	bc->fd = fd;
 	bc->isblk = S_ISBLK(sbuf.st_mode);
+	bc->failed_discard = 0;
 	bc->candiscard = candiscard;
 	if (candiscard) {
 		bc->max_discard_sectors =
@@ -1810,6 +1804,12 @@ blockif_cancel(struct blockif_ctxt *bc, struct blockif_req *breq)
 	 * clear if the callback has been invoked yet, return EBUSY.
 	 */
 	return -EBUSY;
+}
+
+void
+blockif_reset(struct blockif_ctxt *bc)
+{
+	bc->failed_discard = 0;
 }
 
 int
