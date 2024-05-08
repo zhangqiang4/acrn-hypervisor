@@ -671,10 +671,6 @@ static int vos_backend_init(struct virtio_backend_info *info)
 	int ret = -1, i;
 	struct virtio_base *base;
 
-	ret = mevent_init();
-	if (ret < 0)
-		return ret;
-
 	for (i = 0; i < MAX_IRQS; i++) {
 		info->evt_fds[i] = eventfd(0, EFD_NONBLOCK);
 		if (info->evt_fds[i] < 0) {
