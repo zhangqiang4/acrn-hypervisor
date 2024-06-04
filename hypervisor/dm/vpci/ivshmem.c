@@ -366,10 +366,18 @@ static void init_ivshmem_vdev(struct pci_vdev *vdev)
 static void deinit_ivshmem_vdev(struct pci_vdev *vdev)
 {
 	struct ivshmem_device *ivs_dev = (struct ivshmem_device *) vdev->priv_data;
+	uint32_t i;
 
 	ivshmem_server_unbind_peer(vdev);
 
 	spinlock_obtain(&ivshmem_dev_lock);
+	for (i = IVSHMEM_DEV_NUM; i > 0 ; i--) {
+		if (ivshmem_dev[i].pcidev == vdev) {
+			ivshmem_dev[i].pcidev = NULL;
+			break;
+		}
+	}
+
 	vdev->priv_data = NULL;
 	vdev->user = NULL;
 	ivs_dev->pcidev = NULL;
