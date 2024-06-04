@@ -870,6 +870,8 @@ dm_vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 		offset = gpa - mmap_region->gpa_start;
 		ret_region->fd = mmap_region->fd;
 		ret_region->fd_offset = offset + mmap_region->fd_offset;
+		ret_region->gpa_start = mmap_region->gpa_start;
+		ret_region->gpa_end = mmap_region->gpa_end;
 	} else
 		ret = false;
 
@@ -878,6 +880,7 @@ dm_vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 
 bool dm_vm_allow_dmabuf(struct vmctx *ctx)
 {
+#if 0
 	uint32_t mem_flags;
 
 	mem_flags = 0;
@@ -905,5 +908,7 @@ bool dm_vm_allow_dmabuf(struct vmctx *ctx)
 		if (mem_flags == 0x03)
 			return false;
 	}
+	return true;
+#endif
 	return true;
 }

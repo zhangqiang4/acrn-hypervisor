@@ -100,6 +100,8 @@ struct vm_mmap_mem_region {
 struct vm_mem_region {
 	uint64_t fd_offset;
 	int fd;
+	vm_paddr_t gpa_start;
+	vm_paddr_t gpa_end;
 };
 
 bool	acrn_has_cap(uint64_t cap);

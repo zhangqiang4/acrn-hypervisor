@@ -1153,6 +1153,10 @@ static struct dma_buf_info *virtio_gpu_create_udmabuf(struct virtio_gpu *gpu,
 	struct vm_mem_region ret_region;
 	bool fail_flag;
 	struct dma_buf_info *info;
+	vm_paddr_t addr;
+	int count= 0;
+	int reserve = nr_entries;
+	size_t len = 0;
 
 	udmabuf = udmabuf_fd();
 	if (udmabuf < 0) {
@@ -1168,19 +1172,40 @@ static struct dma_buf_info *virtio_gpu_create_udmabuf(struct virtio_gpu *gpu,
 		return NULL;
 	}
 	for (i = 0; i < nr_entries; i++) {
-		if (vm_find_memfd_region(gpu->base.dev->vmctx,
-					entries[i].addr,
-					&ret_region) == false) {
-			fail_flag = true;
-			pr_err("%s : Failed to find memfd for %llx.\n",
-					__func__, entries[i].addr);
-			break;
+		addr = entries[i].addr;
+		len = entries[i].length;
+		while (len > 0) {
+			if (vm_find_memfd_region(gpu->base.dev->vmctx,
+						addr,
+						&ret_region) == false) {
+				fail_flag = true;
+				pr_err("%s : Failed to find memfd for %llx.\n",
+						__func__, entries[i].addr);
+				break;
+			}
+			if (count >= reserve) {
+				list = realloc(list, sizeof(*list) + sizeof(struct udmabuf_create_item) * (count + 1));
+				reserve = reserve + 1;
+			}
+			if ((ret_region.gpa_end - addr) >= len) {
+				list->list[count].memfd  = ret_region.fd;
+				list->list[count].offset = ret_region.fd_offset;
+				list->list[count].size   = len;
+				count++;
+				break;
+			} else {
+				list->list[count].memfd  = ret_region.fd;
+				list->list[count].offset = ret_region.fd_offset;
+				list->list[count].size   = ret_region.gpa_end - addr;
+				len =  len - (ret_region.gpa_end - addr);
+				addr = ret_region.gpa_end;
+				count++;
+			}
 		}
-		list->list[i].memfd  = ret_region.fd;
-		list->list[i].offset = ret_region.fd_offset;
-		list->list[i].size   = entries[i].length;
+		if (fail_flag)
+			break;
 	}
-	list->count = nr_entries;
+	list->count = count;
 	list->flags = UDMABUF_FLAGS_CLOEXEC;
 	if (fail_flag) {
 		dmabuf_fd = -1;
