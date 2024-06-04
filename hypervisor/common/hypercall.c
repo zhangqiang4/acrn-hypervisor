@@ -1283,8 +1283,8 @@ int32_t hcall_add_vdev(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, __unus
 	struct acrn_vdev dev;
 	struct emul_dev_ops *op;
 
-	/* We should only create a device to a post-launched VM at creating time for safety, not runtime or other cases*/
-	if (is_created_vm(target_vm)) {
+	/* We should only create a device to a post-launched VM at creating or pausing time for safety, not runtime or other cases*/
+	if (is_created_vm(target_vm) || is_paused_vm(target_vm)) {
 		if (copy_from_gpa(vm, &dev, param2, sizeof(dev)) == 0) {
 			op = find_emul_dev_ops(&dev);
 			if ((op != NULL) && (op->create != NULL)) {
@@ -1292,7 +1292,7 @@ int32_t hcall_add_vdev(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, __unus
 			}
 		}
 	} else {
-		pr_err("%s, vm[%d] is not a postlaunched VM, or not in CREATED status to create a vdev\n", __func__, target_vm->vm_id);
+		pr_err("%s, vm[%d] is not a postlaunched VM, or not in CREATED/PAUSED status to create a vdev\n", __func__, target_vm->vm_id);
 	}
 	return ret;
 }
