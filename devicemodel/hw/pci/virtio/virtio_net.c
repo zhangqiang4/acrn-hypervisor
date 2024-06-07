@@ -550,13 +550,22 @@ virtio_net_proctx(struct virtio_net *net, struct virtio_vq_info *vq)
 	}
 	plen = 0;
 	tlen = iov[0].iov_len;
-	for (i = 1; i < n; i++) {
-		plen += iov[i].iov_len;
-		tlen += iov[i].iov_len;
-	}
 
-	DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
-	net->virtio_net_tx(net, &iov[1], n - 1, plen);
+	if (iov[0].iov_len > net->rx_vhdrlen) {
+		iov[0].iov_base += net->rx_vhdrlen;
+		iov[0].iov_len -= net->rx_vhdrlen;
+		plen = tlen - net->rx_vhdrlen;
+		DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
+		net->virtio_net_tx(net, iov, n, plen);
+	} else {
+		for (i = 1; i < n; i++) {
+			plen += iov[i].iov_len;
+			tlen += iov[i].iov_len;
+		}
+
+		DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
+		net->virtio_net_tx(net, &iov[1], n - 1, plen);
+	}
 
 	/* chain is processed, release it and set tlen */
 	vq_relchain(vq, idx, tlen);
@@ -1090,7 +1099,10 @@ virtio_net_neg_features(void *vdev, uint64_t negotiated_features)
 	if (!(net->features & VIRTIO_NET_F_MRG_RXBUF)) {
 		net->rx_merge = 0;
 		/* non-merge rx header is 2 bytes shorter */
-		net->rx_vhdrlen -= 2;
+		net->rx_vhdrlen = sizeof(struct virtio_net_rxhdr) - 2;
+	} else {
+		net->rx_merge = 1;
+		net->rx_vhdrlen = sizeof(struct virtio_net_rxhdr);
 	}
 }
 
