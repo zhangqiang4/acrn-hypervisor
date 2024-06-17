@@ -31,11 +31,22 @@ struct state {
 	int n_connect;
 };
 
+struct timer_vblank{
+
+       void *virtio_data;
+       void (*vblank_inject)(void *data,unsigned int frame,int i);
+       struct acrn_timer vblank_timer;
+       int vblank_id;
+
+};
+
 struct screen {
 	char *name;
 	void *backend;
 	struct screen_backend_ops *vscreen_ops;
 	struct timespec last_time;
+	bool is_timer_vblank;
+	struct timer_vblank sw_vblank;
 };
 
 static struct display {
@@ -761,12 +772,53 @@ bool vdpy_submit_bh(int handle, struct vdpy_display_bh *bh_task)
 	return bh_ok;
 }
 
+void vblank_timer_handler(void *arg, uint64_t n)
+{
+	struct timer_vblank *tvbl = (struct timer_vblank *)arg;
+	tvbl->vblank_inject(tvbl->virtio_data, 0, tvbl->vblank_id);
+}
+
+static void timer_vblank_init(struct timer_vblank *tvbl, void (*func)
+		(void *data,unsigned int frame,int i), void *data)
+{
+	int rc;
+	tvbl->vblank_timer.clockid = CLOCK_MONOTONIC;
+	tvbl->vblank_inject = func;
+	tvbl->virtio_data = data;
+	rc = acrn_timer_init(&tvbl->vblank_timer, vblank_timer_handler,
+			tvbl);
+	if (rc < 0) {
+		pr_err("initializa vblank timer failed \r\n");
+		return;
+	}
+}
+
+static void timer_vblank_enable(struct timer_vblank *tvbl)
+{
+	struct itimerspec ts;
+	/* setting the interval time */
+	ts.it_interval.tv_sec = 0;
+	ts.it_interval.tv_nsec = 16600000;
+	/* set the delay time it will be started when timer_setting */
+	ts.it_value.tv_sec = 0;
+	ts.it_value.tv_nsec = 1;
+	if (acrn_timer_settime(&tvbl->vblank_timer, &ts) != 0) {
+		pr_err("acrn timer set time failed\n");
+		return;
+	}
+}
+
 void
 vdpy_vblank_init(int scanout_id, void (*func)
 		(void *data,unsigned int frame,int i), void *data)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
+	if(vscr->is_timer_vblank) {
+		timer_vblank_init(&vscr->sw_vblank, func, data);
+		return;
+	}
+
 	if(vscr->vscreen_ops->vdpy_vblank_init)
 		vscr->vscreen_ops->vdpy_vblank_init(vscr->backend, func, data);
 }
@@ -818,6 +870,7 @@ vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,in
 int
 vdpy_deinit(int handle)
 {
+	int i;
 	if (handle != vdpy.s.n_connect) {
 		return -1;
 	}
@@ -835,6 +888,12 @@ vdpy_deinit(int handle)
 	pthread_mutex_unlock(&vdpy.vdisplay_mutex);
 
 	pthread_join(vdpy.tid, NULL);
+
+	for(i=0; i<vdpy.scrs_num; i++) {
+		if(vdpy.scrs[i].is_timer_vblank)
+			acrn_timer_deinit(&vdpy.scrs[i].sw_vblank.vblank_timer);
+	}
+
 	pr_info("Exit SDL display thread\n");
 
 	return 0;
@@ -845,6 +904,11 @@ vdpy_enable_vblank(int scanout_id)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
+	if(vscr->is_timer_vblank) {
+		timer_vblank_enable(&vscr->sw_vblank);
+		return;
+	}
+
 	if(vscr->vscreen_ops->vdpy_enable_vblank)
 		vscr->vscreen_ops->vdpy_enable_vblank(vscr->backend);
 }
@@ -1079,7 +1143,7 @@ static int vdpy_set_para(char *name, char *tmp)
 
 int vdpy_parse_cmd_option(const char *opts)
 {
-	char *str, *stropts, *tmp;
+	char *str, *stropts, *tmp, *subtmp;
 	int error;
 	struct screen *scr;
 
@@ -1096,6 +1160,12 @@ int vdpy_parse_cmd_option(const char *opts)
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
 		scr = vdpy.scrs + vdpy.scrs_num;
+		subtmp = strcasestr(str, "timer-vblank");
+		if (subtmp) {
+			scr->is_timer_vblank = true;
+			scr->sw_vblank.vblank_id = 2 + vdpy.pipe_num;
+			vdpy.pipe_num++;
+		}
 		tmp = strcasestr(str, "=");
 		if (tmp && strcasestr(str, "geometry=")) {
 
