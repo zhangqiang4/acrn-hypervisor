@@ -293,7 +293,7 @@ pci_ivshmem_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	if (tmp) {
 		if (dm_strtoui(tmp, &tmp, 10, &region_id) != 0) {
-			pr_warn("shared memory region ID is incorrect, %s, 0 will used.\n", tmp);
+			pr_warn("shared memory region ID is incorrect, %s, 0 will be used.\n", tmp);
 			region_id = 0;
 		}
 	}
@@ -348,6 +348,20 @@ err:
 static void
 destroy_ivshmem_from_dm(struct pci_ivshmem_vdev *vdev)
 {
+	if (vdev->name) {
+		/*
+		 * shm_unlink will only remove the shared memory file object,
+		 * the shared memory will be released until all processes
+		 * which opened the shared memory close the file.
+		 *
+		 * Don't invoke shm_unlink(vdev->name) to remove file object now,
+		 * so that the acrn-dm can communicate with the peer again after
+		 * rebooting/shutdown, the side effect is that the shared memory
+		 * will not be released even if all peers exit.
+		 */
+		free(vdev->name);
+	}
+
 	if (vdev->addr && vdev->size)
 		munmap(vdev->addr, vdev->size);
 	if (vdev->fd > 0)
@@ -380,20 +394,6 @@ pci_ivshmem_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		destroy_ivshmem_from_hv(ctx, dev);
 	else
 		destroy_ivshmem_from_dm(vdev);
-
-	if (vdev->name) {
-		/*
-		 * shm_unlink will only remove the shared memory file object,
-		 * the shared memory will be released until all processes
-		 * which opened the shared memory close the file.
-		 *
-		 * Don't invoke shm_unlink(vdev->name) to remove file object now,
-		 * so that the acrn-dm can communicate with the peer again after
-		 * rebooting/shutdown, the side effect is that the shared memory
-		 * will not be released even if all peers exit.
-		 */
-		free(vdev->name);
-	}
 
 	free(vdev);
 	dev->arg = NULL;
