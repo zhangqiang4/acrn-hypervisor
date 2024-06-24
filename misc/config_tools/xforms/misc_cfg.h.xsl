@@ -97,9 +97,18 @@
       <xsl:value-of select="concat('hugepagesz=1G hugepages=', //allocation-data//vm[acrn:is-service-vm(load_order)]/hugepages/gb)" />
     </xsl:if>
   </xsl:variable>
+  <xsl:variable name="extra_memmap">
+      <xsl:value-of select="concat('memmap=', //hv/MEMORY/RAMOOPS_SIZE, '$', //hv/MEMORY/RAMOOPS_START, ',', //hv/MEMORY/HVLOG_SIZE, '$', //hv/MEMORY/HVLOG_START)" />
+  </xsl:variable>
+  <xsl:variable name="ramoops_cmdline">
+      <xsl:value-of select="concat('ramoops.mem_address=', //hv/MEMORY/RAMOOPS_START, ' ramoops.mem_size=', //hv/MEMORY/RAMOOPS_SIZE, ' ramoops.console_size=0x200000 ramoops.dump_oops=1')" />
+  </xsl:variable>
+  <xsl:variable name="hvlog_cmdline">
+      <xsl:value-of select="concat('hvlog=' , //hv/MEMORY/HVLOG_SIZE, '@', //hv/MEMORY/HVLOG_START)" />
+  </xsl:variable>
   <xsl:value-of select="acrn:define('SERVICE_VM_ROOTFS', concat($quot, $sos_rootfs, ' ', $quot), '')" />
   <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_DIFF', concat($quot, $sos_bootargs, ' ', $maxcpus, ' ', $hugepage_kernelstring, ' ', $quot), '')" />
-  <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_MISC', concat($quot, 'udmabuf.list_limit=8192 ', $quot), '')" />
+  <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_MISC', concat($quot, 'udmabuf.list_limit=8192 ', $extra_memmap, ' ', $ramoops_cmdline, ' ', $hvlog_cmdline, $quot), '')" />
 </xsl:template>
 
 <xsl:template name="cpu_affinity">
