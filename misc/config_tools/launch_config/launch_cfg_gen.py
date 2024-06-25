@@ -401,6 +401,9 @@ def generate_for_one_vm(board_etree, hv_scenario_etree, vm_scenario_etree, vm_id
                 params.append(f"geometry=fullscreen:{monitor_id}")
         script.add_virtual_device("virtio-gpu", options=",".join(params))
 
+    if eval_xpath(vm_scenario_etree, ".//virtio_devices/camera/text()") != "":
+        script.add_virtual_device("virtio-camera", options="configlib=libcamera_config.so")
+
     for vsock in eval_xpath_all(vm_scenario_etree, ".//virtio_devices/vsock[text() != '']/text()"):
         script.add_virtual_device("vhost-vsock", options="cid="+vsock)
 

@@ -344,6 +344,11 @@ These settings can only be changed at build time.</xs:documentation>
           <xs:documentation>Refer to :ref:`vuart_config` for detailed vUART settings.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="phy_camera" type="PhysicalCameraConnectionsType">
+      <xs:annotation acrn:title="Physical Camera Configuration" acrn:views="basic">
+          <xs:documentation>Specify the physical camera settings.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="DEBUG_OPTIONS" type="DebugOptionsType">
       <xs:annotation acrn:title="Debug options" acrn:views="basic">
 	<xs:documentation>Configure the debug facilities.</xs:documentation>
