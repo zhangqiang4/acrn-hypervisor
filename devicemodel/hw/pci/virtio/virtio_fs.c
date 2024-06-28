@@ -20,7 +20,9 @@ static int virtio_fs_debug;
 #define DPRINTF(params) do { if (virtio_fs_debug) pr_err params; } while (0)
 #define WPRINTF(params) (pr_err params)
 
-#define VIRTIO_FS_S_VHOSTCAPS (1UL << VIRTIO_F_VERSION_1)
+#define VIRTIO_FS_S_VHOSTCAPS 	((1UL << VIRTIO_F_VERSION_1) | (1 << VIRTIO_RING_F_INDIRECT_DESC) | \
+	(1 << VIRTIO_RING_F_EVENT_IDX) | (1 << VIRTIO_F_NOTIFY_ON_EMPTY))
+
 /* Queue definitions.
  */
 #define VIRTIO_FS_HIPRIQ       0
