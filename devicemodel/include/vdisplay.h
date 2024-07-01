@@ -18,6 +18,7 @@
 
 typedef void (*bh_task_func)(void *data);
 typedef void (*vblank_inject_func)(void *data, unsigned int frame, int i);
+typedef void (*hdcp_inject_func)(void *data, unsigned int frame, int i);
 
 /* bh task is still pending */
 #define ACRN_BH_PENDING (1 << 0)
@@ -40,6 +41,12 @@ struct vdpy_display_bh {
 	bh_task_func task_cb;
 	void *data;
 	uint32_t bh_flag;
+};
+
+struct hdcp_info {
+	int32_t hdcp2;
+	int32_t connector_hdcp2;
+	int32_t hdcp;
 };
 
 struct edid_info {
@@ -115,6 +122,7 @@ struct vdpy_if {
 	int backlight_num;
 	int vfid;
 	uint32_t dgpu_crtc_bitmask;
+	int is_hdcp_supported;
 };
 
 struct screen_backend_ops {
@@ -154,7 +162,10 @@ struct screen_backend_ops {
 	void (*vdpy_get_plane_rotation)(void *backend, int plane_id, uint64_t *rotation, uint32_t *count);
 	void (*vdpy_update_sprite)(void *backend, int plane_id, struct surface *surf);
 	void (*vdpy_sprite_flush_sync)(void *backend);
-
+	void (*vdpy_set_cp)(void *backend, uint32_t type, uint32_t value);
+	void (*vdpy_query_cp)(void *backend, uint32_t scanout_id, struct hdcp_info *info);
+	int (*vdpy_hdcp_init)(void *backend, void (*func)
+	        (void *data, uint32_t value, int i), void *data, int scanout_id);
 };
 
 struct vdpy_backend {
@@ -177,7 +188,8 @@ SET_DECLARE(vdpy_backend_set, struct vdpy_backend);
 
 int vdpy_parse_cmd_option(const char *opts);
 int gfx_ui_init();
-int vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,int i), void *data);
+int vdpy_init(struct vdpy_if *vdpy_if, void(*vblank_func)(void *data, unsigned int frame,int i),
+	       void(*hdcp_func)(void *data, uint32_t value, int i), void *data);
 void vdpy_get_display_info(int handle, int scanout_id, struct display_info *info);
 void vdpy_surface_set(int handle, int scanout_id, struct surface *surf);
 void vdpy_surface_set_vga(int handle, int scanout_id, struct surface *surf);
@@ -205,6 +217,8 @@ void vdpy_update_sprite(int handle, int scanout_id, int plane_id, struct surface
 void vdpy_sprite_flush_sync(int handle, int scanout_id);
 bool vdpy_mplane_check();
 void vdpy_mplane_fallback();
+void vdpy_set_cp(int handle,int scanout_id, uint32_t type, uint32_t value);
+void vdpy_query_cp(int handle, int scanout_id, struct hdcp_info *info);
 void gfx_ui_deinit();
 
 #endif /* _VDISPLAY_H_ */

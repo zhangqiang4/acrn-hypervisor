@@ -90,6 +90,7 @@ LIBS += -lpthread
 LIBS += -lcrypto
 LIBS += -luring
 LIBS += -lblkid
+LIBS += -ludev
 LIBS += -lpciaccess
 LIBS += -lusb-1.0
 LIBS += -lacrn-mngr

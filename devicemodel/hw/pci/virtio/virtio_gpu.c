@@ -62,6 +62,7 @@
 #define VIRTIO_GPU_F_MULTI_PLANAR_FORMAT	12
 #define VIRTIO_GPU_F_ALLOW_P2P			13
 #define VIRTIO_GPU_F_FLIP_SEQUENCE		14
+#define VIRTIO_GPU_F_HDCP                       15
 
 /*
  * Host capabilities
@@ -144,6 +145,10 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_CMD_BACKLIGHT_GET,
 	VIRTIO_GPU_CMD_BACKLIGHT_QUERY,
 
+	/*content protection*/
+	VIRTIO_GPU_CMD_CP_SET = 0x0500,
+	VIRTIO_GPU_CMD_CP_QUERY = 0x0501,
+
 	/* success responses */
 	VIRTIO_GPU_RESP_OK_NODATA = 0x1100,
 	VIRTIO_GPU_RESP_OK_DISPLAY_INFO,
@@ -152,7 +157,8 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_RESP_OK_EDID,
 	VIRTIO_GPU_RESP_OK_RESOURCE_UUID,
 	VIRTIO_GPU_RESP_OK_MAP_INFO,
-	VIRTIO_GPU_RESP_OK_BACKLIGHT_GET,
+	VIRTIO_GPU_RESP_OK_BACKLIGHT_GET = 0x1140,
+	VIRTIO_GPU_RESP_OK_CP_QUERY = 0x1150,
 
 	/* error responses */
 	VIRTIO_GPU_RESP_ERR_UNSPEC = 0x1200,
@@ -495,6 +501,40 @@ struct virtio_gpu_get_backlight_info {
 	uint32_t padding;
 };
 
+/* VIRTIO_GPU_CMD_CP_SET */
+struct virtio_gpu_cp_set {
+	struct virtio_gpu_ctrl_hdr hdr;
+	__le32 scanout_id;
+	__le32 type;
+	__le32 cp;
+	__le32 padding;
+};
+
+/* VIRTIO_GPU_CMD_CP_QUERY */
+struct virtio_gpu_cp_query {
+        struct virtio_gpu_ctrl_hdr hdr;
+        __le32 scanout_id;
+        __le32 padding;
+};
+
+struct virtio_gpu_resp_cp_query {
+        struct virtio_gpu_ctrl_hdr hdr;
+        __le32 hdcp2;
+        __le32 connector_hdcp2;
+	__le32 hdcp;
+	__le32 padding;
+};
+
+struct virtio_gpu_cp_notification {
+	__le32 id;
+	__le32 value;
+};
+
+struct cp_event {
+	struct virtio_gpu_cp_notification event;
+	LIST_ENTRY(cp_event) link;
+};
+
 struct virtio_gpu_resp_backlight_info {
 	struct virtio_gpu_ctrl_hdr hdr;
 	int32_t brightness;
@@ -532,14 +572,19 @@ struct virtio_gpu {
 	struct vdpy_display_bh ctrl_bh;
 	struct vdpy_display_bh cursor_bh;
 	struct vdpy_display_bh vga_bh;
+	struct vdpy_display_bh hdcp_bh;
 	struct vga vga;
 	pthread_mutex_t	vga_thread_mtx;
 	int32_t vga_thread_status;
 	uint8_t edid[VIRTIO_GPU_EDID_SIZE];
 	bool is_blob_supported;
+	bool is_hdcp_supported;
 	struct virtio_gpu_scanout *gpu_scanouts;
 	struct vdpy_display_bh *irq_bh;
 	struct virtio_vq_info *vq;
+	pthread_mutex_t	event_mtx;
+	LIST_HEAD(,cp_event) event_list;
+	int hdcp_vq_index;
 };
 
 struct virtio_gpu_command {
@@ -586,7 +631,7 @@ insert_vblank_irq(void *data,unsigned int frame,int i)
 	int n;
 	uint16_t idx;
 
-	vq = &gpu->vq[i];
+	vq = gpu->irq_bh[i].data;
 	if(vq_disallow_interrupt(vq))
 		return;
 	if(vq_has_descs(vq)) {
@@ -611,6 +656,77 @@ insert_vblank_irq(void *data,unsigned int frame,int i)
 
 	}
 
+}
+
+int
+send_hdcp_event(struct virtio_vq_info *vq, uint32_t value, int i)
+{
+	struct iovec iov;
+	struct virtio_gpu_cp_notification ret_value;
+	int n;
+	uint16_t idx;
+	ret_value.value = value;
+	ret_value.id = i;
+	if (vq_has_descs(vq)) {
+		n = vq_getchain(vq, &idx, &iov, 1, NULL);
+		if (n < 0) {
+			pr_err("virtio-gpu hdcp: invalid descriptors\n");
+			return -1;
+		}
+		if (n == 0) {
+			pr_err("virtio-gpu hdcp: get no available desciptors\n");
+			return -1;
+		}
+		if (n != 1) {
+			pr_err("virtio-gpu hdcp: get wrong number of available descriptors\n");
+			vq_relchain(vq, idx, sizeof(struct virtio_gpu_cp_notification)); /* Release the chain */
+			return -1;
+		}
+		memcpy(iov.iov_base, &ret_value, sizeof(struct virtio_gpu_cp_notification));
+		vq_relchain(vq, idx, sizeof(struct virtio_gpu_cp_notification));
+		vq_endchains(vq, 1);
+		return 0;
+	}
+	return -1;
+}
+
+void
+insert_hdcp_irq(void *data, uint32_t value, int i)
+{
+	struct virtio_gpu *gpu = (struct virtio_gpu *)data;
+	struct virtio_vq_info *vq;
+	struct cp_event *entry = NULL;
+	struct cp_event *tmp = NULL;
+	int ret = 0;
+
+	if (!gpu->vdpy_if.is_hdcp_supported || !gpu->is_hdcp_supported || gpu->hdcp_vq_index < 2)
+		return;
+
+	vq = &gpu->vq[gpu->hdcp_vq_index];
+
+	if(vq_disallow_interrupt(vq))
+		return;
+
+	entry = malloc(sizeof(*entry));
+	if (!entry) {
+		pr_err("%s, failed to alloc buffer\n", __FUNCTION__);
+		return;
+	}
+	entry->event.value = value;
+	entry->event.id = i;
+	pthread_mutex_lock(&gpu->event_mtx);
+	LIST_INSERT_HEAD(&gpu->event_list, entry, link);
+	LIST_FOREACH(tmp, &gpu->event_list, link) {
+		entry = tmp;
+	}
+	if (entry) {
+		ret = send_hdcp_event(vq, entry->event.value, entry->event.id);
+		if (ret == 0) {
+			LIST_REMOVE(entry, link);
+			free(entry);
+		}
+	}
+	pthread_mutex_unlock(&gpu->event_mtx);
 }
 
 static void virtio_gpu_dmabuf_ref(struct dma_buf_info *info)
@@ -759,6 +875,14 @@ virtio_gpu_neg_features(void *vdev, uint64_t negotiated_features)
 		if(vdpy_mplane_check())
 			pr_err("feature VIRTIO_GPU_F_ROTATION is not supported by guest \r\n");
 
+	if(!test_feature_bit(gpu->base.negotiated_caps, VIRTIO_GPU_F_HDCP)) {
+		gpu->is_hdcp_supported = false;
+		if(gpu->vdpy_if.is_hdcp_supported) {
+			pr_warn("feature VIRTIO_GPU_F_HDCP is not supported by guest\r\n");
+		}
+	} else {
+		gpu->is_hdcp_supported = true;
+	}
 }
 
 static void
@@ -1844,6 +1968,45 @@ virtio_gpu_cmd_set_scaling(struct virtio_gpu_command *cmd)
 }
 
 static void
+virtio_gpu_cmd_cp_set(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_cp_set req;
+	struct virtio_gpu_ctrl_hdr resp;
+	struct virtio_gpu *gpu;
+
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	vdpy_set_cp(gpu->vdpy_handle, req.scanout_id, req.type, req.cp);
+	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
+	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
+	return;
+}
+
+static void
+virtio_gpu_cmd_cp_query(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_cp_query req;
+	struct virtio_gpu_resp_cp_query resp;
+	struct virtio_gpu *gpu;
+	struct hdcp_info info;
+
+	memset(&info, 0, sizeof(info));
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	virtio_gpu_update_resp_fence(&cmd->hdr, &resp.hdr);
+	vdpy_query_cp(gpu->vdpy_handle, req.scanout_id, &info);
+	resp.hdcp2 = info.hdcp2;
+	resp.connector_hdcp2 = info.connector_hdcp2;
+	resp.hdcp = info.hdcp;
+	resp.hdr.type = VIRTIO_GPU_RESP_OK_CP_QUERY;
+	memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+}
+
+static void
 virtio_gpu_cmd_backlight_update_status(struct virtio_gpu_command *cmd)
 {
 	struct virtio_gpu_backlight_update_status req;
@@ -2191,6 +2354,12 @@ virtio_gpu_ctrl_bh(void *data)
 		case VIRTIO_GPU_CMD_BACKLIGHT_QUERY:
 			virtio_gpu_cmd_get_backlight_info(&cmd);
 			break;
+		case VIRTIO_GPU_CMD_CP_SET:
+			virtio_gpu_cmd_cp_set(&cmd);
+			break;
+		case VIRTIO_GPU_CMD_CP_QUERY:
+			virtio_gpu_cmd_cp_query(&cmd);
+			break;
 		default:
 			virtio_gpu_cmd_unspec(&cmd);
 			break;
@@ -2297,10 +2466,38 @@ virtio_gpu_cursor_bh(void *data)
 }
 
 
-
 static void
 virtio_gpu_notify_irqqueue(void *vdev, struct virtio_vq_info *vq)
 {
+}
+
+static void
+virtio_gpu_notify_hdcp_irqqueue(void *vdev, struct virtio_vq_info *vq)
+{
+	struct virtio_gpu *gpu;
+	struct cp_event *entry = NULL;
+	struct cp_event *tmp = NULL;
+	int ret = 0;
+	gpu = (struct virtio_gpu *)vdev;
+
+	if(!gpu->vdpy_if.is_hdcp_supported)
+		return;
+
+	if(vq_disallow_interrupt(vq))
+		return;
+
+	pthread_mutex_lock(&gpu->event_mtx);
+	LIST_FOREACH(tmp, &gpu->event_list, link) {
+		entry = tmp;
+	}
+	if (entry) {
+		ret = send_hdcp_event(vq, entry->event.value, entry->event.id);
+		if (ret == 0) {
+			LIST_REMOVE(entry, link);
+			free(entry);
+		}
+	}
+	pthread_mutex_unlock(&gpu->event_mtx);
 }
 
 static void
@@ -2382,6 +2579,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	struct virtio_pci_notify_cap notify;
 	struct virtio_pci_cfg_cap cfg;
 	int i;
+	int hdcp_vq_num = 0;
 
 	if (virtio_gpu_device_cnt) {
 		pr_err("%s: only 1 virtio-gpu device can be created.\n", __func__);
@@ -2417,11 +2615,24 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		pthread_mutexattr_destroy(&attr);
 		goto failed_gpu;
 	}
+	rc = pthread_mutex_init(&gpu->event_mtx, &attr);
+	if (rc) {
+		pr_err("%s: pthread_mutex_init failed with error %d.\n",
+				 __func__,rc);
+		pthread_mutexattr_destroy(&attr);
+		pthread_mutex_destroy(&gpu->mtx);
+		goto failed_gpu;
+	}
+	LIST_INIT(&gpu->event_list);
 	pthread_mutexattr_destroy(&attr);
 
 	memset(&gpu->vdpy_if, 0, sizeof(struct vdpy_if));
-	gpu->vdpy_handle = vdpy_init(&gpu->vdpy_if,insert_vblank_irq,gpu);
-	virtio_gpu_ops.nvq = gpu->vdpy_if.pipe_num + 2;
+	gpu->vdpy_handle = vdpy_init(&gpu->vdpy_if,insert_vblank_irq, insert_hdcp_irq, gpu);
+	if (gpu->vdpy_if.is_hdcp_supported) {
+		hdcp_vq_num = 1;
+		gpu->hdcp_vq_index = gpu->vdpy_if.pipe_num + 2;
+	}
+	virtio_gpu_ops.nvq = gpu->vdpy_if.pipe_num + 2 + hdcp_vq_num;
 
 	gpu->vq = calloc(virtio_gpu_ops.nvq, sizeof(struct virtio_vq_info));
 
@@ -2514,12 +2725,20 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (gpu->vdpy_if.vfid)
 		gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_ALLOW_P2P);
 
-	for(i=2; i< 2 + gpu->vdpy_if.pipe_num; i++) {
+	for(i = 2; i < gpu->vdpy_if.pipe_num + 2; i++) {
 		gpu->vq[i].qsize = VIRTIO_GPU_RINGSZ;
 		gpu->vq[i].notify = virtio_gpu_notify_irqqueue;
 
 		gpu->irq_bh[i-2].task_cb = virtio_gpu_irq_bh;
 		gpu->irq_bh[i-2].data = &gpu->vq[i];
+
+	}
+	if (gpu->vdpy_if.is_hdcp_supported) {
+		gpu->vq[gpu->hdcp_vq_index].qsize = VIRTIO_GPU_RINGSZ;
+		gpu->vq[gpu->hdcp_vq_index].notify = virtio_gpu_notify_hdcp_irqqueue;
+		gpu->hdcp_bh.task_cb = virtio_gpu_irq_bh;
+		gpu->hdcp_bh.data = &gpu->vq[gpu->hdcp_vq_index];
+		gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_HDCP);
 	}
 
 	if(gpu->vdpy_if.backlight_num) {
@@ -2658,6 +2877,7 @@ failed_gc:
 failed_scanouts:
 	free(gpu->gpu_scanouts);
 failed_mutex_init:
+	pthread_mutex_destroy(&gpu->event_mtx);
 	pthread_mutex_destroy(&gpu->mtx);
 failed_gpu:
 	free(gpu);
@@ -2669,6 +2889,7 @@ virtio_gpu_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	struct virtio_gpu *gpu;
 	struct virtio_gpu_resource_2d *r2d;
+	struct cp_event *entry = NULL;
 	int i;
 
 	gpu = (struct virtio_gpu *)dev->arg;
@@ -2733,7 +2954,17 @@ virtio_gpu_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		}
 	}
 	vdpy_deinit(gpu->vdpy_handle);
+	pthread_mutex_lock(&gpu->event_mtx);
+	while (LIST_FIRST(&gpu->event_list)) {
+		entry = LIST_FIRST(&gpu->event_list);
+		if (entry) {
+			LIST_REMOVE(entry, link);
+			free(entry);
+		}
+	}
+	pthread_mutex_unlock(&gpu->event_mtx);
 	pthread_mutex_destroy(&gpu->mtx);
+	pthread_mutex_destroy(&gpu->event_mtx);
 	free(gpu);
 	virtio_gpu_device_cnt--;
 }

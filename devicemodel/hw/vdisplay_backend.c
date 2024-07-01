@@ -1010,7 +1010,7 @@ vdpy_vblank_init(int scanout_id, void (*func)
 	struct display_info display;
 	vscr = vdpy.scrs + scanout_id;
 
-	if(!vdpy.vblank[scanout_id]) {
+	if(vdpy.vblank[scanout_id] == -1) {
 		return;
 	}
 	if(vscr->is_timer_vblank) {
@@ -1026,7 +1026,20 @@ vdpy_vblank_init(int scanout_id, void (*func)
 }
 
 int
-vdpy_init(struct vdpy_if *vdpy_if, vblank_inject_func func, void *data)
+vdpy_hdcp_init(int scanout_id, void (*func)
+               (void *data,uint32_t value,int i), void *data)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if (vscr->vscreen_ops->vdpy_hdcp_init) {
+		return vscr->vscreen_ops->vdpy_hdcp_init(vscr->backend, func, data, scanout_id);
+	}
+	return -1;
+}
+
+int
+vdpy_init(struct vdpy_if *vdpy_if, vblank_inject_func vblank_func,
+		hdcp_inject_func hdcp_func, void *data)
 {
 	int err, count;
 
@@ -1065,7 +1078,10 @@ vdpy_init(struct vdpy_if *vdpy_if, vblank_inject_func func, void *data)
 		vdpy_if->vfid = vdpy.vfid;
 		vdpy_if->dgpu_crtc_bitmask = vdpy.dgpu_crtc_bitmask;
 		for(count=0; count< vdpy.scrs_num; count++) {
-			vdpy_vblank_init(count,func,data);
+			vdpy_vblank_init(count,vblank_func,data);
+			err = vdpy_hdcp_init(count,hdcp_func,data);
+			if (!err)
+				vdpy_if->is_hdcp_supported = true;
 		}
 	}
 
@@ -1258,6 +1274,22 @@ void vdpy_surface_update_vga(int handle, int scanout_id, struct surface *surf)
 
 	if(vscr->vscreen_ops->vdpy_surface_update_vga)
 		vscr->vscreen_ops->vdpy_surface_update_vga(vscr->backend, surf);
+}
+
+void vdpy_set_cp(int handle,int scanout_id, uint32_t type, uint32_t value)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if (vscr->vscreen_ops->vdpy_set_cp)
+		vscr->vscreen_ops->vdpy_set_cp(vscr->backend, type, value);
+}
+
+void vdpy_query_cp(int handle,int scanout_id, struct hdcp_info *info)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if (vscr->vscreen_ops->vdpy_query_cp)
+		vscr->vscreen_ops->vdpy_query_cp(vscr->backend, scanout_id, info);
 }
 
 void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id)
@@ -1521,9 +1553,10 @@ int vdpy_parse_cmd_option(const char *opts)
 
 		if(vdpy.pipe_num > pipe_num_cache && vdpy.scrs_num > 0) {
 			pipe_num_cache  = vdpy.pipe_num;
-			vdpy.vblank[vdpy.scrs_num-1] = vdpy.pipe_num + 1;
+			//vblank id start from 0
+			vdpy.vblank[vdpy.scrs_num-1] = vdpy.pipe_num - 1;
 		} else {
-			vdpy.vblank[vdpy.scrs_num] = 0;
+			vdpy.vblank[vdpy.scrs_num] = -1;
 		}
 
 		if (scr->name) {
