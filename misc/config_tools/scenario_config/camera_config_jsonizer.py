@@ -95,7 +95,7 @@ class GenerateJson:
         devnode = cam_node.find("devnode").text
         native_driver = cam_node.find("native_driver").text
 
-        width, height = cam_node.find("resolution").text.split(': ')[1].split('*')
+        width, height = cam_node.find("resolution").text.split('*')
         cams_by_vm = {}
         vm_node_list = self.get_vm_node_list()
         for vm_node in vm_node_list:
@@ -120,7 +120,7 @@ class GenerateJson:
                 'owned': 'HAL_INTERFACE'
             },
             'driver': {
-                'shared': f"{driver_base_name}_client.so",
+                'shared': "libcamera_client.so",
                 'owned': f"{driver_base_name}.so"
             }
         }
@@ -179,22 +179,30 @@ class GenerateJson:
         self.file.close()
 
 
-def main(board_xml, scenario_xml, config_json):
+def main(board_xml, scenario_xml, out_dir):
+    try:
+        os.mkdir(out_dir)
+    except FileExistsError:
+        if os.path.isfile(out_dir):
+            logging.error(f"Cannot create output directory {out_dir}: File exists")
+            return 1
+    except Exception as e:
+        logging.error(f"Cannot create output directory: {e}")
+        return 1
+
     GenerateJson(board_file_name=board_xml, scenario_file_name=scenario_xml,
-                 json_file_name=config_json).write_configuration_json()
+                 json_file_name=os.path.join(out_dir, "virtual_camera.json")).write_configuration_json()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("board_file_name",
+    parser.add_argument("--board",
                         help="Specifies the board config XML path and name used to generate the json file")
-    parser.add_argument("scenario_file_name",
+    parser.add_argument("--scenario",
                         help="Specifies the scenario XML path and name used to generate the json file")
-    parser.add_argument("json_file_name", default="virtual_camera.json",
-                        help="the path and name of the output json file that "
-                             "configure the camera from scenario.xml and board.xml")
+    parser.add_argument("--out", default="output",
+                        help="Specifies the directory of the output json file that configure the camera")
     args = parser.parse_args()
 
     logging.basicConfig(level="INFO")
-
-    sys.exit(main(args.board_file_name, args.scenario_file_name, args.json_file_name))
+    sys.exit(main(args.board, args.scenario, args.out))
