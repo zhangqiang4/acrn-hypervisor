@@ -7,9 +7,9 @@
 
   <xs:assert test="every $root in /acrn-config satisfies
                    every $vm in $root/vm satisfies
-		   every $vbdf in $root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name]/vbdf/text() | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name]/VBDF/text() satisfies
-		   count($root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf]) = 1">
-    <xs:annotation acrn:severity="error" acrn:report-on="$root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf]">
+                   every $vbdf in $root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name]/vbdf/text() | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name]/VBDF/text() | $root/hv//DEBUG_OPTIONS[SERIAL_CONSOLE=Vuart]/VUART_VBDF/text() satisfies
+                   count($root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf] | $root/hv//DEBUG_OPTIONS[SERIAL_CONSOLE=Vuart and VUART_VBDF=$vbdf]) = 1">
+    <xs:annotation acrn:severity="error" acrn:report-on="$root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf] | $root/hv//DEBUG_OPTIONS[VUART_VBDF=$vbdf]">
       <xs:documentation>VM "{$vm/name}" contains multiple virtual UART controllers or IVSHMEM interfaces using BDF {$vbdf}. Adjust the BDF of those devices to be unique.</xs:documentation>
     </xs:annotation>
   </xs:assert>
@@ -17,9 +17,9 @@
 
   <xs:assert test="every $root in /acrn-config satisfies
                    every $vm in $root/vm[./load_order/text()='SERVICE_VM'] satisfies
-                   every $vbdf in $root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name]/vbdf/text() | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name]/VBDF/text() satisfies
+                   every $vbdf in $root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name]/vbdf/text() | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name]/VBDF/text()  | $root/hv//DEBUG_OPTIONS[SERIAL_CONSOLE=Vuart]/VUART_VBDF/text() satisfies
                    contains(/acrn-config//PCI_DEVICE/text(), $vbdf) = false()">
-    <xs:annotation acrn:severity="error" acrn:report-on="$root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf]">
+  <xs:annotation acrn:severity="error" acrn:report-on="$root/hv//vuart_connection[type='pci']/endpoint[vm_name=$vm/name and vbdf=$vbdf] | $root/hv//IVSHMEM_VM[VM_NAME=$vm/name and VBDF=$vbdf] | $root/hv//DEBUG_OPTIONS[SERIAL_CONSOLE=Vuart]/VUART_VBDF=$vbdf]">
       <xs:documentation>VM "{$vm/name}" virtual UART controllers or IVSHMEM interfaces using BDF {$vbdf} conflict with native PCI device. Adjust the BDF of those devices to be unique.</xs:documentation>
     </xs:annotation>
   </xs:assert>

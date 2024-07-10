@@ -137,8 +137,28 @@ def create_igd_sbdf(board_etree, allocation_etree):
         func = int(address, 16) & 0xffff
         acrn_config_utilities.append_node("/acrn-config/hv/MISC_CFG/IGD_SBDF", f"{(int(bus, 16) << 8) | (dev << 3) | func:#06x}", allocation_etree)
 
+def create_vbdf(scenario_etree, allocation_etree):
+    """
+    Extract the vuart bdf from scenario.xml.
+    """
+    bus = "0x0"
+    serial_console_node = get_node(f"//hv/DEBUG_OPTIONS/SERIAL_CONSOLE/text()", scenario_etree)
+    if serial_console_node == 'Vuart':
+        vbdf_node = get_node(f"//hv/DEBUG_OPTIONS/VUART_VBDF/text()", scenario_etree)
+        if vbdf_node is not None:
+            bus_, dev_func = vbdf_node.split(':')
+            dev, func = dev_func.split('.')
+            bus_ = hex(int('0x'+bus_, 16))
+            dev = int(dev, 16)
+            func = int(func, 16)
+
+            if bus_ == bus:
+                acrn_config_utilities.append_node("/acrn-config/hv/DEBUG_OPTIONS/VUART_VBDF",
+                                                  f"{(int(bus_, 16) << 8) | (dev << 3) | func:#04x}", allocation_etree)
+
 def fn(board_etree, scenario_etree, allocation_etree):
     create_igd_sbdf(board_etree, allocation_etree)
+    create_vbdf(scenario_etree, allocation_etree)
     vm_nodes = scenario_etree.xpath("//vm")
     for vm_node in vm_nodes:
         vm_id = vm_node.get('id')

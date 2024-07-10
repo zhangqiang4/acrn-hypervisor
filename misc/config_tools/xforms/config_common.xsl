@@ -70,7 +70,21 @@
       <xsl:with-param name="default" select="'0xffff'" />
     </xsl:call-template>
 
-    <xsl:apply-templates select="SERIAL_CONSOLE" />
+    <xsl:choose>
+        <xsl:when test="acrn:console-is-vuart()">
+            <xsl:call-template name="boolean-by-key-value">
+              <xsl:with-param name="key" select="'SERIAL_VUART'" />
+              <xsl:with-param name="value" select="'y'" />
+            </xsl:call-template>
+            <xsl:call-template name="integer-by-key-value">
+               <xsl:with-param name="key" select="'SERIAL_VUART_VBDF'" />
+               <xsl:with-param name="value" select="//allocation-data/acrn-config/hv/DEBUG_OPTIONS/VUART_VBDF" />
+            </xsl:call-template>
+        </xsl:when>
+        <xsl:otherwise>
+            <xsl:apply-templates select="SERIAL_CONSOLE" />
+        </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="FEATURES">

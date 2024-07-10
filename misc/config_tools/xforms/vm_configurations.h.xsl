@@ -48,7 +48,7 @@
         </xsl:if>
       </xsl:for-each>
     </xsl:variable>
-    <xsl:value-of select = "acrn:define('MAX_VUART_NUM_PER_VM', math:max(str:split($vuart_nums, ',')), 'U')" />
+    <xsl:value-of select = "acrn:define('MAX_VUART_NUM_PER_VM', math:max(str:split($vuart_nums, ','))+1, 'U')" />
   </xsl:template>
 
   <xsl:template name ="vm_count">

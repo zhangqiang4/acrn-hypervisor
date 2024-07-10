@@ -144,6 +144,37 @@
       <xsl:value-of select="$newline" />
       </xsl:if>
     </xsl:for-each>
+    <xsl:call-template name="sos_vuart"/>
+  </xsl:template>
+
+  <xsl:template name="sos_vuart">
+
+    <xsl:if test="//DEBUG_OPTIONS/SERIAL_CONSOLE/text() = 'Vuart'">
+      <xsl:variable name="vuart_id" select="last()+1"/>
+      <xsl:choose>
+        <xsl:when test="acrn:is-service-vm(load_order)">
+          <xsl:text>{</xsl:text>
+          <xsl:value-of select="$newline" />
+
+          <xsl:value-of select="acrn:initializer('vuart_idx', $vuart_id, '')" />
+          <xsl:value-of select="acrn:initializer('emu_type', 'PCI_DEV_TYPE_HVEMUL', '')" />
+          <xsl:value-of select="acrn:initializer('vdev_ops', '&amp;vmcs9900_ops', '')" />
+          <xsl:for-each select="//vm[load_order/text() = 'SERVICE_VM']/device[@name = concat('VUART_', $vuart_id)]/bar">
+            <xsl:value-of select="acrn:initializer(concat('vbar_base[', @id,']'), concat(text(), 'UL'), '')" />
+          </xsl:for-each>
+          <xsl:variable name="b" select="substring-before(//DEBUG_OPTIONS/VUART_VBDF/text(), ':')" />
+          <xsl:variable name="d" select="substring-before(substring-after(//DEBUG_OPTIONS/VUART_VBDF/text(), ':'), '.')" />
+          <xsl:variable name="f" select="substring-after(//DEBUG_OPTIONS/VUART_VBDF/text(), '.')" />
+          <xsl:value-of select="acrn:initializer('vbdf.bits', concat('{', '0x', $b, ', ', '0x', $d, ', ', '0x', $f, '}'))" />
+          <xsl:value-of select="acrn:initializer('t_vuart.vm_id', '0xFFU')" />
+          <xsl:value-of select="acrn:initializer('t_vuart.vuart_id', '0U')" />
+
+          <xsl:text>},</xsl:text>
+          <xsl:value-of select="$newline" />
+        </xsl:when>
+      </xsl:choose>
+    </xsl:if>
+
   </xsl:template>
 
   <xsl:template match="pci_devs">

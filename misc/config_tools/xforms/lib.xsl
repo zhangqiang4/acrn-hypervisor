@@ -316,6 +316,30 @@
     <func:result select="$idx" />
   </func:function>
 
+  <func:function name="acrn:sos-vuart-index">
+    <xsl:variable name="sos_name" select="//config-data/acrn-config/vm[load_order='SERVICE_VM']/name"/>
+    <xsl:variable name="console_vuart_num">
+      <xsl:choose>
+          <xsl:when test="count(//config-data/acrn-config/vm/console_vuart) > 0">
+            <xsl:value-of select="1" />
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:value-of select="0" />
+          </xsl:otherwise>
+        </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="sos_vuart_num">
+      <xsl:value-of select="count(//vuart_connection[type = 'pci']/endpoint[vm_name = $sos_name])"/>
+    </xsl:variable>
+    <xsl:variable name="sos_ivshmem_num">
+      <xsl:value-of select="count(//IVSHMEM_VM[VM_NAME = $sos_name])"/>
+    </xsl:variable>
+    <xsl:variable name="sos_legacy_num">
+      <xsl:value-of select="count(//vuart_connection[type = 'legacy']/endpoint[vm_name = $sos_name])"/>
+    </xsl:variable>
+    <func:result select="$console_vuart_num + $sos_ivshmem_num + $sos_vuart_num + $sos_legacy_num" />
+  </func:function>
+
   <func:function name="acrn:pci-dev-num">
     <xsl:param name="vmid" />
     <xsl:for-each select="//config-data/acrn-config/vm[@id = $vmid]">
@@ -380,6 +404,17 @@
       </xsl:when>
       <xsl:otherwise>
         <func:result select="0" />
+      </xsl:otherwise>
+    </xsl:choose>
+  </func:function>
+
+  <func:function name="acrn:console-is-vuart">
+    <xsl:choose>
+      <xsl:when test="//SERIAL_CONSOLE = 'Vuart'">
+        <func:result select="true()" />
+      </xsl:when>
+      <xsl:otherwise>
+        <func:result select="false()" />
       </xsl:otherwise>
     </xsl:choose>
   </func:function>

@@ -181,7 +181,7 @@ higher value (lower severity) are discarded.</xs:documentation>
 
 <xs:simpleType name="SerialConsoleType">
   <xs:restriction base="xs:string">
-    <xs:pattern value="(.*ttyS[\d]+)|None" />
+    <xs:pattern value="(.*ttyS[\d]+)|None|Vuart" />
   </xs:restriction>
 </xs:simpleType>
 

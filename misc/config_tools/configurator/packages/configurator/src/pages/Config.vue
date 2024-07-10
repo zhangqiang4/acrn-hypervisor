@@ -140,6 +140,7 @@ export default {
       errors: [],
       totalMsg: "",
       showTotalMessageFlag: false,
+      serial_console: ''
     }
   },
   computed: {
@@ -318,6 +319,14 @@ export default {
     scenarioConfigFormDataUpdate(vmid, data) {
       if (vmid === -1) {
         this.scenario.hv = data
+        this.serial_console = this.scenario.hv.DEBUG_OPTIONS.SERIAL_CONSOLE
+        if(this.serial_console !== 'Vuart'){
+            this.schemas.HV.BasicConfigType.definitions.DebugOptionsType.properties.VUART_VBDF.hidden = true
+            this.schemas.HV.BasicConfigType.definitions.DebugOptionsType.properties.VUART_VBDF["ui:hidden"] = true
+        }else{
+            this.schemas.HV.BasicConfigType.definitions.DebugOptionsType.properties.VUART_VBDF.hidden = false
+            this.schemas.HV.BasicConfigType.definitions.DebugOptionsType.properties.VUART_VBDF["ui:hidden"] = false
+        }
       } else {
         this.scenario.vm.map((vmConfig, vmIndex) => {
           if (vmConfig['@id'] === vmid) {
@@ -398,6 +407,11 @@ export default {
           }
       )
     },
+    verifyBDFCollision(board, scenario){
+        let scenarioXMLData = this.scenarioToXML(scenario)
+        let validated_result = configurator.pythonObject.verifyBDFCollision(board.content,scenarioXMLData)
+        return validated_result["result"]
+    },
     applyScenarioDefaults(scenarioData) {
       let scenarioXMLData = this.scenarioToXML(scenarioData)
       // get scenario Defaults
@@ -477,6 +491,18 @@ export default {
       let scenarioWithDefaults = await this.applyScenarioDefaults(this.scenario)
       let scenarioXMLData = this.scenarioToXML(scenarioWithDefaults)
       this.scenario = scenarioWithDefaults
+
+      let postVerification = await this.verifyBDFCollision(this.board, this.scenario)
+      console.log('postVerification: ',postVerification)
+      if(!postVerification){
+        let all_errors = configurator.pythonObject.validateScenario(this.board.content, scenarioXMLData)
+        console.log(all_errors)
+        this.errors = this.translateErrors(all_errors, this.scenario)
+        if (all_errors.syntactic_errors.length !== 0 || all_errors.semantic_errors.length !== 0) {
+          throw new Error("validation failed")
+        }
+        //i have not find the place to show error messages which is not satisfied with regex yet, i place the error messages in console now
+      }
 
       this.scenario.vm.map((vmConfig) => {
         if (vmConfig['load_order'] === 'POST_LAUNCHED_VM') {

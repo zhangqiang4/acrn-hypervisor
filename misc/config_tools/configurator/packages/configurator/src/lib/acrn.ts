@@ -648,6 +648,10 @@ class PythonObject {
         return this.api('populateDefaultValues', 'json', scenarioXMLText)
     }
 
+    verifyBDFCollision(boardXMLText, scenarioXMLText) {
+        return this.api('verifyBDFCollision', 'json', boardXMLText, scenarioXMLText)
+    }
+
     generateConfigSummary(boardXMLText, scenarioXMLText) {
         return this.api('generateConfigSummary', 'plaintext', boardXMLText, scenarioXMLText)
     }

@@ -150,6 +150,8 @@ class XS2JS:
             js_ele['ui:widget'] = annotation['@acrn:widget']
         if '@acrn:widget-options' in annotation:
             js_ele['ui:options'] = eval(f"{{{annotation['@acrn:widget-options']}}}")
+        if '@acrn:widget-hidden' in annotation:
+            js_ele['ui:hidden'] = annotation['@acrn:widget-hidden']
 
     def convert_errormsg_config(self, annotation, js_ele):
         if '@acrn:errormsg' in annotation:
