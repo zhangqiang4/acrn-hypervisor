@@ -115,7 +115,7 @@ class AddrWindow(namedtuple(
             return True
         return False
 
-def insert_vuart_to_dev_dict(scenario_etree, vm_id, devdict_32bits):
+def insert_vuart_to_dev_dict(scenario_etree, vm_id, is_sos, devdict_32bits):
 
     console_vuart =  scenario_etree.xpath(f"./console_vuart[base != 'INVALID_PCI_BASE']/@id")
     for vuart_id in console_vuart:
@@ -129,6 +129,11 @@ def insert_vuart_to_dev_dict(scenario_etree, vm_id, devdict_32bits):
         if connection_type == "pci":
             devdict_32bits[(f"{VUART}_{vuart_id}", "bar0")] = PCI_VUART_VBAR0_SIZE
             devdict_32bits[(f"{VUART}_{vuart_id}", "bar1")] = PCI_VUART_VBAR1_SIZE
+
+    sos_vuart = scenario_etree.xpath(f"//DEBUG_OPTIONS[SERIAL_CONSOLE/text() = 'Vuart']")
+    if is_sos and sos_vuart:
+        devdict_32bits[(f"{VUART}_{vuart_id + 1}", "bar0")] = PCI_VUART_VBAR0_SIZE
+        devdict_32bits[(f"{VUART}_{vuart_id + 1}", "bar1")] = PCI_VUART_VBAR1_SIZE
 
 def insert_legacy_vuart_to_dev_dict(vm_node, devdict_io_port):
     legacy_vuart =  vm_node.xpath(f".//legacy_vuart[base = 'CONFIG_COM_BASE']/@id")
@@ -426,10 +431,15 @@ def allocate_pci_bar(board_etree, scenario_etree, allocation_etree):
     vm_nodes = scenario_etree.xpath("//vm")
     for vm_node in vm_nodes:
         vm_id = vm_node.get('id')
+        load_order = get_node("./load_order/text()", vm_node)
+        if load_order is not None and lib.lib.is_service_vm(load_order):
+            is_sos = True
+        else:
+            is_sos = False
 
         devdict_32bits = {}
         devdict_64bits = {}
-        insert_vuart_to_dev_dict(scenario_etree, vm_id, devdict_32bits)
+        insert_vuart_to_dev_dict(scenario_etree, vm_id, is_sos, devdict_32bits)
         insert_ivsheme_to_dev_dict(scenario_etree, devdict_32bits, devdict_64bits, vm_id)
         insert_pt_devs_to_dev_dict(board_etree, vm_node, devdict_32bits, devdict_64bits)
 
@@ -438,7 +448,6 @@ def allocate_pci_bar(board_etree, scenario_etree, allocation_etree):
         used_low_mem = []
         used_high_mem = []
 
-        load_order = get_node("./load_order/text()", vm_node)
         if load_order is not None and lib.lib.is_pre_launched_vm(load_order):
             low_mem = [AddrWindow(start = PRE_LAUNCHED_VM_LOW_MEM_START, end = PRE_LAUNCHED_VM_LOW_MEM_END - 1)]
             high_mem = [AddrWindow(start = PRE_LAUNCHED_VM_HIGH_MEM_START, end = PRE_LAUNCHED_VM_HIGH_MEM_END - 1)]

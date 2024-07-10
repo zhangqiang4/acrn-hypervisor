@@ -384,6 +384,17 @@
     </xsl:choose>
   </func:function>
 
+  <func:function name="acrn:console-is-vuart">
+    <xsl:choose>
+      <xsl:when test="//SERIAL_CONSOLE = 'Vuart'">
+        <func:result select="true()" />
+      </xsl:when>
+      <xsl:otherwise>
+        <func:result select="false()" />
+      </xsl:otherwise>
+    </xsl:choose>
+  </func:function>
+
   <func:function name="acrn:is-rdt-enabled">
     <xsl:choose>
       <xsl:when test="acrn:is-rdt-supported() and //RDT_ENABLED = 'y'">
