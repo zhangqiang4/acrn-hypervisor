@@ -82,14 +82,13 @@ class GenerateJson:
         phy_cam_id = cam_node.find("id").text
         format_ = cam_node.find("format").text
 
-        format = ""  # not necessary because format_ can only be selected from UI & it should be supported by us
+        format = ""
         vals = list(CAMERA_FORMATS_DB.values())
-        pat = re.compile(r".*FMT_(\w+)$")
-        for v in vals:
-            if m := re.match(pat, v):
-                if format_ == m.group(1):
-                    format = v
-                    break
+        if format_ in vals:
+            format = format_
+        else:
+            logging.error("The color format is not supported or the name is illegal.")
+            return 2
 
         sensor_name = cam_node.find("sensor_name").text
         devnode = cam_node.find("devnode").text
@@ -142,6 +141,9 @@ class GenerateJson:
             'share': share if share else [""]
         })
         self.phy_camera['phy_camera'].append(cam_tmp)
+        self.phy_ids = []
+        for phy in self.phy_camera['phy_camera']:
+            self.phy_ids.append(phy['camera']['id'])
         self.doc.content(self.phy_camera)
 
     def get_vm_node_list(self):
@@ -168,9 +170,12 @@ class GenerateJson:
             if cam:
                 cams = cam[0].xpath("virtual_camera")
                 for id_, c in enumerate(cams):
+                    phy_id = int(c.xpath("physical_camera_id/text()")[0])
+                    if phy_id not in self.phy_ids:
+                        continue
                     cam_tmp['camera'].update({
                         'id': id_,
-                        'phy_id': int(c.xpath("physical_camera_id/text()")[0])
+                        'phy_id': phy_id
                     })
                     configs[vm_name].append(deepcopy(cam_tmp))
                 self.doc.content(configs)

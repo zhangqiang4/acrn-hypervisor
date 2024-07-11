@@ -308,7 +308,9 @@ The size is a subset of the VM's total memory size specified on the Basic tab.</
        <xs:documentation>List of available color formats may be used for the selected physical camera..</xs:documentation>
   </xs:annotation>
   <xs:restriction base="xs:string">
-    <xs:enumeration value="UYVY" />
+    <xs:enumeration value="V4L2_PIX_FMT_UYVY" />
+    <xs:enumeration value="V4L2_PIX_FMT_NV12" />
+    <xs:enumeration value="V4L2_PIX_FMT_NV21" />
   </xs:restriction>
 </xs:simpleType>
 <xs:simpleType name="NativeDriverForCameraType">
