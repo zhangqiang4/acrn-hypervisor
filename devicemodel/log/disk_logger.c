@@ -26,21 +26,20 @@
 #define LOG_PATH_NODE "/var/log/acrn-dm/"
 #define LOG_NAME_PREFIX  "%s_log_"
 #define LOG_NAME_FMT  "%s%s_log_%d" /* %s-->vm1/vm2..., %d-->1/2/3/4... */
-#define LOG_DELIMITER "\n\n----------------new vm instance------------------\n\n\0"
+#define LOG_DELIMITER "\n\n----------------new vm instance------------------\n\n"
 
 #define FILE_NAME_LENGTH  96
 
 #define LOG_SIZE_LIMIT    0x200000 /* one log file size limit */
 #define LOG_FILES_COUNT   8
 
-static int disk_fd = -1;
+static FILE *disk_file = NULL;
 static uint32_t cur_log_size;
 static uint16_t cur_file_index;
 
 static uint8_t disk_log_level = LOG_DEBUG;
 static bool disk_log_enabled = false;
 
-#define DISK_LOG_MAX_LEN    (MAX_ONE_LOG_SIZE + 32)
 #define INDEX_AFTER(a, b) ((short int)b - (short int)a < 0)
 
 static bool is_disk_log_enabled(void)
@@ -99,18 +98,21 @@ static int probe_disk_log_file(void)
 	closedir(dir);
 
 	snprintf(file_name, FILE_NAME_LENGTH - 1, LOG_NAME_FMT, LOG_PATH_NODE, vmname, index);
-	disk_fd = open(file_name, O_RDWR | O_CREAT | O_APPEND, 0644);
-	if (disk_fd < 0) {
+	disk_file = fopen(file_name, "a+");
+	if (disk_file == NULL) {
 		printf(DISK_PREFIX" open %s failed! Error: %s\n", file_name, strerror(errno));
 		return -1;
 	}
+	if (chmod(file_name, 0644)) {
+		printf(DISK_PREFIX" chmod %s failed! Error: %s\n", file_name, strerror(errno));
+	}
 
-	if (write(disk_fd, LOG_DELIMITER, strlen(LOG_DELIMITER)) < 0) {
+	if (fprintf(disk_file, LOG_DELIMITER) < 0) {
 		printf(DISK_PREFIX" write %s failed! Error: %s\n", file_name, strerror(errno));
 		return -1;
 	}
 
-	fstat(disk_fd, &st);
+	stat(file_name, &st);
 	cur_log_size = st.st_size;
 	cur_file_index = index;
 
@@ -127,19 +129,18 @@ static int init_disk_logger(bool enable, uint8_t log_level)
 
 static void deinit_disk_logger(void)
 {
-	if (disk_fd > 0) {
+	if (disk_file != NULL) {
 		disk_log_enabled = false;
 
-		fsync(disk_fd);
-		close(disk_fd);
-		disk_fd = -1;
+		fflush(disk_file);
+		fclose(disk_file);
+		disk_file = NULL;
 	}
 }
 
 static void write_to_disk(const char *fmt, va_list args)
 {
-	char buffer[DISK_LOG_MAX_LEN];
-	char *file_name = buffer;
+	char file_name[FILE_NAME_LENGTH];
 	char *buf;
 	int len;
 	int write_cnt;
@@ -148,7 +149,7 @@ static void write_to_disk(const char *fmt, va_list args)
 	time_t tt;
 
 
-	if ((disk_fd < 0) && disk_log_enabled) {
+	if ((disk_file == NULL) && disk_log_enabled) {
 		/**
 		 * usually this probe just be called once in DM whole life; but we need use vmname in
 		 * probe_disk_log_file, it can't be called in init_disk_logger for vmname not inited then,
@@ -168,26 +169,18 @@ static void write_to_disk(const char *fmt, va_list args)
 	lt = localtime(&tt);
 	clock_gettime(CLOCK_MONOTONIC, &times);
 
-	len = snprintf(buffer, DISK_LOG_MAX_LEN, "[%4d-%02d-%02d %02d:%02d:%02d][%5lu.%06lu] ",
+	write_cnt = fprintf(disk_file, "[%4d-%02d-%02d %02d:%02d:%02d][%5lu.%06lu] %s",
 		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec,
-		times.tv_sec, times.tv_nsec / 1000);
-	if (len < 0 || len >= DISK_LOG_MAX_LEN) {
-		free(buf);
-		return;
-	}
-	len = strnlen(buffer, DISK_LOG_MAX_LEN);
+		times.tv_sec, times.tv_nsec / 1000, buf);
 
-	strncpy(buffer + len, buf, DISK_LOG_MAX_LEN - len);
-	buffer[DISK_LOG_MAX_LEN - 1] = '\0';
-	free(buf);
-
-	write_cnt = write(disk_fd, buffer, strnlen(buffer, DISK_LOG_MAX_LEN));
 	if (write_cnt < 0) {
 		printf(DISK_PREFIX"write disk failed");
-		close(disk_fd);
-		disk_fd = -1;
+		free(buf);
+		fclose(disk_file);
+		disk_file = NULL;
 		return;
 	}
+	free(buf);
 
 	cur_log_size += write_cnt;
 	if (cur_log_size > LOG_SIZE_LIMIT) {
@@ -202,11 +195,14 @@ static void write_to_disk(const char *fmt, va_list args)
 		snprintf(file_name, FILE_NAME_LENGTH - 1, LOG_NAME_FMT,
 			LOG_PATH_NODE, vmname, cur_file_index);
 
-		close(disk_fd);
-		disk_fd = open(file_name, O_RDWR | O_CREAT, 0644);
-		if (disk_fd < 0) {
+		fclose(disk_file);
+		disk_file = fopen(file_name, "a+");
+		if (disk_file == NULL) {
 			printf(DISK_PREFIX" open %s failed! Error: %s\n", file_name, strerror(errno));
 			return;
+		}
+		if (chmod(file_name, 0644)) {
+			printf(DISK_PREFIX" chmod %s failed! Error: %s\n", file_name, strerror(errno));
 		}
 		cur_log_size = 0;
 	}
