@@ -1168,6 +1168,15 @@ main(int argc, char *argv[])
 		}
 	}
 
+	/* Assign values ​​to the global variable vmname as soon as possible */
+	argc -= optind;
+	argv += optind;
+	if (argc != 1) {
+		pr_err("You must provide the name of the Virtual Machine (VM) you want to start. Exiting.\n");
+		usage(1);
+        }
+	vmname = argv[0];
+
 	if (get_iasl_compiler() != 0) {
 		pr_err("Cannot find Intel ACPI ASL compiler tool \"iasl\".\n");
 		exit(1);
@@ -1179,16 +1188,6 @@ main(int argc, char *argv[])
 			IASL_MIN_VER);
 		exit(1);
 	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc != 1) {
-		pr_err("You must provide the name of the Virtual Machine (VM) you want to start. Exiting.\n");
-		usage(1);
-        }
-
-	vmname = argv[0];
 
 	if (strnlen(vmname, MAX_VM_NAME_LEN) >= MAX_VM_NAME_LEN) {
 		pr_err("The name of the VM exceeds the maximum length: %u\n", MAX_VM_NAME_LEN - 1);
