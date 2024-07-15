@@ -215,6 +215,26 @@ print_version(void)
 	exit(0);
 }
 
+static void
+print_cmdline(int argc, char *argv[])
+{
+	size_t pos = 0;
+	char *cmdline = malloc(getpagesize());
+	if(cmdline == NULL) {
+		pr_notice("malloc cmdline str fail! will not print acrn-dm cmdline.");
+	}
+
+	for (int i=0; i < argc; i++) {
+		if(pos + strlen(argv[i]) + 2 >  getpagesize()) {
+			pr_notice("The printed acrn-dm cmdline is truncated because it is too long!");
+			break;
+		}
+		pos += snprintf(cmdline + pos, strlen(argv[i]) + 2, "%s ", argv[i]);
+	}
+	pr_notice("%s \n", cmdline);
+	free(cmdline);
+}
+
 /**
  * @brief Convert guest physical address to host virtual address
  *
@@ -1176,6 +1196,8 @@ main(int argc, char *argv[])
 		usage(1);
         }
 	vmname = argv[0];
+
+	print_cmdline(argc + optind, argv - optind);
 
 	if (get_iasl_compiler() != 0) {
 		pr_err("Cannot find Intel ACPI ASL compiler tool \"iasl\".\n");
