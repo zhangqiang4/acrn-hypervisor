@@ -7,6 +7,7 @@ ConditionPathExists=/dev/acrn_hsm
 [Service]
 Type=simple
 ExecStart=/usr/bin/acrnd -t
+ExecStop=/usr/bin/bash -c '/usr/bin/acrnctl list | /usr/bin/awk "{print \$1}" | /usr/bin/xargs -n1 acrnctl stop -f'
 StandardOutput=journal
 StandardError=journal
 
