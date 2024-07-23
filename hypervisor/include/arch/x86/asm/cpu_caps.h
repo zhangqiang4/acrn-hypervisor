@@ -56,9 +56,13 @@ bool is_apl_platform(void);
 bool has_core_cap(uint32_t bit_mask);
 bool is_ac_enabled(void);
 bool is_gp_enabled(void);
+bool is_cmci_supported(void);
+bool is_sw_error_recovery_supported(void);
+bool is_local_mc_supported(void);
 void init_pcpu_capabilities(void);
 void init_pcpu_model_name(void);
 int32_t detect_hardware_support(void);
+uint16_t mc_bank_count(void);
 struct cpuinfo_x86 *get_pcpu_info(void);
 
 /* The bits of MSR IA32_CORE_CAPABILITIES */

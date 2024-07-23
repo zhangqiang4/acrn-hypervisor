@@ -270,6 +270,7 @@ struct acrn_vcpu_arch {
 	bool irq_window_enabled;
 	bool emulating_lock;
 	bool xsave_enabled;
+	bool mc_pt_enabled;
 
 	/* VCPU context state information */
 	uint32_t exit_reason;
@@ -724,6 +725,20 @@ uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask);
 static inline bool is_lapic_pt_enabled(struct acrn_vcpu *vcpu)
 {
 	return vcpu->arch.lapic_pt_enabled;
+}
+
+/*
+ * @brief Check if vCPU uses LAPIC in x2APIC mode and the VM, vCPU belongs to, is configured for
+ * LAPIC Pass-through
+ *
+ * @pre vcpu != NULL
+ *
+ * @return true, if vCPU LAPIC is in x2APIC mode and VM, vCPU belongs to, is configured for
+ *				LAPIC Pass-through
+ */
+static inline bool is_mc_pt_enabled(struct acrn_vcpu *vcpu)
+{
+	return (vcpu->arch.mc_pt_enabled);
 }
 
 /**

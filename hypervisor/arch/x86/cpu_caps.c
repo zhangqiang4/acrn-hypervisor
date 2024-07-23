@@ -37,6 +37,7 @@ static struct cpu_capability {
 
 	uint64_t vmx_ept_vpid;
 	uint32_t core_caps;	/* value of MSR_IA32_CORE_CAPABLITIES */
+	uint64_t mcg_caps; /* value of MSR_IA32_MCG_CAP */
 } cpu_caps;
 
 static struct cpuinfo_x86 boot_cpu_data;
@@ -307,6 +308,11 @@ static void detect_core_caps(void)
 	}
 }
 
+static void detect_mcg_caps(void)
+{
+	cpu_caps.mcg_caps = (uint64_t)msr_read(MSR_IA32_MCG_CAP);
+}
+
 static void detect_pcpu_cap(void)
 {
 	detect_apicv_cap();
@@ -314,6 +320,7 @@ static void detect_pcpu_cap(void)
 	detect_vmx_mmu_cap();
 	detect_xsave_cap();
 	detect_core_caps();
+	detect_mcg_caps();
 }
 
 static uint64_t get_address_mask(uint8_t limit)
@@ -408,6 +415,26 @@ bool is_apicv_advanced_feature_supported(void)
 bool pcpu_has_vmx_ept_vpid_cap(uint64_t bit_mask)
 {
 	return ((cpu_caps.vmx_ept_vpid & bit_mask) != 0U);
+}
+
+bool is_cmci_supported(void)
+{
+	return ((cpu_caps.mcg_caps & MSR_IA32_MCG_CAP_CMCI_P) != 0);
+}
+
+bool is_sw_error_recovery_supported(void)
+{
+	return ((cpu_caps.mcg_caps & MSR_IA32_MCG_CAP_SER_P) != 0);
+}
+
+bool is_local_mc_supported(void)
+{
+	return ((cpu_caps.mcg_caps & MSR_IA32_MCG_CAP_LMCE_P) != 0);
+}
+
+uint16_t mc_bank_count(void)
+{
+	return (uint16_t)(cpu_caps.mcg_caps & MSR_IA32_MCG_CAP_COUNT);
 }
 
 void init_pcpu_model_name(void)

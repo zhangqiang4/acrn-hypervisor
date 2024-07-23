@@ -224,6 +224,16 @@ bool is_vhwp_configured(const struct acrn_vm *vm)
 /**
  * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
  */
+bool is_mc_pt_configured(const struct acrn_vm *vm)
+{
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
+
+	return (vm_config->mcbanks_bitmask != 0);
+}
+
+/**
+ * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ */
 bool is_vtm_configured(const struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);

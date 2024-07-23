@@ -511,6 +511,109 @@ void init_intercepted_cat_msr_list(void)
 }
 #endif
 
+static void enable_mc_bank_interception(struct acrn_vcpu *vcpu, uint16_t bank_idx, uint32_t mode)
+{
+	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
+
+	enable_msr_interception(msr_bitmap, MSR_IA32_MC_CTL(bank_idx), mode);
+	enable_msr_interception(msr_bitmap, MSR_IA32_MC_STATUS(bank_idx), mode);
+	enable_msr_interception(msr_bitmap, MSR_IA32_MC_ADDR(bank_idx), mode);
+	enable_msr_interception(msr_bitmap, MSR_IA32_MC_MISC(bank_idx), mode);
+
+	if (is_cmci_supported()) {
+		enable_msr_interception(msr_bitmap, MSR_IA32_MC_CTL2(bank_idx), mode);
+	}
+}
+
+static void mc_bank_pt_by_idx(struct acrn_vcpu *vcpu, uint16_t bank_idx)
+{
+	enable_mc_bank_interception(vcpu, bank_idx, INTERCEPT_DISABLE);
+}
+
+static void mc_bank_hide_by_idx(struct acrn_vcpu *vcpu, uint16_t bank_idx)
+{
+	enable_mc_bank_interception(vcpu, bank_idx, INTERCEPT_READ_WRITE);
+}
+
+static uint8_t mc_bank_configured_count(struct acrn_vcpu *vcpu)
+{
+	struct acrn_vm_config *vm_config = get_vm_config(vcpu->vm->vm_id);
+	uint8_t nbanks_configured = bitmap_weight(vm_config->mcbanks_bitmask);
+	/* this bitmask needs to be continuous */
+	return min(nbanks_configured, mc_bank_count());
+}
+
+/* Passthrough/Hide MC related MSRs
+ *
+ * For guest that configures MC bank pt,
+ * This function passthrough all MC banks listed in mcbanks_bitmask,
+ * and passthrough global status MCG_STATUS.
+ *
+ * For guest that doesn't configure MC bank pt,
+ * This function hides MC banks.
+ *
+ * Currently we support only MSR_IA32_MCG_CAP_CMCI_P and MSR_IA32_MCG_CAP_TES_P,
+ * everything else is un-supported. Which means
+ * 1. Recoverable errors are NOT supported.
+ * 2. Local MCE is NOT supported.
+ *
+ * It is the user/config-tool's responsibility to make sure:
+ * 1. P-core hyper-thread and E-core in the same core/cluster will NOT be assigned to different VMs
+ * 2. Each pCPU will have exactly one "governing vcpu"
+ * 3. Guests who exclusively own pCPU will claim this ownership, either by setting
+ *    own_pcpu to y in scenario.xml, or set LAPIC-PT (partitioned guest)
+ */
+void init_mc_msrs(struct acrn_vcpu *vcpu)
+{
+	struct acrn_vm *vm = vcpu->vm;
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
+	uint64_t mcb_bm = 0UL;
+	uint64_t conf_bm = vm_config->mcbanks_bitmask;
+	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
+	uint16_t i;
+
+	if (is_sw_error_recovery_supported() || is_local_mc_supported()) {
+		/* If any of these are physically supported, we stop passthrough and hide everything */
+		pr_err("Physical platform supports software error recovery and/or local machine check,");
+		pr_err("Passing-through MC banks under this case is inappropriate. Stop passthrough and hide everything.");
+	} else {
+		if (is_mc_pt_configured(vm)) {
+			if (bitmap_weight(conf_bm) != (1 + fls64(conf_bm))) {
+				/* TODO: Non-continuous bank pt currently not supported */
+				pr_err("Non-continous mcbanks_bitmask or bitmask doesn't start from 0. For VM%d, MC banks will NOT be passed-through", vm->vm_id);
+			} else if (!(is_service_vm(vm) || is_vhwp_configured(vm) || is_lapic_pt_configured(vm))) {
+				/* is_vhwp_configured will be true if own_pcpu was set to y in scenario XML */
+				pr_err("Guest mcbanks_bitmask configured but this guest does NOT exclusively own pCPU.");
+				pr_err("MC banks will NOT be passed-through.");
+			} else {
+				if (bitmap_weight(conf_bm) > mc_bank_count()) {
+					pr_err("Warning: Invalid mcbanks_bitmask configuration 0x%x, platform supports only up to %d banks", conf_bm, mc_bank_count());
+					pr_err("Warning: Extraneous banks ignored");
+				}
+
+				/* CAP will be emulated, pt STATUS only */
+				enable_msr_interception(msr_bitmap, MSR_IA32_MCG_STATUS, INTERCEPT_DISABLE);
+				vcpu->arch.mc_pt_enabled = true;
+				mcb_bm = conf_bm;
+
+			}
+		}
+	}
+
+	for (i = 0; i < mc_bank_count(); i++) {
+		if (bitmap_test(i, &mcb_bm)) {
+			pr_info("%s: passing through MC%d to vm%d, vcpu%d", __func__, i, vm->vm_id, vcpu->vcpu_id);
+			mc_bank_pt_by_idx(vcpu, i);
+		} else {
+			mc_bank_hide_by_idx(vcpu, i);
+		}
+	}
+
+	/* Hide legacy P5 MC registers */
+	enable_msr_interception(msr_bitmap, MSR_IA32_P5_MC_ADDR, INTERCEPT_READ_WRITE);
+	enable_msr_interception(msr_bitmap, MSR_IA32_P5_MC_TYPE, INTERCEPT_READ_WRITE);
+}
+
 /**
  * @pre vcpu != NULL
  */
@@ -563,6 +666,9 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 
 	/* Initialize VMX MSRs for nested virtualization */
 	init_vmx_msrs(vcpu);
+
+	/* Initialize Machine Check MSRs for passthrough */
+	init_mc_msrs(vcpu);
 }
 
 static int32_t write_pat_msr(struct acrn_vcpu *vcpu, uint64_t value)
@@ -764,6 +870,16 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		break;
 	}
 	case MSR_IA32_MCG_CAP:
+	{
+		if (is_mc_pt_enabled(vcpu)) {
+			v = msr_read(msr);
+			v &= (MSR_IA32_MCG_CAP_CMCI_P | MSR_IA32_MCG_CAP_TES_P);
+			v |= mc_bank_configured_count(vcpu);
+		} else {
+			v = 0U;
+		}
+		break;
+	}
 	case MSR_IA32_MCG_STATUS:
 	{
 		v = 0U;
