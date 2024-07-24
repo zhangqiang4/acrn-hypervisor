@@ -1741,6 +1741,7 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 				free(entries);
 				resp.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
 				memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
+				pr_err("%s :failed to create dmabuf out of scatter list\n", __func__);
 				return;
 			}
 
@@ -1758,6 +1759,7 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 
 			iov = malloc(req.nr_entries * sizeof(struct iovec));
 			if (!iov) {
+				pr_err("%s : memory allocation for iov failed.\n", __func__);
 				free(entries);
 				free(r2d);
 				resp.type = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;

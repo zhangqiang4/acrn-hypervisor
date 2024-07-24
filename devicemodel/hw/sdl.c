@@ -265,7 +265,12 @@ sdl_surface_set(void *backend, struct surface *surf)
 				EGL_LINUX_DMA_BUF_EXT,
 				NULL, attrs);
 		if (egl_img == EGL_NO_IMAGE_KHR) {
-			pr_err("Failed in eglCreateImageKHR.\n");
+			pr_err("%s: failed in eglCreateImageKHR, "
+				"width=%u,height=%u,stride=%u,fd=%d,"
+				"fourcc=0x%x,modifier=0x%lx\n",
+				__func__, surf->width, surf->height,
+				surf->stride, surf->dma_info.dmabuf_fd,
+				surf->dma_info.surf_fourcc, vscr->modifier);
 			return;
 		}
 
