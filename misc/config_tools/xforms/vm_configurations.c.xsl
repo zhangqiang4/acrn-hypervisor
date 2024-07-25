@@ -119,6 +119,7 @@
     <xsl:text>},</xsl:text>
     <xsl:value-of select="$newline" />
     <xsl:value-of select="acrn:initializer('companion_vm_id', concat(companion_vmid, 'U'))" />
+    <xsl:value-of select="acrn:initializer('mcbanks_bitmask', concat(mcbanks_bitmask, 'U'))" />
     <xsl:call-template name="guest_flags" />
 
     <xsl:if test="acrn:is-rdt-enabled()">

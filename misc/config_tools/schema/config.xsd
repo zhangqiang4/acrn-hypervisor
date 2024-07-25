@@ -568,6 +568,11 @@ These settings can only be changed at build time.</xs:documentation>
         <xs:documentation>Specify the companion VM id of this VM.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="mcbanks_bitmask" type="HexFormat" default="0">
+      <xs:annotation acrn:views="">
+        <xs:documentation>Specify the machine check banks bitmask to passthrough to this VM</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="os_config" type="OSConfigurations">
       <xs:annotation acrn:title="OS Configuration" acrn:applicable-vms="pre-launched, service-vm" acrn:views="basic">
         <xs:documentation>General information for host kernel, boot
