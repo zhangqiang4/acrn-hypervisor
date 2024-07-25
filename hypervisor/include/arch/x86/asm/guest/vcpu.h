@@ -295,6 +295,10 @@ struct acrn_vcpu_arch {
 	/* Keylocker */
 	struct iwkey IWKey;
 	bool cr4_kl_enabled;
+
+	/* #MC pending injection */
+	bool mc_injection_pending;
+
 	/*
 	 * Keylocker spec 4.4:
 	 * Bit 0 - Status of most recent copy to or from IWKeyBackup.

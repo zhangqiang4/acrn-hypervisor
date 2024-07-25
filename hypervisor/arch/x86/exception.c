@@ -7,14 +7,19 @@
 #include <asm/cpu.h>
 #include <asm/irq.h>
 #include <debug/dump.h>
+#include <asm/mce.h>
 
 void dispatch_exception(struct intr_excp_ctx *ctx)
 {
 	uint16_t pcpu_id = get_pcpu_id();
 
-	/* Dump exception context */
-	dump_exception(ctx, pcpu_id);
+	if (ctx->vector == IDT_MC) {
+		handle_mce();
+	} else {
+		/* Dump exception context */
+		dump_exception(ctx, pcpu_id);
 
-	/* Halt the CPU */
-	cpu_dead();
+		/* Halt the CPU */
+		cpu_dead();
+	}
 }

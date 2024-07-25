@@ -92,6 +92,17 @@ void vcpu_inject_ud(struct acrn_vcpu *vcpu);
 void vcpu_inject_ss(struct acrn_vcpu *vcpu);
 
 /**
+ * @brief Inject machine check exeception(MC) to guest.
+ *
+ * @param[in] vcpu Pointer to vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
+void vcpu_inject_mc(struct acrn_vcpu *vcpu);
+
+/**
  * @brief Inject thermal sensor interrupt to guest.
  *
  * @param[in] vcpu Pointer to vCPU.

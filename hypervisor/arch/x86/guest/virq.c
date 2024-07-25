@@ -18,6 +18,7 @@
 #include <trace.h>
 #include <logmsg.h>
 #include <asm/irq.h>
+#include <asm/mce.h>
 
 #define EXCEPTION_ERROR_CODE_VALID  8U
 
@@ -302,6 +303,12 @@ void vcpu_inject_ss(struct acrn_vcpu *vcpu)
 	(void)vcpu_queue_exception(vcpu, IDT_SS, 0);
 }
 
+/* Inject machine check exception(#MC) to guest */
+void vcpu_inject_mc(struct acrn_vcpu *vcpu)
+{
+	(void)vcpu_queue_exception(vcpu, IDT_MC, 0);
+}
+
 /* Inject thermal sensor interrupt to guest */
 void vcpu_inject_thermal_interrupt(struct acrn_vcpu *vcpu)
 {
@@ -409,6 +416,19 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 		 * Inject pending exception prior pending interrupt to complete the previous instruction.
 		 */
 		if ((*pending_req_bits != 0UL) && bitmap_test_and_clear_lock(ACRN_REQUEST_EXCP, pending_req_bits)) {
+			if (is_mc_pt_enabled(vcpu) && (vcpu->arch.mc_injection_pending)) {
+				/*
+				 * If we have #MC coming in while we're processing other exceptions,
+				 * We need to inject #MC instead of the original exception.
+				 *
+				 * If we reach here, we don't know which exception gets queued
+				 * as we can queue at most one exception. We inject again to make sure
+				 * we're going to inject #MC this time.
+				 */
+				vcpu->arch.exception_info.exception = IDT_MC;
+				vcpu->arch.mc_injection_pending = false;
+			}
+
 			vcpu_inject_exception(vcpu);
 			injected = true;
 		} else {
@@ -543,9 +563,11 @@ int32_t exception_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 
 	if (exception_vector == IDT_MC) {
-		/* just print error message for #MC, it then will be injected
-		 * back to guest */
+		/* If we reach here then #MC comes in when non-governing vcpu is running
+		 * on this pcpu. Inject to governing vcpu instead.
+		 */
 		pr_fatal("Exception #MC got from guest!");
+		inject_mc_event_to_governing_vcpu(pcpuid_from_vcpu(vcpu), false);
 	}
 
 	TRACE_4I(TRACE_VMEXIT_EXCEPTION_OR_NMI,

@@ -204,6 +204,7 @@ HW_S_SRCS += arch/x86/idt.S
 HW_C_SRCS += arch/x86/ioapic.c
 HW_C_SRCS += arch/x86/lapic.c
 HW_C_SRCS += arch/x86/cpu.c
+HW_C_SRCS += arch/x86/mce.c
 HW_C_SRCS += arch/x86/cpu_caps.c
 HW_C_SRCS += arch/x86/platform_caps.c
 HW_C_SRCS += arch/x86/security.c

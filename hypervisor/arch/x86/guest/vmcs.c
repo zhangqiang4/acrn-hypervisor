@@ -403,10 +403,10 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 
 	/* Set up guest exception mask bitmap setting a bit * causes a VM exit
 	 * on corresponding guest * exception - pg 2902 24.6.3
-	 * enable VM exit on MC always
+	 * enable VM exit on MC for VMs that does NOT enable MC PT
 	 * enable AC for split-lock emulation when split-lock detection is enabled on physical platform.
 	 */
-	value32 = (1U << IDT_MC);
+	value32 = is_mc_pt_enabled(vcpu) ? 0U : (1U << IDT_MC);
 	if (is_ac_enabled()) {
 		value32 = (value32 | (1U << IDT_AC));
 	}

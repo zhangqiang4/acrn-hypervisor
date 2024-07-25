@@ -234,7 +234,12 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 				if ((vector_info & VMX_INT_INFO_ERR_CODE_VALID) != 0U) {
 					err_code = exec_vmread32(VMX_IDT_VEC_ERROR_CODE);
 				}
-				(void)vcpu_queue_exception(vcpu, vector, err_code);
+				if (vector != IDT_MC) {
+					/* Do NOT automatically queue #MC here, it will be handled
+					 * later in exception_vmexit_handler
+					 */
+					(void)vcpu_queue_exception(vcpu, vector, err_code);
+				}
 				vcpu->arch.idt_vectoring_info = 0U;
 			} else if (type == VMX_INT_TYPE_NMI) {
 				vcpu_make_request(vcpu, ACRN_REQUEST_NMI);

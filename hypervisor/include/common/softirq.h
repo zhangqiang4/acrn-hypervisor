@@ -10,7 +10,8 @@
 #define SOFTIRQ_TIMER		0U
 #define SOFTIRQ_PTDEV		1U
 #define SOFTIRQ_THERMAL		2U
-#define NR_SOFTIRQS             3U
+#define SOFTIRQ_CMCI        3U
+#define NR_SOFTIRQS         4U
 
 typedef void (*softirq_handler)(uint16_t cpu_id);
 
