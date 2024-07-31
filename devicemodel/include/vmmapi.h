@@ -134,6 +134,8 @@ void	vm_destroy(struct vmctx *ctx);
 int	vm_parse_memsize(const char *optarg, size_t *memsize);
 int	vm_map_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
 	uint64_t vma, int prot);
+int	vm_unmap_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
+	uint64_t vma, int prot);
 int	vm_setup_memory(struct vmctx *ctx, size_t len);
 void	vm_unsetup_memory(struct vmctx *ctx);
 bool	init_hugetlb(void);

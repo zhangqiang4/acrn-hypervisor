@@ -369,6 +369,25 @@ vm_map_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
 }
 
 int
+vm_unmap_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
+	uint64_t vma, int prot)
+{
+	struct acrn_vm_memmap memmap;
+	int error;
+	bzero(&memmap, sizeof(struct acrn_vm_memmap));
+	memmap.type = ACRN_MEMMAP_RAM;
+	memmap.vma_base = vma;
+	memmap.len = len;
+	memmap.user_vm_pa = gpa;
+	memmap.attr = prot;
+	error = ioctl(ctx->fd, ACRN_IOCTL_UNSET_MEMSEG, &memmap);
+	if (error) {
+		pr_err("ACRN_IOCTL_UNSET_MEMSEG ioctl() returned an error: %s\n", errormsg(errno));
+	}
+	return error;
+}
+
+int
 vm_setup_memory(struct vmctx *ctx, size_t memsize)
 {
 	/*
