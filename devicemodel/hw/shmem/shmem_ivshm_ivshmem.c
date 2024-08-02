@@ -64,7 +64,9 @@ static int shmem_open(const char *devpath, struct shmem_info *info, int evt_fds[
 	if (info->mmio_base == MAP_FAILED)
 		error(1, errno, "mmap of registers failed");
 
-	info->mem_size = 4 * 1024 * 1024;
+	if (ioctl(iregion_fd, IVSHM_GET_MMIO_SZ, &info->mem_size) < 0)
+		error(1, errno, "failed to get ivshm mmio size");
+
 	info->mem_base = mmap(NULL, info->mem_size, PROT_READ | PROT_WRITE, MAP_SHARED, iregion_fd, 0);
 	if (info->mem_base == MAP_FAILED)
 		error(1, errno, "mmap of shared memory failed");

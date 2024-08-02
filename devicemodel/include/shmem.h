@@ -14,6 +14,9 @@
 
 #define min(a, b)  (((a) < (b)) ? (a) : (b))
 
+#define IVSHM_ADD_LISTENER	_IOW('u', 100, struct ivshm_listener_data)
+#define IVSHM_GET_MMIO_SZ	_IOR('u', 101, unsigned long long)
+
 struct shmem_info;
 
 struct shmem_ops {
