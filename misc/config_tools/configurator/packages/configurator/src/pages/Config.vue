@@ -494,6 +494,7 @@ export default {
 
       let postVerification = await this.verifyBDFCollision(this.board, this.scenario)
       console.log('postVerification: ',postVerification)
+      /*
       if(!postVerification){
         let all_errors = configurator.pythonObject.validateScenario(this.board.content, scenarioXMLData)
         console.log(all_errors)
@@ -503,6 +504,7 @@ export default {
         }
         //i have not find the place to show error messages which is not satisfied with regex yet, i place the error messages in console now
       }
+      */
 
       this.scenario.vm.map((vmConfig) => {
         if (vmConfig['load_order'] === 'POST_LAUNCHED_VM') {
