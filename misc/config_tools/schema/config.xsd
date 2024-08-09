@@ -20,10 +20,10 @@
       </xs:annotation>
     </xs:element>
 
-    <xs:element name="VUART_VBDF" type="VBDFType">
+    <xs:element name="VUART_VBDF" type="VBDFType" minOccurs="0">
       <xs:annotation acrn:title="Virtual UART BDF"
                      acrn:defaults="[f'00:{i:02x}.0' for i in range(16, 24)]"
-                     acrn:unique-among="//vuart_connection/endpoint[vm_name=$parent/vm_name]/vbdf/text()"
+                     acrn:widget-hidden="{{ rootFormData.SERIAL_CONSOLE.default===None }}"
                      acrn:widget-options="'placeholder':'00:[device].[function], e.g. 00:1c.0. All fields are in hexadecimal.'">
         <xs:documentation>Specify the virtual Bus:Device.Function (BDF) for each PCI virtual UART. Virtual BDF is automatically assigned when the configuration is saved and can be changed if needed.</xs:documentation>
       </xs:annotation>

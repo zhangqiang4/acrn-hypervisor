@@ -336,6 +336,13 @@
       <xsl:text>},</xsl:text>
       <xsl:value-of select="$newline" />
     </xsl:for-each>
+    <xsl:choose>
+      <xsl:when test="acrn:is-service-vm(load_order) and acrn:console-is-vuart()">
+        <xsl:variable name="vuart_id" select="acrn:sos-vuart-index()"/>
+        <xsl:value-of select="acrn:initializer(concat('vuart[', $vuart_id, ']'), '{}')" />
+      </xsl:when>
+      <xsl:otherwise/>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template name="pci_dev_num">

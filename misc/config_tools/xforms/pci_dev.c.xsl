@@ -47,6 +47,7 @@
     <xsl:call-template name="ivshmem_shm_mem" />
     <xsl:apply-templates select="console_vuart" />
     <xsl:call-template name="communication_vuart" />
+    <xsl:call-template name="sos_vuart"/>
     <xsl:if test="acrn:is-pre-launched-vm(load_order)">
       <xsl:apply-templates select="pci_devs" />
     </xsl:if>
@@ -144,13 +145,12 @@
       <xsl:value-of select="$newline" />
       </xsl:if>
     </xsl:for-each>
-    <xsl:call-template name="sos_vuart"/>
   </xsl:template>
 
   <xsl:template name="sos_vuart">
 
     <xsl:if test="//DEBUG_OPTIONS/SERIAL_CONSOLE/text() = 'Vuart'">
-      <xsl:variable name="vuart_id" select="last()"/>
+      <xsl:variable name="vuart_id" select="acrn:sos-vuart-index-in-pci-dev()+1"/>
       <xsl:choose>
         <xsl:when test="acrn:is-service-vm(load_order)">
           <xsl:text>{</xsl:text>
