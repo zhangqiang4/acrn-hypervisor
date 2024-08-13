@@ -1216,6 +1216,7 @@ bool vdpy_mplane_check()
 		if(pdp->mplane_check)
 			return pdp->mplane_check();
 	}
+	return true;
 }
 
 void vdpy_mplane_fallback()
