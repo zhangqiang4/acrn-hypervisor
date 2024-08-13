@@ -1854,9 +1854,15 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	/** BAR0: VGA framebuffer **/
 	pci_emul_alloc_bar(dev, 0, PCIBAR_MEM32, VIRTIO_GPU_VGA_FB_SIZE);
 	prot = PROT_READ | PROT_WRITE;
+	/* bdf of this device should be ahead of hotplug device, so bar addr and fb base
+	 * will not change during reboot, could skip map memseg during system reset. would
+	 * add back map memseg and unmap mapseg when ram memseg unset operation in kernel
+	 * HSM is ready.
+	 */
 	if (!only_be) {
-		if (vm_map_memseg_vma(ctx, VIRTIO_GPU_VGA_FB_SIZE, dev->bar[0].addr,
-					(uint64_t)ctx->fb_base, prot) != 0) {
+		if ((vm_get_suspend_mode() != VM_SUSPEND_SYSTEM_RESET) &&
+					(vm_map_memseg_vma(ctx, VIRTIO_GPU_VGA_FB_SIZE,
+					dev->bar[0].addr, (uint64_t)ctx->fb_base, prot) != 0)) {
 			pr_err("%s: fail to map VGA framebuffer to bar0.\n", __func__);
 		}
 		memset(ctx->fb_base, 0, VIRTIO_GPU_VGA_FB_SIZE);
