@@ -385,23 +385,19 @@ virtio_sound_get_card_name(char *card_str, char *card_name)
 {
 	int idx;
 
-	if (strspn(card_str, "0123456789") == strlen(card_str)) {
-		idx = snd_card_get_index(card_str);
-		if (idx >= 0 && idx < 32)
+	idx = snd_card_get_index(card_str);
+	if (idx >= 0 && idx < 32)
 #if defined(SND_LIB_VER)
 #if SND_LIB_VER(1, 2, 5) <= SND_LIB_VERSION
-			snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "sysdefault:%i", idx);
+		snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "sysdefault:%i", idx);
 #else
-			snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "hw:%i", idx);
+		snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "hw:%i", idx);
 #endif
 #else
-			snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "hw:%i", idx);
+		snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "hw:%i", idx);
 #endif
-		else {
-			return -1;
-		}
-	} else {
-		strncpy(card_name, card_str, VIRTIO_SOUND_CARD_NAME);
+	else {
+		return -1;
 	}
 	return 0;
 }
@@ -2814,6 +2810,7 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		free(virt_snd->cards[i]);
 	}
 	free(virt_snd);
+	card_cnt--;
 }
 
 struct pci_vdev_ops pci_ops_virtio_sound = {
