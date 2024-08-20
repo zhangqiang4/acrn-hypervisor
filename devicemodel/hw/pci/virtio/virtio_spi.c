@@ -88,7 +88,9 @@ static int virtio_spi_debug=0;
 #define MAX_SPIDEVS		16
 #define MAX_NODE_NAME_LEN	40
 
-#define VIRTIO_SPI_HOSTCAPS   (1UL << VIRTIO_F_VERSION_1)
+#define VIRTIO_SPI_F_EVENT_QUEUE 0
+#define VIRTIO_SPI_HOSTCAPS	((1UL << VIRTIO_F_VERSION_1) | \
+				(1 << VIRTIO_SPI_F_EVENT_QUEUE))
 
 /* Same encoding with linux/spi/spi.h */
 #define MODE_CPHA		BIT(0)
@@ -96,15 +98,14 @@ static int virtio_spi_debug=0;
 #define MODE_CS_HIGH		BIT(2)
 #define MODE_LSB_FIRST		BIT(3)
 #define MODE_LOOP		BIT(4)
-// more can be added if required in the future.
 
-struct virtio_spi_out_hdr {
-	uint8_t slave_id;
+struct virtio_spi_transfer_head {
+	uint8_t chip_select_id;
 	uint8_t bits_per_word;
 	uint8_t cs_change;	/* deassert cs before next transfer ? */
 	uint8_t tx_nbits;	/* single, dual, quad, octal */
 	uint8_t rx_nbits;
-	uint8_t paddings[3];
+	uint8_t reserved[3];
 	uint32_t mode;
 	uint32_t freq;
 	uint32_t word_delay_ns;	/* delay between words of a transfer */
@@ -115,14 +116,15 @@ struct virtio_spi_out_hdr {
 
 /* result code definitions */
 #define VIRTIO_SPI_TRANS_OK	0
-#define VIRTIO_SPI_TRANS_ERR	1
+#define VIRTIO_SPI_PARAM_ERR	1
+#define VIRTIO_SPI_TRANS_ERR	2
 
-struct virtio_spi_in_hdr {
+struct virtio_spi_transfer_result {
 	uint8_t result;
 };
 
 struct virtio_spi_transfer_req {
-	struct virtio_spi_out_hdr *head;
+	struct virtio_spi_transfer_head *head;
 	uint8_t *tx_buf;
 	uint32_t tx_buf_size;
 	uint8_t *rx_buf;
@@ -542,8 +544,52 @@ struct vspidev_be *find_vspidev_be_from_name(const char *name)
 	return NULL;
 }
 
+/* one bit transfer is always supported */
+#define TX_RX_NBITS_DUAL	(1 << 0U)
+#define TX_RX_NBITS_QUAD	(1 << 1U)
+#define TX_RX_NBITS_OCTAL	(1 << 2U)
+#define TX_RX_NBITS_ALL		(TX_RX_NBITS_DUAL | TX_RX_NBITS_QUAD | \
+					TX_RX_NBITS_OCTAL)
+
+#define SINGLE_BITS_PER_WORD	(1 << 0U)
+#define DUAL_BITS_PER_WORD	(1 << 1U)
+#define QUAD_BITS_PER_WORD	(1 << 3U)
+#define OCTAL_BITS_PER_WORD	(1 << 7U)
+#define ALL_BITS_PER_WORD	0U
+
+#define CFG_MODE_CPHA_MASK	0x03U
+#define CFG_MODE_CPHA_INVALID	0U
+#define CFG_MODE_CPHA_0_ONLY	0x01U
+#define CFG_MODE_CPHA_1_ONLY	0x02U
+#define CFG_MODE_CPHA_BOTH	0x03U
+#define CFG_MODE_CPOL_MASK	0x0CU
+#define CFG_MODE_CPOL_0_ONLY	0x04U
+#define CFG_MODE_CPOL_1_ONLY	0x08U
+#define CFG_MODE_CPOL_BOTH	0x0CU
+#define CFG_MODE_CS_ACTIVE_HIGH_SUPP (1 << 4U)	/* Active Low by default */
+#define CFG_MODE_LSB_FIRST_SUPP	(1 << 5U)	/* MSB by default */
+#define CFG_MODE_LOOPBACK_SUPP	(1 << 6U)
+#define CFG_MODE_ALL_SUPP	(CFG_MODE_CPHA_BOTH | CFG_MODE_CPOL_BOTH | \
+					CFG_MODE_CS_ACTIVE_HIGH_SUPP | \
+					CFG_MODE_LSB_FIRST_SUPP | \
+					CFG_MODE_LOOPBACK_SUPP)
+
+#define MAX_FREQ_NOT_LIMITED	0U
+
+#define DELAY_NOT_SUPPORT	0U
+
 struct virtio_spi_config {
-	uint16_t cs_num;
+	uint8_t cs_num;			/* max chipselects the controller supports */
+	uint8_t cs_change_supported;	/* change cs to inactive in between transfers */
+	uint8_t tx_nbits_supported;	/* lines used for tx */
+	uint8_t rx_nbits_supported;	/* lines used for rx */
+	uint32_t bits_per_word_mask;	/* mask of supported word bits */
+	uint32_t mode_func_supported;	/* spi mode, see CFG_MODE_XXX */
+	uint32_t max_freq_hz;
+	uint32_t max_word_delay_ns;	/* delay in between words */
+	uint32_t max_cs_setup_ns;	/* delay after setup cs, before further action */
+	uint32_t max_cs_hold_ns;	/* time duration to hold cs asserted */
+	uint32_t max_cs_inactive_ns;	/* delay after cs deassertion and next assertion */
 }__attribute__((packed));
 
 #define VSPI_EVT_INJECTOR
@@ -636,6 +682,24 @@ virtio_spi_req_stop(struct virtio_spi *vspi)
 	pthread_join(vspi->req_tid, &jval);
 }
 
+static bool validate_request_params(struct virtio_spi_transfer_req *req,
+					struct virtio_spi *vspi)
+{
+	if (req->head->chip_select_id >= vspi->spidev_num)
+		return false;
+
+	/* customized delays not supported so far */
+	if (req->head->word_delay_ns || req->head->cs_setup_ns ||
+			req->head->cs_delay_hold_ns ||
+			req->head->cs_change_delay_inactive_ns)
+		return false;
+
+	if (req->tx_buf && req->rx_buf && req->tx_buf_size != req->rx_buf_size)
+		return false;
+
+	return true;
+}
+
 static void *
 virtio_spi_proc_thread(void *arg)
 {
@@ -647,8 +711,8 @@ virtio_spi_proc_thread(void *arg)
 	uint16_t idx, flags[4];
 	struct virtio_spi_transfer_req req;
 	int n;
-	struct virtio_spi_out_hdr *out_hdr;
-	struct virtio_spi_in_hdr *in_hdr;
+	struct virtio_spi_transfer_head *head;
+	struct virtio_spi_transfer_result *result;
 	struct virtio_spi_irq_req *irq_req;
 	struct virtio_spi_irq_resp *irq_resp;
 
@@ -668,24 +732,35 @@ virtio_spi_proc_thread(void *arg)
 		/* handle transfer requests */
 		while (vq_has_descs(xferq)) {
 			n = vq_getchain(xferq, &idx, iov, 4, flags);
-			if (n != 4) {
+			if (n < 3 || n > 4) {
 				WPRINTF("virtio_spi_proc: failed to get iov from transfer queue\n");
 				continue;
 			}
 			memset(&req, 0, sizeof(req));
-			out_hdr = iov[0].iov_base;
-			in_hdr = iov[3].iov_base;
-			req.head = out_hdr;
-			req.tx_buf = iov[1].iov_base;
-			req.tx_buf_size = iov[1].iov_len;
-			req.rx_buf = iov[2].iov_base;
-			req.rx_buf_size = iov[2].iov_len;
-
-			if (req.head->slave_id >= vspi->spidev_num) {
-				in_hdr->result = -1;
+			head = iov[0].iov_base;
+			req.head = head;
+			if (n == 3) {
+				result = iov[2].iov_base;
+				if (flags[1] & VRING_DESC_F_WRITE) {
+					req.tx_buf = iov[1].iov_base;
+					req.tx_buf_size = iov[1].iov_len;
+				} else {
+					req.rx_buf = iov[1].iov_base;
+					req.rx_buf_size = iov[1].iov_len;
+				}
 			} else {
-				vspidev = vspi->vspidevs[req.head->slave_id];
-				in_hdr->result = vspidev->be->transfer(vspidev, &req);
+				result = iov[3].iov_base;
+				req.tx_buf = iov[1].iov_base;
+				req.tx_buf_size = iov[1].iov_len;
+				req.rx_buf = iov[2].iov_base;
+				req.rx_buf_size = iov[2].iov_len;
+			}
+
+			if (!validate_request_params(&req, vspi)) {
+				result->result = VIRTIO_SPI_PARAM_ERR;
+			} else {
+				vspidev = vspi->vspidevs[req.head->chip_select_id];
+				result->result = vspidev->be->transfer(vspidev, &req);
 			}
 			vq_relchain(xferq, idx, 1);
 		};
@@ -1001,6 +1076,16 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		goto mtx_fail;
 	}
 	vspi->config.cs_num = vspi->spidev_num;
+	vspi->config.cs_change_supported = 1;
+	vspi->config.tx_nbits_supported = TX_RX_NBITS_ALL;
+	vspi->config.rx_nbits_supported = TX_RX_NBITS_ALL;
+	vspi->config.bits_per_word_mask = ALL_BITS_PER_WORD;
+	vspi->config.mode_func_supported = CFG_MODE_ALL_SUPP;
+	vspi->config.max_freq_hz = MAX_FREQ_NOT_LIMITED;
+	vspi->config.max_word_delay_ns = DELAY_NOT_SUPPORT;
+	vspi->config.max_cs_setup_ns = DELAY_NOT_SUPPORT;
+	vspi->config.max_cs_hold_ns = DELAY_NOT_SUPPORT;
+	vspi->config.max_cs_inactive_ns = DELAY_NOT_SUPPORT;
 
 	/* init mutex attribute properly to avoid deadlock */
 	rc = pthread_mutexattr_init(&attr);
