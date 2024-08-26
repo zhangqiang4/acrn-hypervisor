@@ -33,8 +33,6 @@
 #include "virtio_sound.h"
 #include "log.h"
 
-#define VIRTIO_SOUND_CARD_MAX 	16
-
 #define VIRTIO_SOUND_RINGSZ	256
 #define VIRTIO_SOUND_VQ_NUM	4
 
@@ -166,6 +164,9 @@ struct virtio_sound_pcm {
 struct vbs_ctl_elem {
 	snd_hctl_elem_t *elem;
 	struct vbs_card *card;
+
+	struct virtio_sound *snd_card;
+	uint16_t id;
 };
 
 struct vbs_jack_elem {
@@ -174,6 +175,10 @@ struct vbs_jack_elem {
 	uint32_t connected;
 	struct vbs_card *card;
 	char *identifier;
+
+	struct virtio_sound *snd_card;
+	uint16_t id;
+	LIST_ENTRY(vbs_jack_elem) jack_list;
 };
 
 struct vbs_card {
@@ -219,8 +224,7 @@ static int virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *
 static int virtio_sound_create_poll_fds(struct virtio_sound_pcm *stream);
 static int virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream);
 
-static uint16_t card_cnt = 0;
-static struct virtio_sound *vsound[VIRTIO_SOUND_CARD_MAX] = {};
+static LIST_HEAD(listhead, vbs_jack_elem) jack_list_head;
 
 /*	environment variable: VIRTIO_SOUND_WRITE2FILE
 	0: no file 1: write to alsa 2: receive from BE */
@@ -365,21 +369,6 @@ virtio_sound_reset(void *vdev)
 	virtio_reset_dev(&virt_snd->base);
 }
 
-static int virtio_sound_set_card(struct virtio_sound *card)
-{
-	if (card_cnt >= VIRTIO_SOUND_CARD_MAX)
-		return -1;
-
-	vsound[card_cnt] = card;
-	card_cnt++;
-	return 0;
-}
-
-static struct virtio_sound *virtio_sound_get_device(uint16_t idx)
-{
-	return vsound[idx];
-}
-
 static int
 virtio_sound_get_card_name(char *card_str, char *card_name)
 {
@@ -399,6 +388,7 @@ virtio_sound_get_card_name(char *card_str, char *card_name)
 	else {
 		return -1;
 	}
+
 	return 0;
 }
 
@@ -2289,6 +2279,9 @@ virtio_sound_init_emu_ctl(struct virtio_sound *virt_snd, char *card_str, char *i
 		virt_snd->jacks[virt_snd->jack_cnt]->elem = NULL;
 		virt_snd->jacks[virt_snd->jack_cnt]->card = NULL;
 		virt_snd->jacks[virt_snd->jack_cnt]->hda_reg_defconf = virtio_snd_jack_parse(ident);
+		virt_snd->jacks[virt_snd->jack_cnt]->snd_card = virt_snd;
+		virt_snd->jacks[virt_snd->jack_cnt]->id = virt_snd->jack_cnt;
+		LIST_INSERT_HEAD(&jack_list_head, virt_snd->jacks[virt_snd->jack_cnt], jack_list);
 		if (c != NULL && strcmp(c, "connect") == 0)
 			virt_snd->jacks[virt_snd->jack_cnt]->connected = 1;
 		else
@@ -2344,7 +2337,11 @@ virtio_sound_init_ctl_elem(struct virtio_sound *virt_snd, char *card_str, char *
 		virt_snd->jacks[virt_snd->jack_cnt]->hda_reg_defconf = virtio_snd_jack_parse(identifier);
 		virt_snd->jacks[virt_snd->jack_cnt]->connected = virtio_sound_get_jack_value(elem);
 		virt_snd->jacks[virt_snd->jack_cnt]->identifier = NULL;
+		virt_snd->jacks[virt_snd->jack_cnt]->snd_card = virt_snd;
+		virt_snd->jacks[virt_snd->jack_cnt]->id = virt_snd->jack_cnt;
+		LIST_INSERT_HEAD(&jack_list_head, virt_snd->jacks[virt_snd->jack_cnt], jack_list);
 		snd_hctl_elem_set_callback(elem, virtio_sound_event_callback);
+		snd_hctl_elem_set_callback_private(elem, virt_snd->jacks[virt_snd->jack_cnt]);
 		virt_snd->jack_cnt++;
 	} else {
 		virt_snd->ctls[virt_snd->ctl_cnt] = malloc(sizeof(struct vbs_ctl_elem));
@@ -2354,7 +2351,10 @@ virtio_sound_init_ctl_elem(struct virtio_sound *virt_snd, char *card_str, char *
 		}
 		virt_snd->ctls[virt_snd->ctl_cnt]->elem = elem;
 		virt_snd->ctls[virt_snd->ctl_cnt]->card = card;
+		virt_snd->ctls[virt_snd->ctl_cnt]->snd_card = virt_snd;
+		virt_snd->ctls[virt_snd->ctl_cnt]->id = virt_snd->ctl_cnt;
 		snd_hctl_elem_set_callback(elem, virtio_sound_event_callback);
+		snd_hctl_elem_set_callback_private(elem, virt_snd->ctls[virt_snd->ctl_cnt]);
 		virt_snd->ctl_cnt++;
 	}
 
@@ -2474,7 +2474,7 @@ virtio_sound_inject_jack_event(char *param)
 	struct vbs_jack_elem *jack = NULL;
 	struct virtio_snd_event event;
 
-	int logic_state = -1, i, j;
+	int logic_state = -1, match = 0;
 	char *identifier, *c, *cpy;
 
 	if (strstr(param, "Jack") == NULL) {
@@ -2497,39 +2497,29 @@ virtio_sound_inject_jack_event(char *param)
 		free(cpy);
 		return -1;
 	}
-	for (j = 0; j < card_cnt; c++) {
-		virt_snd = virtio_sound_get_device(j);
-		if (virt_snd == NULL) {
-			WPRINTF("%s: error card %d\n", __func__, j);
-			free(cpy);
-			return -1;
-		}
-		for (i = 0; i < virt_snd->jack_cnt; i++) {
-			if (virt_snd->jacks[i]->identifier != NULL &&
-				strcmp(identifier, virt_snd->jacks[i]->identifier) == 0) {
-				break;
-			}
-		}
-		if (i < virt_snd->jack_cnt) {
-			jack = virt_snd->jacks[i];
+	LIST_FOREACH(jack, &jack_list_head, jack_list) {
+		if (jack->identifier != NULL &&
+			strcmp(identifier, jack->identifier) == 0) {
+			match = 1;
 			break;
 		}
 	}
-	if (jack == NULL) {
+
+	if (!match) {
 		WPRINTF("%s: no match jack, param %s\n", __func__, cpy);
 		free(cpy);
 		return -1;
 	}
-
+	virt_snd = jack->snd_card;
 	if (logic_state != jack->connected && logic_state == 1) {
 		event.hdr.code = VIRTIO_SND_EVT_JACK_CONNECTED;
-		event.data = i;
+		event.data = jack->id;
 		if (virtio_sound_send_event(virt_snd, &event) != 0) {
 			WPRINTF("%s: event send fail!\n", __func__);
 		}
 	} else if (logic_state != jack->connected && logic_state == 0) {
 		event.hdr.code = VIRTIO_SND_EVT_JACK_DISCONNECTED;
-		event.data = i;
+		event.data = jack->id;
 		if (virtio_sound_send_event(virt_snd, &event) != 0) {
 			WPRINTF("%s: event send fail!\n", __func__);
 		}
@@ -2544,67 +2534,48 @@ virtio_sound_event_callback(snd_hctl_elem_t *helem, unsigned int mask)
 {
 	struct virtio_sound *virt_snd;
 	struct virtio_snd_event event;
-	int i = 0, c;
+	struct vbs_ctl_elem *ctrl;
+	struct vbs_jack_elem *jack;
 
 	if (strstr(snd_hctl_elem_get_name(helem), "Jack")) {
-		for (c = 0; c < card_cnt; c++) {
-			virt_snd = virtio_sound_get_device(c);
-			if (virt_snd == NULL) {
-				WPRINTF("%s: error card %d\n", __func__, c);
-				return -1;
-			}
-			/*
-			* When close hctl handle while deinit virtio sound,
-			* alsa lib will trigger a poll event. Just return immediately.
-			*/
-			if (virt_snd->status == VIRTIO_SND_BE_DEINITED)
-				return 0;
-			for (i = 0; i < virt_snd->jack_cnt; i++) {
-				if (helem == virt_snd->jacks[i]->elem) {
-					virt_snd->jacks[i]->connected = virtio_sound_get_jack_value(virt_snd->jacks[i]->elem);
-					if (virt_snd->jacks[i]->connected < 0) {
-						WPRINTF("%s: Jack %s read value fail!\n", __func__,
-							snd_hctl_elem_get_name(helem));
-						return 0;
-					}
-					if (virt_snd->jacks[i]->connected > 0)
-						event.hdr.code = VIRTIO_SND_EVT_JACK_CONNECTED;
-					else
-						event.hdr.code = VIRTIO_SND_EVT_JACK_DISCONNECTED;
-					event.data = i;
-					break;
-				}
-			}
-			if (i < virt_snd->jack_cnt)
-				break;
-		}
-		if (c == card_cnt) {
-			WPRINTF("%s: %d Jack %s miss matched!\n", __func__, i, snd_hctl_elem_get_name(helem));
+		jack = (struct vbs_jack_elem *)snd_hctl_elem_get_callback_private(helem);
+		if (jack == NULL) {
+			WPRINTF("%s: fail get jack elem %s!\n", __func__,
+				snd_hctl_elem_get_name(helem));
 			return 0;
 		}
+
+		virt_snd = jack->snd_card;
+		/*
+		* When close hctl handle while deinit virtio sound,
+		* alsa lib will trigger a poll event. Just return immediately.
+		*/
+		if (virt_snd == NULL || virt_snd->status == VIRTIO_SND_BE_DEINITED)
+			return 0;
+		jack->connected = virtio_sound_get_jack_value(jack->elem);
+		if (jack->connected < 0) {
+			WPRINTF("%s: Jack %s read value fail!\n", __func__,
+				snd_hctl_elem_get_name(helem));
+			return 0;
+		}
+		if (jack->connected > 0)
+			event.hdr.code = VIRTIO_SND_EVT_JACK_CONNECTED;
+		else
+			event.hdr.code = VIRTIO_SND_EVT_JACK_DISCONNECTED;
+		event.data = jack->id;
 	} else {
-		for (c = 0; c < card_cnt; c++) {
-			virt_snd = virtio_sound_get_device(c);
-			if (virt_snd == NULL) {
-				WPRINTF("%s: error card %d\n", __func__, c);
-				return -1;
-			}
-			if (virt_snd->status == VIRTIO_SND_BE_DEINITED)
-				return 0;
-			for (i = 0; i < virt_snd->ctl_cnt; i++) {
-				if (helem == virt_snd->ctls[i]->elem) {
-					event.hdr.code = VIRTIO_SND_EVT_CTL_NOTIFY;
-					event.data = (i << 16) | (mask & 0xffff);
-					break;
-				}
-			}
-			if (i < virt_snd->ctl_cnt)
-				break;
-		}
-		if (c == card_cnt) {
-			WPRINTF("%s: ctl %s miss matched!\n", __func__, snd_hctl_elem_get_name(helem));
+		ctrl = (struct vbs_ctl_elem *)snd_hctl_elem_get_callback_private(helem);
+		if (ctrl == NULL) {
+			WPRINTF("%s: fail get ctl elem %s!\n", __func__,
+				snd_hctl_elem_get_name(helem));
 			return 0;
 		}
+
+		virt_snd = ctrl->snd_card;
+		if (virt_snd == NULL || virt_snd->status == VIRTIO_SND_BE_DEINITED)
+			return 0;
+		event.hdr.code = VIRTIO_SND_EVT_CTL_NOTIFY;
+		event.data = (ctrl->id << 16) | (mask & 0xffff);
 	}
 	if (virtio_sound_send_event(virt_snd, &event) != 0) {
 		WPRINTF("%s: event send fail!\n", __func__);
@@ -2685,12 +2656,7 @@ virtio_sound_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		WPRINTF(("virtio_sound: calloc returns NULL\n"));
 		return -1;
 	}
-	err = virtio_sound_set_card(virt_snd);
-	if (err == -1) {
-		WPRINTF("%s: too many sound card(max %d)!\n", __func__, VIRTIO_SOUND_CARD_MAX);
-		free(virt_snd);
-		return -1;
-	}
+
 	err = pthread_mutexattr_init(&attr);
 	if (err) {
 		WPRINTF("%s: mutexattr init failed with erro %d!\n", __func__, err);
@@ -2801,6 +2767,7 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		free(virt_snd->ctls[i]);
 	}
 	for (i = 0; i < virt_snd->jack_cnt; i++) {
+		LIST_REMOVE(virt_snd->jacks[i], jack_list);
 		if(virt_snd->jacks[i]->identifier)
 			free(virt_snd->jacks[i]->identifier);
 		free(virt_snd->jacks[i]);
@@ -2810,7 +2777,6 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		free(virt_snd->cards[i]);
 	}
 	free(virt_snd);
-	card_cnt--;
 }
 
 struct pci_vdev_ops pci_ops_virtio_sound = {
