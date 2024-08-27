@@ -54,7 +54,7 @@
 				CR4_UMIP | CR4_LA57)
 static uint64_t cr4_passthru_mask = CR4_PASSTHRU_BITS;	/* bound to flexible bits */
 
-#define CR4_TRAP_AND_PASSTHRU_BITS	(CR4_PSE | CR4_PAE | CR4_SMEP | CR4_SMAP | CR4_PKE | CR4_PKS | CR4_KL)
+#define CR4_TRAP_AND_PASSTHRU_BITS	(CR4_PSE | CR4_PAE | CR4_SMEP | CR4_SMAP | CR4_KL)
 static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* bound to flexible bits */
 
 /* For CR4.MCE, we follow below policy:
@@ -71,7 +71,7 @@ static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* boun
 /* No EM_BITS_INITIAL_VIRT_VALUE defined as that will be zero */
 
 /* Change of these bits should change vcpuid too */
-#define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE)
+#define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE | CR4_PKE | CR4_PKS)
 
 /* The physical CR4 value for bits of CR4_EMULATED_RESERVE_BITS */
 #define CR4_EMRSV_BITS_PHYS_VALUE	CR4_VMXE

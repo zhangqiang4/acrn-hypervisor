@@ -246,6 +246,12 @@ static const uint32_t unsupported_msrs[] = {
 	MSR_IA32_INTERRUPT_SSP_TABLE_ADDR,
 
 	/*
+	 * PKS disabled:
+	 * CPUID.07H.ECX[31] (CPUID_ECX_PKS)
+	 */
+	MSR_IA32_PKRS,
+
+	/*
 	 * HWP package ctrl disabled:
 	 * CPUID.06H.EAX[11] (MSR_IA32_HWP_REQUEST_PKG)
 	 * CPUID.06H.EAX[16] (MSR_IA32_HWP_PECI_REQUEST_INFO)

@@ -554,7 +554,13 @@
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=0H):ECX[3].
  */
-#define CPUID_ECX_PKE		(1U<<3U)
+#define CPUID_ECX_PKU		(1U<<3U)
+/**
+ * @brief A bit representing whether CR4.PKE is set to enable protection keys.
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=0H):ECX[4].
+ */
+#define CPUID_ECX_OSPKE		(1U<<4U)
 /**
  * @brief A bit representing whether the processor supports CET shadow stack features.
  *
@@ -696,6 +702,12 @@
  * This bit is fetched from CPUID(EAX=DH,ECX=0H):EAX[4].
  */
 #define CPUID_EAX_XCR0_BNDCSR   (1U<<4U)
+/**
+ * @brief A bit representing whether the processor supports XCR0.PKRU[9].
+ *
+ * This bit is fetched from CPUID(EAX=DH,ECX=0H):EAX[9].
+ */
+#define CPUID_EAX_XCR0_PKRU     (1U<<9U)
 /**
  * @brief A bit representing whether the processor supports CET user state bit of IA32_XSS MSR.
  *

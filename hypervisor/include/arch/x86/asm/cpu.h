@@ -240,6 +240,12 @@
  */
 #define XCR0_BNDCSR		(1UL<<4U)
 /**
+ * @brief Macro indicating the XCR0 PKRU state.
+ *
+ * If the PKRU state is enabled, the XSAVE feature set can be used to manage the PKRU register.
+ */
+#define XCR0_PKRU		(1UL<<9U)
+/**
  * @brief Macro indicating the XCR0 reserved bits.
  *
  * According to SDM Vol1 13.3:

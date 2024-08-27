@@ -467,6 +467,11 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	entry.ecx &= ~CPUID_ECX_TME;
 	entry.edx &= ~CPUID_EDX_PCONFIG;
 
+	/* mask PKU and PKS */
+	entry.ecx &= ~CPUID_ECX_PKU;
+	entry.ecx &= ~CPUID_ECX_OSPKE;
+	entry.ecx &= ~CPUID_ECX_PKS;
+
 	/* mask architectural LBRs */
 	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_LBR_PT)) {
 		entry.edx &= ~CPUID_EDX_LBR;
@@ -488,16 +493,8 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		entry.ecx &= ~CPUID_ECX_UMIP;
 	}
 
-	if ((cr4_reserved_mask & CR4_PKE) != 0UL) {
-		entry.ecx &= ~CPUID_ECX_PKE;
-	}
-
 	if ((cr4_reserved_mask & CR4_LA57) != 0UL) {
 		entry.ecx &= ~CPUID_ECX_LA57;
-	}
-
-	if ((cr4_reserved_mask & CR4_PKS) != 0UL) {
-		entry.ecx &= ~CPUID_ECX_PKS;
 	}
 
 #ifdef CONFIG_SGX_ENABLED
@@ -1095,10 +1092,12 @@ static void guest_cpuid_0dh(__unused struct acrn_vcpu *vcpu, uint32_t *eax, uint
 			 * CPUID.(EAX=0DH,ECX=0H):EAX[3] and
 			 * CPUID.(EAX=0DH,ECX=0H):EAX[4] will both be 0 */
 			*eax &= ~(CPUID_EAX_XCR0_BNDREGS | CPUID_EAX_XCR0_BNDCSR);
+			*eax &= ~CPUID_EAX_XCR0_PKRU;
 			break;
 		case 1U:
 			*ecx &= ~(CPUID_ECX_CET_U_STATE | CPUID_ECX_CET_S_STATE);
 			break;
+		case 9U:
 		case 11U:
 		case 12U:
 			*eax = 0U;

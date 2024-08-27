@@ -856,10 +856,10 @@ static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu)
  * field in Secondary Processor-Based VM-Execution Controls is set and the CR4.OSXSAVE bit is set:
  * - If yes: It checks if the current privilege level is 0. If yes, it checkes whether the low 32-bits of ECX is 0
  *   since only XCR0 is supported currently. If the ECX is 0, it gets the supported XCR0 from CPUID.0DH and hides the
- *   bits about Intel MPX. Then it checks if the XCR0[0] is set and the supported XCR0 is equal to the value from
- *   reading RAX and RDX. If checks are passed, it writes the value to XCR0 if the value of SSE and AVX is not 10b.
- *   Then the handling is success and sets return value to 0. If any aforementioned checks fails, this handling is
- *   failed and sets return value to -1. Refer to Chapter 13.4 XSAVE Area, Vol. 1, SDM 325462-078 for more details
+ *   bits about Intel MPX and PKRU. Then it checks if the XCR0[0] is set and the supported XCR0 is equal to the value
+ *   from reading RAX and RDX. If checks are passed, it writes the value to XCR0 if the value of SSE and AVX is not
+ *   10b. Then the handling is success and sets return value to 0. If any aforementioned checks fails, this handling
+ *   is failed and sets return value to -1. Refer to Chapter 13.4 XSAVE Area, Vol. 1, SDM 325462-078 for more details
  *   about XSAVE.
  * - If not: It injects an \#UD and sets return value to 0.
  *
@@ -915,6 +915,9 @@ static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu)
 				* vcpu currently not support Intel MPX.
 				*/
 				supported_xcr0 &= ~(XCR0_BNDREGS | XCR0_BNDCSR);
+
+				/* vcpu currently not support PKRU */
+				supported_xcr0 &= ~XCR0_PKRU;
 
 				val64 = (vcpu_get_gpreg(vcpu, CPU_REG_RAX) & 0xffffffffUL) |
 						(vcpu_get_gpreg(vcpu, CPU_REG_RDX) << 32U);
