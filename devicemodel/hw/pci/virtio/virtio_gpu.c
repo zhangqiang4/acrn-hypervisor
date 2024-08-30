@@ -1728,10 +1728,11 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 		}
 		if (req.size > CURSOR_BLOB_SIZE) {
 			/* Try to create the dma buf */
-			r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
-								entries,
-								req.nr_entries,
-								MEMORY_TYPE_I915_DEVICE);
+			if (cmd->gpu->vdpy_if.vfid > 0)
+				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
+									entries,
+									req.nr_entries,
+									MEMORY_TYPE_I915_DEVICE);
 			if (r2d->dma_info == NULL)
 				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
 									entries,
