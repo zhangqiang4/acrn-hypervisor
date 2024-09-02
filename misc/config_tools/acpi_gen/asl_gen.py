@@ -740,6 +740,16 @@ def gen_dsdt(board_etree, scenario_etree, allocation_etree, vm_id, dest_path):
                 builder.build_value(0))))
     objects.add_object("\\", s5_object)
 
+    s3_object = builder.DefName(
+        "_S3_",
+        builder.DefPackage(
+            builder.PkgLength(),
+            2,
+            builder.PackageElementList(
+                builder.build_value(3),
+                builder.build_value(0))))
+    objects.add_object("\\", s3_object)
+
     rtvm = bool(scenario_etree.xpath(f"//vm[@id='{vm_id}']//lapic_passthrough[text()='y']"))
     # RTVM cannot set IRQ because no INTR is sent with LAPIC PT
     if rtvm is False:
