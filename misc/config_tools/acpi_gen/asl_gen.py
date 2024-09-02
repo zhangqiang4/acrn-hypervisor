@@ -88,7 +88,7 @@ def gen_fadt(dest_vm_acpi_path, board_root):
     :return:
     '''
     fadt_asl = 'facp.asl'
-    p_facs_addr = r'FACS Address : ([0-9a-fA-F]{8})'
+    p_facs_addr = r'FACS Address : ([0-9a-fA-F]{8})$'
     p_dsdt_addr = r'DSDT Address : ([0-9a-fA-F]{8})$'
 
     with open(os.path.join(dest_vm_acpi_path, fadt_asl), 'w') as dest:
@@ -102,7 +102,6 @@ def gen_fadt(dest_vm_acpi_path, board_root):
                 else:
                     lines.append(line)
         dest.writelines(lines)
-
 
 def gen_mcfg(dest_vm_acpi_path):
     '''
@@ -826,6 +825,7 @@ def main(args):
         gen_xsdt(dest_vm_acpi_path, passthru_devices)
         gen_fadt(dest_vm_acpi_path, board_root)
         gen_mcfg(dest_vm_acpi_path)
+        shutil.copy(os.path.join(TEMPLATE_ACPI_PATH, 'facs.asl'), dest_vm_acpi_path)
         if vm_id in dict_pcpu_list:
             dict_pcpu_list[vm_id].sort()
 

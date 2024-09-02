@@ -128,6 +128,10 @@ def aml_to_bin(dest_vm_acpi_path, dest_vm_acpi_bin_path, acpi_bin_name, board_et
         with open(os.path.join(dest_vm_acpi_bin_path, ACPI_TABLE_LIST[6][1]), 'rb') as asl:
             acpi_bin.write(asl.read())
 
+        acpi_bin.seek(ACPI_FACS_ADDR_OFFSET)
+        with open(os.path.join(dest_vm_acpi_bin_path, ACPI_TABLE_LIST[7][1]), 'rb') as asl:
+            acpi_bin.write(asl.read())
+
         vm_id = acpi_bin_name.split('.')[0].split('ACPI_VM')[1]
         if vm_id == '0':
             tpm2_acpi_gen(acpi_bin, board_etree, scenario_etree, allocation_etree)
