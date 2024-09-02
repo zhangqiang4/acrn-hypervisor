@@ -14,6 +14,7 @@
 #include <asm/guest/optee.h>
 #include <asm/per_cpu.h>
 #include <asm/platform_caps.h>
+#include <vacpi.h>
 
 /**
  * @addtogroup vp-base_pm
@@ -168,6 +169,44 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
 
 	bitmap_set_nolock(vm->vm_id, &per_cpu(shutdown_vm_bitmap, pcpu_id));
 	make_shutdown_vm_request(pcpu_id);
+}
+
+/**
+ * @brief Resume a VM from S3 sleep state
+ *
+ * This function attempts to resume a virtual machine from S3 sleep state by retrieving the waking vector
+ * from the VM's FACS table and initiating the resume process with that vector.
+ *
+ * @param vm Pointer to the VM structure to be resumed
+ *
+ * @return Status code. 0 on success, -EINVAL when the VM type is not supported or waking vector is 0.
+ *
+ * @pre vm != NULL
+ */
+int __unused s3_resume_vm(struct acrn_vm *vm)
+{
+	uint32_t waking_vector = 0;
+	int ret = 0;
+
+	if (is_prelaunched_vm(vm)) {
+		copy_from_gpa(vm, &waking_vector, VIRT_FACS_ADDR + OFFSET_WAKE_VECTOR_32, 4);
+	} else {
+		ret = -EINVAL;
+	}
+
+	if (ret == 0) {
+		if (waking_vector != 0) {
+			get_vm_lock(vm);
+			resume_vm_from_s3(vm, waking_vector);
+			put_vm_lock(vm);
+			pr_err("Resumed VM %d from S3, waking vector 0x%08x", vm->vm_id, waking_vector);
+		} else {
+			pr_err("Unable to resume VM %d from S3, waking vector 0x%08x", vm->vm_id, waking_vector);
+			ret = -EINVAL;
+		}
+	}
+
+	return ret;
 }
 
 /**

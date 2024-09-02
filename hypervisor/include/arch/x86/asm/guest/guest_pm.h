@@ -25,6 +25,7 @@
  * This file declares external functions in guest/pm.c that provides VM power management.
  */
 void init_guest_pm(struct acrn_vm *vm);
+int s3_resume_vm(struct acrn_vm *vm);
 
 /**
  * @}

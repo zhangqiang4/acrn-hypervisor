@@ -15,6 +15,7 @@
 
 #include <acpi.h>
 #include <asm/guest/vm.h>
+#include <asm/mmu.h>
 
 #define ACPI_OEM_ID           "ACRN  " /**< Virtual ACPI OEM string */
 
@@ -41,8 +42,12 @@
  * See ve820.c for template Pre-Launched VM E820 layout.
  */
 #define VIRT_ACPI_DATA_ADDR	(VIRT_ACPI_NVS_ADDR - VIRT_ACPI_DATA_LEN)
+
 #define VIRT_RSDP_ADDR		0x000f2400UL /**< Fixed address for placing ACPI RSDP */
-#define VIRT_XSDT_ADDR		0x7fe00080UL /**< Fixed address for placing ACPI XSDT */
+
+/* Offsets defined in misc/config_tools/acpi_gen/acpi_const.py */
+#define VIRT_XSDT_ADDR		(VIRT_ACPI_DATA_ADDR + 0x80)    /**< Fixed address for placing ACPI XSDT */
+#define VIRT_FACS_ADDR		(VIRT_ACPI_DATA_ADDR + 0x1340)  /**< Fixed address for placing ACPI FACS */
 
 /* virtual PCI MMCFG address base for pre/post-launched VM. */
 #define USER_VM_VIRT_PCI_MMCFG_BASE		0xE0000000UL /**< Fixed PCIe ECAM base address for Non-Service VM */
