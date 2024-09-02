@@ -92,6 +92,10 @@ struct shell {
 #define SHELL_CMD_COREDUMP_PARAM	NULL
 #define SHELL_CMD_COREDUMP_HELP		"Trigger a system full coredump (immediately,need support of bootloader)"
 
+#define SHELL_CMD_VM_RESUME		"vm_resume"
+#define SHELL_CMD_VM_RESUME_PARAM	"<vm id>"
+#define SHELL_CMD_VM_RESUME_HELP	"Resume VM from S3"
+
 #define SHELL_CMD_IOAPIC		"dump_ioapic"
 #define SHELL_CMD_IOAPIC_PARAM		NULL
 #define SHELL_CMD_IOAPIC_HELP		"Show native IOAPIC information"

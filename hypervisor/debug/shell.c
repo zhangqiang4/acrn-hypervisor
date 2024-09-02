@@ -24,6 +24,7 @@
 #include <asm/host_pm.h>
 #include <dump.h>
 #include <asm/tsc.h>
+#include <asm/guest/guest_pm.h>
 
 #define TEMP_STR_SIZE		60U
 #define MAX_STR_SIZE		256U
@@ -58,6 +59,7 @@ static int32_t shell_rdmsr(int32_t argc, char **argv);
 static int32_t shell_wrmsr(int32_t argc, char **argv);
 static int32_t shell_show_vmexit_profile(__unused int argc, __unused char **argv);
 static int32_t shell_dump_vm_console_out(int32_t argc, char **argv);
+static int32_t shell_vm_resume(int32_t argc, char **argv);
 
 static struct shell_cmd shell_cmds[] = {
 	{
@@ -181,6 +183,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_DUMP_VCON_OUT_PARAM,
 		.help_str	= SHELL_CMD_DUMP_VCON_OUT_HELP,
 		.fcn		= shell_dump_vm_console_out,
+	},
+	{
+		.str		= SHELL_CMD_VM_RESUME,
+		.cmd_param	= SHELL_CMD_VM_RESUME_PARAM,
+		.help_str	= SHELL_CMD_VM_RESUME_HELP,
+		.fcn		= shell_vm_resume,
 	},
 };
 
@@ -1996,4 +2004,23 @@ void sample_vmexit_begin(struct acrn_vcpu *vcpu)
 
 	vcpu->vmexit_begin = rdtsc();
 	vcpu->vmexit_cnt[basic_exit_reason][TOTAL_ARRAY_LEVEL - 1]++;
+}
+
+static int32_t shell_vm_resume(int32_t argc, char **argv)
+{
+	uint16_t vm_id = 0U;
+	struct acrn_vm *vm;
+	int ret = 0;
+
+	if (argc != 2) {
+		shell_puts("usage: " SHELL_CMD_VM_RESUME " " SHELL_CMD_VM_RESUME_PARAM "\n");
+		return -EINVAL;
+	}
+
+	vm_id = sanitize_vmid((uint16_t)strtol_deci(argv[1]));
+	vm = get_vm_from_vmid(vm_id);
+
+	ret = s3_resume_vm(vm);
+
+	return ret;
 }
