@@ -171,45 +171,51 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
 }
 
 /**
- * @brief Make the host enter S3.
+ * @brief Enter S3 (sleep) state on a VM
  *
- * This function makes the host enter S3. This operation is supposed to be initiated
- * by the service VM, by writing the virtual ACPI PM1a/b Control registers.
- * Unlike enter_s5(), this function will enter S3 directly by calling host_enter_s3()
- * after the VM is paused.
- *
- * After the host resumes from S3, it will continue executing from where it falls
- * sleep in host_enter_s3(), and resume all the states of the host. Then call
- * resume_vm_from_s3() to resume the VM.
+ * This operation is supposed to be initiated by VM, by writing the virtual ACPI PM1a/b Control registers, to make
+ * itself enter ACPI S3 (sleep) state.
+ * If the VM is a pre-launched VM, this function simply pauses it.
+ * If the VM is service VM, this function also freezes TEE VM, and makes the host enter S3 by calling host_enter_s3()
+ * after the VM is paused. After the host resumes from S3, it will continue executing from where it falls sleep in 
+ * host_enter_s3(), and resume all the states of the host. Then call resume_vm_from_s3() to resume the VM.
  *
  * @param[inout] vm Pointer to the target VM struct.
  * @param[in] pm1a_cnt_val PM1a Control register value that is written by the VM.
  * @param[in] pm1b_cnt_val PM1b Control register value that is written by the VM.
  *
  * @return None.
+ * 
+ * @pre vm != NULL
  */
 static inline void enter_s3(struct acrn_vm *vm, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
 {
-	uint32_t guest_wakeup_vec32;
-
 	get_vm_lock(vm);
-	/* Save the wakeup vec set by guest OS. Will return to guest
-	 * with this wakeup vec as entry.
-	 */
-	stac();
-	guest_wakeup_vec32 = *(vm->pm.sx_state_data->wake_vector_32);
-	clac();
+	pause_vm(vm);
 
-	struct acrn_vm *tee_vm = get_tee_vm();
-	if (tee_vm != NULL) {
-		freeze_vm(tee_vm);
+	if (is_service_vm(vm)) {
+		/* Save the wakeup vec set by guest OS. Will return to guest
+	 	 * with this wakeup vec as entry.
+		 */
+		uint32_t guest_wakeup_vec32;
+		struct acrn_vm *tee_vm = get_tee_vm();
+
+		stac();
+		guest_wakeup_vec32 = *(vm->pm.sx_state_data->wake_vector_32);
+		clac();
+
+		if (tee_vm != NULL) {
+			freeze_vm(tee_vm);
+		}
+
+		host_enter_s3(vm->pm.sx_state_data, pm1a_cnt_val, pm1b_cnt_val);
+		resume_vm_from_s3(vm, guest_wakeup_vec32);	/* jump back to vm */
+
+		if (tee_vm != NULL) {
+			thaw_vm(tee_vm);
+		}
 	}
-	pause_vm(vm);	/* pause Service VM before suspend system */
-	host_enter_s3(vm->pm.sx_state_data, pm1a_cnt_val, pm1b_cnt_val);
-	resume_vm_from_s3(vm, guest_wakeup_vec32);	/* jump back to vm */
-	if (tee_vm != NULL) {
-		thaw_vm(tee_vm);
-	}
+
 	put_vm_lock(vm);
 }
 
@@ -493,6 +499,10 @@ static bool prelaunched_vm_sleep_io_write(struct acrn_vcpu *vcpu, uint16_t addr,
 
 		if (slp_en && (slp_type == 5U)) {
 			enter_s5(vcpu, 0, 0);
+		} else if (slp_en && (slp_type == 3U)) {
+			enter_s3(vm, 0, 0);
+		} else {
+			// do nothing
 		}
 	}
 
