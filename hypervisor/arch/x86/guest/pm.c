@@ -122,13 +122,13 @@ static bool pm1ab_io_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t width)
 }
 
 /**
- * @brief Try to make the host enter S5 by shutting down service VM.
+ * @brief Enter S5 (shutdown) state on a VM
  *
- * This operation is supposed to be initiated by the service VM, by writing the virtual
- * ACPI PM1a/b Control registers. This register value been written is saved so that
- * it can be used by hypervisor to shutdown the host later.
- * Then a shutdown_vm request is sent to the idle thread of the backing pcpu associated
+ * This operation is supposed to be initiated by VM, by writing the virtual ACPI PM1a/b Control registers, to make
+ * itself enter S5 (shutdown) state. It pauses a VM and make a shutdown request on the backing pcpu associated
  * with the vcpu. This request will trigger the VM shutdown when the idle thread is executed.
+ * For service VM, this operation also stops TEE VM, and the PM register value been written is saved so that
+ * it can be used by hypervisor to shutdown the host later.
  *
  * @param[inout] vcpu Pointer to the vCPU that initiates the S5.
  * @param[in] pm1a_cnt_val PM1a Control register value that is written by the VM.
@@ -141,13 +141,16 @@ static bool pm1ab_io_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t width)
 static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
 {
 	struct acrn_vm *vm = vcpu->vm;
-	struct acrn_vm *tee_vm = get_tee_vm();
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
-	if (tee_vm != NULL) {
-		get_vm_lock(tee_vm);
-		pause_vm(tee_vm);
-		put_vm_lock(tee_vm);
+	if (is_service_vm(vm)) {
+		struct acrn_vm *tee_vm = get_tee_vm();
+
+		if (tee_vm != NULL) {
+			get_vm_lock(tee_vm);
+			pause_vm(tee_vm);
+			put_vm_lock(tee_vm);
+		}
 	}
 
 	get_vm_lock(vm);
@@ -159,6 +162,7 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
 	if (is_service_vm(vm)) {
 		save_s5_reg_val(pm1a_cnt_val, pm1b_cnt_val);
 	}
+	poweroff_if_rt_vm(vm);
 	pause_vm(vm);
 	put_vm_lock(vm);
 
@@ -488,13 +492,7 @@ static bool prelaunched_vm_sleep_io_write(struct acrn_vcpu *vcpu, uint16_t addr,
 		slp_en  = ((v >> 5U) & 0x1U) != 0U;
 
 		if (slp_en && (slp_type == 5U)) {
-			get_vm_lock(vm);
-			poweroff_if_rt_vm(vm);
-			pause_vm(vm);
-			put_vm_lock(vm);
-
-			bitmap_set_nolock(vm->vm_id, &per_cpu(shutdown_vm_bitmap, pcpuid_from_vcpu(vcpu)));
-			make_shutdown_vm_request(pcpuid_from_vcpu(vcpu));
+			enter_s5(vcpu, 0, 0);
 		}
 	}
 
