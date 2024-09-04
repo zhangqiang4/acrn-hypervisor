@@ -74,16 +74,12 @@ static bool handle_reset_reg_read(struct acrn_vcpu *vcpu, __unused uint16_t addr
 {
 	bool ret = true;
 
-	if (get_highest_severity_vm(true) == vcpu->vm) {
-		/* Guest may read RESET_CONTROL register before cold reset or warm reset */
-		vcpu->req.reqs.pio_request.value = pio_read8(0xcf9U);
-
-	} else if (is_postlaunched_vm(vcpu->vm)) {
+	if (is_postlaunched_vm(vcpu->vm)) {
 		/* re-inject to DM */
 		ret = false;
 	} else {
 		/*
-		 * - reset control register 0xcf9: hide this from guests whose severity is not the highest.
+		 * - reset control register 0xcf9: hide this from guests for now.
 		 * - FADT reset register: the read behavior is not defined in spec, keep it simple to return all '1'.
 		 */
 		vcpu->req.reqs.pio_request.value = ~0U;
