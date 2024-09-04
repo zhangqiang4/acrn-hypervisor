@@ -73,16 +73,18 @@ static bool handle_reset_reg_read(struct acrn_vcpu *vcpu, __unused uint16_t addr
 		__unused size_t bytes)
 {
 	bool ret = true;
+	struct acrn_vm *vm = vcpu->vm;
 
-	if (is_postlaunched_vm(vcpu->vm)) {
+	if (is_postlaunched_vm(vm)) {
 		/* re-inject to DM */
 		ret = false;
 	} else {
 		/*
 		 * - reset control register 0xcf9: hide this from guests for now.
-		 * - FADT reset register: the read behavior is not defined in spec, keep it simple to return all '1'.
+		 * - FADT reset register: the read behavior is not defined in spec,
+		 *                        return simulated vm->reset_control.
 		 */
-		vcpu->req.reqs.pio_request.value = ~0U;
+		vcpu->req.reqs.pio_request.value = vm->reset_control;
 	}
 
 	return ret;
@@ -168,6 +170,9 @@ static bool handle_kb_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t bytes)
  */
 static bool handle_cf9_write(struct acrn_vcpu *vcpu, __unused uint16_t addr, size_t bytes, uint32_t val)
 {
+	struct acrn_vm *vm = vcpu->vm;
+
+	vm->reset_control = val & 0xeU;
 	return handle_common_reset_reg_write(vcpu,
 			((bytes == 1U) && ((val & 0x4U) == 0x4U) && ((val & 0xaU) != 0U)),
 			((val & 0x8U) == 0U));
