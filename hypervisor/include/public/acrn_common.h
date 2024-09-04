@@ -57,7 +57,7 @@ static const enum vcpu_reset_mode vm2vcpu[VM_RESET_MAX] = {
 
 static inline enum vcpu_reset_mode reset_mode_vm2vcpu(enum vm_reset_mode mode)
 {
-	return (VM_POWER_ON_RESET <= mode && mode < VM_RESET_MAX) ?
+	return ((VM_POWER_ON_RESET <= mode) && (mode < VM_RESET_MAX)) ?
 		vm2vcpu[mode] : VCPU_RESET_INVALID;
 }
 
@@ -69,7 +69,7 @@ static const enum vlapic_reset_mode vcpu2vlapci[VCPU_RESET_MAX] = {
 };
 static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode mode)
 {
-	return (VCPU_POWER_UP <= mode && mode < VCPU_RESET_MAX) ?
+	return ((VCPU_POWER_UP <= mode) && (mode < VCPU_RESET_MAX)) ?
 		vcpu2vlapci[mode] : VLAPIC_RESET_INVALID;
 }
 
