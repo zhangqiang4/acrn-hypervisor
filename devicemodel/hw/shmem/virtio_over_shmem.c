@@ -610,7 +610,7 @@ static void process_write_transaction(struct virtio_backend_info *info)
 	} else if (info->virtio_header->write_offset >= offsetof(struct virtio_shmem_header, config)) {
 		struct virtio_base *base = info->pci_vdev.arg;
 		offset = info->virtio_header->write_offset - offsetof(struct virtio_shmem_header, config);
-		base->vops->cfgwrite(&info->pci_vdev, offset, info->virtio_header->write_size, new_value);
+		base->vops->cfgwrite(DEV_STRUCT(base), offset, info->virtio_header->write_size, new_value);
 	}
 
 	__sync_synchronize();
@@ -719,7 +719,7 @@ static int vos_backend_init(struct virtio_backend_info *info)
 
 	base = info->pci_vdev.arg;
 	info->virtio_header->size = sizeof(struct virtio_shmem_header) + base->vops->cfgsize;
-	base->vops->cfgread(base, 0, base->vops->cfgsize, (void *)info->virtio_header->config);
+	base->vops->cfgread(DEV_STRUCT(base), 0, base->vops->cfgsize, (void *)info->virtio_header->config);
 
 	info->pci_vdev.msix.enabled = 1;
 

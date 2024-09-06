@@ -374,6 +374,13 @@ struct virtio_base {
 	int polling_in_progress;        /**< The polling status */
 };
 
+/*
+ * In case we decide to relax the "virtio struct comes at the
+ * front of virtio-based device struct" constraint, let's use
+ * this to convert.
+ */
+#define DEV_STRUCT(vs) ((void *)(vs))
+
 #define	VIRTIO_BASE_LOCK(vb)					\
 do {								\
 	if (vb->mtx)						\

@@ -49,13 +49,6 @@
  * defined by <https://www.google.com/#output=search&q=virtio+spec>
  */
 
-/*
- * In case we decide to relax the "virtio struct comes at the
- * front of virtio-based device struct" constraint, let's use
- * this to convert.
- */
-#define DEV_STRUCT(vs) ((void *)(vs))
-
 static uint8_t virtio_poll_enabled = 0;
 static size_t virtio_poll_interval;
 
