@@ -39,6 +39,7 @@ CFLAGS += -I$(BASEDIR)/include
 CFLAGS += -I$(BASEDIR)/include/public
 CFLAGS += -I$(DM_OBJDIR)/include
 CFLAGS += -I$(TOOLS_OUT)/services
+CFLAGS += -I$(SYSROOT)/usr/include/drm
 CFLAGS += -I$(SYSROOT)/usr/include/pixman-1
 CFLAGS += -I$(SYSROOT)/usr/include/glib-2.0
 CFLAGS += -I$(SYSROOT)/usr/include/SDL2
