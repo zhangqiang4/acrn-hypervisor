@@ -611,6 +611,10 @@ static void process_write_transaction(struct virtio_backend_info *info)
 		struct virtio_base *base = info->pci_vdev.arg;
 		offset = info->virtio_header->write_offset - offsetof(struct virtio_shmem_header, config);
 		base->vops->cfgwrite(DEV_STRUCT(base), offset, info->virtio_header->write_size, new_value);
+		/* For virtio-input devices, config area needs updating after write. */
+		if (strcmp(info->pci_vdev_ops->class_name, "virtio-input") == 0) {
+			base->vops->cfgread(DEV_STRUCT(base), 0, base->vops->cfgsize, (void *)info->virtio_header->config);
+		}
 	}
 
 	__sync_synchronize();
