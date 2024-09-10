@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "dm.h"
 #include "log.h"
@@ -39,6 +40,7 @@ static uint16_t cur_file_index;
 
 static uint8_t disk_log_level = LOG_DEBUG;
 static bool disk_log_enabled = false;
+pthread_mutex_t disk_write_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #define INDEX_AFTER(a, b) ((short int)b - (short int)a < 0)
 
@@ -208,13 +210,20 @@ static void write_to_disk(const char *fmt, va_list args)
 	}
 }
 
+static void write_to_disk_lock(const char *fmt, va_list args)
+{
+	pthread_mutex_lock(&disk_write_lock);
+	write_to_disk(fmt, args);
+	pthread_mutex_unlock(&disk_write_lock);
+}
+
 static struct logger_ops logger_disk = {
 	.name = "disk",
 	.is_enabled = is_disk_log_enabled,
 	.get_log_level = get_disk_log_level,
 	.init = init_disk_logger,
 	.deinit = deinit_disk_logger,
-	.output = write_to_disk,
+	.output = write_to_disk_lock,
 };
 
 DEFINE_LOGGER_DEVICE(logger_disk);
