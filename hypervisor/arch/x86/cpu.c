@@ -493,7 +493,7 @@ void cpu_dead(void)
 	deinit_sched(pcpu_id);
 	if (bitmap_test(pcpu_id, &pcpu_active_bitmap)) {
 		stac();
-		flush_cache_range((void *)get_hv_image_base(), get_hv_ram_size());
+		flush_cache_range((void *)get_hv_image_base(), get_hv_image_size());
 		clac();
 
 		/* Set state to show CPU is dead */
