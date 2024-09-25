@@ -283,9 +283,6 @@ VP_BASE_C_SRCS += arch/x86/guest/vmexit.c
 VP_BASE_C_SRCS += arch/x86/guest/ept.c
 VP_BASE_C_SRCS += arch/x86/guest/ve820.c
 VP_BASE_C_SRCS += arch/x86/guest/ucode.c
-ifeq ($(CONFIG_HYPERV_ENABLED),y)
-VP_BASE_C_SRCS += arch/x86/guest/hyperv.c
-endif
 VP_BASE_C_SRCS += boot/guest/vboot_info.c
 ifeq ($(CONFIG_GUEST_KERNEL_BZIMAGE),y)
 VP_BASE_C_SRCS += boot/guest/bzimage_loader.c

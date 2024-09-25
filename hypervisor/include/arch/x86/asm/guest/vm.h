@@ -29,9 +29,6 @@
 #include <asm/e820.h>
 #include <asm/vm_config.h>
 #include <io_req.h>
-#ifdef CONFIG_HYPERV_ENABLED
-#include <asm/guest/hyperv.h>
-#endif
 
 struct vm_hw_info {
 	/* vcpu array of this VM */
@@ -107,9 +104,6 @@ struct vm_arch {
 
 	struct acrn_vioapics vioapics;	/* Virtual IOAPIC/s */
 	struct acrn_vpic vpic;      /* Virtual PIC */
-#ifdef CONFIG_HYPERV_ENABLED
-	struct acrn_hyperv hyperv;
-#endif
 	enum vm_vlapic_mode vlapic_mode; /* Represents vLAPIC mode across vCPUs*/
 
 	/*

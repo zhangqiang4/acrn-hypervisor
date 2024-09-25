@@ -99,11 +99,6 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>If checked, permanently disables all interrupts in HV root mode.</xs:documentation>
       </xs:annotation>
     </xs:element>
-    <xs:element name="HYPERV_ENABLED" type="Boolean" default="y">
-      <xs:annotation acrn:title="Hyper-V" acrn:views="advanced">
-        <xs:documentation>Enable Microsoft Hyper-V Hypervisor Top-Level Functional Specification (TFLS) for User VMs running Windows.</xs:documentation>
-      </xs:annotation>
-    </xs:element>
     <xs:element name="IOMMU_ENFORCE_SNP" type="Boolean" default="n">
       <xs:annotation acrn:views="">
         <xs:documentation>Specify if the IOMMU enforces snoop behavior of DMA operations.</xs:documentation>

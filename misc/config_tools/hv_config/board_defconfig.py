@@ -93,7 +93,6 @@ def get_features(hv_info, config):
         print("CONFIG_CDP_ENABLED={}".format(hv_info.features.cdp_enabled), file=config)
     else:
         print("CONFIG_CDP_ENABLED=n", file=config)
-    print("CONFIG_HYPERV_ENABLED={}".format(hv_info.features.hyperv_enabled), file=config)
     print("CONFIG_IOMMU_ENFORCE_SNP={}".format(hv_info.features.iommu_enforce_snp), file=config)
     print("CONFIG_ACPI_PARSE_ENABLED={}".format(hv_info.features.acpi_parse_enabled), file=config)
     print("CONFIG_L1D_FLUSH_VMENTRY_ENABLED={}".format(hv_info.features.l1d_flush_vmentry_enabled), file=config)

@@ -117,10 +117,6 @@
     </xsl:if>
 
     <xsl:call-template name="boolean-by-key">
-      <xsl:with-param name="key" select="'HYPERV_ENABLED'" />
-    </xsl:call-template>
-
-    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'ACPI_PARSE_ENABLED'" />
     </xsl:call-template>
 
