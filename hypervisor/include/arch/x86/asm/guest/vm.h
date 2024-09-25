@@ -268,7 +268,6 @@ bool is_lapic_pt_configured(const struct acrn_vm *vm);
 bool is_pmu_pt_configured(const struct acrn_vm *vm);
 bool is_rt_vm(const struct acrn_vm *vm);
 bool is_stateful_vm(const struct acrn_vm *vm);
-bool is_nvmx_configured(const struct acrn_vm *vm);
 bool is_vcat_configured(const struct acrn_vm *vm);
 bool is_static_configured_vm(const struct acrn_vm *vm);
 uint16_t get_unused_vmid(void);

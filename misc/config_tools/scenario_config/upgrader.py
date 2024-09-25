@@ -798,7 +798,6 @@ class ScenarioUpgrader(ScenarioTransformer):
         # Guest flags
         "lapic_passthrough": move_lapic_passthrough,
         "io_completion_polling": partialmethod(move_guest_flag, "GUEST_FLAG_IO_COMPLETION_POLLING"),
-        "nested_virtualization_support": partialmethod(move_guest_flag, "GUEST_FLAG_NVMX_ENABLED"),
         "virtual_cat_support": partialmethod(move_guest_flag, "GUEST_FLAG_VCAT_ENABLED"),
         "secure_world_support": partialmethod(move_guest_flag, "GUEST_FLAG_SECURITY_VM"),
         "hide_mtrr_support": partialmethod(move_guest_flag, "GUEST_FLAG_HIDE_MTRR"),
@@ -936,7 +935,6 @@ class UpgradingScenarioStage(PipelineStage):
 
     filters = [
         DiscardedDataFilter("hv/FEATURES/IVSHMEM", None, "IVSHMEM is now automatically enabled if any IVSHMEM region is specified."),
-        DiscardedDataFilter("hv/FEATURES/NVMX_ENABLED", None, "Nest virtualization support is now automatically included if enabled for any VM."),
         DiscardedDataFilter("hv/CAPACITIES/IOMMU_BUS_NUM", None, "The maximum bus number to be supported by ACRN IOMMU configuration is now inferred from board data."),
         DiscardedDataFilter("hv/MISC_CFG/UEFI_OS_LOADER_NAME", None, None),
         DiscardedDataFilter("vm/guest_flags/guest_flag", "0", None),

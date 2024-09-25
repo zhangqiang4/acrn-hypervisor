@@ -707,80 +707,65 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 		write_cached_registers(vcpu);
 	}
 
-	if (is_vcpu_in_l2_guest(vcpu)) {
-		int32_t launch_type;
+	/* If this VCPU is not already launched, launch it */
+	if (!vcpu->launched) {
+		pr_info("VM %d Starting VCPU %hu",
+				vcpu->vm->vm_id, vcpu->vcpu_id);
 
-		if (vcpu->launched) {
-			/* for nested VM-exits that don't need to be reflected to L1 hypervisor */
-			launch_type = VM_RESUME;
-		} else {
-			/* for VMEntry case, VMCS02 was VMCLEARed by ACRN */
-			launch_type = VM_LAUNCH;
-			vcpu->launched = true;
+		if (vcpu->arch.vpid != 0U) {
+			exec_vmwrite16(VMX_VPID, vcpu->arch.vpid);
 		}
 
-		status = exec_vmentry(ctx, launch_type, ibrs_type);
-	} else {
-		/* If this VCPU is not already launched, launch it */
-		if (!vcpu->launched) {
-			pr_info("VM %d Starting VCPU %hu",
-					vcpu->vm->vm_id, vcpu->vcpu_id);
-
-			if (vcpu->arch.vpid != 0U) {
-				exec_vmwrite16(VMX_VPID, vcpu->arch.vpid);
-			}
-
-			/*
-			 * A power-up or a reset invalidates all linear mappings,
-			 * guest-physical mappings, and combined mappings
-			 */
-			flush_vpid_global();
+		/*
+		 * A power-up or a reset invalidates all linear mappings,
+		 * guest-physical mappings, and combined mappings
+		 */
+		flush_vpid_global();
 
 #ifdef CONFIG_HYPERV_ENABLED
-			if (is_vcpu_bsp(vcpu)) {
-				hyperv_init_time(vcpu->vm);
-			}
+		if (is_vcpu_bsp(vcpu)) {
+			hyperv_init_time(vcpu->vm);
+		}
 #endif
 
-			/* Set vcpu launched */
-			vcpu->launched = true;
+		/* Set vcpu launched */
+		vcpu->launched = true;
 
-			/* avoid VMCS recycling RSB usage, set IBPB.
-			 * NOTE: this should be done for any time vmcs got switch
-			 * currently, there is no other place to do vmcs switch
-			 * Please add IBPB set for future vmcs switch case(like trusty)
-			 */
-			if (ibrs_type == IBRS_RAW) {
-				msr_write(MSR_IA32_PRED_CMD, PRED_SET_IBPB);
-			}
-
-			/* Launch the VM */
-			status = exec_vmentry(ctx, VM_LAUNCH, ibrs_type);
-
-			/* See if VM launched successfully */
-			if (status == 0) {
-				if (is_vcpu_bsp(vcpu)) {
-					pr_info("VM %d VCPU %hu successfully launched",
-						vcpu->vm->vm_id, vcpu->vcpu_id);
-				}
-			}
-		} else {
-			/* This VCPU was already launched, check if the last guest
-			 * instruction needs to be repeated and resume VCPU accordingly
-			 */
-			if (vcpu->arch.inst_len != 0U) {
-				exec_vmwrite(VMX_GUEST_RIP, vcpu_get_rip(vcpu) + vcpu->arch.inst_len);
-			}
-
-			/* Resume the VM */
-			status = exec_vmentry(ctx, VM_RESUME, ibrs_type);
+		/* avoid VMCS recycling RSB usage, set IBPB.
+		 * NOTE: this should be done for any time vmcs got switch
+		 * currently, there is no other place to do vmcs switch
+		 * Please add IBPB set for future vmcs switch case(like trusty)
+		 */
+		if (ibrs_type == IBRS_RAW) {
+			msr_write(MSR_IA32_PRED_CMD, PRED_SET_IBPB);
 		}
 
-		cs_attr = exec_vmread32(VMX_GUEST_CS_ATTR);
-		ia32_efer = vcpu_get_efer(vcpu);
-		cr0 = vcpu_get_cr0(vcpu);
-		set_vcpu_mode(vcpu, cs_attr, ia32_efer, cr0);
+		/* Launch the VM */
+		status = exec_vmentry(ctx, VM_LAUNCH, ibrs_type);
+
+		/* See if VM launched successfully */
+		if (status == 0) {
+			if (is_vcpu_bsp(vcpu)) {
+				pr_info("VM %d VCPU %hu successfully launched",
+					vcpu->vm->vm_id, vcpu->vcpu_id);
+			}
+		}
+	} else {
+		/* This VCPU was already launched, check if the last guest
+		 * instruction needs to be repeated and resume VCPU accordingly
+		 */
+		if (vcpu->arch.inst_len != 0U) {
+			exec_vmwrite(VMX_GUEST_RIP, vcpu_get_rip(vcpu) + vcpu->arch.inst_len);
+		}
+
+		/* Resume the VM */
+		status = exec_vmentry(ctx, VM_RESUME, ibrs_type);
 	}
+
+	cs_attr = exec_vmread32(VMX_GUEST_CS_ATTR);
+	ia32_efer = vcpu_get_efer(vcpu);
+	cr0 = vcpu_get_cr0(vcpu);
+	set_vcpu_mode(vcpu, cs_attr, ia32_efer, cr0);
 
 	vcpu->reg_cached = 0UL;
 

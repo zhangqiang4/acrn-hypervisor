@@ -184,16 +184,6 @@ bool is_stateful_vm(const struct acrn_vm *vm)
 /**
  * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
  */
-bool is_nvmx_configured(const struct acrn_vm *vm)
-{
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	return ((vm_config->guest_flags & GUEST_FLAG_NVMX_ENABLED) != 0U);
-}
-
-/**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
- */
 bool is_vcat_configured(const struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
@@ -775,10 +765,6 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		setup_io_bitmap(vm);
 
 		init_guest_pm(vm);
-
-		if (is_nvmx_configured(vm)) {
-			init_nested_vmx(vm);
-		}
 
 		if (!is_lapic_pt_configured(vm)) {
 			vpic_init(vm);

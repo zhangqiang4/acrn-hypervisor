@@ -16,7 +16,6 @@
 #include <asm/sgx.h>
 #include <asm/guest/guest_pm.h>
 #include <asm/guest/ucode.h>
-#include <asm/guest/nested.h>
 #include <asm/cpufeatures.h>
 #include <asm/rdt.h>
 #include <asm/tsc.h>
@@ -96,11 +95,6 @@ static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	MSR_IA32_THERM_STATUS,
 	MSR_IA32_PACKAGE_THERM_INTERRUPT,
 	MSR_IA32_PACKAGE_THERM_STATUS,
-
-	/* VMX: CPUID.01H.ECX[5] */
-#ifdef CONFIG_NVMX_ENABLED
-	LIST_OF_VMX_MSRS,
-#endif
 
 	/* The following range of elements are reserved for vCAT usage and are
 	 * initialized dynamically by init_intercepted_cat_msr_list() during platform initialization:
@@ -203,11 +197,6 @@ static const uint32_t unsupported_msrs[] = {
 	MSR_IA32_MTRR_PHYSMASK_9,
 	MSR_IA32_SMRR_PHYSBASE,
 	MSR_IA32_SMRR_PHYSMASK,
-
-	/* VMX: CPUID.01H.ECX[5] */
-#ifndef CONFIG_NVMX_ENABLED
-	LIST_OF_VMX_MSRS,
-#endif
 
 	/* MPX disabled: CPUID.07H.EBX[14] */
 	MSR_IA32_BNDCFGS,
@@ -417,19 +406,13 @@ static void prepare_auto_msr_area(struct acrn_vcpu *vcpu)
  */
 void init_emulated_msrs(struct acrn_vcpu *vcpu)
 {
-	uint64_t val64 = 0UL;
+	uint64_t val64 = MSR_IA32_FEATURE_CONTROL_LOCK;
 
-	/* MSR_IA32_FEATURE_CONTROL */
-	if (is_nvmx_configured(vcpu->vm)) {
-		/* currently support VMX outside SMX only */
-		val64 |= MSR_IA32_FEATURE_CONTROL_VMX_NO_SMX;
-	}
-
-	val64 |= MSR_IA32_FEATURE_CONTROL_LOCK;
 	if (is_vsgx_supported(vcpu->vm->vm_id)) {
 		val64 |= MSR_IA32_FEATURE_CONTROL_SGX_GE;
 	}
 
+	/* MSR_IA32_FEATURE_CONTROL */
 	vcpu_set_guest_msr(vcpu, MSR_IA32_FEATURE_CONTROL, val64);
 
 #ifdef CONFIG_VCAT_ENABLED
@@ -663,9 +646,6 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 
 	/* Setup initial value for emulated MSRs */
 	init_emulated_msrs(vcpu);
-
-	/* Initialize VMX MSRs for nested virtualization */
-	init_vmx_msrs(vcpu);
 
 	/* Initialize Machine Check MSRs for passthrough */
 	init_mc_msrs(vcpu);
@@ -977,13 +957,6 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	{
 		if (is_x2apic_msr(msr)) {
 			err = vlapic_x2apic_read(vcpu, msr, &v);
-		} else if (is_vmx_msr(msr)) {
-			/*
-			 * TODO: after the switch statement in this function, there is another
-			 * switch statement inside read_vmx_msr(). Is it possible to reduce it
-			 * to just one switch to improvement  performance?
-			 */
-			err = read_vmx_msr(vcpu, msr, &v);
 		} else {
 			pr_warn("%s(): vm%d vcpu%d reading MSR %lx not supported",
 				__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);

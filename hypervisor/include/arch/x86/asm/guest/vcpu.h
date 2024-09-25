@@ -27,7 +27,6 @@
 #include <asm/msr.h>
 #include <asm/cpu.h>
 #include <asm/guest/instr_emul.h>
-#include <asm/guest/nested.h>
 #include <asm/vmx.h>
 #include <asm/vm_config.h>
 
@@ -188,11 +187,7 @@ enum reset_mode;
 #define NUM_CAT_MSRS		0U
 #endif
 
-#ifdef CONFIG_NVMX_ENABLED
-#define FLEXIBLE_MSR_INDEX	(NUM_WORLD_MSRS + NUM_COMMON_MSRS + NUM_VMX_MSRS)
-#else
 #define FLEXIBLE_MSR_INDEX	(NUM_WORLD_MSRS + NUM_COMMON_MSRS)
-#endif
 
 #define NUM_EMULATED_MSRS	(FLEXIBLE_MSR_INDEX + NUM_CAT_MSRS)
 /* For detailed layout of the emulated guest MSRs, see emulated_guest_msrs[NUM_EMULATED_MSRS] in vmsr.c */
@@ -231,11 +226,8 @@ struct iwkey {
 };
 
 struct acrn_vcpu_arch {
-	/* vmcs region for this vcpu, MUST be 4KB-aligned. This is VMCS01 when nested VMX is enabled */
+	/* vmcs region for this vcpu, MUST be 4KB-aligned. */
 	uint8_t vmcs[PAGE_SIZE];
-
-	/* context for nested virtualization, 4KB-aligned */
-	struct acrn_nested nested;
 
 	/* MSR bitmap region for this vcpu, MUST be 4-Kbyte aligned */
 	uint8_t msr_bitmap[PAGE_SIZE];

@@ -16,7 +16,6 @@
 #include <asm/guest/vmx_io.h>
 #include <asm/guest/lock_instr_emul.h>
 #include <asm/guest/ept.h>
-#include <asm/guest/vept.h>
 #include <asm/vtd.h>
 #include <asm/cpuid.h>
 #include <asm/guest/vcpuid.h>
@@ -83,7 +82,6 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 		.handler = vmcall_vmexit_handler},
 	[VMX_EXIT_REASON_VMPTRST] = {
 		.handler = undefined_vmexit_handler},
-#ifndef CONFIG_NVMX_ENABLED
 	[VMX_EXIT_REASON_VMLAUNCH] = {
 		.handler = undefined_vmexit_handler},
 	[VMX_EXIT_REASON_VMRESUME] = {
@@ -104,35 +102,6 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 		.handler = undefined_vmexit_handler},
 	[VMX_EXIT_REASON_INVVPID] = {
 		.handler = undefined_vmexit_handler},
-#else
-	[VMX_EXIT_REASON_VMLAUNCH] = {
-		.handler = vmlaunch_vmexit_handler},
-	[VMX_EXIT_REASON_VMRESUME] = {
-		.handler = vmresume_vmexit_handler},
-	[VMX_EXIT_REASON_VMCLEAR] = {
-		.handler = vmclear_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_VMPTRLD] = {
-		.handler = vmptrld_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_VMREAD] = {
-		.handler = vmread_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_VMWRITE] = {
-		.handler = vmwrite_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_VMXOFF] = {
-		.handler = vmxoff_vmexit_handler},
-	[VMX_EXIT_REASON_VMXON] = {
-		.handler = vmxon_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_INVEPT] = {
-		.handler = invept_vmexit_handler,
-		.need_exit_qualification = 1},
-	[VMX_EXIT_REASON_INVVPID] = {
-		.handler = invvpid_vmexit_handler,
-		.need_exit_qualification = 1},
-#endif
 	[VMX_EXIT_REASON_CR_ACCESS] = {
 		.handler = cr_access_vmexit_handler,
 		.need_exit_qualification = 1},
@@ -218,8 +187,6 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 	if (get_pcpu_id() != pcpuid_from_vcpu(vcpu)) {
 		pr_fatal("vcpu is not running on its pcpu!");
 		ret = -EINVAL;
-	} else if (is_vcpu_in_l2_guest(vcpu)) {
-		ret = nested_vmexit_handler(vcpu);
 	} else {
 		/* Obtain interrupt info */
 		vcpu->arch.idt_vectoring_info = exec_vmread32(VMX_IDT_VEC_INFO_FIELD);

@@ -186,7 +186,6 @@ The following elements are added to scenario XML files.
 
 - ``vm.lapic_passthrough``
 - ``vm.io_completion_polling``
-- ``vm.nested_virtualization_support``
 - ``vm.virtual_cat_support``
 - ``vm.secure_world_support``
 - ``vm.hide_mtrr_support``

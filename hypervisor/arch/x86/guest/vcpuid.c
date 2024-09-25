@@ -747,9 +747,7 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	*ecx &= ~CPUID_ECX_SDBG;
 
 	/* mask VMX to guest OS */
-	if (!is_nvmx_configured(vcpu->vm)) {
 		*ecx &= ~CPUID_ECX_VMX;
-	}
 
 	/* set Hypervisor Present Bit */
 	*ecx |= CPUID_ECX_HV;
