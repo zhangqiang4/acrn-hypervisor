@@ -327,7 +327,6 @@ intr_storm_monitor="--intr_monitor 10000,10,1,100"
    $intr_storm_monitor \
    $boot_ipu_option      \
    -i /run/acrn/ioc_$vm_name,0x20 \
-   --enable_trusty \
    -B "$kernel_cmdline" $vm_name
 }
 

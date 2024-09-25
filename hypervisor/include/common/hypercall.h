@@ -403,66 +403,6 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm
 int32_t hcall_vm_intr_monitor(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
 /**
- * @defgroup trusty_hypercall Trusty Hypercalls
- *
- * This is a special group that includes all hypercalls
- * related to Trusty
- *
- * @{
- */
-
-/**
- * @brief Switch vCPU state between Normal/Secure World.
- *
- * * The hypervisor uses this hypercall to do the world switch
- * * The hypervisor needs to:
- *   * save current world vCPU contexts, and load the next world
- *     vCPU contexts
- *   * update ``rdi``, ``rsi``, ``rdx``, ``rbx`` to next world
- *     vCPU contexts
- *
- * @param vcpu Pointer to VCPU data structure
- * @param target_vm not used
- * @param param1 not used
- * @param param2 not used
- *
- * @return 0 on success, non-zero on error.
- */
-
-int32_t hcall_world_switch(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-/**
- * @brief Initialize environment for Trusty-OS on a vCPU.
- *
- * * It is used by the User VM OS bootloader (``User VM OS Loader``) to request ACRN
- *   to initialize Trusty
- * * The Trusty memory region range, entry point must be specified
- * * The hypervisor needs to save current vCPU contexts (Normal World)
- *
- * @param vcpu Pointer to vCPU data structure
- * @param target_vm not used
- * @param param1 guest physical address. This gpa points to
- *               trusty_boot_param structure
- * @param param2 not used
- *
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_initialize_trusty(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-/**
- * @brief Save/Restore Context of Secure World.
- *
- * @param vcpu Pointer to VCPU data structure
- * @param target_vm not used
- * @param param1 not used
- * @param param2 not used
- *
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_save_restore_sworld_ctx(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
-		uint64_t param1, uint64_t param2);
-
-/**
  * @brief Handle the TEE boot done signal.
  *
  * @param vcpu Pointer to VCPU data structure
@@ -487,11 +427,6 @@ int32_t hcall_handle_tee_vcpu_boot_done(struct acrn_vcpu *vcpu, struct acrn_vm *
  */
 int32_t hcall_switch_ee(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 		uint64_t param1, uint64_t param2);
-
-/**
- * @}
- */
-/* End of trusty_hypercall */
 
 /**
  * @brief set upcall notifier vector

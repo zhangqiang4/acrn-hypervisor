@@ -295,8 +295,6 @@ used by commercial OS).
 
 There are three ways that the hypervisor interacts with the Service VM:
 the VM exits (including hypercalls), upcalls, and through the I/O request buffer.
-Interaction between the hypervisor and the User VM is more restricted, including
-only VM exits and hypercalls related to trusty.
 
 Service VM
 **********
@@ -371,12 +369,7 @@ Refer to :ref:`hld-trace-log` for more details.
 User VM
 *******
 
-ACRN can boot Linux and Android guest OSes. For an Android guest OS, ACRN
-provides a VM environment with two worlds: normal world and trusty
-world. The Android OS runs in the normal world. The trusty OS and
-security sensitive applications run in the trusty world. The trusty
-world can see the memory of the normal world, but the normal world cannot see
-the trusty world.
+ACRN can boot Linux and Android guest OSes.
 
 Guest Physical Memory Layout - User VM E820
 ===========================================

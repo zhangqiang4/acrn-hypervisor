@@ -352,17 +352,16 @@ int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu)
  */
 static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu)
 {
-	int32_t idx, ret = -1;	/* ret < 0 call vcpu_inject_gp(vcpu, 0U) */
+	int32_t ret = -1;	/* ret < 0 call vcpu_inject_gp(vcpu, 0U) */
 	uint32_t cpl;
 	uint64_t val64;
 
 	if (vcpu->arch.xsave_enabled && ((vcpu_get_cr4(vcpu) & CR4_OSXSAVE) != 0UL)) {
-		idx = vcpu->arch.cur_context;
 		/* get current privilege level */
 		cpl = exec_vmread32(VMX_GUEST_CS_ATTR);
 		cpl = (cpl >> 5U) & 3U;
 
-		if ((idx < NR_WORLD) && (cpl == 0U)) {
+		if (cpl == 0U) {
 			/* to access XCR0,'ecx' should be 0 */
 			if ((vcpu_get_gpreg(vcpu, CPU_REG_RCX) & 0xffffffffUL) == 0UL) {
 				val64 = (vcpu_get_gpreg(vcpu, CPU_REG_RAX) & 0xffffffffUL) |

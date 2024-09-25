@@ -380,8 +380,7 @@ struct xsave_area {
 	uint64_t extend_region[XSAVE_EXTEND_AREA_SIZE / sizeof(uint64_t)];
 } __aligned(64);
 /*
- * extended context does not save/restore during vm exit/entry, it's mainly
- * used in trusty world switch
+ * extended context does not save/restore during vm exit/entry.
  */
 struct ext_context {
 	uint64_t cr3;
@@ -404,14 +403,6 @@ struct ext_context {
 	uint64_t ia32_fmask;
 	uint64_t ia32_kernel_gs_base;
 
-	uint64_t ia32_pat;
-	uint32_t ia32_sysenter_cs;
-	uint64_t ia32_sysenter_esp;
-	uint64_t ia32_sysenter_eip;
-	uint64_t ia32_debugctl;
-
-	uint64_t dr7;
-	uint64_t tsc_offset;
 	uint64_t tsc_aux;
 
 	struct xsave_area xs_area;

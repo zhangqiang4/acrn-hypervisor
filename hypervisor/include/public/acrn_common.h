@@ -103,7 +103,6 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #endif
 
 /* Generic VM flags from guest OS */
-#define GUEST_FLAG_SECURE_WORLD_ENABLED		(1UL << 0U)	/* Whether secure world is enabled */
 #define GUEST_FLAG_LAPIC_PASSTHROUGH		(1UL << 1U)  	/* Whether LAPIC is passed through */
 #define GUEST_FLAG_IO_COMPLETION_POLLING	(1UL << 2U)  	/* Whether need hypervisor poll IO completion */
 #define GUEST_FLAG_HIDE_MTRR			(1UL << 3U)  	/* Whether hide MTRR from VM */
@@ -423,9 +422,7 @@ struct acrn_vm_creation {
 	/** the name of this VM */
 	uint8_t	 name[MAX_VM_NAME_LEN];
 
-	/* VM flag bits from Guest OS, now used
-	 *  GUEST_FLAG_SECURE_WORLD_ENABLED          (1UL<<0)
-	 */
+	/** VM flag bits from Guest OS */
 	uint64_t vm_flag;
 
 	uint64_t ioreq_buf;

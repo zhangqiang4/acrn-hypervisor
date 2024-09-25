@@ -8,7 +8,6 @@
 #include <acrn_common.h>
 #include <asm/guest/vcpu.h>
 #include <asm/mmu.h>
-#include <asm/guest/trusty.h>
 #include <asm/vtd.h>
 
 #define CAT__(A,B) A ## B
@@ -57,7 +56,4 @@ CTASSERT(CPU_CONTEXT_OFFSET_IDTR - CPU_CONTEXT_OFFSET_EXTCTX_START
 				   == offsetof(struct ext_context, idtr));
 CTASSERT(CPU_CONTEXT_OFFSET_LDTR - CPU_CONTEXT_OFFSET_EXTCTX_START
 				   == offsetof(struct ext_context, ldtr));
-CTASSERT((sizeof(struct trusty_startup_param)
-		+ sizeof(struct trusty_key_info)) < 0x1000U);
-CTASSERT(NR_WORLD == 2);
 CTASSERT(sizeof(struct acrn_io_request) == (4096U/ACRN_IO_REQUEST_MAX));

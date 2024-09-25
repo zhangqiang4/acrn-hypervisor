@@ -55,7 +55,7 @@ options:
                [-k kernel_image_path]
                [-l lpc] [-m mem] [-r ramdisk_image_path]
                [-s pci] [--ovmf ovmf_file_path]
-               [--enable_trusty] [--intr_monitor param_setting]
+               [--intr_monitor param_setting]
                [--acpidev_pt HID[,UID]] [--mmiodev_pt MMIO_regions]
                [--vtpm2 sock_path] [--virtio_poll interval] [--mac_seed seed_string]
                [--cpu_affinity lapic_ids] [--lapic_pt] [--rtvm] [--windows]
@@ -76,7 +76,6 @@ options:
        --ssram: Enable Software SRAM
        --cpu_affinity: comma-separated of Service VM vCPUs assigned to this VM. A Service VM vCPU is
             identified by its lapic ID.\n"
-       --enable_trusty: enable trusty for guest
        --debugexit: enable debug exit function
        --intr_monitor: enable interrupt storm monitor
             its params: threshold/s,probe-period(s),delay_time(ms),delay_duration(ms),

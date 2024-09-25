@@ -118,7 +118,6 @@ The following memory mapping policy used is:
 - Remap [4G, high64_max_ram) regions to WRITE-BACK type
 - Set the paging-structure entries' U/S flag to
   supervisor-mode for hypervisor-owned memory
-  (exclude the memory reserved for trusty)
 - Remove 'NX' bit for pages that contain the hv code section
 
 .. figure:: images/mem-image69.png
@@ -454,9 +453,6 @@ EPT
 .. doxygenfunction:: ept_flush_leaf_page
    :project: Project ACRN
 
-.. doxygenfunction:: get_eptp
-   :project: Project ACRN
-
 .. doxygenfunction:: walk_ept_table
    :project: Project ACRN
 
@@ -527,14 +523,3 @@ address mapping could be re-programmed by the Service VM. EPT violation
 is serving for vLAPIC/vIOAPIC's emulation or PCI MSI-X table BAR's emulation
 in the hypervisor for Service VM.
 
-Trusty
-******
-
-For an Android User VM, there is a secure world named trusty world,
-whose memory must be secured by the ACRN hypervisor and
-must not be accessible by the Service VM and User VM normal world.
-
-.. figure:: images/mem-image18.png
-   :align: center
-
-   User VM Physical Memory Layout with Trusty

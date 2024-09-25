@@ -60,10 +60,10 @@
 #if (SERVICE_VM_NUM == 0)
 #define DM_OWNED_GUEST_FLAG_MASK	0UL
 #elif defined(CONFIG_RELEASE)
-#define DM_OWNED_GUEST_FLAG_MASK	(GUEST_FLAG_SECURE_WORLD_ENABLED | GUEST_FLAG_LAPIC_PASSTHROUGH \
+#define DM_OWNED_GUEST_FLAG_MASK	(GUEST_FLAG_LAPIC_PASSTHROUGH \
 					| GUEST_FLAG_RT | GUEST_FLAG_IO_COMPLETION_POLLING)
 #else
-#define DM_OWNED_GUEST_FLAG_MASK	(GUEST_FLAG_SECURE_WORLD_ENABLED | GUEST_FLAG_LAPIC_PASSTHROUGH \
+#define DM_OWNED_GUEST_FLAG_MASK	(GUEST_FLAG_LAPIC_PASSTHROUGH \
 					| GUEST_FLAG_RT | GUEST_FLAG_IO_COMPLETION_POLLING | GUEST_FLAG_PMU_PASSTHROUGH)
 #endif
 
@@ -167,7 +167,6 @@ struct acrn_vm_config {
 							 */
 	uint64_t guest_flags;				/* VM flags that we want to configure for guest
 							 * Now we have two flags:
-							 *	GUEST_FLAG_SECURE_WORLD_ENABLED
 							 *	GUEST_FLAG_LAPIC_PASSTHROUGH
 							 * We could add more guest flags in future;
 							 */

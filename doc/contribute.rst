@@ -24,7 +24,6 @@ also find details about specific architecture topics.
    developer-guides/hld/index
    developer-guides/mds/index
    developer-guides/sw_design_guidelines
-   developer-guides/trusty
    developer-guides/l1tf
 
 Contribute Guides

@@ -230,14 +230,17 @@ bool ept_is_valid_mr(struct acrn_vm *vm, uint64_t mr_base_gpa, uint64_t mr_size)
 
 void destroy_ept(struct acrn_vm *vm)
 {
-	/* Destroy secure world */
-	if (vm->sworld_control.flag.active != 0UL) {
-		destroy_secure_world(vm, true);
-	}
-
 	if (vm->arch_vm.nworld_eptp != NULL) {
 		(void)memset(vm->arch_vm.nworld_eptp, 0U, PAGE_SIZE);
 	}
+}
+
+/**
+ * @pre: vm != NULL.
+ */
+static inline void *get_eptp(struct acrn_vm *vm)
+{
+	return vm->arch_vm.nworld_eptp;
 }
 
 /**
@@ -404,23 +407,6 @@ void ept_flush_leaf_page(uint64_t *pge, uint64_t size)
 			clac();
 		}
 	}
-}
-
-/**
- * @pre: vm != NULL.
- */
-void *get_eptp(struct acrn_vm *vm)
-{
-	void *eptp;
-	struct acrn_vcpu *vcpu = vcpu_from_pid(vm, get_pcpu_id());
-
-	if ((vcpu != NULL) && (vcpu->arch.cur_context == SECURE_WORLD)) {
-		eptp = vm->arch_vm.sworld_eptp;
-	} else {
-		eptp = vm->arch_vm.nworld_eptp;
-	}
-
-	return eptp;
 }
 
 /**

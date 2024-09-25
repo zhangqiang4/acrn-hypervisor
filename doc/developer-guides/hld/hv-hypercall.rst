@@ -34,14 +34,13 @@ The application binary interface (ABI) of ACRN hypercalls is defined as follows.
 
 There are some restrictions for hypercalls and upcalls:
 
-#. Only specific VMs (the Service VM and the VM with Trusty enabled)
+#. Only specific VMs (the Service VM)
    can invoke hypercalls. A VM that cannot invoke hypercalls gets ``#UD``
    (invalid opcode exception).
 #. Only ring 0 hypercalls from the guest VM are handled by the hypervisor;
    otherwise, the hypervisor injects ``#GP(0)`` (generation protection
    exception with error code ``0``) to the guest VM.
-#. Each VM is permitted to invoke a certain subset of hypercalls. A VM
-   with Trusty enabled is allowed to invoke Trusty hypercalls, and the Service
+#. Each VM is permitted to invoke a certain subset of hypercalls. The Service
    VM is allowed to invoke the other hypercalls. A VM that invokes an
    unpermitted hypercall gets the return value ``-EINVAL``.
    See :ref:`secure-hypervisor-interface` for a detailed description.
@@ -64,7 +63,5 @@ Hypercall APIs Reference
 ************************
 
 :ref:`hypercall_apis` for the Service VM
-
-:ref:`trusty-hypercalls` for Trusty
 
 

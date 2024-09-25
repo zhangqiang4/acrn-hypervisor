@@ -30,11 +30,8 @@
 
 static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	/*
-	 * MSRs that trusty may touch and need isolation between secure and normal world
 	 * This may include MSR_IA32_STAR, MSR_IA32_LSTAR, MSR_IA32_FMASK,
 	 * MSR_IA32_KERNEL_GS_BASE, MSR_IA32_SYSENTER_ESP, MSR_IA32_SYSENTER_CS, MSR_IA32_SYSENTER_EIP
-	 *
-	 * Number of entries: NUM_WORLD_MSRS
 	 */
 	MSR_IA32_PAT,
 	MSR_IA32_EFER,

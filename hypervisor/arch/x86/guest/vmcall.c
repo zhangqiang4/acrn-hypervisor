@@ -98,15 +98,6 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_profiling_ops},
 	[HC_IDX(HC_GET_HW_INFO)] = {
 		.handler = hcall_get_hw_info},
-	[HC_IDX(HC_INITIALIZE_TRUSTY)] = {
-		.handler = hcall_initialize_trusty,
-		.permission_flags = GUEST_FLAG_SECURE_WORLD_ENABLED},
-	[HC_IDX(HC_WORLD_SWITCH)] = {
-		.handler = hcall_world_switch,
-		.permission_flags = GUEST_FLAG_SECURE_WORLD_ENABLED},
-	[HC_IDX(HC_SAVE_RESTORE_SWORLD_CTX)] = {
-		.handler = hcall_save_restore_sworld_ctx,
-		.permission_flags = GUEST_FLAG_SECURE_WORLD_ENABLED},
 	[HC_IDX(HC_TEE_VCPU_BOOT_DONE)] = {
 		.handler = hcall_handle_tee_vcpu_boot_done,
 		.permission_flags = GUEST_FLAG_TEE},
@@ -131,14 +122,12 @@ uint16_t allocate_dynamical_vmid(struct acrn_vm_creation *cv)
 	return vm_id;
 }
 
-#define GUEST_FLAGS_ALLOWING_HYPERCALLS GUEST_FLAG_SECURE_WORLD_ENABLED
 static bool is_guest_hypercall(struct acrn_vm *vm)
 {
 	uint64_t guest_flags = get_vm_config(vm->vm_id)->guest_flags;
 	bool ret = true;
 
-	if ((guest_flags & (GUEST_FLAG_SECURE_WORLD_ENABLED |
-		GUEST_FLAG_TEE | GUEST_FLAG_REE)) == 0UL) {
+	if ((guest_flags & (GUEST_FLAG_TEE | GUEST_FLAG_REE)) == 0UL) {
 		ret = false;
 	}
 

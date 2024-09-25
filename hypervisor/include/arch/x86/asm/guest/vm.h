@@ -22,7 +22,6 @@
 #include <asm/guest/vmx_io.h>
 #include <vuart.h>
 #include <vrtc.h>
-#include <asm/guest/trusty.h>
 #include <asm/guest/vcpuid.h>
 #include <vpci.h>
 #include <asm/cpu_caps.h>
@@ -153,7 +152,6 @@ struct acrn_vm {
 	struct vm_io_handler_desc emul_pio[EMUL_PIO_IDX_MAX];
 
 	char name[MAX_VM_NAME_LEN];
-	struct secure_world_control sworld_control;
 
 	/* Secure World's snapshot
 	 * Currently, Secure World is only running on vcpu[0],
@@ -284,7 +282,6 @@ void get_vm_lock(struct acrn_vm *vm);
  */
 void put_vm_lock(struct acrn_vm *vm);
 
-void *get_sworld_memory_base(void);
 #endif /* !ASSEMBLER */
 
 #endif /* VM_H_ */

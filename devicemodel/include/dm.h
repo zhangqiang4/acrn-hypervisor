@@ -37,7 +37,6 @@
 #include "acrn_common.h"
 
 struct vmctx;
-extern uint8_t trusty_enabled;
 extern char *vsbl_file_name;
 extern char *ovmf_file_name;
 extern char *ovmf_code_file_name;

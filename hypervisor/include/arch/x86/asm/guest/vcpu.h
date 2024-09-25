@@ -168,13 +168,7 @@ enum vm_cpu_mode {
 
 enum reset_mode;
 
-/* 2 worlds: 0 for Normal World, 1 for Secure World */
-#define NR_WORLD	2
-#define NORMAL_WORLD	0
-#define SECURE_WORLD	1
-
-#define NUM_WORLD_MSRS		2U
-#define NUM_COMMON_MSRS		36U
+#define NUM_COMMON_MSRS		38U
 
 #ifdef CONFIG_VCAT_ENABLED
 #define NUM_CAT_L2_MSRS	MAX_CACHE_CLOS_NUM_ENTRIES
@@ -187,7 +181,7 @@ enum reset_mode;
 #define NUM_CAT_MSRS		0U
 #endif
 
-#define FLEXIBLE_MSR_INDEX	(NUM_WORLD_MSRS + NUM_COMMON_MSRS)
+#define FLEXIBLE_MSR_INDEX	NUM_COMMON_MSRS
 
 #define NUM_EMULATED_MSRS	(FLEXIBLE_MSR_INDEX + NUM_CAT_MSRS)
 /* For detailed layout of the emulated guest MSRs, see emulated_guest_msrs[NUM_EMULATED_MSRS] in vmsr.c */
@@ -197,9 +191,6 @@ enum reset_mode;
 struct guest_cpu_context {
 	struct run_context run_ctx;
 	struct ext_context ext_ctx;
-
-	/* per world MSRs, need isolation between secure and normal world */
-	uint32_t world_msrs[NUM_WORLD_MSRS];
 };
 
 /* Intel SDM 24.8.2, the address must be 16-byte aligned */
@@ -240,10 +231,8 @@ struct acrn_vcpu_arch {
 
 	struct acrn_vmtrr vmtrr;
 
-	int32_t cur_context;
-	struct guest_cpu_context contexts[NR_WORLD];
+	struct guest_cpu_context contexts;
 
-	/* common MSRs, world_msrs[] is a subset of it */
 	uint64_t guest_msrs[NUM_EMULATED_MSRS];
 
 #define ALLOCATED_MIN_L1_VPID	(0x10000U - CONFIG_MAX_VM_NUM * MAX_VCPUS_PER_VM)

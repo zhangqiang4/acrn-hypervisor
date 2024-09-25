@@ -270,7 +270,6 @@ v2.7 release:
 * :ref:`virtio-net`
 * :ref:`vuart_virtualization`
 * :ref:`l1tf`
-* :ref:`trusty_tee`
 
 We've also made edits throughout the documentation to improve clarity,
 formatting, and presentation.  We started updating feature enabling tutorials

@@ -291,7 +291,7 @@ acrn_sw_load_vsbl(struct vmctx *ctx)
 	pr_info("SW_LOAD: vsbl_entry 0x%lx\n", VSBL_TOP(ctx) - 16);
 
 	vsbl_para->boot_device_address = boot_blk_bdf;
-	vsbl_para->trusty_enabled = trusty_enabled;
+	vsbl_para->trusty_enabled = 0U;
 
 	/* set guest bsp state. Will call hypercall set bsp state
 	 * after bsp is created.

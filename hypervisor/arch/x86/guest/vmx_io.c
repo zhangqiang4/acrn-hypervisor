@@ -68,7 +68,6 @@ int32_t pio_instr_vmexit_handler(struct acrn_vcpu *vcpu)
 	int32_t status;
 	uint64_t exit_qual;
 	uint32_t mask;
-	int32_t cur_context_idx = vcpu->arch.cur_context;
 	struct io_request *io_req = &vcpu->req;
 	struct acrn_pio_request *pio_req = &io_req->reqs.pio_request;
 
@@ -89,7 +88,7 @@ int32_t pio_instr_vmexit_handler(struct acrn_vcpu *vcpu)
 		(uint32_t)pio_req->address,
 		(uint32_t)pio_req->direction,
 		(uint32_t)pio_req->size,
-		(uint32_t)cur_context_idx);
+		0U);
 
 	status = emulate_io(vcpu, io_req);
 
@@ -114,13 +113,8 @@ int32_t ept_violation_vmexit_handler(struct acrn_vcpu *vcpu)
 	/*caused by instruction fetch */
 	if ((exit_qual & 0x4UL) != 0UL) {
 		/* TODO: check wehther the gpa is not a MMIO address. */
-		if (vcpu->arch.cur_context == NORMAL_WORLD) {
-			ept_modify_mr(vcpu->vm, (uint64_t *)vcpu->vm->arch_vm.nworld_eptp,
+		ept_modify_mr(vcpu->vm, (uint64_t *)vcpu->vm->arch_vm.sworld_eptp,
 				gpa & PAGE_MASK, PAGE_SIZE, EPT_EXE, 0UL);
-		} else {
-			ept_modify_mr(vcpu->vm, (uint64_t *)vcpu->vm->arch_vm.sworld_eptp,
-				gpa & PAGE_MASK, PAGE_SIZE, EPT_EXE, 0UL);
-		}
 		vcpu_retain_rip(vcpu);
 		status = 0;
 	} else {

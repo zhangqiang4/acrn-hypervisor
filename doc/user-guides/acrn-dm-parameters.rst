@@ -49,18 +49,6 @@ Here are descriptions for each of these ``acrn-dm`` command-line parameters:
 
 ----
 
-``--enable_trusty``
-   Enable trusty for guest.  For an Android guest OS, ACRN provides a VM
-   environment with two worlds:  normal world and trusty world.  The Android
-   OS runs in the normal world.  The trusty OS and security sensitive
-   applications run in the trusty world.  The trusty world can see the memory
-   of the normal world but not vice versa.  See :ref:`trusty_tee` for more
-   information.
-
-   By default, the trusty world is disabled. Use this option to enable it.
-
-----
-
 ``-h``, ``--help``
    Show a summary of commands.
 

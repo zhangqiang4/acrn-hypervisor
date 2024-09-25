@@ -12,7 +12,6 @@
 #include <asm/vmx.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>
-#include <asm/seed.h>
 #include <asm/boot/ld_sym.h>
 #include <boot.h>
 
@@ -104,7 +103,6 @@ void init_primary_pcpu(void)
 
 	init_pcpu_pre(true);
 
-	init_seed();
 	init_misc();
 
 	/* Switch to run-time stack */

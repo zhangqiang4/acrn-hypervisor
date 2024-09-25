@@ -81,12 +81,6 @@
 #define HC_PROFILING_OPS            BASE_HC_ID(HC_ID, HC_ID_DBG_BASE + 0x02UL)
 #define HC_GET_HW_INFO              BASE_HC_ID(HC_ID, HC_ID_DBG_BASE + 0x03UL)
 
-/* Trusty */
-#define HC_ID_TRUSTY_BASE           0x70UL
-#define HC_INITIALIZE_TRUSTY        BASE_HC_ID(HC_ID, HC_ID_TRUSTY_BASE + 0x00UL)
-#define HC_WORLD_SWITCH             BASE_HC_ID(HC_ID, HC_ID_TRUSTY_BASE + 0x01UL)
-#define HC_SAVE_RESTORE_SWORLD_CTX  BASE_HC_ID(HC_ID, HC_ID_TRUSTY_BASE + 0x02UL)
-
 /* Power management */
 #define HC_ID_PM_BASE               0x80UL
 #define HC_PM_GET_CPU_STATE         BASE_HC_ID(HC_ID, HC_ID_PM_BASE + 0x00UL)
@@ -290,38 +284,6 @@ struct hc_api_version {
 } __aligned(8);
 
 #define ACRN_PLATFORM_LAPIC_IDS_MAX	64U
-
-/**
- * Trusty boot params, used for HC_INITIALIZE_TRUSTY
- */
-struct trusty_boot_param {
-	/** sizeof this structure */
-	uint32_t size_of_this_struct;
-
-	/** version of this structure */
-	uint32_t version;
-
-	/** trusty runtime memory base address */
-	uint32_t base_addr;
-
-	/** trusty entry point */
-	uint32_t entry_point;
-
-	/** trusty runtime memory size */
-	uint32_t mem_size;
-
-	/** padding */
-	uint32_t padding;
-
-	/** trusty runtime memory base address (high 32bit) */
-	uint32_t base_addr_high;
-
-	/** trusty entry point (high 32bit) */
-	uint32_t entry_point_high;
-
-	/** rpmb key */
-	uint8_t rpmb_key[64];
-} __aligned(8);
 
 /**
  * @}

@@ -74,10 +74,8 @@ static void dump_guest_reg(struct acrn_vcpu *vcpu)
 	pr_acrnlog("\n\n================================================");
 	pr_acrnlog("================================\n\n");
 	pr_acrnlog("Guest Registers:\r\n");
-	pr_acrnlog("=	VM ID %d ==== vCPU ID %hu ===  pCPU ID %d ===="
-			"world %d =============\r\n",
-			vcpu->vm->vm_id, vcpu->vcpu_id, pcpu_id,
-			vcpu->arch.cur_context);
+	pr_acrnlog("=	VM ID %d ==== vCPU ID %hu ===  pCPU ID %d ====\r\n",
+			vcpu->vm->vm_id, vcpu->vcpu_id, pcpu_id);
 	pr_acrnlog("=	RIP=0x%016lx  RSP=0x%016lx RFLAGS=0x%016lx\r\n",
 			vcpu_get_rip(vcpu),
 			vcpu_get_gpreg(vcpu, CPU_REG_RSP),

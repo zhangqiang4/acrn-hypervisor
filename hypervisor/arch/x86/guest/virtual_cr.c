@@ -508,7 +508,7 @@ void init_cr0_cr4_host_guest_mask(void)
 
 uint64_t vcpu_get_cr0(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx = &vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	if (bitmap_test_and_set_nolock(CPU_REG_CR0, &vcpu->reg_cached) == 0) {
 		ctx->cr0 = (exec_vmread(VMX_CR0_READ_SHADOW) & ~cr0_passthru_mask) |
@@ -525,18 +525,18 @@ void vcpu_set_cr0(struct acrn_vcpu *vcpu, uint64_t val)
 
 uint64_t vcpu_get_cr2(const struct acrn_vcpu *vcpu)
 {
-	return vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx.cr2;
+	return vcpu->arch.contexts.run_ctx.cr2;
 }
 
 void vcpu_set_cr2(struct acrn_vcpu *vcpu, uint64_t val)
 {
-	vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx.cr2 = val;
+	vcpu->arch.contexts.run_ctx.cr2 = val;
 }
 
 /* This API shall be called after vCPU is created. */
 uint64_t vcpu_get_cr4(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx = &vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	if (bitmap_test_and_set_nolock(CPU_REG_CR4, &vcpu->reg_cached) == 0) {
 		ctx->cr4 = (exec_vmread(VMX_CR4_READ_SHADOW) & ~cr4_passthru_mask) |

@@ -12,7 +12,6 @@
 #include <boot.h>
 #include <asm/pgtable.h>
 #include <asm/zeropage.h>
-#include <asm/seed.h>
 #include <asm/mmu.h>
 #include <asm/guest/vm.h>
 #include <asm/guest/ept.h>
@@ -91,16 +90,6 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 
 	if (vm_config->load_order == SERVICE_VM) {
 		if (strncat_s((char *)vm->sw.bootargs_info.src_addr, MAX_BOOTARGS_SIZE, " ", 1U) == 0) {
-			char seed_args[MAX_SEED_ARG_SIZE] = "";
-
-			fill_seed_arg(seed_args, MAX_SEED_ARG_SIZE);
-			/* Fill seed argument for Service VM
-			 * seed_args string ends with a white space and '\0', so no additional delimiter is needed
-			 */
-			if (strncat_s((char *)vm->sw.bootargs_info.src_addr, MAX_BOOTARGS_SIZE,
-					seed_args, (MAX_BOOTARGS_SIZE - 1U)) != 0) {
-				pr_err("failed to fill seed arg to Service VM bootargs!");
-			}
 
 			/* If there is cmdline from abi->cmdline, merge it with configured Service VM bootargs.
 			 * This is very helpful when one of configured bootargs need to be revised at GRUB runtime

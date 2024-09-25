@@ -23,7 +23,7 @@
 static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	uint64_t cr4)
 {
-	struct guest_cpu_context *ctx = &vcpu->arch.contexts[vcpu->arch.cur_context];
+	struct guest_cpu_context *ctx = &vcpu->arch.contexts;
 	struct ext_context *ectx = &ctx->ext_ctx;
 
 	pr_dbg("%s,cr0:0x%lx, cr4:0x%lx.", __func__, cr0, cr4);
@@ -73,7 +73,7 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 
 static void init_guest_state(struct acrn_vcpu *vcpu)
 {
-	struct guest_cpu_context *ctx = &vcpu->arch.contexts[vcpu->arch.cur_context];
+	struct guest_cpu_context *ctx = &vcpu->arch.contexts;
 
 	pr_dbg("%s, cr0:0x%lx, cr4:0x%lx.\n", __func__,
 	ctx->run_ctx.cr0, ctx->run_ctx.cr4);

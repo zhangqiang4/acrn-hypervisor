@@ -307,7 +307,6 @@ void init_paging(void)
 
 	/*
 	 * set the paging-structure entries' U/S flag to supervisor-mode for hypervisor owned memory.
-	 * (exclude the memory reserve for trusty)
 	 *
 	 * Before the new PML4 take effect in enable_paging(), HPA->HVA is always 1:1 mapping,
 	 * simply treat the return value of get_hv_image_base() as HPA.
@@ -324,10 +323,6 @@ void init_paging(void)
 	pgtable_modify_or_del_map((uint64_t *)ppt_mmu_pml4_addr, round_pde_down(hv_hva),
 			round_pde_up((uint64_t)&ld_text_end) - round_pde_down(hv_hva), 0UL,
 			PAGE_NX, &ppt_pgtable, MR_MODIFY);
-#if ((SERVICE_VM_NUM == 1) && (MAX_TRUSTY_VM_NUM > 0))
-	pgtable_modify_or_del_map((uint64_t *)ppt_mmu_pml4_addr, (uint64_t)get_sworld_memory_base(),
-			TRUSTY_RAM_SIZE * MAX_TRUSTY_VM_NUM, PAGE_USER, 0UL, &ppt_pgtable, MR_MODIFY);
-#endif
 
 	/* Enable paging */
 	enable_paging();

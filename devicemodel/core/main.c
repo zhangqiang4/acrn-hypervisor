@@ -93,7 +93,6 @@ char *ovmf_code_file_name;
 char *ovmf_vars_file_name;
 char *kernel_file_name;
 char *elf_file_name;
-uint8_t trusty_enabled;
 bool stdio_in_use;
 bool lapic_pt;
 bool is_rtvm;
@@ -153,7 +152,7 @@ usage(int code)
 		"       %*s [-l lpc] [-m mem] [-r ramdisk_image_path]\n"
 		"       %*s [-s pci] [--ovmf ovmf_file_path]\n"
 		"       %*s [--iasl iasl_compiler_path]\n"
-		"       %*s [--enable_trusty] [--intr_monitor param_setting]\n"
+		"       %*s [--intr_monitor param_setting]\n"
 		"       %*s [--acpidev_pt HID] [--mmiodev_pt MMIO_Regions]\n"
 		"       %*s [--vtpm2 sock_path] [--virtio_poll interval]\n"
 		"       %*s [--cpu_affinity lapic_id] [--lapic_pt] [--rtvm] [--windows]\n"
@@ -173,7 +172,6 @@ usage(int code)
 		"       --ssram: Configure Software SRAM parameters\n"
 		"       --cpu_affinity: list of Service VM vCPUs assigned to this User VM, the vCPUs are"
 		"	     identified by their local APIC IDs.\n"
-		"       --enable_trusty: enable trusty for guest\n"
 		"       --debugexit: enable debug exit function\n"
 		"       --intr_monitor: enable interrupt storm monitor\n"
 		"            its params: threshold/s,probe-period(s),delay_time(ms),delay_duration(ms)\n"
@@ -887,7 +885,6 @@ enum {
 	CMD_OPT_IASL,
 	CMD_OPT_CPU_AFFINITY,
 	CMD_OPT_PART_INFO,
-	CMD_OPT_TRUSTY_ENABLE,
 	CMD_OPT_VIRTIO_POLL_ENABLE,
 	CMD_OPT_MAC_SEED,
 	CMD_OPT_DEBUGEXIT,
@@ -934,8 +931,6 @@ static struct option long_options[] = {
 	{"iasl",		required_argument,	0, CMD_OPT_IASL},
 	{"cpu_affinity",	required_argument,	0, CMD_OPT_CPU_AFFINITY},
 	{"part_info",		required_argument,	0, CMD_OPT_PART_INFO},
-	{"enable_trusty",	no_argument,		0,
-					CMD_OPT_TRUSTY_ENABLE},
 	{"virtio_poll",		required_argument,	0, CMD_OPT_VIRTIO_POLL_ENABLE},
 	{"debugexit",		no_argument,		0, CMD_OPT_DEBUGEXIT},
 	{"intr_monitor",	required_argument,	0, CMD_OPT_INTR_MONITOR},
@@ -1092,9 +1087,6 @@ main(int argc, char *argv[])
 			break;
 		case CMD_OPT_PART_INFO: /* obsolete parameter */
 			outdate("--part_info");
-			break;
-		case CMD_OPT_TRUSTY_ENABLE:
-			trusty_enabled = 1;
 			break;
 		case CMD_OPT_VIRTIO_POLL_ENABLE:
 			if (acrn_parse_virtio_poll_interval(optarg) != 0) {

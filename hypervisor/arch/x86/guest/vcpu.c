@@ -40,24 +40,21 @@ struct stack_frame {
 
 uint64_t vcpu_get_gpreg(const struct acrn_vcpu *vcpu, uint32_t reg)
 {
-	const struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	const struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	return ctx->cpu_regs.longs[reg];
 }
 
 void vcpu_set_gpreg(struct acrn_vcpu *vcpu, uint32_t reg, uint64_t val)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	ctx->cpu_regs.longs[reg] = val;
 }
 
 uint64_t vcpu_get_rip(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	if (!bitmap_test(CPU_REG_RIP, &vcpu->reg_updated) &&
 		!bitmap_test_and_set_nolock(CPU_REG_RIP, &vcpu->reg_cached)) {
@@ -68,22 +65,20 @@ uint64_t vcpu_get_rip(struct acrn_vcpu *vcpu)
 
 void vcpu_set_rip(struct acrn_vcpu *vcpu, uint64_t val)
 {
-	vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx.rip = val;
+	vcpu->arch.contexts.run_ctx.rip = val;
 	bitmap_set_nolock(CPU_REG_RIP, &vcpu->reg_updated);
 }
 
 uint64_t vcpu_get_rsp(const struct acrn_vcpu *vcpu)
 {
-	const struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	const struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	return ctx->cpu_regs.regs.rsp;
 }
 
 void vcpu_set_rsp(struct acrn_vcpu *vcpu, uint64_t val)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	ctx->cpu_regs.regs.rsp = val;
 	bitmap_set_nolock(CPU_REG_RSP, &vcpu->reg_updated);
@@ -91,16 +86,14 @@ void vcpu_set_rsp(struct acrn_vcpu *vcpu, uint64_t val)
 
 uint64_t vcpu_get_efer(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	return ctx->ia32_efer;
 }
 
 void vcpu_set_efer(struct acrn_vcpu *vcpu, uint64_t val)
 {
-	vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx.ia32_efer
-		= val;
+	vcpu->arch.contexts.run_ctx.ia32_efer = val;
 
 	if (val == msr_read(MSR_IA32_EFER)) {
 		clear_vmcs_bit(VMX_ENTRY_CONTROLS, VMX_ENTRY_CTLS_LOAD_EFER);
@@ -116,8 +109,7 @@ void vcpu_set_efer(struct acrn_vcpu *vcpu, uint64_t val)
 
 uint64_t vcpu_get_rflags(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	if (!bitmap_test(CPU_REG_RFLAGS, &vcpu->reg_updated) &&
 		!bitmap_test_and_set_nolock(CPU_REG_RFLAGS, &vcpu->reg_cached) && vcpu->launched) {
@@ -128,8 +120,7 @@ uint64_t vcpu_get_rflags(struct acrn_vcpu *vcpu)
 
 void vcpu_set_rflags(struct acrn_vcpu *vcpu, uint64_t val)
 {
-	vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx.rflags =
-		val;
+	vcpu->arch.contexts.run_ctx.rflags = val;
 	bitmap_set_nolock(CPU_REG_RFLAGS, &vcpu->reg_updated);
 }
 
@@ -248,7 +239,6 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vcpu->arch.nr_sipi = 0U;
 
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;
-	vcpu->arch.cur_context = NORMAL_WORLD;
 	vcpu->arch.lapic_pt_enabled = false;
 	vcpu->arch.irq_window_enabled = false;
 	vcpu->arch.emulating_lock = false;
@@ -266,10 +256,8 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 			per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
 	}
 
-	for (i = 0; i < NR_WORLD; i++) {
-		(void)memset((void *)(&vcpu->arch.contexts[i]), 0U,
+	(void)memset((void *)(&vcpu->arch.contexts), 0U,
 			sizeof(struct run_context));
-	}
 
 	vlapic = vcpu_vlapic(vcpu);
 	lapic_mode = reset_mode_vcpu2vlapic(mode);
@@ -330,7 +318,7 @@ static void set_vcpu_mode(struct acrn_vcpu *vcpu, uint32_t cs_attr, uint64_t ia3
 
 static void init_xsave(struct acrn_vcpu *vcpu)
 {
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+	struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
 	struct xsave_area *area = &ectx->xs_area;
 
 	/* if the HW has this cap, we need to prepare the buffer for potential save/restore.
@@ -355,8 +343,8 @@ void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs)
 	struct segment_sel *seg;
 	uint32_t limit, attr;
 
-	ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-	ctx = &(vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx);
+	ectx = &(vcpu->arch.contexts.ext_ctx);
+	ctx = &(vcpu->arch.contexts.run_ctx);
 
 	/* NOTE:
 	 * This is to set the attr and limit to default value.
@@ -495,7 +483,7 @@ void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 	 *  - Otherwise, handle it below.
 	 */
 	if (mode != VCPU_INIT_RESET) {
-		struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+		struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
 
 		/* IA32_TSC_AUX: 0 following Power-up/Reset, unchanged following INIT */
 		ectx->tsc_aux = 0UL;
@@ -520,7 +508,7 @@ void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 {
 	struct ext_context *ectx;
 
-	ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+	ectx = &(vcpu->arch.contexts.ext_ctx);
 	ectx->cs.selector = (uint16_t)((entry >> 4U) & 0xFFFFU);
 	ectx->cs.base = ectx->cs.selector << 4U;
 
@@ -661,8 +649,7 @@ static inline int32_t exec_vmentry(struct run_context *ctx, int32_t launch_type,
  */
 static void write_cached_registers(struct acrn_vcpu *vcpu)
 {
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
 	if (bitmap_test_and_clear_nolock(CPU_REG_RIP, &vcpu->reg_updated)) {
 		exec_vmwrite(VMX_GUEST_RIP, ctx->rip);
@@ -698,8 +685,7 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint32_t cs_attr;
 	uint64_t ia32_efer, cr0;
-	struct run_context *ctx =
-		&vcpu->arch.contexts[vcpu->arch.cur_context].run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 	int32_t status = 0;
 	int32_t ibrs_type = get_ibrs_type();
 
@@ -728,7 +714,7 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 		/* avoid VMCS recycling RSB usage, set IBPB.
 		 * NOTE: this should be done for any time vmcs got switch
 		 * currently, there is no other place to do vmcs switch
-		 * Please add IBPB set for future vmcs switch case(like trusty)
+		 * Please add IBPB set for future vmcs switch case
 		 */
 		if (ibrs_type == IBRS_RAW) {
 			msr_write(MSR_IA32_PRED_CMD, PRED_SET_IBPB);
@@ -907,7 +893,7 @@ void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_context *e
 static void context_switch_out(struct thread_object *prev)
 {
 	struct acrn_vcpu *vcpu = container_of(prev, struct acrn_vcpu, thread_obj);
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+	struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
 
 	/* We don't flush TLB as we assume each vcpu has different vpid */
 	ectx->ia32_star = msr_read(MSR_IA32_STAR);
@@ -923,7 +909,7 @@ static void context_switch_out(struct thread_object *prev)
 static void context_switch_in(struct thread_object *next)
 {
 	struct acrn_vcpu *vcpu = container_of(next, struct acrn_vcpu, thread_obj);
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+	struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
 	uint64_t vmsr_val;
 
 	load_vmcs(vcpu);

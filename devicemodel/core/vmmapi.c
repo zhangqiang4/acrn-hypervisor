@@ -177,12 +177,6 @@ vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 	ctx->name = (char *)(ctx + 1);
 	strncpy(ctx->name, name, strnlen(name, PATH_MAX) + 1);
 
-	/* Set trusty enable flag */
-	if (trusty_enabled)
-		create_vm.vm_flag |= GUEST_FLAG_SECURE_WORLD_ENABLED;
-	else
-		create_vm.vm_flag &= (~GUEST_FLAG_SECURE_WORLD_ENABLED);
-
 	if (lapic_pt) {
 		create_vm.vm_flag |= GUEST_FLAG_LAPIC_PASSTHROUGH;
 		create_vm.vm_flag |= GUEST_FLAG_IO_COMPLETION_POLLING;

@@ -23,7 +23,6 @@ BOOT_MOD = $(HV_MODDIR)/boot_mod.a
 HW_MOD = $(HV_MODDIR)/hw_mod.a
 VP_BASE_MOD = $(HV_MODDIR)/vp_base_mod.a
 VP_DM_MOD = $(HV_MODDIR)/vp_dm_mod.a
-VP_TRUSTY_MOD = $(HV_MODDIR)/vp_trusty_mod.a
 VP_X86_TEE_MOD = $(HV_MODDIR)/vp_x86_tee_mod.a
 VP_HCALL_MOD = $(HV_MODDIR)/vp_hcall_mod.a
 LIB_DEBUG = $(HV_MODDIR)/libdebug.a
@@ -132,7 +131,6 @@ ARCH_LDSCRIPT_IN = bsp/ld/link_ram.ld.in
 
 REL_INCLUDE_PATH += include
 REL_INCLUDE_PATH += include/lib
-REL_INCLUDE_PATH += include/lib/crypto
 REL_INCLUDE_PATH += include/common
 REL_INCLUDE_PATH += include/debug
 REL_INCLUDE_PATH += include/public
@@ -165,11 +163,6 @@ export LIB_DEBUG LIB_RELEASE
 
 # library componment
 LIB_C_SRCS += lib/string.c
-LIB_C_SRCS += lib/crypto/crypto_api.c
-LIB_C_SRCS += lib/crypto/mbedtls/hkdf.c
-LIB_C_SRCS += lib/crypto/mbedtls/sha256.c
-LIB_C_SRCS += lib/crypto/mbedtls/md.c
-LIB_C_SRCS += lib/crypto/mbedtls/md_wrap.c
 LIB_C_SRCS += lib/sprintf.c
 LIB_C_SRCS += arch/x86/lib/memory.c
 ifdef STACK_PROTECTOR
@@ -334,13 +327,6 @@ VP_DM_C_SRCS += arch/x86/guest/vcat.c
 endif
 VP_DM_C_SRCS += common/ptdev.c
 
-# virtual platform trusty
-VP_TRUSTY_C_SRCS += arch/x86/guest/trusty.c
-VP_TRUSTY_C_SRCS += common/trusty_hypercall.c
-VP_TRUSTY_C_SRCS += arch/x86/seed/seed.c
-VP_TRUSTY_C_SRCS += arch/x86/seed/seed_abl.c
-VP_TRUSTY_C_SRCS += arch/x86/seed/seed_sbl.c
-
 # x86 tee support
 VP_X86_TEE_C_SRCS += arch/x86/guest/optee.c
 
@@ -361,7 +347,6 @@ VM_CFG_C_OBJS := $(patsubst %.c,%.o,$(VM_CFG_C_SRCS))
 VP_BASE_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_BASE_C_SRCS))
 VP_BASE_S_OBJS := $(patsubst %.S,$(HV_OBJDIR)/%.o,$(VP_BASE_S_SRCS))
 VP_DM_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_DM_C_SRCS))
-VP_TRUSTY_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_TRUSTY_C_SRCS))
 VP_X86_TEE_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_X86_TEE_C_SRCS))
 VP_HCALL_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_HCALL_C_SRCS))
 SYS_INIT_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(SYS_INIT_C_SRCS))
@@ -375,7 +360,6 @@ MODULES += $(BOOT_MOD)
 MODULES += $(HW_MOD)
 MODULES += $(VP_BASE_MOD)
 MODULES += $(VP_DM_MOD)
-MODULES += $(VP_TRUSTY_MOD)
 MODULES += $(VP_X86_TEE_MOD)
 MODULES += $(VP_HCALL_MOD)
 ifeq ($(CONFIG_RELEASE),y)
@@ -435,7 +419,7 @@ $(SERIAL_CONF): $(HV_CONFIG_TIMESTAMP) $(HV_ALLOCATION_XML)
 	@echo "generate the serial configuration file for service VM ..."
 	python3 ../misc/config_tools/service_vm_config/serial_config.py --allocation $(HV_ALLOCATION_XML) --scenario $(HV_SCENARIO_XML) --out $(SERIAL_CONF)
 
-.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-trusty-mod vp-x86tee-mod vp-hcall-mod sys-init-mod
+.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-x86tee-mod vp-hcall-mod sys-init-mod
 $(LIB_MOD): $(LIB_C_OBJS) $(LIB_S_OBJS)
 	$(AR) $(ARFLAGS) $(LIB_MOD) $(LIB_C_OBJS) $(LIB_S_OBJS)
 
@@ -460,11 +444,6 @@ $(VP_DM_MOD): $(VP_DM_C_OBJS)
 	$(AR) $(ARFLAGS) $(VP_DM_MOD) $(VP_DM_C_OBJS)
 
 vp-dm-mod: $(VP_DM_MOD)
-
-$(VP_TRUSTY_MOD): $(VP_TRUSTY_C_OBJS)
-	$(AR) $(ARFLAGS) $(VP_TRUSTY_MOD) $(VP_TRUSTY_C_OBJS)
-
-vp-trusty-mod: $(VP_TRUSTY_MOD)
 
 $(VP_X86_TEE_MOD): $(VP_X86_TEE_C_OBJS)
 	$(AR) $(ARFLAGS) $(VP_X86_TEE_MOD) $(VP_X86_TEE_C_OBJS)
