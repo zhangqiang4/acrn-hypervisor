@@ -11,11 +11,10 @@
 #include <reloc.h>
 #include <vacpi.h>
 #include <logmsg.h>
-#include <asm/rtcm.h>
 #include <ptdev.h>
 
 #define ENTRY_GPA_L		2U
-#define ENTRY_GPA_HI		8U
+#define ENTRY_GPA_HI		7U
 
 static struct e820_entry service_vm_e820[E820_MAX_ENTRIES];
 static struct e820_entry pre_vm_e820[PRE_VM_NUM][E820_MAX_ENTRIES];
@@ -184,15 +183,10 @@ static const struct e820_entry pre_ve820_template[E820_MAX_ENTRIES] = {
 		.length   = 0x60000UL,		/* 384KB */
 		.type     = E820_TYPE_RESERVED
 	},
-	{	/* hpa1_low */
+	{	/* hpa_low */
 		.baseaddr = MEM_1M,		/* 1MB */
-		.length   = PRE_RTVM_SW_SRAM_BASE_GPA - MEM_1M,
+		.length   = GPU_OPREGION_GPA - MEM_1M,
 		.type     = E820_TYPE_RAM
-	},
-	{	/* Software SRAM */
-		.baseaddr = PRE_RTVM_SW_SRAM_BASE_GPA,
-		.length   = PRE_RTVM_SW_SRAM_MAX_SIZE,
-		.type     = E820_TYPE_RESERVED
 	},
 	{	/* GPU OpRegion for pre-launched VM */
 		.baseaddr = GPU_OPREGION_GPA,
@@ -246,35 +240,25 @@ static inline uint64_t add_ram_entry(struct e820_entry *entry, uint64_t gpa, uin
  *
  *   entry0: usable under 1MB
  *   entry1: reserved for MP Table/ACPI RSDP from 0xf0000 to 0xfffff
- *   entry2: hpa1_low
- *   entry3: reserved, Software SRAM segment, from 0x7f5fb000 to 0x7fdfb000(8M)
- *           this address is also hard-coded in offline tool to generate guest's RTCT/PTCT table
- *   entry4: gpu_opregion (0x5000)
- *   entry5: ACPI Reclaim from 0x7fe00000 to 0x7fefffff (1M)
- *   entry6: ACPI NVS from 0x7ff00000 to 0x7fffffff (1M)
+ *   entry2: hpa_low
+ *   entry3: gpu_opregion (0x5000)
+ *   entry4: ACPI Reclaim from 0x7fe00000 to 0x7fefffff (1M)
+ *   entry5: ACPI NVS from 0x7ff00000 to 0x7fffffff (1M)
  *            Currently this is used by:
  *            a) first 64k reserved
  *            if CONFIG_SECURITY_VM_FIXUP enabled,
  *              b) TPM2 event log region (if platform supports TPM2 eventlog) from 0x7ffb0000 to 0x7fffffff
  *              c) SMBIOS table in between 64k and 0xb0000
- *   entry7: reserved for 32bit PCI hole from 0x80000000 to 0xffffffff
- *   (entry8): usable for
- *            a) hpa1_hi, if hpa1 > 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE
- *            b) hpa2, if (hpa1 + hpa2) < 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE
- *            c) hpa2_lo,
- *               if hpa1 < 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE and (hpa1 + hpa2) > 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE
- *   (entry9): usable for
- *            a) hpa2, if hpa1 > 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE
- *            b) hpa2_hi,
- *               if hpa1 < 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE and (hpa1 + hpa2) > 2GB - PRE_RTVM_SW_SRAM_MAX_SIZE
+ *   entry6: reserved for 32bit PCI hole from 0x80000000 to 0xffffffff
+ *   (entry7): usable for
+ *            hpa_hi, if avaiable (above 4G)
  */
 
 /*
 	The actual memory mapping under 2G looks like below:
 	|<--1M-->|
-	|<-----hpa1_low--->|
+	|<-----hpa_low--->|
 	|<---Non-mapped hole (if there is)-->|
-	|<---Software SRAM--->|
 	|<-----gpu_opregion--->|
 	|<---(1M + 1M) ACPI NVS/DATA--->|
 */
@@ -283,7 +267,7 @@ void create_prelaunched_vm_e820(struct acrn_vm *vm)
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 	uint64_t gpa_start = 0x100000000UL;
 	uint64_t gpa_hi_size;
-	uint64_t lowmem_max_length = MEM_2G - PRE_RTVM_SW_SRAM_MAX_SIZE - GPU_OPREGION_SIZE;
+	uint64_t lowmem_max_length = MEM_2G - GPU_OPREGION_SIZE;
 	uint32_t entry_idx = ENTRY_GPA_HI;
 	uint64_t memory_size = calculate_memory_size(vm_config->memory.host_regions, vm_config->memory.region_num);
 
@@ -296,7 +280,7 @@ void create_prelaunched_vm_e820(struct acrn_vm *vm)
 		add_ram_entry((vm->e820_entries + entry_idx), gpa_start, gpa_hi_size);
 		entry_idx++;
 	} else {
-		/* need to revise length of hpa1 entry to its actual size, excluding size of used space */
+		/* need to revise length of hpa_low entry to its actual size, excluding size of used space */
 		vm->e820_entries[ENTRY_GPA_L].length = memory_size - MEM_1M - VIRT_ACPI_DATA_LEN - VIRT_ACPI_NVS_LEN;
 	}
 

@@ -20,7 +20,6 @@
 #include <asm/cpuid.h>
 #include <asm/guest/vcpuid.h>
 #include <trace.h>
-#include <asm/rtcm.h>
 #include <debug/console.h>
 
 /*
@@ -402,7 +401,7 @@ static int32_t wbinvd_vmexit_handler(struct acrn_vcpu *vcpu)
 	struct acrn_vcpu *other;
 
 	/* GUEST_FLAG_RT has not set in post-launched RTVM before it has been created */
-	if ((!is_software_sram_enabled()) && (!has_rt_vm())) {
+	if (!has_rt_vm()) {
 		flush_invalidate_all_cache();
 	} else {
 		if (is_rt_vm(vcpu->vm)) {

@@ -31,7 +31,6 @@
 #include <uart16550.h>
 #include <vpci.h>
 #include <ivshmem.h>
-#include <asm/rtcm.h>
 #include <reloc.h>
 #include <asm/tsc.h>
 #include <ticks.h>
@@ -319,10 +318,6 @@ void init_pcpu_post(uint16_t pcpu_id)
 		thermal_init();
 		init_machine_check_events();
 		ptdev_init();
-	}
-
-	if (!init_software_sram(pcpu_id == BSP_CPU_ID)) {
-		panic("failed to initialize software SRAM!");
 	}
 
 	apply_frequency_policy();

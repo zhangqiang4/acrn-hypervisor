@@ -9,8 +9,6 @@ from extractors.helpers import add_child, get_node
 
 from cpuparser import parse_cpuid
 import cpuparser.msr as msr
-from acpiparser import parse_rtct
-import acpiparser.rtct
 
 known_cbms = {
     # From 11th Gen Intel(R) Core(TM) Processors Real-Time Tuning Guide, document number 640980-1.4

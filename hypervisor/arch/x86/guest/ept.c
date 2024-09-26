@@ -15,7 +15,6 @@
 #include <asm/vtd.h>
 #include <logmsg.h>
 #include <trace.h>
-#include <asm/rtct.h>
 
 #define DBG_LEVEL_EPT	6U
 
@@ -371,41 +370,14 @@ void ept_del_mr(struct acrn_vm *vm, uint64_t *pml4_page, uint64_t gpa, uint64_t 
  */
 void ept_flush_leaf_page(uint64_t *pge, uint64_t size)
 {
-	uint64_t base_hpa, end_hpa;
-	uint64_t sw_sram_bottom, sw_sram_top;
+	uint64_t base_hpa;
 
 	if ((*pge & EPT_MT_MASK) != EPT_UNCACHED) {
 		base_hpa = (*pge & (~(size - 1UL)));
-		end_hpa = base_hpa + size;
 
-		 sw_sram_bottom = get_software_sram_base();
-		 sw_sram_top = sw_sram_bottom + get_software_sram_size();
-		/* When Software SRAM is not initialized, both sw_sram_bottom and sw_sram_top is 0,
-		 * so the first if below will have no use.
-		 */
-		if (base_hpa < sw_sram_bottom) {
-			/*
-			 * For end_hpa < sw_sram_bottom, flush [base_hpa, end_hpa);
-			 * For end_hpa >= sw_sram_bottom && end_hpa < sw_sram_top, flush [base_hpa, sw_sram_bottom);
-			 * For end_hpa > sw_sram_top, flush [base_hpa, sw_sram_bottom) first,
-			 *                            flush [sw_sram_top, end_hpa) in the next if condition
-			 */
-			stac();
-			flush_cache_range(hpa2hva(base_hpa), min(end_hpa, sw_sram_bottom) - base_hpa);
-			clac();
-		}
-
-		if (end_hpa > sw_sram_top) {
-			/*
-			 * For base_hpa > sw_sram_top, flush [base_hpa, end_hpa);
-			 * For base_hpa >= sw_sram_bottom && base_hpa < sw_sram_top, flush [sw_sram_top, end_hpa);
-			 * For base_hpa < sw_sram_bottom, flush [sw_sram_top, end_hpa) here,
-			 *                            flush [base_hpa, sw_sram_bottom) in the below if condition
-			 */
-			stac();
-			flush_cache_range(hpa2hva(max(base_hpa, sw_sram_top)), end_hpa - max(base_hpa, sw_sram_top));
-			clac();
-		}
+		stac();
+		flush_cache_range(hpa2hva(base_hpa), size);
+		clac();
 	}
 }
 

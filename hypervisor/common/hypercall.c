@@ -23,7 +23,6 @@
 #include <mmio_dev.h>
 #include <ivshmem.h>
 #include <vmcs9900.h>
-#include <asm/rtcm.h>
 #include <asm/irq.h>
 #include <ticks.h>
 #include <asm/cpuid.h>
@@ -615,7 +614,7 @@ int32_t hcall_notify_ioreq_finish(__unused struct acrn_vcpu *vcpu, struct acrn_v
 static void add_vm_memory_region(struct acrn_vm *vm, struct acrn_vm *target_vm,
 				const struct vm_memory_region *region,uint64_t *pml4_page)
 {
-	uint64_t prot = 0UL, base_paddr;
+	uint64_t prot = 0UL;
 	uint64_t hpa = gpa2hpa(vm, region->service_vm_gpa);
 
 	/* access right */
@@ -640,19 +639,6 @@ static void add_vm_memory_region(struct acrn_vm *vm, struct acrn_vm *target_vm,
 		prot |= EPT_WP;
 	} else {
 		prot |= EPT_UNCACHED;
-	}
-
-	/* If Software SRAM is initialized, and HV received a request to map Software SRAM
-	 * area to guest, we should add EPT_WB flag to make Software SRAM effective.
-	 * TODO: We can enforce WB for any region has overlap with Software SRAM, for simplicity,
-	 * and leave it to Service VM to make sure it won't violate.
-	 */
-	if (is_software_sram_enabled()) {
-		base_paddr = get_software_sram_base();
-		if ((hpa >= base_paddr) &&
-			((hpa + region->size) <= (base_paddr + get_software_sram_size()))) {
-			prot |= EPT_WB;
-		}
 	}
 
 	/* create gpa to hpa EPT mapping */

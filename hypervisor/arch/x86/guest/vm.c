@@ -36,7 +36,6 @@
 #include <asm/trampoline.h>
 #include <asm/guest/assign.h>
 #include <vgpio.h>
-#include <asm/rtcm.h>
 #include <asm/irq.h>
 #include <uart16550.h>
 #ifdef CONFIG_SECURITY_VM_FIXUP
@@ -318,15 +317,6 @@ static void prepare_prelaunched_vm_memmap(struct acrn_vm *vm, const struct acrn_
 
 		if (entry->length == 0UL) {
 			continue;
-		} else {
-			if (is_software_sram_enabled() && (entry->baseaddr == PRE_RTVM_SW_SRAM_BASE_GPA) &&
-				((vm_config->guest_flags & GUEST_FLAG_RT) != 0U)){
-				/* pass through Software SRAM to pre-RTVM */
-				ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp,
-					get_software_sram_base(), PRE_RTVM_SW_SRAM_BASE_GPA,
-					get_software_sram_size(), EPT_RWX | EPT_WB);
-				continue;
-			}
 		}
 
 		if ((entry->type == E820_TYPE_RESERVED) && (entry->baseaddr > MEM_1M)) {
@@ -530,35 +520,6 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 	/* unmap PCIe MMCONFIG region since it's owned by hypervisor */
 	pci_mmcfg = get_mmcfg_region();
 	ept_del_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, pci_mmcfg->address, get_pci_mmcfg_size(pci_mmcfg));
-
-	if (is_software_sram_enabled()) {
-		/*
-		 * Native Software SRAM resources shall be assigned to either Pre-launched RTVM
-		 * or Service VM. Software SRAM support for Post-launched RTVM is virtualized
-		 * in Service VM.
-		 *
-		 * 1) Native Software SRAM resources are assigned to Pre-launched RTVM:
-		 *     - Remove Software SRAM regions from Service VM EPT, to prevent
-		 *       Service VM from using clflush to flush the Software SRAM cache.
-		 *     - PRE_RTVM_SW_SRAM_MAX_SIZE is the size of Software SRAM that
-		 *       Pre-launched RTVM uses, presumed to be starting from Software SRAM base.
-		 *       For other cases, PRE_RTVM_SW_SRAM_MAX_SIZE should be defined as 0,
-		 *       and no region will be removed from Service VM EPT.
-		 *
-		 * 2) Native Software SRAM resources are assigned to Service VM:
-		 *     - Software SRAM regions are added to EPT of Service VM by default
-		 *       with memory type UC.
-		 *     - But, Service VM need to access Software SRAM regions
-		 *       when virtualizing them for Post-launched RTVM.
-		 *     - So memory type of Software SRAM regions in EPT shall be updated to EPT_WB.
-		 */
-#if (PRE_RTVM_SW_SRAM_MAX_SIZE > 0U)
-		ept_del_mr(vm, pml4_page, service_vm_hpa2gpa(get_software_sram_base()), PRE_RTVM_SW_SRAM_MAX_SIZE);
-#else
-		ept_modify_mr(vm, pml4_page, service_vm_hpa2gpa(get_software_sram_base()),
-			get_software_sram_size(), EPT_WB, EPT_MT_MASK);
-#endif
-	}
 
 	/* unmap Intel IOMMU register pages for below reason:
 	 * Service VM can detect IOMMU capability in its ACPI table hence it may access

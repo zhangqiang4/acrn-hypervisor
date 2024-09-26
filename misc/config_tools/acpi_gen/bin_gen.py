@@ -13,39 +13,8 @@ import lxml.etree
 from acpi_const import *
 import acpiparser.tpm2
 import inspectorlib.cdata
-import acpiparser.rtct
 import acrn_config_utilities
 from acrn_config_utilities import get_node
-
-def move_rtct_ssram_and_bin_entries(rtct, new_base_addr, new_area_max_size):
-    '''
-    move the guest ssram and ctl bin entries to a new base addr. the entries keeps their relative layout
-    :param rtct: parsed rtct bit struct
-    :param new_base_addr: the top address of the new area
-    :param new_area_max_size: max size of the new area. for valid check
-    :return:
-    '''
-    if rtct.version == 1:
-        expect_ssram_type = acpiparser.rtct.ACPI_RTCT_V1_TYPE_SoftwareSRAM
-    elif rtct.version == 2:
-        expect_ssram_type = acpiparser.rtct.ACPI_RTCT_V2_TYPE_SoftwareSRAM
-    else:
-        raise Exception("RTCT version error! ", rtct.version)
-    top = 0
-    base = 0
-    for entry in rtct.entries:
-        if entry.type == expect_ssram_type:
-            top = (entry.base + entry.size) if top < (entry.base + entry.size) else top
-            base = entry.base if base == 0 or entry.base < base else base
-    if new_area_max_size < (top - base):
-        raise Exception("not enough space in guest VE820 SSRAM area!")
-    rtct_move_offset = new_base_addr - base
-    for entry in rtct.entries:
-        if entry.type == expect_ssram_type:
-            entry.base += rtct_move_offset
-    # re-calculate checksum
-    rtct.header.checksum = 0
-    rtct.header.checksum = 0 - sum(bytes(rtct))
 
 def asl_to_aml(dest_vm_acpi_path, dest_vm_acpi_bin_path, scenario_etree, allocation_etree, iasl_path):
     '''
@@ -71,20 +40,6 @@ def asl_to_aml(dest_vm_acpi_path, dest_vm_acpi_bin_path, scenario_etree, allocat
                         os.remove(os.path.join(dest_vm_acpi_path, acpi_table[1]))
                     rmsg = 'failed to compile {}'.format(acpi_table[0])
                     break
-        elif acpi_table[0] in ['ptct.aml', 'rtct.aml']:
-            if acpi_table[0] in os.listdir(dest_vm_acpi_path):
-                rtct = acpiparser.rtct.RTCT(os.path.join(dest_vm_acpi_path, acpi_table[0]))
-                outfile = os.path.join(dest_vm_acpi_bin_path, acpi_table[1])
-                # move the guest ssram area to the area next to ACPI region
-                pre_rt_vms = get_node("//vm[load_order ='PRE_LAUNCHED_VM' and vm_type ='RTVM']", scenario_etree)
-                vm_id = pre_rt_vms.get("id")
-                allocation_vm_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']", allocation_etree)
-                ssram_start_gpa = get_node("./ssram/start_gpa/text()", allocation_vm_node)
-                ssram_max_size = get_node("./ssram/max_size/text()", allocation_vm_node)
-                move_rtct_ssram_and_bin_entries(rtct, int(ssram_start_gpa, 16), int(ssram_max_size, 16))
-                fp = open(outfile, mode='wb')
-                fp.write(rtct)
-                fp.close()
         else:
             if acpi_table[0].endswith(".asl"):
                 rc = exec_command('{} {}'.format(iasl_path, acpi_table[0]))
@@ -171,15 +126,6 @@ def aml_to_bin(dest_vm_acpi_path, dest_vm_acpi_bin_path, acpi_bin_name, board_et
         acpi_bin.seek(ACPI_DSDT_ADDR_OFFSET)
         with open(os.path.join(dest_vm_acpi_bin_path, ACPI_TABLE_LIST[6][1]), 'rb') as asl:
             acpi_bin.write(asl.read())
-
-        if ACPI_TABLE_LIST[7][1] in os.listdir(dest_vm_acpi_path):
-            acpi_bin.seek(ACPI_RTCT_ADDR_OFFSET)
-            with open(os.path.join(dest_vm_acpi_bin_path, ACPI_TABLE_LIST[7][1]), 'rb') as asl:
-                acpi_bin.write(asl.read())
-        elif ACPI_TABLE_LIST[8][1] in os.listdir(dest_vm_acpi_path):
-            acpi_bin.seek(ACPI_RTCT_ADDR_OFFSET)
-            with open(os.path.join(dest_vm_acpi_bin_path, ACPI_TABLE_LIST[8][1]), 'rb') as asl:
-                acpi_bin.write(asl.read())
 
         vm_id = acpi_bin_name.split('.')[0].split('ACPI_VM')[1]
         if vm_id == '0':

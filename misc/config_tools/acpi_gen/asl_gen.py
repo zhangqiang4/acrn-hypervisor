@@ -14,7 +14,6 @@ from acrn_config_utilities import get_node
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'board_inspector'))
 from acpiparser._utils import TableHeader
-from acpiparser import rtct
 from acpiparser import rdt
 from acpiparser.dsdt import parse_tree
 from acpiparser.aml import builder
@@ -61,7 +60,6 @@ def gen_xsdt(dest_vm_acpi_path, passthru_devices):
     p_mcfg_addr = r'ACPI Table Address   1 : ([0-9a-fA-F]{16})'
     p_madt_addr = r'ACPI Table Address   2 : ([0-9a-fA-F]{16})'
     p_tpm2_addr = r'ACPI Table Address   3 : ([0-9a-fA-F]{16})'
-    p_rtct_addr = r'ACPI Table Address   4 : ([0-9a-fA-F]{16})'
 
     with open(os.path.join(dest_vm_acpi_path, xsdt_asl), 'w') as dest:
         lines = []
@@ -76,9 +74,6 @@ def gen_xsdt(dest_vm_acpi_path, passthru_devices):
                 elif re.search(p_tpm2_addr, line):
                     if 'TPM2' in passthru_devices:
                         lines.append(re.sub(p_tpm2_addr, 'ACPI Table Address   3 : {0:016X}'.format(ACPI_TPM2_ADDR), line))
-                elif re.search(p_rtct_addr, line):
-                    if 'PTCT' in passthru_devices or 'RTCT' in passthru_devices:
-                        lines.append(re.sub(p_rtct_addr, 'ACPI Table Address   4 : {0:016X}'.format(ACPI_RTCT_ADDR), line))
                 else:
                     lines.append(line)
 
@@ -768,87 +763,6 @@ def gen_dsdt(board_etree, scenario_etree, allocation_etree, vm_id, dest_path):
 
         dest.write(binary)
 
-def gen_rtct(board_etree, scenario_etree, allocation_etree, vm_id, dest_path):
-    def cpu_id_to_lapic_id(cpu_id):
-        return get_node(f"//thread[cpu_id = '{cpu_id}']/apic_id/text()", board_etree)
-
-    vm_node = get_node(f"//vm[@id='{vm_id}']", scenario_etree)
-    if vm_node is None:
-        return False
-
-    vcpus = ",".join(map(cpu_id_to_lapic_id, vm_node.xpath("cpu_affinity//pcpu_id/text()")))
-    rtct_entries = []
-
-    # ACPI table header
-
-    common_header = create_object(
-        TableHeader,
-        signature       = b'RTCT',
-        revision        = 1,
-        oemid           = b'ACRN  ',
-        oemtableid      = b'ACRNRTCT',
-        oemrevision     = 5,
-        creatorid       = b'INTL',
-        creatorrevision = 0x100000d
-    )
-    rtct_entries.append(common_header)
-
-    # Compatibility entry
-
-    compat_entry = create_object(
-        rtct.RTCTSubtableCompatibility,
-        subtable_size      = ctypes.sizeof(rtct.RTCTSubtableCompatibility),
-        format_or_version  = 1,
-        type               = rtct.ACPI_RTCT_TYPE_COMPATIBILITY,
-        rtct_version_major = 2,
-        rtct_version_minor = 0,
-        rtcd_version_major = 0,
-        rtcd_version_minor = 0
-    )
-    rtct_entries.append(compat_entry)
-
-    # SSRAM entries
-
-    # Look for the cache blocks that are visible to this VM and have software SRAM in it. Those software SRAM will be
-    # exposed to the VM in RTCT.
-    for cache in board_etree.xpath(f"//caches/cache[count(processors/processor[contains('{vcpus}', .)]) and capability[@id = 'Software SRAM']]"):
-        ssram_cap = get_node("capability[@id = 'Software SRAM']", cache)
-
-        ssram_entry = create_object(
-            rtct.RTCTSubtableSoftwareSRAM_v2,
-            subtable_size     = ctypes.sizeof(rtct.RTCTSubtableSoftwareSRAM_v2),
-            format_or_version = 2,
-            type              = rtct.ACPI_RTCT_V2_TYPE_SoftwareSRAM,
-            level             = int(cache.get("level")),
-            cache_id          = int(cache.get("id"), base=16),
-            base              = int(ssram_cap.find("start").text, base=16),
-            size              = int(ssram_cap.find("size").text),
-            shared            = 0
-        )
-        rtct_entries.append(ssram_entry)
-
-        if ssram_cap.find("waymask") is not None:
-            ssram_waymask_entry = create_object(
-                rtct.RTCTSubtableSSRAMWayMask,
-                subtable_size     = ctypes.sizeof(rtct.RTCTSubtableSSRAMWayMask),
-                format_or_version = 1,
-                type              = rtct.ACPI_RTCT_V2_TYPE_SSRAM_WayMask,
-                level             = int(cache.get("level")),
-                cache_id          = int(cache.get("id"), base=16),
-                waymask           = int(ssram_cap.find("waymask").text, base=16)
-            )
-            rtct_entries.append(ssram_waymask_entry)
-
-    with open(dest_path, "wb") as dest:
-        length = sum(map(ctypes.sizeof, rtct_entries))
-        common_header.length = length
-        binary = bytearray().join(map(bytearray, rtct_entries))
-
-        checksum = (256 - (sum(binary) % 256)) % 256
-        binary[9] = checksum
-
-        dest.write(binary)
-
 def main(args):
 
     err_dic = {}
@@ -901,21 +815,6 @@ def main(args):
                 if pcpu_id is not None and pcpu_id.text.strip() in pcpu_list:
                     dict_pcpu_list[vm_id].append(int(pcpu_id.text))
 
-    PASSTHROUGH_RTCT = False
-    PRELAUNCHED_RTVM_ID = None
-    try:
-        if scenario_root.find('hv/FEATURES/SSRAM/SSRAM_ENABLED').text.strip() == 'y':
-            PASSTHROUGH_RTCT = True
-        for vm in scenario_root.findall('vm'):
-            vm_id = vm.attrib['id']
-            vm_type_node = vm.find('vm_type')
-            load_order_node = vm.find('load_order')
-            if (load_order_node is not None) and (load_order_node.text == 'PRE_LAUNCHED_VM') and (vm_type_node.text == 'RTVM'):
-                PRELAUNCHED_RTVM_ID = vm_id
-                break
-    except:
-        PASSTHROUGH_RTCT = False
-
     kern_args = acrn_config_utilities.get_leaf_tag_map(scenario, "os_config", "bootargs")
     kern_type = acrn_config_utilities.get_leaf_tag_map(scenario, "os_config", "kern_type")
     for vm_id, passthru_devices in dict_passthru_devices.items():
@@ -923,9 +822,6 @@ def main(args):
         dest_vm_acpi_path = os.path.join(DEST_ACPI_PATH, 'ACPI_VM'+vm_id)
         if not os.path.isdir(dest_vm_acpi_path):
             os.makedirs(dest_vm_acpi_path)
-        if PASSTHROUGH_RTCT is True and vm_id == PRELAUNCHED_RTVM_ID:
-            passthru_devices.append("RTCT")
-            gen_rtct(board_etree, scenario_etree, allocation_etree, vm_id, os.path.join(dest_vm_acpi_path, "rtct.aml"))
         gen_rsdp(dest_vm_acpi_path)
         gen_xsdt(dest_vm_acpi_path, passthru_devices)
         gen_fadt(dest_vm_acpi_path, board_root)
