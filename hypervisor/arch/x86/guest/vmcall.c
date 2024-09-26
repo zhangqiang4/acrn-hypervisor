@@ -10,7 +10,6 @@
 #include <asm/guest/vcpu.h>
 #include <asm/guest/vm.h>
 #include <asm/guest/virq.h>
-#include <asm/guest/optee.h>
 #include <acrn_hv_defs.h>
 #include <hypercall.h>
 #include <trace.h>
@@ -98,12 +97,6 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_profiling_ops},
 	[HC_IDX(HC_GET_HW_INFO)] = {
 		.handler = hcall_get_hw_info},
-	[HC_IDX(HC_TEE_VCPU_BOOT_DONE)] = {
-		.handler = hcall_handle_tee_vcpu_boot_done,
-		.permission_flags = GUEST_FLAG_TEE},
-	[HC_IDX(HC_SWITCH_EE)] = {
-		.handler = hcall_switch_ee,
-		.permission_flags = (GUEST_FLAG_TEE | GUEST_FLAG_REE)},
 };
 
 uint16_t allocate_dynamical_vmid(struct acrn_vm_creation *cv)
@@ -120,18 +113,6 @@ uint16_t allocate_dynamical_vmid(struct acrn_vm_creation *cv)
 	}
 	spinlock_release(&vm_id_lock);
 	return vm_id;
-}
-
-static bool is_guest_hypercall(struct acrn_vm *vm)
-{
-	uint64_t guest_flags = get_vm_config(vm->vm_id)->guest_flags;
-	bool ret = true;
-
-	if ((guest_flags & (GUEST_FLAG_TEE | GUEST_FLAG_REE)) == 0UL) {
-		ret = false;
-	}
-
-	return ret;
 }
 
 struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1, __unused uint64_t param2)
@@ -210,7 +191,7 @@ static int32_t dispatch_hypercall(struct acrn_vcpu *vcpu)
 			uint64_t param1 = vcpu_get_gpreg(vcpu, CPU_REG_RDI);  /* hypercall param1 from guest */
 			uint64_t param2 = vcpu_get_gpreg(vcpu, CPU_REG_RSI);  /* hypercall param2 from guest */
 
-			if ((permission_flags == 0UL) && is_service_vm(vm) && !is_ree_vm(vm)) {
+			if ((permission_flags == 0UL) && is_service_vm(vm)) {
 				/* A permission_flags of 0 indicates that this hypercall is for Service VM to manage
 				 * post-launched VMs.
 				 *
@@ -262,7 +243,7 @@ int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu)
 	 *    guest flags. Attempts to invoke an unpermitted hypercall will make a vCPU see -EINVAL as the return
 	 *    value. No exception is triggered in this case.
 	 */
-	if (!is_service_vm(vm) && !is_guest_hypercall(vm)) {
+	if (!is_service_vm(vm)) {
 		vcpu_inject_ud(vcpu);
 	} else if (!is_hypercall_from_ring0()) {
 		vcpu_inject_gp(vcpu, 0U);

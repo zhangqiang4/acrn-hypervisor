@@ -203,7 +203,7 @@ void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_
 	write_trampoline_sym(main_entry, (uint64_t)restore_s3_context);
 	clac();
 
-	CPU_IRQ_DISABLE_ON_CONFIG();
+	CPU_IRQ_DISABLE();
 	vmx_off();
 
 	suspend_console();
@@ -221,7 +221,7 @@ void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_
 	init_frequency_policy();
 
 	vmx_on();
-	CPU_IRQ_ENABLE_ON_CONFIG();
+	CPU_IRQ_ENABLE();
 
 	/* restore the default main entry */
 	stac();

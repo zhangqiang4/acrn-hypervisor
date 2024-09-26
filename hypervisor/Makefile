@@ -23,7 +23,6 @@ BOOT_MOD = $(HV_MODDIR)/boot_mod.a
 HW_MOD = $(HV_MODDIR)/hw_mod.a
 VP_BASE_MOD = $(HV_MODDIR)/vp_base_mod.a
 VP_DM_MOD = $(HV_MODDIR)/vp_dm_mod.a
-VP_X86_TEE_MOD = $(HV_MODDIR)/vp_x86_tee_mod.a
 VP_HCALL_MOD = $(HV_MODDIR)/vp_hcall_mod.a
 LIB_DEBUG = $(HV_MODDIR)/libdebug.a
 LIB_RELEASE = $(HV_MODDIR)/librelease.a
@@ -327,9 +326,6 @@ VP_DM_C_SRCS += arch/x86/guest/vcat.c
 endif
 VP_DM_C_SRCS += common/ptdev.c
 
-# x86 tee support
-VP_X86_TEE_C_SRCS += arch/x86/guest/optee.c
-
 # virtual platform hypercall
 VP_HCALL_C_SRCS += arch/x86/guest/vmcall.c
 VP_HCALL_C_SRCS += common/hypercall.c
@@ -347,7 +343,6 @@ VM_CFG_C_OBJS := $(patsubst %.c,%.o,$(VM_CFG_C_SRCS))
 VP_BASE_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_BASE_C_SRCS))
 VP_BASE_S_OBJS := $(patsubst %.S,$(HV_OBJDIR)/%.o,$(VP_BASE_S_SRCS))
 VP_DM_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_DM_C_SRCS))
-VP_X86_TEE_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_X86_TEE_C_SRCS))
 VP_HCALL_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(VP_HCALL_C_SRCS))
 SYS_INIT_C_OBJS := $(patsubst %.c,$(HV_OBJDIR)/%.o,$(SYS_INIT_C_SRCS))
 
@@ -360,7 +355,6 @@ MODULES += $(BOOT_MOD)
 MODULES += $(HW_MOD)
 MODULES += $(VP_BASE_MOD)
 MODULES += $(VP_DM_MOD)
-MODULES += $(VP_X86_TEE_MOD)
 MODULES += $(VP_HCALL_MOD)
 ifeq ($(CONFIG_RELEASE),y)
 MODULES += $(LIB_RELEASE)
@@ -419,7 +413,7 @@ $(SERIAL_CONF): $(HV_CONFIG_TIMESTAMP) $(HV_ALLOCATION_XML)
 	@echo "generate the serial configuration file for service VM ..."
 	python3 ../misc/config_tools/service_vm_config/serial_config.py --allocation $(HV_ALLOCATION_XML) --scenario $(HV_SCENARIO_XML) --out $(SERIAL_CONF)
 
-.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-x86tee-mod vp-hcall-mod sys-init-mod
+.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-hcall-mod sys-init-mod
 $(LIB_MOD): $(LIB_C_OBJS) $(LIB_S_OBJS)
 	$(AR) $(ARFLAGS) $(LIB_MOD) $(LIB_C_OBJS) $(LIB_S_OBJS)
 
@@ -444,11 +438,6 @@ $(VP_DM_MOD): $(VP_DM_C_OBJS)
 	$(AR) $(ARFLAGS) $(VP_DM_MOD) $(VP_DM_C_OBJS)
 
 vp-dm-mod: $(VP_DM_MOD)
-
-$(VP_X86_TEE_MOD): $(VP_X86_TEE_C_OBJS)
-	$(AR) $(ARFLAGS) $(VP_X86_TEE_MOD) $(VP_X86_TEE_C_OBJS)
-
-vp-x86tee-mod: $(VP_X86_TEE_MOD)
 
 $(VP_HCALL_MOD): $(VP_HCALL_C_OBJS)
 	$(AR) $(ARFLAGS) $(VP_HCALL_MOD) $(VP_HCALL_C_OBJS)

@@ -43,7 +43,6 @@
 #include <quirks/security_vm_fixup.h>
 #endif
 #include <asm/boot/ld_sym.h>
-#include <asm/guest/optee.h>
 
 /* Local variables */
 
@@ -157,20 +156,6 @@ bool is_rt_vm(const struct acrn_vm *vm)
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
 	return ((vm_config->guest_flags & GUEST_FLAG_RT) != 0U);
-}
-
-/**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
- *
- * Stateful VM refers to VM that has its own state (such as internal file cache),
- * and will experience state loss (file system corruption) if force powered down.
- */
-bool is_stateful_vm(const struct acrn_vm *vm)
-{
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	/* TEE VM has GUEST_FLAG_STATELESS set implicitly */
-	return ((vm_config->guest_flags & GUEST_FLAG_STATELESS) == 0U);
 }
 
 /**
@@ -677,18 +662,8 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		}
 
 		if (vm_config->load_order == PRE_LAUNCHED_VM) {
-			/*
-			 * If a prelaunched VM has the flag GUEST_FLAG_TEE set then it
-			 * is a special prelaunched VM called TEE VM which need special
-			 * memmap, e.g. mapping the REE VM into its space. Otherwise,
-			 * just use the standard preplaunched VM memmap.
-			 */
-			if ((vm_config->guest_flags & GUEST_FLAG_TEE) != 0U) {
-				prepare_tee_vm_memmap(vm, vm_config);
-			} else {
-				create_prelaunched_vm_e820(vm);
-				prepare_prelaunched_vm_memmap(vm, vm_config);
-			}
+			create_prelaunched_vm_e820(vm);
+			prepare_prelaunched_vm_memmap(vm, vm_config);
 			status = init_vm_boot_info(vm);
 		}
 	}
@@ -812,7 +787,7 @@ static bool is_ready_for_system_shutdown(void)
 	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
 		vm = get_vm_from_vmid(vm_id);
 		/* TODO: Update code to cover hybrid mode */
-		if (!is_poweroff_vm(vm) && is_stateful_vm(vm)) {
+		if (!is_poweroff_vm(vm)) {
 			ret = false;
 			break;
 		}
@@ -1100,18 +1075,10 @@ void launch_vms(uint16_t pcpu_id)
 				/*
 				 * We can only start a VM when there is no error in prepare_vm.
 				 * Otherwise, print out the corresponding error.
-				 *
-				 * We can only start REE VM when get the notification from TEE VM.
-				 * so skip "start_vm" here for REE, and start it in TEE hypercall
-				 * HC_TEE_VCPU_BOOT_DONE.
 				 */
 				if (prepare_vm(vm_id, vm_config) == 0) {
-					if ((vm_config->guest_flags & GUEST_FLAG_REE) != 0U) {
-						/* Nothing need to do here, REE will start in TEE hypercall */
-					} else {
-						start_vm(get_vm_from_vmid(vm_id));
-						pr_acrnlog("Start VM id: %x name: %s", vm_id, vm_config->name);
-					}
+					start_vm(get_vm_from_vmid(vm_id));
+					pr_acrnlog("Start VM id: %x name: %s", vm_id, vm_config->name);
 				}
 			}
 		}

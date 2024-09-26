@@ -22,7 +22,7 @@ void vcpu_thread(struct thread_object *obj)
 
 	do {
 		if (!is_lapic_pt_enabled(vcpu)) {
-			CPU_IRQ_DISABLE_ON_CONFIG();
+			CPU_IRQ_DISABLE();
 		}
 
 		/* Don't open interrupt window between here and vmentry */
@@ -59,7 +59,7 @@ void vcpu_thread(struct thread_object *obj)
 		profiling_pre_vmexit_handler(vcpu);
 
 		if (!is_lapic_pt_enabled(vcpu)) {
-			CPU_IRQ_ENABLE_ON_CONFIG();
+			CPU_IRQ_ENABLE();
 		}
 		/* Dispatch handler */
 		ret = vmexit_handler(vcpu);
