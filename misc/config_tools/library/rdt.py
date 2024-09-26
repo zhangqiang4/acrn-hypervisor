@@ -106,10 +106,6 @@ class RdtPolicy:
     def find_policy_owner(self, policy_owner):
         return policy_owner in self.policy_owner_list
 
-class vCatPolicy(RdtPolicy):
-    def merge_policy(self, src):
-        return False
-
 class CdpPolicy():
     def __init__(self,data_list, code_list, owner):
         self.data_policy = RdtPolicy(data_list, policy_owner(owner.vm_name, owner.vcpu, "Data"))
@@ -144,11 +140,6 @@ def gen_policy_owner_list(scenario_etree):
         policy_owner_list.append(policy_owner(vm_name, int(vcpu), cache_type))
     return policy_owner_list
 
-def vm_vcat_enable(scenario_etree, vm_name):
-    vcat_enable = get_node(f"//VCAT_ENABLED/text()", scenario_etree)
-    virtual_cat_support = get_node(f"//vm[name = '{vm_name}']/virtual_cat_support/text()", scenario_etree)
-    return (vcat_enable == "y") and (virtual_cat_support == "y")
-
 def cdp_enable(scenario_etree):
     cdp_enable = get_node(f"//CDP_ENABLED/text()", scenario_etree)
     return cdp_enable == "y"
@@ -175,8 +166,6 @@ def get_policy_list(scenario_etree):
                 continue
             elif policy_owner.cache_type == "Data":
                 result_list.append(CdpPolicy(data_list, code_list, policy_owner))
-        elif vm_vcat_enable(scenario_etree, policy_owner.vm_name):
-            result_list.append(vCatPolicy(policy_list, policy_owner))
         else:
             result_list.append(RdtPolicy(policy_list, policy_owner))
     result_list = merge_policy_list(result_list)

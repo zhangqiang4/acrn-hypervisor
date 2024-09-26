@@ -170,20 +170,9 @@ enum reset_mode;
 
 #define NUM_COMMON_MSRS		38U
 
-#ifdef CONFIG_VCAT_ENABLED
-#define NUM_CAT_L2_MSRS	MAX_CACHE_CLOS_NUM_ENTRIES
-#define NUM_CAT_L3_MSRS	MAX_CACHE_CLOS_NUM_ENTRIES
-
-/* L2/L3 mask MSRs plus MSR_IA32_PQR_ASSOC */
-#define NUM_CAT_MSRS		(NUM_CAT_L2_MSRS + NUM_CAT_L3_MSRS + 1U)
-
-#else
-#define NUM_CAT_MSRS		0U
-#endif
-
 #define FLEXIBLE_MSR_INDEX	NUM_COMMON_MSRS
 
-#define NUM_EMULATED_MSRS	(FLEXIBLE_MSR_INDEX + NUM_CAT_MSRS)
+#define NUM_EMULATED_MSRS	FLEXIBLE_MSR_INDEX
 /* For detailed layout of the emulated guest MSRs, see emulated_guest_msrs[NUM_EMULATED_MSRS] in vmsr.c */
 
 #define EOI_EXIT_BITMAP_SIZE	256U

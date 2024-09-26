@@ -30,13 +30,6 @@ Code and Data Prioritization (CDP)
   code and data placement in the cache. The CDP support in the hypervisor isolates
   a portion of the cache for code and another portion for data for the same VM.
 
-
-Virtual Cache Allocation Technology (vCAT)
-  ACRN also supports virtualizing CAT, referred to as vCAT. With
-  vCAT enabled, the hypervisor presents CAT to a selected set of VMs, allowing the
-  guest OSs to further isolate the cache used by higher-priority processes in
-  those VMs.
-
 Dependencies and Constraints
 *****************************
 
@@ -47,7 +40,7 @@ Consider the following dependencies and constraints:
 
 * The cache must be shared cache (cache shared across multiple CPU cores) and
   not private cache (cache that is owned by only one CPU core). If the
-  cache is private, CAT, CDP, and vCAT have no benefit because the cache is
+  cache is private, CAT, CDP have no benefit because the cache is
   already exclusively used by one core. For this reason, the ACRN Configurator
   will not allow you to configure private cache.
 
@@ -58,10 +51,6 @@ Consider the following dependencies and constraints:
   CAT by trying to access the CAT MSRs directly. Versions of the board inspector
   before v3.1 only used the CPUID interface and would indicate L3 CAT wasn't
   supported in this circumstance.
-
-* The guest OS in a VM with vCAT enabled requires utilities in that OS for
-  further cache allocation configurations. An example is the `resctrl
-  <https://docs.kernel.org/x86/resctrl.html>`__ framework in Linux.
 
 Configuration Overview
 **********************
@@ -111,19 +100,6 @@ Parameters**:
    :align: center
    :class: drop-shadow
 
-To use vCAT for the VM, you must also set the following parameters in the VM's
-**Advanced Parameters**:
-
-* **Maximum virtual CLOS**: Select the maximum number of virtual CLOS masks.
-  This parameter defines the number of cache chunks that you will see in the
-  hypervisor parameters.
-
-* Select **VM Virtual Cache Allocation Tech**.
-
-.. image:: images/configurator-vcat01.png
-   :align: center
-   :class: drop-shadow
-
 Next, you can enable Intel RDT features in **Hypervisor Global Settings >
 Advanced Parameters > Memory Isolation for Performance**. You can enable one of
 the following combinations of features:
@@ -132,21 +108,17 @@ the following combinations of features:
 
 * Cache Allocation Technology plus Code and Data Prioritization (CDP)
 
-* Cache Allocation Technology plus Virtual Cache Allocation Technology (vCAT)
-
 The following figure shows Cache Allocation Technology enabled:
 
 .. image:: images/configurator-cache01.png
    :align: center
    :class: drop-shadow
 
-When CDP or vCAT is enabled, CAT must be enabled too. The tool selects CAT if it's not already selected.
+When CDP is enabled, CAT must be enabled too. The tool selects CAT if it's not already selected.
 
 .. image:: images/configurator-cache02.png
    :align: center
    :class: drop-shadow
-
-CDP and vCAT can't be enabled at the same time, so the tool clears the vCAT check box when CDP is selected and vice versa.
 
 Based on your selection, the tool displays the available cache in tables.
 Example:
@@ -230,5 +202,3 @@ For details about RDT, see
 `Intel 64 and IA-32 Architectures Software Developer's Manual (SDM), Volume 3,
 (Section 17.19 Intel Resource Director Technology Allocation Features)
 <https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html>`_.
-
-For details on the ACRN vCAT high-level design, see :ref:`hv_vcat`.

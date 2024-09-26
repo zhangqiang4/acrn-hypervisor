@@ -105,11 +105,6 @@
         <xsl:with-param name="key" select="'CDP_ENABLED'" />
         <xsl:with-param name="value" select="RDT/CDP_ENABLED" />
       </xsl:call-template>
-
-      <xsl:call-template name="boolean-by-key-value">
-        <xsl:with-param name="key" select="'VCAT_ENABLED'" />
-        <xsl:with-param name="value" select="RDT/VCAT_ENABLED" />
-      </xsl:call-template>
     </xsl:if>
 
     <xsl:call-template name="boolean-by-key">

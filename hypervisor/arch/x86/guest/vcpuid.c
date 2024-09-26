@@ -16,7 +16,6 @@
 #include <asm/tsc.h>
 #include <logmsg.h>
 #include <asm/rdt.h>
-#include <asm/guest/vcat.h>
 
 static struct percpu_cpuids {
 	uint32_t leaf_nr;
@@ -300,168 +299,6 @@ static int32_t set_vcpuid_sgx(struct acrn_vm *vm)
 	return result;
 }
 
-#ifdef CONFIG_VCAT_ENABLED
-/**
- * @brief * Number of ways (CBM length) is detected with CPUID.0x4
- *
- * @pre vm != NULL
- */
-static int32_t set_vcpuid_vcat_04h(const struct acrn_vm *vm, struct vcpuid_entry *entry)
-{
-	uint32_t cache_type = entry->eax & 0x1FU; /* EAX bits 04:00 */
-	uint32_t cache_level = (entry->eax >> 5U) & 0x7U; /* EAX bits 07:05 */
-	uint16_t vcbm_len = 0U;
-
-	if (cache_level == 2U) {
-		vcbm_len = vcat_get_vcbm_len(vm, RDT_RESOURCE_L2);
-	} else if (cache_level == 3U) {
-		vcbm_len = vcat_get_vcbm_len(vm, RDT_RESOURCE_L3);
-	}
-
-	/*
-	 * cache_type:
-	 * 0 = Null - No more caches.
-	 * 1 = Data Cache.
-	 * 2 = Instruction Cache.
-	 * 3 = Unified Cache.
-	 * 4-31 = Reserved
-	 *
-	 * cache_level (starts at 1):
-	 * 2 = L2
-	 * 3 = L3
-	 */
-	if (((cache_type == 0x1U) || (cache_type == 0x3U)) && (vcbm_len != 0U)) {
-		/*
-		 * EBX Bits 11 - 00: L = System Coherency Line Size**.
-		 * Bits 21 - 12: P = Physical Line partitions**.
-		 * Bits 31 - 22: W = Ways of associativity**.
-		 */
-		entry->ebx &= ~0xFFC00000U;
-		/* Report # of cache ways (CBM length) to guest VM */
-		entry->ebx |= (vcbm_len - 1U) << 22U;
-	}
-
-	return 0;
-}
-
-/**
- * @brief RDT allocation enumeration sub-leaf (EAX = 10H, ECX = 0)
- * Expose CAT capabilities to guest VM
- *
- * @pre vm != NULL
- */
-static int32_t set_vcpuid_vcat_10h_subleaf_0(struct acrn_vm *vm, bool l2, bool l3)
-{
-	struct vcpuid_entry entry;
-
-	init_vcpuid_entry(CPUID_RDT_ALLOCATION, 0U, CPUID_CHECK_SUBLEAF, &entry);
-
-	entry.ebx &= ~0xeU; /* Set the L3/L2/MBA bits (bits 1, 2, and 3) all to 0 (not supported) */
-
-	if (l2) {
-		/* Bit 02: Supports L2 Cache Allocation Technology if 1 */
-		entry.ebx |= 0x4U;
-	}
-
-	if (l3) {
-		/* Bit 01: Supports L3 Cache Allocation Technology if 1 */
-		entry.ebx |= 0x2U;
-	}
-
-	return set_vcpuid_entry(vm, &entry);
-}
-
-/**
- * @brief L2/L3 enumeration sub-leaf
- *
- * @pre vm != NULL
- */
-static int32_t set_vcpuid_vcat_10h_subleaf_res(struct acrn_vm *vm, uint32_t subleaf, uint16_t num_vclosids)
-{
-	struct vcpuid_entry entry;
-	uint16_t vcbm_len;
-	int res;
-
-	if (subleaf == 1U) {
-		res = RDT_RESOURCE_L3;
-	} else {
-		res = RDT_RESOURCE_L2;
-	}
-	vcbm_len = vcat_get_vcbm_len(vm, res);
-
-	/* Set cache cbm_len */
-	init_vcpuid_entry(CPUID_RDT_ALLOCATION, subleaf, CPUID_CHECK_SUBLEAF, &entry);
-
-	if ((entry.eax != 0U) && (vcbm_len != 0U)) {
-		/* Bits 4 - 00: Length of the capacity bit mask for the corresponding ResID using minus-one notation */
-		entry.eax = (entry.eax & ~0x1F) | (vcbm_len - 1U);
-
-		/* Bits 31 - 00: Bit-granular map of isolation/contention of allocation units
-		 * Each set bit within the length of the CBM indicates the corresponding unit of the L2/L3 allocation
-		 * may be used by other entities in the platform. Each cleared bit within the length of the CBM
-		 * indicates the corresponding allocation unit can be configured to implement a priority-based
-		 * allocation scheme chosen by an OS/VMM without interference with other hardware agents in the system.
-		 */
-		entry.ebx = (uint32_t)vcat_pcbm_to_vcbm(vm, entry.ebx, res);
-
-		/* Do not support CDP for now */
-		entry.ecx &= ~0x4U;
-
-		/* Report max CLOS to guest VM
-		 * Bits 15 - 00: Highest COS number supported for this ResID using minus-one notation
-		 */
-		entry.edx = (entry.edx & 0xFFFF0000U) |  (num_vclosids - 1U);
-	}
-
-	return set_vcpuid_entry(vm, &entry);
-}
-
-/**
- * @pre vm != NULL
- */
-static int32_t set_vcpuid_vcat_10h(struct acrn_vm *vm)
-{
-	int32_t result;
-	uint16_t num_vclosids = vcat_get_num_vclosids(vm);
-	bool l2 = is_l2_vcat_configured(vm);
-	bool l3 = is_l3_vcat_configured(vm);
-
-	/* RDT allocation enumeration sub-leaf (EAX=10H, ECX=0) */
-	result = set_vcpuid_vcat_10h_subleaf_0(vm, l2, l3);
-
-	if ((result == 0) && l2) {
-		/* L2 enumeration sub-leaf (EAX=10H, ECX=2) */
-		result = set_vcpuid_vcat_10h_subleaf_res(vm, 2U, num_vclosids);
-	}
-
-	if ((result == 0) && l3) {
-		/* L3 enumeration sub-leaf (EAX=10H, ECX=1) */
-		result = set_vcpuid_vcat_10h_subleaf_res(vm, 1U, num_vclosids);
-	}
-
-	return result;
-}
-#endif
-
-static void guest_cpuid_04h(__unused struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
-{
-	struct vcpuid_entry entry;
-
-	cpuid_subleaf(CPUID_CACHE, *ecx, &entry.eax, &entry.ebx, &entry.ecx, &entry.edx);
-	if (entry.eax != 0U) {
-#ifdef CONFIG_VCAT_ENABLED
-		if (is_vcat_configured(vm)) {
-			/* set_vcpuid_vcat_04h will not change entry.eax */
-			result = set_vcpuid_vcat_04h(vm, &entry);
-		}
-#endif
-	}
-	*eax = entry.eax;
-	*ebx = entry.ebx;
-	*ecx = entry.ecx;
-	*edx = entry.edx;
-}
-
 static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 {
 	int32_t result = 0;
@@ -472,8 +309,7 @@ static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 	entry.flags = CPUID_CHECK_SUBLEAF;
 	for (i = 0U; ; i++) {
 		entry.subleaf = i;
-		entry.ecx = i;
-		guest_cpuid_04h(vm, &entry.eax, &entry.ebx, &entry.ecx, &entry.edx);
+		cpuid_subleaf(CPUID_CACHE, i, &entry.eax, &entry.ebx, &entry.ecx, &entry.edx);
 		if (entry.eax == 0U) {
 			break;
 		}
@@ -640,12 +476,6 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 					entry.ebx |= CPUID_EBX_SGX;
 				}
 
-#ifdef CONFIG_VCAT_ENABLED
-				if (is_vcat_configured(vm)) {
-					/* Bit 15: Supports Intel Resource Director Technology (Intel RDT) Allocation capability if 1 */
-					entry.ebx |= CPUID_EBX_PQE;
-				}
-#endif
 				result = set_vcpuid_entry(vm, &entry);
 				if ((result == 0) && (entry.eax == 1U)) {
 					/* init subleaf 1 */
@@ -672,11 +502,6 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 				break;
 			/* 0x10U, Intel RDT */
 			case CPUID_RDT_ALLOCATION:
-#ifdef CONFIG_VCAT_ENABLED
-				if (is_vcat_configured(vm)) {
-					result = set_vcpuid_vcat_10h(vm);
-				}
-#endif
 				break;
 
 			/* 0x14U, Intel Processor Trace */
@@ -935,11 +760,6 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 		/* 0x01U */
 		case CPUID_FEATURES:
 			guest_cpuid_01h(vcpu, eax, ebx, ecx, edx);
-			break;
-
-		/* 0x04U for hybrid arch */
-		case CPUID_CACHE:
-			guest_cpuid_04h(vcpu->vm, eax, ebx, ecx, edx);
 			break;
 
 		/* 0x06U for hybrid arch */

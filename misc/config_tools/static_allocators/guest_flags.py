@@ -17,7 +17,6 @@ class GuestFlagPolicy(namedtuple("GuestFlagPolycy", ["condition", "guest_flag"])
 policies = [
     GuestFlagPolicy(".//lapic_passthrough = 'y'", "GUEST_FLAG_LAPIC_PASSTHROUGH"),
     GuestFlagPolicy(".//io_completion_polling = 'y'", "GUEST_FLAG_IO_COMPLETION_POLLING"),
-    GuestFlagPolicy(".//virtual_cat_support = 'y'", "GUEST_FLAG_VCAT_ENABLED"),
     GuestFlagPolicy(".//secure_world_support = 'y'", "GUEST_FLAG_SECURE_WORLD_ENABLED"),
     GuestFlagPolicy(".//hide_mtrr_support = 'y'", "GUEST_FLAG_HIDE_MTRR"),
     GuestFlagPolicy(".//virtual_thermal_monitor = 'y'", "GUEST_FLAG_VTM"),

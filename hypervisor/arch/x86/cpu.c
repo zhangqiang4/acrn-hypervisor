@@ -198,10 +198,6 @@ void init_pcpu_pre(bool is_bsp)
 			panic("System IOAPIC info is incorrect!");
 		}
 
-#ifdef CONFIG_VCAT_ENABLED
-		init_intercepted_cat_msr_list();
-#endif
-
 		/* NOTE: this must call after MMCONFIG is parsed in acpi_fixup() and before APs are INIT.
 		 * We only support platform with MMIO based CFG space access.
 		 * IO port access only support in debug version.

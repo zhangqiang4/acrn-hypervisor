@@ -322,11 +322,6 @@ the board hardware does not support RDT, enabling this option is ignored.</xs:do
         <xs:documentation>Enable Code and Data Prioritization (CDP). CDP provides control over code and data placement in cache to improve an application's real-time performance.</xs:documentation>
       </xs:annotation>
     </xs:element>
-    <xs:element name="VCAT_ENABLED" type="Boolean" default="n">
-      <xs:annotation acrn:title="Virtual Cache Allocation Tech">
-        <xs:documentation>Enable virtualization of the Cache Allocation Technology (CAT) feature in RDT. CAT enables you to allocate cache to VMs, providing isolation to avoid performance interference from other VMs.</xs:documentation>
-      </xs:annotation>
-    </xs:element>
   </xs:sequence>
 </xs:complexType>
 
