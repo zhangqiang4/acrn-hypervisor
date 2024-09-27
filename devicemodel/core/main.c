@@ -165,7 +165,10 @@ usage(int code)
 		"       -l: LPC device configuration\n"
 		"       -m: memory size in MB\n"
 		"       -r: ramdisk image path\n"
-		"       -s: <slot,driver,configinfo> PCI slot config\n"
+		"       -s: <slot,driver,configinfo> PCI slot config. Device will be skipped\n"
+		"	     on initialization failure\n"
+		"       -S: same as -s, except that devices with this option will abort ACRN-dm\n"
+		"	     on initialization failure\n"
 		"       -v: version\n"
 		"       --ovmf: ovmf file path\n"
 		"       --iasl: iasl compiler path\n"
@@ -912,6 +915,7 @@ static struct option long_options[] = {
 	{"ioc_node",		required_argument,	0, 'i' },
 	{"lpc",			required_argument,	0, 'l' },
 	{"pci_slot",		required_argument,	0, 's' },
+	{"pci_slot_m",		required_argument,	0, 'S' },
 	{"memsize",		required_argument,	0, 'm' },
 	{"mptgen",		no_argument,		0, 'Y' },
 	{"kernel",		required_argument,	0, 'k' },
@@ -949,7 +953,7 @@ static struct option long_options[] = {
 	{0,			0,			0,  0  },
 };
 
-static char optstr[] = "AhYvE:k:r:B:s:m:l:U:G:i:";
+static char optstr[] = "AhYvE:k:r:B:s:S:m:l:U:G:i:";
 
 int
 vm_init_asyncio(struct vmctx *ctx, uint64_t base)
@@ -1035,8 +1039,13 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 's':
-			if (pci_parse_slot(optarg) != 0)
-				exit(1);
+			if (pci_parse_slot(optarg, 0) != 0)
+				pr_warn("WARNING: Parse failed: '%s', device skipped.\n", optarg);
+			else
+				break;
+		case 'S':
+			if (pci_parse_slot(optarg, ABORT_VM_ON_FAILURE) != 0)
+				errx(EX_USAGE, "Parse failed: '%s'. Aborting.\n", optarg);
 			else
 				break;
 		case 'm':

@@ -138,11 +138,14 @@ enum lintr_stat {
 	PENDING
 };
 
+#define ABORT_VM_ON_FAILURE (1 << 0x0) 
+
 struct funcinfo {
 	char	*fi_name;
 	char	*fi_param;
 	char	*fi_param_saved; /* save for reboot */
 	struct pci_vdev *fi_devi;
+	uint32_t	fi_prop;
 };
 
 
@@ -390,7 +393,7 @@ int	pci_msix_enabled(struct pci_vdev *pi);
 int	pci_msix_table_bar(struct pci_vdev *pi);
 int	pci_msix_pba_bar(struct pci_vdev *pi);
 int	pci_msi_maxmsgnum(struct pci_vdev *pi);
-int	pci_parse_slot(char *opt);
+int	pci_parse_slot(char *opt, uint32_t slot_property);
 int	pci_add_dev(struct vmctx *ctx, char *opt);
 int	pci_del_dev(struct vmctx *ctx, char *opt);
 int	pci_populate_msicap(struct msicap *cap, int msgs, int nextptr);

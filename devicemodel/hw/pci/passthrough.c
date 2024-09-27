@@ -884,7 +884,7 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			return -EINVAL;
 		}
 		/* Create the dedicated "igd-lpc" on 00:1f.0 for IGD passthrough */
-		if (pci_parse_slot("31,igd-lpc") != 0)
+		if (pci_parse_slot("31,igd-lpc", 0) != 0)
 			pr_warn("faild to create igd-lpc");
 		passthru_gpu_dsm_opregion(ctx, ptdev, &pcidev, device);
 	}

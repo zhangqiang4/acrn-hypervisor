@@ -281,7 +281,7 @@ parse_bdf(char *s, int *bus, int *dev, int *func, int base)
 }
 
 int
-pci_parse_slot(char *opt)
+pci_parse_slot(char *opt, uint32_t slot_property)
 {
 	struct businfo *bi;
 	struct slotinfo *si;
@@ -348,6 +348,8 @@ pci_parse_slot(char *opt)
 			snum, fnum, emul);
 		goto done;
 	}
+
+	si->si_funcs[fnum].fi_prop = slot_property;
 
 	error = 0;
 	si->si_funcs[fnum].fi_name = emul;
@@ -1091,6 +1093,7 @@ pci_emul_deinit(struct vmctx *ctx, struct pci_vdev_ops *ops, int bus, int slot,
 		pci_emul_free_bars(fi->fi_devi);
 		pci_emul_free_msixcap(fi->fi_devi);
 		free(fi->fi_devi);
+		fi->fi_devi = NULL;
 	}
 }
 
@@ -1880,8 +1883,17 @@ init_pci(struct vmctx *ctx)
 					pr_notice("pci init %s\r\n", fi->fi_name);
 					error = pci_emul_init(ctx, ops, bus, slot, func, fi);
 					if (error) {
-						pr_err("pci %s init failed\n", fi->fi_name);
-						goto pci_emul_init_fail;
+						pr_err("vm pci slot[%d] (vBDF %x:%x.%x) %s init failed.\n",
+							slot, bus, slot, func, fi->fi_name);
+						if (fi->fi_prop & ABORT_VM_ON_FAILURE) {
+							pr_err("Aborting.\n");
+							goto pci_emul_init_fail;
+						}
+						else {
+							pr_warn("WARNING: Skipped failed device <%s> (vBDF %x:%x.%x).\n",
+								fi->fi_name, bus, slot, func);
+							continue;
+						}
 					}
 					success_cnt[i]++;
 				}
@@ -2027,7 +2039,8 @@ pci_emul_init_fail:
 				si = &bi->slotinfo[slot];
 				for (func = 0; func < MAXFUNCS; func++) {
 					fi = &si->si_funcs[func];
-					if (fi->fi_name == NULL)
+					/* use this fi->fi_devi == NULL to determine whether device_init is successful */
+					if (fi->fi_name == NULL || fi->fi_devi == NULL)
 						continue;
 					if (success_cnt[i]-- <= 0)
 						break;
