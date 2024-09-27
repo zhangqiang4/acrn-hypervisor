@@ -158,6 +158,8 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 	uint16_t idx;
 	uint16_t sub_vid = 0U;
 	uint16_t num_vfs, stride, fst_off;
+	uint32_t timeout_us = 0U;
+	bool vf_ready = false;
 
 	/* Confirm that the physical VF_ENABLE register has been set successfully */
 	ASSERT(is_vf_enabled(pf_vdev), "VF_ENABLE was not set successfully on the hardware");
@@ -182,20 +184,27 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 	 *
 	 * Curerntly, we use the first way to wait for VF physical devices to be ready.
 	 */
-	udelay (100U * 1000U);
-
-	/*
-	 * Due to VF's DEVICE ID and VENDOR ID are 0xFFFF, so check if VF physical
-	 * device has been created by the value of SUBSYSTEM VENDOR ID.
-	 * To check if all enabled VFs are ready, just check the first VF already exists,
-	 * do not need to check all.
-	 */
 	fst_off = read_sriov_reg(pf_vdev, PCIR_SRIOV_FST_VF_OFF);
 	stride = read_sriov_reg(pf_vdev, PCIR_SRIOV_VF_STRIDE);
 	vf_bdf.fields.bus = get_vf_bus(pf_vdev, fst_off, stride, 0U);
 	vf_bdf.fields.devfun = get_vf_devfun(pf_vdev, fst_off, stride, 0U);
-	sub_vid = (uint16_t) pci_pdev_read_cfg(vf_bdf, PCIV_SUB_VENDOR_ID, 2U);
-	if ((sub_vid != 0xFFFFU) && (sub_vid != 0U)) {
+	while (timeout_us <= (100U * 1000U)) {
+		/*
+		 * Due to VF's DEVICE ID and VENDOR ID are 0xFFFF, so check if VF physical
+		 * device has been created by the value of SUBSYSTEM VENDOR ID.
+		 * To check if all enabled VFs are ready, just check the first VF already exists,
+		 * do not need to check all.
+		 */
+		sub_vid = (uint16_t) pci_pdev_read_cfg(vf_bdf, PCIV_SUB_VENDOR_ID, 2U);
+		if ((sub_vid != 0xFFFFU) && (sub_vid != 0U)) {
+			vf_ready = true;
+			break;
+		}
+		udelay(10U * 1000U);
+		timeout_us += (10U * 1000U);
+	}
+
+	if (vf_ready) {
 		struct pci_vdev *vf_vdev;
 
 		num_vfs = read_sriov_reg(pf_vdev, PCIR_SRIOV_NUMVFS);
@@ -203,20 +212,27 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 			vf_bdf.fields.bus = get_vf_bus(pf_vdev, fst_off, stride, idx);
 			vf_bdf.fields.devfun = get_vf_devfun(pf_vdev, fst_off, stride, idx);
 
-			/*
-			 * If one VF has never been created then create new one including pdev/vdev structures.
-			 *
-			 * The VF maybe have already existed but it is a zombie instance that vf_vdev->vpci
-			 * is NULL, in this case, we need to make the vf_vdev available again in here.
-			 */
-			vf_vdev = pci_find_vdev(&vpci2vm(pf_vdev->vpci)->vpci, vf_bdf);
-			if (vf_vdev == NULL) {
-				create_vf(pf_vdev, vf_bdf, idx);
-			} else {
-				/* Re-activate a zombie VF */
-				if (is_zombie_vf(vf_vdev)) {
-					vf_vdev->vdev_ops->init_vdev(vf_vdev);
+			sub_vid = (uint16_t) pci_pdev_read_cfg(vf_bdf, PCIV_SUB_VENDOR_ID, 2U);
+			if ((sub_vid != 0xFFFFU) && (sub_vid != 0U)) {
+				/*
+				 * If one VF has never been created then create new one including pdev/vdev structures.
+				 *
+				 * The VF maybe have already existed but it is a zombie instance that vf_vdev->vpci
+				 * is NULL, in this case, we need to make the vf_vdev available again in here.
+				 */
+				vf_vdev = pci_find_vdev(&vpci2vm(pf_vdev->vpci)->vpci, vf_bdf);
+				if (vf_vdev == NULL) {
+					create_vf(pf_vdev, vf_bdf, idx);
+				} else {
+					/* Re-activate a zombie VF */
+					if (is_zombie_vf(vf_vdev)) {
+						vf_vdev->vdev_ops->init_vdev(vf_vdev);
+					}
 				}
+			} else {
+				pr_err("PF %x:%x.%x: VF[%d] is not ready after %d ms.",
+					pf_vdev->bdf.bits.b, pf_vdev->bdf.bits.d, pf_vdev->bdf.bits.f,
+					idx, (timeout_us / 1000U));
 			}
 		}
 	} else {
@@ -224,8 +240,8 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 		 * If the VF physical device was not created successfully, the pdev/vdev
 		 * will also not be created so that Service VM can aware of VF creation failure,
 		 */
-		pr_err("PF %x:%x.%x can't create VFs after 100 ms",
-			pf_vdev->bdf.bits.b, pf_vdev->bdf.bits.d, pf_vdev->bdf.bits.f);
+		pr_err("PF %x:%x.%x can't create VFs after %d ms",
+			pf_vdev->bdf.bits.b, pf_vdev->bdf.bits.d, pf_vdev->bdf.bits.f, (timeout_us / 1000U));
 	}
 }
 
