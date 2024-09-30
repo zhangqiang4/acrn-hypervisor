@@ -40,7 +40,7 @@ static uint16_t cur_file_index;
 
 static uint8_t disk_log_level = LOG_DEBUG;
 static bool disk_log_enabled = false;
-pthread_mutex_t disk_write_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t disk_write_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #define INDEX_AFTER(a, b) ((short int)b - (short int)a < 0)
 
@@ -174,6 +174,7 @@ static void write_to_disk(const char *fmt, va_list args)
 	write_cnt = fprintf(disk_file, "[%4d-%02d-%02d %02d:%02d:%02d][%5lu.%06lu] %s",
 		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec,
 		times.tv_sec, times.tv_nsec / 1000, buf);
+	fflush(disk_file);
 
 	if (write_cnt < 0) {
 		printf(DISK_PREFIX"write disk failed");
