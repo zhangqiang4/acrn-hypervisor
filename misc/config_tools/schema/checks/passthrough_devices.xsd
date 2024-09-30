@@ -12,4 +12,10 @@
     </xs:annotation>
   </xs:assert>
 
+  <xs:assert test="count(/acrn-config/vm[.//mmio_resources/TPM2 = 'y']) &lt; 2">
+    <xs:annotation acrn:severity="error" acrn:report-on="//vm[.//mmio_resources/TPM2 = 'y']">
+      <xs:documentation>VM {vm[.//mmio_resources/TPM2 = 'y']/name} is assigned a TPM2 (Trusted Platform Module) and only ONE vm with TPM2 enabled is permitted. Please remove other choice(s).</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
 </xs:schema>

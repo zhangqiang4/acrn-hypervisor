@@ -515,16 +515,22 @@ def allocate_ssram_region(board_etree, scenario_etree, allocation_etree):
             acrn_config_utilities.append_node("./ssram/max_size", str(ssram_area_max_size), allocation_vm_node)
 
 def allocate_log_area(board_etree, scenario_etree, allocation_etree):
-    tpm2_enabled = get_node(f"//vm[@id = '0']/mmio_resources/TPM2/text()", scenario_etree)
-    if tpm2_enabled is None or tpm2_enabled == 'n':
+    vm_ = scenario_etree.xpath("//vm")
+    vm_tpm2 = [(v, v.xpath("./mmio_resources/TPM2/text()")) for v in vm_]
+    tpm2_enabled = sum(map(lambda x: 1 if len(x[1]) > 0 and x[1][0] == 'y' else 0, vm_tpm2))
+    if tpm2_enabled == 0:
         return
+
+    # error "more tpm2_enabled" will be caught by rules-checking procedure(i.e. passthrough_devices.xsd)
+    # at an earlier time, so tpm2_enabled here should be 1
+    vmid_tpm_selected = [x[0].xpath("./@id")[0] for x in vm_tpm2 if len(x[1]) > 0 and x[1][0] == 'y'][0]
 
     if get_node("//capability[@id='log_area']", board_etree) is not None:
         log_area_min_len_native = int(get_node(f"//log_area_minimum_length/text()", board_etree), 16)
         log_area_start_address = acrn_config_utilities.round_up(VIRT_ACPI_NVS_ADDR, 0x10000) + RESERVED_NVS_AREA
-        allocation_vm_node = get_node(f"/acrn-config/vm[@id = '0']", allocation_etree)
+        allocation_vm_node = get_node(f"/acrn-config/vm[@id = {vmid_tpm_selected}]", allocation_etree)
         if allocation_vm_node is None:
-            allocation_vm_node = acrn_config_utilities.append_node("/acrn-config/vm", None, allocation_etree, id = '0')
+            allocation_vm_node = acrn_config_utilities.append_node("/acrn-config/vm", None, allocation_etree, id=int(vmid_tpm_selected))
         acrn_config_utilities.append_node("./log_area_start_address", hex(log_area_start_address).upper(), allocation_vm_node)
         acrn_config_utilities.append_node("./log_area_minimum_length", hex(log_area_min_len_native).upper(), allocation_vm_node)
 

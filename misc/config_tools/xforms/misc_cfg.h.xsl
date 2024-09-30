@@ -39,7 +39,7 @@
     </xsl:if>
     <xsl:call-template name="cpu_affinity" />
     <xsl:call-template name="rdt" />
-    <xsl:call-template name="vm0_passthrough_tpm" />
+    <xsl:call-template name="vm_passthrough_tpm" />
     <xsl:call-template name="service_vm_super_role" />
     <xsl:call-template name="vm_config_pci_dev_num" />
     <xsl:call-template name="vm_boot_args" />
@@ -157,17 +157,25 @@
   </xsl:if>
 </xsl:template>
 
-<xsl:template name="vm0_passthrough_tpm">
-  <xsl:if test="acrn:is-pre-launched-vm(vm[@id = 0]/load_order)">
+<xsl:template name="vm_passthrough_tpm">
+  <xsl:variable name="vmid_tpm_selected">
+    <xsl:for-each select="//vm/mmio_resources">
+      <xsl:if test="./TPM2 = 'y'">
+        <xsl:value-of select="../@id"/>
+      </xsl:if>
+    </xsl:for-each>
+  </xsl:variable>
+
+  <xsl:if test="acrn:is-pre-launched-vm(vm[@id = $vmid_tpm_selected]/load_order)">
     <xsl:if test="//vm/mmio_resources/TPM2/text() = 'y' and //device[@id = 'MSFT0101' or compatible_id = 'MSFT0101']">
-      <xsl:value-of select="acrn:define('VM0_PASSTHROUGH_TPM', '', '')" />
-      <xsl:value-of select="acrn:define('VM0_TPM_BUFFER_BASE_ADDR', '0xFED40000', 'UL')" />
-      <xsl:value-of select="acrn:define('VM0_TPM_BUFFER_BASE_ADDR_GPA', '0xFED40000', 'UL')" />
-      <xsl:value-of select="acrn:define('VM0_TPM_BUFFER_SIZE', '0x5000', 'UL')" />
+      <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_PASSTHROUGH_TPM'), '', '')" />
+      <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_BUFFER_BASE_ADDR'), '0xFED40000', 'UL')" />
+      <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_BUFFER_BASE_ADDR_GPA'), '0xFED40000', 'UL')" />
+      <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_BUFFER_SIZE'), '0x5000', 'UL')" />
       <xsl:if test="//capability[@id='log_area']">
-        <xsl:value-of select="acrn:define('VM0_TPM_EVENTLOG_BASE_ADDR', //allocation-data/acrn-config/vm[@id = '0']/log_area_start_address, 'UL')" />
-        <xsl:value-of select="acrn:define('VM0_TPM_EVENTLOG_BASE_ADDR_HPA', //capability[@id='log_area']/log_area_start_address, 'UL')" />
-        <xsl:value-of select="acrn:define('VM0_TPM_EVENTLOG_SIZE', //allocation-data/acrn-config/vm[@id = '0']/log_area_minimum_length, 'UL')" />
+        <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_EVENTLOG_BASE_ADDR'), //allocation-data/acrn-config/vm[@id = $vmid_tpm_selected]/log_area_start_address, 'UL')" />
+        <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_EVENTLOG_BASE_ADDR_HPA'), //capability[@id='log_area']/log_area_start_address, 'UL')" />
+        <xsl:value-of select="acrn:define(concat('VM', $vmid_tpm_selected,'_TPM_EVENTLOG_SIZE'), //allocation-data/acrn-config/vm[@id = $vmid_tpm_selected]/log_area_minimum_length, 'UL')" />
       </xsl:if>
     </xsl:if>
   </xsl:if>
