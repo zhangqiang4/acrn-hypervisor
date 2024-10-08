@@ -373,7 +373,7 @@ virtio_sound_reset(void *vdev)
 static int
 virtio_sound_get_card_name(char *card_str, char *card_name)
 {
-	int idx;
+	int idx, ret = 0;
 
 	idx = snd_card_get_index(card_str);
 	if (idx >= 0 && idx < 32)
@@ -387,10 +387,10 @@ virtio_sound_get_card_name(char *card_str, char *card_name)
 		snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "hw:%i", idx);
 #endif
 	else {
-		return -1;
+		/* For Sound Device defined by customer which don't have a card name.*/
+		snprintf(card_name, VIRTIO_SOUND_CARD_NAME, "%s", card_str);
 	}
-
-	return 0;
+	return ret;
 }
 
 static void
