@@ -56,6 +56,11 @@ static void print_hv_banner(void);
 static uint16_t get_pcpu_id_from_lapic_id(uint32_t lapic_id);
 static uint64_t start_tick __attribute__((__section__(".bss_noinit")));
 
+/* version information */
+const char version_info[] __attribute__((__section__(".version"))) =
+	"HV:" HV_BRANCH_VERSION "-" HV_COMMIT_TIME "-" HV_COMMIT_DIRTY "-" HV_BUILD_TYPE " (tag:" HV_COMMIT_TAGS
+	") " HV_BUILD_SCENARIO " " HV_BUILD_BOARD " build by " HV_BUILD_USER "@" HV_BUILD_TIME;
+
 /**
  * @pre phys_cpu_num <= MAX_PCPU_NUM
  */
@@ -250,11 +255,7 @@ void init_pcpu_post(uint16_t pcpu_id)
 		/* Calibrate TSC Frequency */
 		calibrate_tsc();
 
-		pr_acrnlog("HV: %s-%s-%s %s%s%s%s %s@%s build by %s, start time %luus",
-				HV_BRANCH_VERSION, HV_COMMIT_TIME, HV_COMMIT_DIRTY, HV_BUILD_TYPE,
-				(sizeof(HV_COMMIT_TAGS) > 1) ? "(tag: " : "", HV_COMMIT_TAGS,
-				(sizeof(HV_COMMIT_TAGS) > 1) ? ")" : "", HV_BUILD_SCENARIO,
-				HV_BUILD_BOARD, HV_BUILD_USER, ticks_to_us(start_tick));
+		pr_acrnlog("%s, start time %luus", version_info, ticks_to_us(start_tick));
 
 		pr_acrnlog("Detect processor: %s", (get_pcpu_info())->model_name);
 

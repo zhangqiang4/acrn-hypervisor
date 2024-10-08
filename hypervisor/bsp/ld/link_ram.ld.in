@@ -39,7 +39,11 @@ SECTIONS
     .rodata :
     {
         *(.rodata*) ;
+    } > ram
 
+    .version :
+    {
+        *(.version) ;
     } > ram
 
 	.rela :
