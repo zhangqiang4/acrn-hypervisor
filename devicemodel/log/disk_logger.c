@@ -140,7 +140,7 @@ static void deinit_disk_logger(void)
 	}
 }
 
-static void write_to_disk(const char *fmt, va_list args)
+static void write_to_disk(const char *prefix_str, const char *fmt, va_list args)
 {
 	char file_name[FILE_NAME_LENGTH];
 	char *buf;
@@ -211,10 +211,10 @@ static void write_to_disk(const char *fmt, va_list args)
 	}
 }
 
-static void write_to_disk_lock(const char *fmt, va_list args)
+static void write_to_disk_lock(const char *prefix_str, const char *fmt, va_list args)
 {
 	pthread_mutex_lock(&disk_write_lock);
-	write_to_disk(fmt, args);
+	write_to_disk(prefix_str, fmt, args);
 	pthread_mutex_unlock(&disk_write_lock);
 }
 

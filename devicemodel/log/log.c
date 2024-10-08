@@ -15,12 +15,24 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include  <time.h>
+#include  <sys/time.h>
 
 #include "dm_string.h"
 #include "log.h"
 
 
 DECLARE_LOGGER_SECTION();
+
+extern char *vmname;
+static char *level_strs[] = {
+	"ERROR",
+	"WARNING",
+	"NOTICE",
+	"INFO",
+	"DEBUG",
+};
+#define PREFIX_MAX_LEN 50
 
 /*
  * --logger_setting: console,level=4;disk,level=4;kmsg,level=3
@@ -85,17 +97,39 @@ void deinit_loggers(void)
 	}
 }
 
+static void fill_logger_prefix_str(uint8_t level, char *prefix_str, uint32_t size)
+{
+	struct timeval tv;
+	struct tm *lt;
+	int rc;
+
+	gettimeofday(&tv, NULL);
+	lt = localtime(&tv.tv_sec);
+
+	/* add the log prefix, e.g. [2024-09-23 03:53:39.737][VM1][DEBUG] */
+	rc = snprintf(prefix_str, size, "[%4d-%02d-%02d %02d:%02d:%02d.%03ld][%s][%s]",
+		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec,
+		tv.tv_usec / 1000, vmname? vmname : "UNINITVM", level_strs[level]);
+	if(rc < 0 || rc >= size)
+		memcpy(prefix_str, "acrn-dm:", strlen("acrn-dm:"));
+
+	return;
+}
+
 void output_log(uint8_t level, const char *fmt, ...)
 {
 	va_list args;
 	struct logger_ops **pp_logger, *logger;
+	char prefix_str[PREFIX_MAX_LEN] = " ";
 
 	/* check each logger flag and level, to output */
 	FOR_EACH_LOGGER(pp_logger) {
 		logger = *pp_logger;
 		if (logger->is_enabled() && (level <= logger->get_log_level()) && (logger->output)) {
+			if(prefix_str[0] == ' ')
+				fill_logger_prefix_str(level, prefix_str, PREFIX_MAX_LEN);
 			va_start(args, fmt);
-			logger->output(fmt, args);
+			logger->output(prefix_str, fmt, args);
 			va_end(args);
 		}
 	}
@@ -123,8 +157,9 @@ static int init_console_setting(bool enable, uint8_t log_level)
 	return 0;
 }
 
-static void write_to_console(const char *fmt, va_list args)
+static void write_to_console(const char *prefix_str, const char *fmt, va_list args)
 {
+
 	/* if no need add other info, just output */
 	vprintf(fmt, args);
 }

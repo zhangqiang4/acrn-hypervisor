@@ -14,7 +14,7 @@
 #define LOG_ERROR		1U
 #define LOG_WARNING		2U
 #define LOG_NOTICE		3U
-#define LOG_INFO			4U
+#define LOG_INFO		4U
 #define LOG_DEBUG		5U
 
 #define DEFAULT_LOG_LEVEL         4
@@ -26,7 +26,7 @@ struct logger_ops {
 	uint8_t (*get_log_level)(void);
 	int (*init)(bool enable, uint8_t log_level);
 	void (*deinit)(void);
-	void (*output)(const char *fmt, va_list args);
+	void (*output)(const char *prefix_str, const char *fmt, va_list args);
 };
 
 int init_logger_setting(const char *opt);

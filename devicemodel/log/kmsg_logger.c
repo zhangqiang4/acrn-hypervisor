@@ -67,7 +67,7 @@ static void deinit_kmsg(void)
 	}
 }
 
-static void write_to_kmsg(const char *fmt, va_list args)
+static void write_to_kmsg(const char *prefix_str, const char *fmt, va_list args)
 {
 	char *buf;
 	char kmsg_buf[KMSG_MAX_LEN] = KMSG_PREFIX;
