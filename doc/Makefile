@@ -45,7 +45,6 @@ help:
 # Note that this step starts with an empty doc.log while the others append
 doxy:
 	$(Q)(cat acrn.doxyfile ; echo "OUTPUT_DIRECTORY=$(SOURCEDIR)/doxygen" ) | doxygen - > $(BUILDDIR)/doc.log 2>&1
-	$(Q)find $(SOURCEDIR)/doxygen/xml/* | xargs sed -i 's/simplesect kind="pre"/simplesect kind="preconditions"/'
 
 # Copy all the rst content (and images, etc) into the _build/rst folder
 # including rst content and xsd files from the /misc folder that we'll

@@ -241,8 +241,10 @@ TAB_SIZE               = 4
 # Allow for rst directives and advanced functions e.g. grid tables
 ALIASES  = "rst=\verbatim embed:rst:leading-asterisk"
 ALIASES += "endrst=\endverbatim"
-ALIASES += consistency="\par consistency:^^"
-ALIASES += alignment="\par alignment:^^"
+ALIASES += consistency="\xrefitem consistency \"Consistency\" \"Consistency\""
+ALIASES += alignment="\xrefitem alignment \"Alignment\" \"Alignment\""
+ALIASES += pre="\xrefitem pre \"Pre-conditions\" \"Pre-conditions\""
+ALIASES += post="\xrefitem post \"Post-conditions\" \"Post-conditions\""
 
 # This tag can be used to specify a number of word-keyword mappings (TCL only).
 # A mapping has the form "name=value". For example adding "class=itcl::class"
@@ -800,7 +802,6 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
                           ../hypervisor/include/arch/x86/asm/mmu.h \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
-                          ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
@@ -831,7 +832,17 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../devicemodel/include/vhost.h \
                           ../devicemodel/include/dm.h \
                           ../devicemodel/include/pci_core.h \
-                          ../devicemodel/include/public/hsm_ioctl_defs.h
+                          ../devicemodel/include/public/hsm_ioctl_defs.h \
+                          ../hypervisor/arch/x86/page.c \
+                          ../hypervisor/arch/x86/pagetable.c \
+                          ../hypervisor/include/arch/x86/asm/pgtable.h \
+                          ../hypervisor/include/arch/x86/asm/page.h \
+                          ../hypervisor/include/dm/vrtc.h \
+                          ../hypervisor/dm/vuart.c \
+                          ../hypervisor/dm/vrtc.c \
+                          ../hypervisor/dm/vpci/vpci_bridge.c \
+                          ../hypervisor/include/dm/vuart.h \
+
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -857,6 +868,7 @@ INPUT_ENCODING         = UTF-8
 # *.f, *.for, *.tcl, *.vhd, *.vhdl, *.ucf and *.qsf.
 
 FILE_PATTERNS          = "*.h" \
+                         "*.c" \
                          "*.md"
 
 # The RECURSIVE tag can be used to specify whether or not subdirectories should

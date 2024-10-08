@@ -196,17 +196,15 @@ MMU Initialization
 Address Space Translation
 -------------------------
 
-.. doxygenfunction:: hpa2hva_early
-   :project: Project ACRN
+Refer to the module design specification for more details.
 
-.. doxygenfunction:: hva2hpa_early
-   :project: Project ACRN
+:c:func:`hpa2hva_early`
 
-.. doxygenfunction:: hpa2hva
-   :project: Project ACRN
+:c:func:`hva2hpa_early`
 
-.. doxygenfunction:: hva2hpa
-   :project: Project ACRN
+:c:func:`hpa2hva`
+
+:c:func:`hva2hpa`
 
 
 Hypervisor Memory Virtualization
@@ -360,18 +358,31 @@ the memory virtualization unit.
 Data Structure Design
 =====================
 
-EPT Memory Type Definition:
+EPT Memory Type Definition, refer to the module design specification for more details.
 
-.. doxygengroup:: ept_mem_type
-   :project: Project ACRN
-   :content-only:
+:c:macro:`EPT_MT_SHIFT`
 
-EPT Memory Access Right Definition:
+:c:macro:`EPT_UNCACHED`
 
-.. doxygengroup:: ept_mem_access_right
-   :project: Project ACRN
-   :content-only:
+:c:macro:`EPT_WC`
 
+:c:macro:`EPT_WT`
+
+:c:macro:`EPT_WP`
+
+:c:macro:`EPT_WB`
+
+:c:macro:`EPT_IGNORE_PAT`
+
+EPT Memory Access Right Definition, refer to the module design specification for more details.
+
+:c:macro:`EPT_RD`
+
+:c:macro:`EPT_WR`
+
+:c:macro:`EPT_EXE`
+
+:c:macro:`EPT_RWX`
 
 Interfaces Design
 =================
