@@ -858,3 +858,104 @@ struct pci_vdev_ops pci_ops_virtio_gpio = {
 	.vdev_barread	= virtio_pci_read,
 };
 DEFINE_PCI_DEVTYPE(pci_ops_virtio_gpio);
+
+/* --------------------- gpio backends --------------------- */
+
+#ifdef GPIO_MOCK
+struct gpio_mock_line {
+	struct gpio_line	line;
+	//char			*name;
+	uint8_t			input_value;
+	LIST_ENTRY(gpio_mock_line) list;
+};
+static LIST_HEAD(, gpio_mock_line) mock_lines;
+
+#undef pr_prefix
+#define pr_prefix "virtio-gpio: mock: "
+
+/* -s virtio-gpio,@mock{name1:name2:...} */
+static int gpio_mock_init(struct gpio_line_group *group, char *domain, char *opts)
+{
+	char *vname;
+	struct virtio_gpio *gpio = group->gpio;
+
+	while((vname = strsep(&opts, ":"))) {
+		if (*vname == '\0')
+			continue;
+
+		pr_dbg("%s: add line %s\n", gpio->chipname, vname);
+
+		struct gpio_mock_line *mline = calloc(1, sizeof(*mline));
+		if (!mline) {
+			pr_err("%s: allocation failed\n", gpio->chipname);
+			return -1;
+		}
+		strncpy(mline->line.name, vname, GPIO_MAX_NAME_SIZE-1);
+		STAILQ_INSERT_TAIL(&group->lines, &mline->line, list);
+		LIST_INSERT_HEAD(&mock_lines, mline, list);
+	}
+
+	return 0;
+}
+
+static void gpio_mock_deinit(struct gpio_line_group *group)
+{
+	struct gpio_mock_line *mline;
+	struct gpio_line *line;
+
+	while ((line = STAILQ_FIRST(&group->lines))) {
+		mline = container_of(line, struct gpio_mock_line, line);
+		STAILQ_REMOVE(&group->lines, line, gpio_line, list);
+		LIST_REMOVE(mline, list);
+		free(mline);
+	}
+}
+
+static int gpio_mock_get_value(struct gpio_line *line, uint8_t *value)
+{
+	struct gpio_mock_line *mline = container_of(line, struct gpio_mock_line, line);
+	*value = mline->input_value;
+	return 0;
+}
+
+static struct gpio_backend gpio_mock = {
+	.name = "mock",
+	.match = gpio_backend_match_by_name,
+	.init = gpio_mock_init,
+	.deinit = gpio_mock_deinit,
+	.get_value = gpio_mock_get_value,
+};
+DEFINE_GPIO_BACKEND(gpio_mock);
+
+/* external API */
+struct gpio_mock_line *gpio_mock_line_find(const char *name)
+{
+	struct gpio_mock_line *mline;
+
+	LIST_FOREACH(mline, &mock_lines, list) {
+		if (!strcmp(mline->line.name, name))
+			return mline;
+	}
+	return NULL;
+}
+
+/* external API */
+int gpio_mock_line_set_value(struct gpio_mock_line *mline, uint8_t value)
+{
+	struct gpio_line_state state = mline->line.state;
+	/* Guest may be changing the direction right now */
+	if (state.direction == VIRTIO_GPIO_DIRECTION_OUT)
+		pr_warn("set mock line value for an output line, ignored!\n");
+
+	if (mline->input_value == value)
+		return 0;
+	mline->input_value = value;
+
+	if ((mline->input_value && (state.irq_mode &
+		(VIRTIO_GPIO_IRQ_TYPE_EDGE_RISING | VIRTIO_GPIO_IRQ_TYPE_LEVEL_HIGH))) ||
+		(!mline->input_value && (state.irq_mode &
+		(VIRTIO_GPIO_IRQ_TYPE_EDGE_FALLING | VIRTIO_GPIO_IRQ_TYPE_LEVEL_LOW))))
+		virtio_gpio_raise_irq(&mline->line);
+	return 0;
+}
+#endif	/* GPIO_MOCK */
