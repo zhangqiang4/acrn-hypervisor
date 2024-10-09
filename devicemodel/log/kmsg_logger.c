@@ -71,15 +71,18 @@ static void write_to_kmsg(const char *prefix_str, const char *fmt, va_list args)
 {
 	char *buf;
 	char kmsg_buf[KMSG_MAX_LEN] = KMSG_PREFIX;
-	int len, write_cnt;
+	int len, write_cnt, offset = strlen(KMSG_PREFIX);
 
 	if (kmsg_fd < 0)
 		return;
 
+	strncpy(kmsg_buf + offset, prefix_str, KMSG_MAX_LEN - offset);
+	offset += strlen(prefix_str);
+
 	len = vasprintf(&buf, fmt, args);
 	if (len < 0)
 		return;
-	strncpy(kmsg_buf + strlen(KMSG_PREFIX), buf, KMSG_MAX_LEN - strlen(KMSG_PREFIX));
+	strncpy(kmsg_buf + offset, buf, KMSG_MAX_LEN - offset);
 	kmsg_buf[KMSG_MAX_LEN - 1] = '\0';
 	free(buf);
 
