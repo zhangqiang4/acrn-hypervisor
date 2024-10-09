@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #define GPIO_MOCK
+#define GPIO_PHYSICAL
 
 struct gpio_mock_line;
 #ifdef GPIO_MOCK

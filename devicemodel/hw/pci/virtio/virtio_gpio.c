@@ -959,3 +959,400 @@ int gpio_mock_line_set_value(struct gpio_mock_line *mline, uint8_t value)
 	return 0;
 }
 #endif	/* GPIO_MOCK */
+
+#ifdef GPIO_PHYSICAL
+#undef pr_prefix
+#define pr_prefix "virtio-gpio: phy: "
+
+/* private data of gpio_line_group */
+struct gpio_physical_chip {
+	char		name[GPIO_MAX_NAME_SIZE];
+	struct gpiochip_info chip_info;
+	int		chip_fd;
+	int		req_fd;			/* request fd for lines */
+	struct mevent	*event;			/* poll line events */
+
+	struct gpio_physical_line *phylines;
+	int line_count;
+	struct gpio_line_group *group;
+};
+
+struct gpio_physical_line {
+	struct gpio_line	line;
+	uint16_t		offset;		/* line offset in the physical chip */
+	uint8_t			req_offset;	/* line offset in the batch request */
+	struct gpio_physical_chip *chip;	/* shortcut of line.group->private */
+};
+
+
+static struct gpio_physical_line *gpio_phyline_from_offset(struct gpio_physical_chip *chip,
+		uint32_t offset)
+{
+	struct gpio_line *line;
+	STAILQ_FOREACH(line, &chip->group->lines, list) {
+		struct gpio_physical_line *phyline =
+			container_of(line, struct gpio_physical_line, line);
+		if (phyline->offset == offset)
+			return phyline;
+	}
+	return NULL;
+}
+
+static bool gpio_physical_match(struct gpio_backend *be, const char *name)
+{
+	struct stat st;
+	char path[64] = {0};
+
+	snprintf(path, sizeof(path), "/dev/%s", name);
+	return !stat(path, &st);
+}
+
+static int gpio_physical_parse_opts(struct gpio_physical_chip *chip, char *opts,
+		uint32_t *offsets, char **vnames, int max)
+{
+	char *vname;
+	int cnt = 0;
+
+	struct gpio_v2_line_info *line_info = calloc(chip->chip_info.lines,
+					sizeof(struct gpio_v2_line_info));
+	if (!line_info) {
+		pr_err("failed to allocate memory for physical lines info\n");
+		return -1;
+	}
+
+	for (int i = 0; i < chip->chip_info.lines; i++) {
+		line_info[i].offset = i;
+		if ((ioctl(chip->chip_fd, GPIO_V2_GET_LINEINFO_IOCTL, &line_info[i])) < 0) {
+			pr_err("failed to get info for physical line %d@%s: %s\n",
+					i, chip->name, strerror(errno));
+			cnt = -1;
+			goto err_free;
+		}
+	}
+
+	while ((vname = strsep(&opts, ":"))) {
+		if (cnt >= max) {
+			pr_err("No space for new lines\n");
+			cnt = -1;
+			goto err_free;
+		}
+
+		if (*vname == '\0')
+			continue;
+
+		char *end, *id = strsep(&vname, "=");
+		int offset = strtoul(id, &end, 0);
+		if (*end != '\0') {
+			/* not a valid number, try to match a name */
+			bool line_found = false;
+			int i;
+			for (i = 0; i < chip->chip_info.lines; i++) {
+				if (!strcmp(id, line_info[i].name)) {
+					offset = i;
+					line_found = true;
+				}
+			}
+			if (!line_found) {
+				pr_err("physical line %s@%s wasn't found!\n", id, chip->name);
+				cnt = -1;
+				goto err_free;
+			}
+
+			if (line_info[offset].flags & GPIO_V2_LINE_FLAG_USED) {
+				pr_err("physical pin %s@%s is busy!\n", id, chip->name);
+				cnt = -1;
+				goto err_free;
+			}
+		}
+
+		/* TODO check duplicates, validate offset */
+		offsets[cnt] = offset;
+		vnames[cnt] = vname;
+
+		cnt += 1;
+	}
+
+err_free:
+	free(line_info);
+	return cnt;
+}
+
+static void gpio_physical_line_event(int req_fd, enum ev_type type, void *param)
+{
+	struct gpio_physical_chip *chip = param;
+	struct gpio_v2_line_event event;
+	int rc;
+
+	pr_dbg("line event received\n");
+	rc = read(req_fd, &event, sizeof(event));
+	if (rc <= 0) {
+		/* fd closed ? */
+		pr_err("failed to read event: %s\n", strerror(errno));
+		return;
+	}
+
+	struct gpio_physical_line *phyline = gpio_phyline_from_offset(chip, event.offset);
+	virtio_gpio_raise_irq(&phyline->line);
+}
+
+static int gpio_physical_init(struct gpio_line_group *group, char *chip_name, char *opts)
+{
+	int rc = -1;
+
+	struct gpio_physical_chip *chip = calloc(1, sizeof(struct gpio_physical_chip));
+	if (!chip)
+		return -1;
+	snprintf(chip->name, sizeof(chip->name), "/dev/%s", chip_name);
+	chip->chip_fd = open(chip->name, O_RDWR);
+	if (chip->chip_fd < 0) {
+		pr_err("failed to open %s: %s\n", chip->name, strerror(errno));
+		goto err_free_chip;
+	}
+
+	if ((ioctl(chip->chip_fd, GPIO_GET_CHIPINFO_IOCTL, &chip->chip_info)) < 0) {
+		pr_err("failed to get info of %s: %s\n", chip->name, strerror(errno));
+		goto err_close_chip;
+	}
+	chip->group = group;
+	group->private = chip;
+
+	uint32_t offsets[VIRTIO_GPIO_MAX_LINES];
+	char *vnames[VIRTIO_GPIO_MAX_LINES];
+	int cnt = gpio_physical_parse_opts(chip, opts, offsets, vnames, VIRTIO_GPIO_MAX_LINES);
+	if (cnt <= 0) {
+		pr_err("no enough space for new lines\n");
+		goto err_close_chip;
+	}
+	pr_dbg("chose %d lines from %s (with %d lines)\n", cnt, chip->name, chip->chip_info.lines);
+
+	struct gpio_physical_line *phylines = calloc(cnt, sizeof(*phylines));
+	if (!phylines) {
+		goto err_close_chip;
+	}
+
+	struct gpio_v2_line_request request;
+	memset(&request, 0, sizeof(request));
+	for (int i = 0; i < cnt; i++)
+		request.offsets[i] = offsets[i];
+	strncpy(request.consumer, "acrn-dm", GPIO_MAX_NAME_SIZE);
+	request.config.flags = GPIO_V2_LINE_FLAG_INPUT;		/* safe to put it to input */
+	request.num_lines = cnt;
+	if ((ioctl(chip->chip_fd, GPIO_V2_GET_LINE_IOCTL, &request)) < 0) {
+		pr_err("failed to request %s lines: %s\n", chip->name, strerror(errno));
+		goto err_free_lines;
+	}
+	chip->req_fd = request.fd;
+	chip->event = mevent_add(chip->req_fd, EVF_READ,
+			gpio_physical_line_event, chip, NULL, NULL);
+	if (!chip->event) {
+		pr_err("Failed to add mevent for line event monitor\n");
+		close(chip->req_fd);
+		goto err_free_lines;
+	}
+
+	for (int i = 0; i < cnt; i++) {
+		if (vnames[i])
+			strncpy(phylines[i].line.name, vnames[i],
+					sizeof(phylines[i].line.name) - 1);
+		phylines[i].offset = offsets[i];
+		phylines[i].req_offset = i;
+		phylines[i].chip = chip;
+
+		/* update line info */
+		struct gpio_v2_line_info line_info;
+		memset(&line_info, 0, sizeof(line_info));
+		line_info.offset = offsets[i];
+		if ((ioctl(chip->chip_fd, GPIO_V2_GET_LINEINFO_IOCTL, &line_info)) < 0) {
+			pr_err("failed to update info for %s line %d: %s\n",
+					chip->name, offsets[i], strerror(errno));
+			goto err_unrequest;
+		}
+		//phylines[i].flags = line_info.flags;
+		STAILQ_INSERT_TAIL(&group->lines, &phylines[i].line, list);
+		pr_dbg("added %s physical line %d, request offset %d\n",
+				chip->name, offsets[i], i);
+	}
+	chip->phylines = phylines;
+	chip->line_count = cnt;
+
+	return 0;
+
+err_unrequest:
+	mevent_delete(chip->event);
+	close(chip->req_fd);
+err_free_lines:
+	free(phylines);
+err_close_chip:
+	close(chip->chip_fd);
+err_free_chip:
+	free(chip);
+	return rc;
+}
+
+static void gpio_physical_deinit(struct gpio_line_group *group)
+{
+	struct gpio_physical_chip *chip = group->private;
+	mevent_delete(chip->event);
+	close(chip->req_fd);
+	free(chip->phylines);
+	close(chip->chip_fd);
+	free(chip);
+}
+
+static int gpio_physical_set_value(struct gpio_line *line, uint8_t value)
+{
+	int rc = -1;
+	struct gpio_physical_line *phyline = container_of(line, struct gpio_physical_line, line);
+	struct gpio_v2_line_values line_values = {
+		.mask = BIT(phyline->req_offset),
+		.bits= (value ? BIT(phyline->req_offset) : 0),
+	};
+
+	if ((ioctl(phyline->chip->req_fd, GPIO_V2_LINE_SET_VALUES_IOCTL, &line_values)) < 0) {
+		pr_err("failed to set physical line %d@%s value: %s\n",
+				phyline->offset, phyline->chip->name, strerror(errno));
+		return rc;
+	}
+	pr_dbg("set physical line %d@%s value to %d\n", phyline->offset, phyline->chip->name, value);
+
+	return 0;
+}
+
+static int gpio_physical_get_value(struct gpio_line *line, uint8_t *value)
+{
+	int rc = -1;
+	struct gpio_physical_line *phyline = container_of(line, struct gpio_physical_line, line);
+	struct gpio_v2_line_values line_values = {
+		.mask = BIT(phyline->req_offset),
+		.bits = 0,
+	};
+
+	if ((ioctl(phyline->chip->req_fd, GPIO_V2_LINE_GET_VALUES_IOCTL, &line_values)) < 0) {
+		pr_err("failed to get line %d@%s value: %s\n", phyline->offset,
+				phyline->chip->name, strerror(errno));
+		return rc;
+	}
+	*value = !!(line_values.bits & BIT(phyline->req_offset));
+	pr_dbg("physical line %d@%s value is %d\n", phyline->offset, phyline->chip->name, *value);
+
+	return 0;
+}
+
+static int gpio_physical_set_direction(struct gpio_line *line, uint8_t direction)
+{
+	int rc = -1;
+	struct gpio_physical_line *phyline = container_of(line, struct gpio_physical_line, line);
+	struct gpio_v2_line_config config;
+
+	memset(&config, 0, sizeof(config));
+	switch (direction) {
+	case VIRTIO_GPIO_DIRECTION_NONE:
+		/* spec says: direction none deactives the line, It's invalid to clear both IN and
+		 * OUT flags. So fallthrough to IN here */
+		//fallthrough;
+	case VIRTIO_GPIO_DIRECTION_IN:
+		config.num_attrs = 1;
+		config.attrs[0].mask = BIT(phyline->req_offset);
+		config.attrs[0].attr.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
+		config.attrs[0].attr.flags = GPIO_V2_LINE_FLAG_INPUT;
+		break;
+	case VIRTIO_GPIO_DIRECTION_OUT:
+		config.num_attrs = 2;
+		config.attrs[0].mask = BIT(phyline->req_offset);
+		config.attrs[0].attr.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
+		config.attrs[0].attr.flags = GPIO_V2_LINE_FLAG_OUTPUT;
+		config.attrs[1].mask = BIT(phyline->req_offset);
+		config.attrs[1].attr.id = GPIO_V2_LINE_ATTR_ID_OUTPUT_VALUES;
+		config.attrs[1].attr.values = ((uint64_t)(!!line->state.value) << phyline->req_offset);
+		pr_dbg("mask: 0x%llx, attr value: 0x%llx\n",
+				config.attrs[1].mask, config.attrs[1].attr.values);
+		break;
+	default:
+		return rc;
+	}
+
+	if ((ioctl(phyline->chip->req_fd, GPIO_V2_LINE_SET_CONFIG_IOCTL, &config)) < 0) {
+		pr_err("failed to config physical line %d@%s: %s\n", phyline->offset,
+				phyline->chip->name, strerror(errno));
+		return rc;
+	}
+	pr_dbg("config physical line %d@%s\n", phyline->offset, phyline->chip->name);
+
+	return 0;
+}
+
+static int gpio_physical_get_direction(struct gpio_line *line, uint8_t *direction)
+{
+	int rc = -1;;
+	struct gpio_physical_line *phyline = container_of(line, struct gpio_physical_line, line);
+	struct gpio_v2_line_info line_info;
+
+	memset(&line_info, 0, sizeof(line_info));
+	line_info.offset = phyline->offset;
+	if ((ioctl(phyline->chip->chip_fd, GPIO_V2_GET_LINEINFO_IOCTL, &line_info)) < 0) {
+		pr_err("failed to get info for physical line %d@%s: %s\n",
+				phyline->offset, phyline->chip->name, strerror(errno));
+		return rc;
+	}
+	*direction = (line_info.flags & GPIO_V2_LINE_FLAG_INPUT) ? VIRTIO_GPIO_DIRECTION_IN :
+		(line_info.flags & GPIO_V2_LINE_FLAG_OUTPUT ? VIRTIO_GPIO_DIRECTION_OUT :
+		 VIRTIO_GPIO_DIRECTION_NONE);
+
+	return 0;
+}
+
+static int gpio_physical_set_irq_mode(struct gpio_line *line, uint32_t mode)
+{
+	int rc = -1;
+	struct gpio_v2_line_config config;
+	struct gpio_physical_line *phyline = container_of(line, struct gpio_physical_line, line);
+
+	memset(&config, 0, sizeof(config));
+	config.num_attrs = 1;
+	config.attrs[0].mask = BIT(phyline->req_offset);
+	config.attrs[0].attr.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
+	config.attrs[0].attr.flags = GPIO_V2_LINE_FLAG_INPUT;
+	switch (mode) {
+	case VIRTIO_GPIO_IRQ_TYPE_NONE:
+		break;
+	case VIRTIO_GPIO_IRQ_TYPE_EDGE_RISING:
+	case VIRTIO_GPIO_IRQ_TYPE_LEVEL_HIGH:
+		config.attrs[0].attr.flags |= GPIO_V2_LINE_FLAG_EDGE_RISING;
+		break;
+	case VIRTIO_GPIO_IRQ_TYPE_EDGE_FALLING:
+	case VIRTIO_GPIO_IRQ_TYPE_LEVEL_LOW:
+		config.attrs[0].attr.flags |= GPIO_V2_LINE_FLAG_EDGE_FALLING;
+		break;
+	case VIRTIO_GPIO_IRQ_TYPE_EDGE_BOTH:
+		config.attrs[0].attr.flags |= (GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING);
+		break;
+	default:
+		pr_err("Invalid irq mode %d\n", mode);
+		return rc;
+		break;
+	}
+
+	if ((ioctl(phyline->chip->req_fd, GPIO_V2_LINE_SET_CONFIG_IOCTL, &config)) < 0) {
+		pr_err("failed to set physical line %d@%s flags to 0x%llx: %s\n", phyline->offset,
+				phyline->chip->name, config.attrs[0].attr.flags, strerror(errno));
+		return rc;
+	}
+	pr_dbg("set physical line %d@%s flags to 0x%llx\n", phyline->offset,
+				phyline->chip->name, config.attrs[0].attr.flags);
+
+	return 0;
+}
+
+static struct gpio_backend gpio_physical = {
+	.name = "physical",
+	.match = gpio_physical_match,
+	.init = gpio_physical_init,
+	.deinit = gpio_physical_deinit,
+	.get_direction = gpio_physical_get_direction,
+	.set_direction = gpio_physical_set_direction,
+	.get_value = gpio_physical_get_value,
+	.set_value = gpio_physical_set_value,
+	.set_irq_mode = gpio_physical_set_irq_mode,
+};
+DEFINE_GPIO_BACKEND(gpio_physical);
+#endif /* GPIO_PHYSICAL */
