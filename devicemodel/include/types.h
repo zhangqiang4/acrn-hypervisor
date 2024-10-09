@@ -23,6 +23,8 @@ typedef uint64_t cap_ioctl_t;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
+#define BIT(x) (1 << (x))
+
 #define container_of(ptr, type, member) ({                   \
 	const typeof(((type *)0)->member) * __mptr = (ptr);  \
 	(type *)((char *)__mptr - (offsetof(type, member))); \

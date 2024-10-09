@@ -41,10 +41,6 @@
 
 #include "mei.h"
 
-#ifndef BIT
-#define BIT(x) (1 << (x))
-#endif
-
 #define DEV_NAME_SIZE sizeof(((struct dirent *)0)->d_name)
 
 #ifndef UUID_STR_LEN
