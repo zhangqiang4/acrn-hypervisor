@@ -16,7 +16,6 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <dirent.h>
-#include <time.h>
 #include <pthread.h>
 
 #include "dm.h"
@@ -146,10 +145,6 @@ static void write_to_disk(const char *prefix_str, const char *fmt, va_list args)
 	char *buf;
 	int len;
 	int write_cnt;
-	struct timespec times = {0, 0};
-	struct tm *lt;
-	time_t tt;
-
 
 	if ((disk_file == NULL) && disk_log_enabled) {
 		/**
@@ -167,17 +162,11 @@ static void write_to_disk(const char *prefix_str, const char *fmt, va_list args)
 	if (len < 0)
 		return;
 
-	time(&tt);
-	lt = localtime(&tt);
-	clock_gettime(CLOCK_MONOTONIC, &times);
-
-	write_cnt = fprintf(disk_file, "[%4d-%02d-%02d %02d:%02d:%02d][%5lu.%06lu] %s",
-		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec,
-		times.tv_sec, times.tv_nsec / 1000, buf);
+	write_cnt = fprintf(disk_file, "%s %s", prefix_str, buf);
 	fflush(disk_file);
 
 	if (write_cnt < 0) {
-		printf(DISK_PREFIX"write disk failed");
+		printf(DISK_PREFIX"write disk failed\n");
 		free(buf);
 		fclose(disk_file);
 		disk_file = NULL;
