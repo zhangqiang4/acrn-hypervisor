@@ -159,9 +159,14 @@ static int init_console_setting(bool enable, uint8_t log_level)
 
 static void write_to_console(const char *prefix_str, const char *fmt, va_list args)
 {
+	int len;
+	char *buf;
 
-	/* if no need add other info, just output */
-	vprintf(fmt, args);
+	len = vasprintf(&buf, fmt, args);
+	if (len < 0)
+		return;
+	printf("%s %s", prefix_str, buf);
+	free(buf);
 }
 
 static struct logger_ops logger_console = {
