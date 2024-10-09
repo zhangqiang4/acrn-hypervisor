@@ -668,13 +668,9 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
  */
 void deinit_vdev_pt(struct pci_vdev *vdev) {
 
-	/* Check if the vdev is an unassigned SR-IOV VF device */
-	if ((vdev->phyfun != NULL) && (vdev->phyfun->vpci == vdev->vpci)) {
-		uint32_t bar_idx;
+	uint32_t bar_idx;
 
-		/* Delete VF MMIO from EPT table since the VF physical device has gone */
-		for (bar_idx = 0U; bar_idx < vdev->nr_bars; bar_idx++) {
-			vdev_pt_unmap_mem_vbar(vdev, bar_idx);
-		}
+	for (bar_idx = 0U; bar_idx < vdev->nr_bars; bar_idx++) {
+		vdev_pt_unmap_mem_vbar(vdev, bar_idx);
 	}
 }
