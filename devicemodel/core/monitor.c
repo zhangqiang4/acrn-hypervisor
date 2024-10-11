@@ -26,6 +26,7 @@
 #include "log.h"
 #include "pci_core.h"
 #include "virtio_be.h"
+#include "gpio_dm.h"
 
 #define INTR_STORM_MONITOR_PERIOD	10 /* 10 seconds */
 #define INTR_STORM_THRESHOLD	100000 /* 10K times per second */
@@ -486,6 +487,36 @@ static void handle_del_pci(struct mngr_msg *msg, int client_fd, void *param)
 	mngr_send_msg(client_fd, &ack, NULL, ACK_TIMEOUT);
 }
 
+static void handle_set_gpio(struct mngr_msg *msg, int client_fd, void *param)
+{
+	struct mngr_msg ack;
+	int ret = 0;
+	(void)param;
+
+	ack.magic = MNGR_MSG_MAGIC;
+	ack.msgid = msg->msgid;
+	ack.timestamp = msg->timestamp;
+
+	char *name, *value;
+	value = msg->data.devargs;
+	name = strsep(&value, "=");
+	if (!name || !value || (strcmp(value, "1") && strcmp(value, "0")))
+		ret = -1;
+	else {
+		uint8_t v = strcmp(value, "0");
+		struct gpio_mock_line *line = gpio_mock_line_find(name);
+		if (!line)
+			ret = -1;
+		else {
+			ret = gpio_mock_line_set_value(line, v);
+		}
+	}
+
+	ack.data.err = ret;
+
+	mngr_send_msg(client_fd, &ack, NULL, ACK_TIMEOUT);
+}
+
 static struct monitor_vm_ops pmc_ops = {
 	.stop       = NULL,
 	.resume     = vm_monitor_resume,
@@ -528,6 +559,7 @@ int monitor_init(struct vmctx *ctx)
 	ret += mngr_add_handler(monitor_fd, DM_BLKRESCAN, handle_blkrescan, NULL);
 	ret += mngr_add_handler(monitor_fd, DM_ADD_PCI, handle_add_pci, ctx);
 	ret += mngr_add_handler(monitor_fd, DM_DEL_PCI, handle_del_pci, ctx);
+	ret += mngr_add_handler(monitor_fd, DM_SET_GPIO, handle_set_gpio, ctx);
 
 	if (ret) {
 		pr_err("%s %d\r\n", __func__, __LINE__);

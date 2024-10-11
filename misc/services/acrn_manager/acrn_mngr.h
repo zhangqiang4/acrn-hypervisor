@@ -98,6 +98,7 @@ enum dm_msgid {
 	DM_BLKRESCAN,		/* Rescan virtio-blk device for any changes in UOS */
 	DM_ADD_PCI,
 	DM_DEL_PCI,
+	DM_SET_GPIO,
 	DM_MAX,
 };
 
