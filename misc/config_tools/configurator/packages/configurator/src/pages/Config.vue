@@ -154,16 +154,18 @@ export default {
   },
   methods: {
     updateSchema(i){
-      let current_selected_pcis=this.scenario.vm[i]['pci_devs']['pci_dev']
-      let total_pcis=this.schemas.PreLaunchedVM.BasicConfigType.definitions.PCIDevsConfiguration.properties.pci_dev.items
-      console.log('before:',total_pcis.enum.length)
-      let s=new Set(total_pcis.enum)
-      current_selected_pcis.map(e=>{
-        s.delete(e)
-      })
-      let to_updated=Array.from(s).sort()
-      total_pcis.enum=total_pcis.enumNames=to_updated
-      console.log('after:',total_pcis.enum.length)
+        if('pci_devs' in this.scenario.vm[i]){
+          let current_selected_pcis=this.scenario.vm[i]['pci_devs']['pci_dev']
+          let total_pcis=this.schemas.PreLaunchedVM.BasicConfigType.definitions.PCIDevsConfiguration.properties.pci_dev.items
+          console.log('before:',total_pcis.enum.length)
+          let s=new Set(total_pcis.enum)
+          current_selected_pcis.map(e=>{
+            s.delete(e)
+          })
+          let to_updated=Array.from(s).sort()
+          total_pcis.enum=total_pcis.enumNames=to_updated
+          console.log('after:',total_pcis.enum.length)
+        }
     },
     back() {
       this.$router.back()
