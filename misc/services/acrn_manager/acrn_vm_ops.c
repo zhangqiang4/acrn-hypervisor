@@ -468,3 +468,23 @@ int del_pci_dev(const char *vmname, char *devargs)
 
 	return ack.data.err;
 }
+
+int set_gpio(const char *vmname, char *devargs)
+{
+	struct mngr_msg req;
+	struct mngr_msg ack;
+
+	req.magic = MNGR_MSG_MAGIC;
+	req.msgid = DM_SET_GPIO;
+	req.timestamp = time(NULL);
+	strncpy(req.data.devargs, devargs, PARAM_LEN - 1);
+	req.data.devargs[PARAM_LEN - 1] = '\0';
+
+	send_msg(vmname, &req, &ack);
+
+	if (ack.data.err) {
+		printf("Unable to set gpio value. errno(%d)\n", ack.data.err);
+	}
+
+	return ack.data.err;
+}

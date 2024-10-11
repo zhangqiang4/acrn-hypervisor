@@ -36,6 +36,7 @@
 #define BLKRESCAN_DESC  "Rescan virtio-blk device attached to a virtual machine"
 #define ADD_PCI_DESC    "Hot add a PCIe device to a virtual machine"
 #define DEL_PCI_DESC    "Hot remove a PCIe device from a virtual machine"
+#define SET_GPIO_DESC	"Set input value for a mock gpio line"
 
 #define VM_NAME (1)
 #define CMD_ARGS (2)
@@ -470,6 +471,26 @@ static int acrnctl_do_del_pci(int argc , char *argv[])
 	return 0;
 }
 
+static int acrnctl_do_set_gpio(int argc , char *argv[])
+{
+	struct vmmngr_struct *s;
+
+	s = vmmngr_find(argv[VM_NAME]);
+	if (!s) {
+		printf("can't find %s\n", argv[VM_NAME]);
+		return -1;
+	}
+	if (s->state != VM_STARTED) {
+		printf("%s is in %s state but should be in %s state\n",
+			argv[VM_NAME], state_str[s->state], state_str[VM_STARTED]);
+		return -1;
+	}
+
+	set_gpio(argv[VM_NAME], argv[CMD_ARGS]);
+
+	return 0;
+}
+
 static int acrnctl_do_stop(int argc, char *argv[])
 {
 	struct vmmngr_struct *s;
@@ -708,6 +729,19 @@ static int valid_del_pci_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
 	return 0;
 }
 
+static int valid_set_gpio_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
+{
+	char df_opt[] = "VM_NAME gpio=value";
+
+	if (argc != 3 || !strcmp(argv[1], "help")) {
+		printf("acrnctl %s %s\n", cmd->cmd, df_opt);
+		return -1;
+	}
+
+	return 0;
+}
+
+
 static int valid_add_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
 {
 	char df_opt[32] = "launch_scripts options";
@@ -752,6 +786,7 @@ struct acrnctl_cmd acmds[] = {
 	ACMD("blkrescan", acrnctl_do_blkrescan, BLKRESCAN_DESC, valid_blkrescan_args),
 	ACMD("add_pci", acrnctl_do_add_pci, ADD_PCI_DESC, valid_add_pci_args),
 	ACMD("del_pci", acrnctl_do_del_pci, DEL_PCI_DESC, valid_del_pci_args),
+	ACMD("set_gpio", acrnctl_do_set_gpio, SET_GPIO_DESC, valid_set_gpio_args),
 };
 
 #define NCMD	(sizeof(acmds)/sizeof(struct acrnctl_cmd))
