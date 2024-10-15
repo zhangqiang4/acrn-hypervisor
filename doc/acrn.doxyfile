@@ -797,8 +797,10 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  =  custom-doxygen/mainpage.md \
+                          ../hypervisor/arch/x86/e820.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
+                          ../hypervisor/include/arch/x86/asm/e820.h \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
                           ../hypervisor/include/arch/x86/asm/mmu.h \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
