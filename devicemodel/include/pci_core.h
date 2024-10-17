@@ -138,16 +138,11 @@ enum lintr_stat {
 	PENDING
 };
 
-enum vdev_flag_bit {
-	MUST_HAVE
-};
-
 struct funcinfo {
 	char	*fi_name;
 	char	*fi_param;
 	char	*fi_param_saved; /* save for reboot */
 	struct pci_vdev *fi_devi;
-	uint32_t	vdev_flag;
 };
 
 

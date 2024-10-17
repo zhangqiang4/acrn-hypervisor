@@ -35,7 +35,6 @@
 #include <strings.h>
 #include <assert.h>
 #include <stdbool.h>
-#include <ctype.h>
 
 #include "atomic.h"
 #include "dm.h"
@@ -230,13 +229,12 @@ is_pt_pci(struct pci_vdev *dev)
 /*
  * Slot options are in the form:
  *
- *  <bus>:<slot>:<func>,<emul>[dev_flag,<config>]
- *  <slot>[:<func>],<emul>[<dev_flag>,<config>]
+ *  <bus>:<slot>:<func>,<emul>[,<config>]
+ *  <slot>[:<func>],<emul>[,<config>]
  *
  *  slot is 0..31
  *  func is 0..7
  *  emul is a string describing the type of PCI device e.g. virtio-net
- *  dev_flag is a an optional uint32_t describing the attr of PCI device
  *  config is an optional string, depending on the device, that can be
  *  used for configuration.
  *   Examples are:
@@ -283,27 +281,12 @@ parse_bdf(char *s, int *bus, int *dev, int *func, int base)
 }
 
 int
-parse_emul_flag(char *s, uint32_t *flag)
-{
-	int ret = 0;
-
-	strsep(&s, "=");
-	if (s && isdigit(s[0])) {
-		ret = dm_strtoui(s, &s, 10, flag);
-	} else {
-		ret = -EINVAL;
-	}
-	return ret;
-}
-
-int
 pci_parse_slot(char *opt)
 {
 	struct businfo *bi;
 	struct slotinfo *si;
-	char *emul, *config, *str, *cp, *emul_flag = NULL, *b = NULL;
+	char *emul, *config, *str, *cp, *b = NULL;
 	int error, bnum, snum, fnum;
-	uint32_t flag = 0;
 
 	error = -1;
 	str = strdup(opt);
@@ -317,9 +300,6 @@ pci_parse_slot(char *opt)
 	str = strsep(&cp, ",");
 	if (cp) {
 		emul = strsep(&cp, ",");
-		/* default not set extra flag for device */
-		if (cp && (strncmp("dev_flag", cp, 8) == 0))
-			emul_flag = strsep(&cp, ",");
 		/* for boot device */
 		if (cp && *cp == 'b' && *(cp+1) == ',')
 			b = strsep(&cp, ",");
@@ -368,11 +348,6 @@ pci_parse_slot(char *opt)
 			snum, fnum, emul);
 		goto done;
 	}
-
-	if (parse_emul_flag(emul_flag, &flag) != 0)
-		si->si_funcs[fnum].vdev_flag = 0;
-	else
-		si->si_funcs[fnum].vdev_flag = flag;
 
 	error = 0;
 	si->si_funcs[fnum].fi_name = emul;
@@ -1116,7 +1091,6 @@ pci_emul_deinit(struct vmctx *ctx, struct pci_vdev_ops *ops, int bus, int slot,
 		pci_emul_free_bars(fi->fi_devi);
 		pci_emul_free_msixcap(fi->fi_devi);
 		free(fi->fi_devi);
-		fi->fi_devi = NULL;
 	}
 }
 
@@ -1906,11 +1880,8 @@ init_pci(struct vmctx *ctx)
 					pr_notice("pci init %s\r\n", fi->fi_name);
 					error = pci_emul_init(ctx, ops, bus, slot, func, fi);
 					if (error) {
-						pr_err("pci slot[%d] %s init failed\n", slot, fi->fi_name);
-						if (fi->vdev_flag & (1 << MUST_HAVE))
-							goto pci_emul_init_fail;
-						else
-							continue;
+						pr_err("pci %s init failed\n", fi->fi_name);
+						goto pci_emul_init_fail;
 					}
 					success_cnt[i]++;
 				}
@@ -2056,8 +2027,7 @@ pci_emul_init_fail:
 				si = &bi->slotinfo[slot];
 				for (func = 0; func < MAXFUNCS; func++) {
 					fi = &si->si_funcs[func];
-					/* use this fi->fi_devi == NULL to determine whether device_init is successful */
-					if (fi->fi_name == NULL || fi->fi_devi == NULL)
+					if (fi->fi_name == NULL)
 						continue;
 					if (success_cnt[i]-- <= 0)
 						break;
