@@ -11,7 +11,7 @@
 
 # Default/global reviewers (if not overridden later)
 *                                        @ywan170 @NanlinXie
-/hypervisor/                             @dongyaozu @lifeix @junjiemao1
+/hypervisor/                             @dongyaozu @lifeix @yfliuuu
 /devicemodel/                            @ywan170 @chejianj
 /doc/                                    @NanlinXie @qianouyang
 /misc/                                   @jsun26intel @NanlinXie
