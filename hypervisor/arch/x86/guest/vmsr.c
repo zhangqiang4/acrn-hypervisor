@@ -91,6 +91,10 @@ static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	MSR_IA32_THERM_STATUS,
 	MSR_IA32_PACKAGE_THERM_INTERRUPT,
 	MSR_IA32_PACKAGE_THERM_STATUS,
+
+	/* If CPUID.(EAX=07H, ECX=0):EDX[29]=1 */
+	MSR_IA32_XAPIC_DIS_STATUS,
+	MSR_IA32_ARCH_CAPABILITIES,
 };
 
 static const uint32_t mtrr_msrs[] = {
@@ -824,6 +828,20 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 			v = 0UL;
 			pr_warn("%s(): vm%d read MSR_PLATFORM_INFO", __func__, vcpu->vm->vm_id);
 		}
+		break;
+	}
+	case MSR_IA32_XAPIC_DIS_STATUS:
+	{
+		v = IA32_LEGACY_XAPIC_DISABLED;
+		break;
+	}
+	case MSR_IA32_ARCH_CAPABILITIES:
+	{
+		if (pcpu_has_cap(X86_FEATURE_ARCH_CAP)) {
+			v =  msr_read(MSR_IA32_ARCH_CAPABILITIES);
+		}
+		/* always emulate the IA32_XAPIC_DISABLE_STATUS MSR exists */
+		v |= IA32_ARCH_CAP_XAPIC_DIS_STATUS;
 		break;
 	}
 	default:

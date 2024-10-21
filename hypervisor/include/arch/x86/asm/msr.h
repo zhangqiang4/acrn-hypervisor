@@ -33,6 +33,7 @@
 #define MSR_IA32_SGXLEPUBKEYHASH3		0x0000008FU
 #define MSR_IA32_SMM_MONITOR_CTL		0x0000009BU
 #define MSR_IA32_SMBASE				0x0000009EU
+#define MSR_IA32_XAPIC_DIS_STATUS		0x000000BDU
 #define MSR_IA32_PMC0				0x000000C1U
 #define MSR_IA32_PMC1				0x000000C2U
 #define MSR_IA32_PMC2				0x000000C3U
@@ -666,6 +667,9 @@ void update_msr_bitmap_x2apic_passthru(struct acrn_vcpu *vcpu);
 #define SPEC_RRSBA_DIS_S			(1U << 6U)
 #define PRED_SET_IBPB				(1U << 0U)
 
+/* LEGACY_XAPIC_DISABLED */
+#define IA32_LEGACY_XAPIC_DISABLED		(1U << 0U)
+
 /* IA32 ARCH Capabilities bit */
 #define IA32_ARCH_CAP_RDCL_NO			(1UL << 0U)
 #define IA32_ARCH_CAP_IBRS_ALL			(1UL << 1U)
@@ -675,6 +679,7 @@ void update_msr_bitmap_x2apic_passthru(struct acrn_vcpu *vcpu);
 #define IA32_ARCH_CAP_MDS_NO			(1UL << 5U)
 #define IA32_ARCH_CAP_IF_PSCHANGE_MC_NO		(1UL << 6U)
 #define IA32_ARCH_CAP_RESTRICTED_RSBA		(1UL << 19U)
+#define IA32_ARCH_CAP_XAPIC_DIS_STATUS		(1UL << 21U)
 
 /* Flush L1 D-cache */
 #define IA32_L1D_FLUSH				(1UL << 0U)

@@ -317,6 +317,8 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		entry.ebx |= CPUID_EBX_SGX;
 	}
 
+	entry.edx |= CPUID_EDX_ARCH_CAP;
+
 	entry.leaf = CPUID_EXTEND_FEATURE;
 	entry.subleaf = 0U;
 	entry.flags = CPUID_CHECK_SUBLEAF;
