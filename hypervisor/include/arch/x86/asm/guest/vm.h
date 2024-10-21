@@ -18,7 +18,6 @@
 #include <asm/pgtable.h>
 #include <asm/guest/vcpu.h>
 #include <vioapic.h>
-#include <vpic.h>
 #include <asm/guest/vmx_io.h>
 #include <vuart.h>
 #include <vrtc.h>
@@ -102,7 +101,6 @@ struct vm_arch {
 	struct pgtable ept_pgtable;
 
 	struct acrn_vioapics vioapics;	/* Virtual IOAPIC/s */
-	struct acrn_vpic vpic;      /* Virtual PIC */
 	enum vm_vlapic_mode vlapic_mode; /* Represents vLAPIC mode across vCPUs*/
 
 	/*
@@ -136,7 +134,6 @@ struct acrn_vm {
 	spinlock_t asyncio_lock; /* Spin-lock used to protect asyncio add/remove for a VM */
 	spinlock_t vm_event_lock;
 
-	enum vpic_wire_mode wire_mode;
 	struct iommu_domain *iommu;	/* iommu domain of this VM */
 	/* vm_state_lock used to protect vm/vcpu state transition,
 	 * the initialization depends on the clear BSS section

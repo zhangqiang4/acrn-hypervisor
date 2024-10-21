@@ -422,22 +422,11 @@ int32_t hcall_create_vcpu(__unused struct acrn_vcpu *vcpu, __unused struct acrn_
 int32_t hcall_set_irqline(__unused struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 	__unused uint64_t param1, uint64_t param2)
 {
-	uint32_t irq_pic;
 	int32_t ret = -1;
 	struct acrn_irqline_ops *ops = (struct acrn_irqline_ops *)&param2;
 
 	if (is_severity_pass(target_vm->vm_id) && !is_poweroff_vm(target_vm)) {
 		if (ops->gsi < get_vm_gsicount(target_vm)) {
-			if (ops->gsi < vpic_pincount()) {
-				/*
-				 * IRQ line for 8254 timer is connected to
-				 * I/O APIC pin #2 but PIC pin #0,route GSI
-				 * number #2 to PIC IRQ #0.
-				 */
-				irq_pic = (ops->gsi == 2U) ? 0U : ops->gsi;
-				vpic_set_irqline(vm_pic(target_vm), irq_pic, ops->op);
-			}
-
 			/* handle IOAPIC irqline */
 			vioapic_set_irqline_lock(target_vm, ops->gsi, ops->op);
 			ret = 0;
@@ -993,14 +982,17 @@ int32_t hcall_set_ptdev_intr_info(struct acrn_vcpu *vcpu, struct acrn_vm *target
 				 * phys_pin to phys_gsi
 				 */
 				if ((vdev != NULL) && (vdev->pdev->bdf.value == irq.phys_bdf)) {
-					if ((((!irq.intx.pic_pin) && (irq.intx.virt_pin < get_vm_gsicount(target_vm)))
-						|| ((irq.intx.pic_pin) && (irq.intx.virt_pin < vpic_pincount())))
-							&& is_gsi_valid(irq.intx.phys_pin)) {
+					if ((!irq.intx.pic_pin) &&
+							(irq.intx.virt_pin < get_vm_gsicount(target_vm)) &&
+							is_gsi_valid(irq.intx.phys_pin)) {
 						ptirq_remove_intx_remapping(get_service_vm(), irq.intx.phys_pin, false, true);
 						ret = ptirq_add_intx_remapping(target_vm, irq.intx.virt_pin,
 								irq.intx.phys_pin, irq.intx.pic_pin);
 					} else {
 						pr_err("%s: Invalid phys pin or virt pin\n", __func__);
+						pr_err("%s: Invalid %s virt pin %d, %s gsi\n", __func__,
+							irq.intx.pic_pin ? "PIC" : "IOAPIC", irq.intx.virt_pin,
+							is_gsi_valid(irq.intx.phys_pin) ? "valid" : "invalid");
 					}
 				}
 			} else {
@@ -1045,12 +1037,12 @@ int32_t hcall_reset_ptdev_intr_info(struct acrn_vcpu *vcpu, struct acrn_vm *targ
 				 * phys_pin to phys_gsi
 				 */
 				if ((vdev != NULL) && (vdev->pdev->bdf.value == irq.phys_bdf)) {
-					if (((!irq.intx.pic_pin) && (irq.intx.virt_pin < get_vm_gsicount(target_vm))) ||
-						((irq.intx.pic_pin) && (irq.intx.virt_pin < vpic_pincount()))) {
+					if ((!irq.intx.pic_pin) && (irq.intx.virt_pin < get_vm_gsicount(target_vm))) {
 						ptirq_remove_intx_remapping(target_vm, irq.intx.virt_pin, irq.intx.pic_pin, false);
 						ret = 0;
 					} else {
-						pr_err("%s: Invalid virt pin\n", __func__);
+						pr_err("%s: Invalid %s virt pin %d\n", __func__,
+							irq.intx.pic_pin ? "PIC" : "IOAPIC", irq.intx.virt_pin);
 					}
 				}
 			} else {

@@ -35,15 +35,6 @@ struct acrn_vm;
 int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32_t err_code_arg);
 
 /**
- * @brief Inject external interrupt to guest.
- *
- * @param[in] vcpu Pointer to vCPU.
- *
- * @pre vcpu != NULL
- */
-void vcpu_inject_extint(struct acrn_vcpu *vcpu);
-
-/**
  * @brief Inject NMI to guest.
  *
  * @param[in] vcpu Pointer to vCPU.

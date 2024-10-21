@@ -14,7 +14,6 @@
 
 enum intx_ctlr {
 	INTX_CTLR_IOAPIC	= 0U,
-	INTX_CTLR_PIC
 };
 
 #define PTDEV_INTR_MSI		(1U << 0U)
@@ -50,7 +49,7 @@ union source_id {
 		uint32_t reserved;
 	} msi_id;
 	/*
-	 * ctlr indicates if the source of interrupt is IO-APIC or PIC
+	 * ctlr indicates the source of interrupt controller, now it is IO-APIC
 	 * pin indicates the pin number of interrupt controller determined by ctlr
 	 */
 	struct {

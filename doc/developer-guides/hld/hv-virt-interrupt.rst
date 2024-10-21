@@ -7,13 +7,13 @@ This section introduces the ACRN guest virtual interrupt
 management, which includes:
 
 - vCPU request for virtual interrupt kickoff
-- vPIC, vIOAPIC, and vLAPIC for virtual interrupt injection interfaces
+- vIOAPIC, and vLAPIC for virtual interrupt injection interfaces
 - physical-to-virtual interrupt mapping for a passthrough device
 - the process of VMX interrupt and exception injection
 
 A standard VM never owns any physical interrupts. All interrupts received by the
 guest OS come from a virtual interrupt injected by vLAPIC, vIOAPIC, or
-vPIC. Such virtual interrupts are triggered either from a passthrough
+Such virtual interrupts are triggered either from a passthrough
 device or from I/O mediators in the Service VM via hypercalls. The
 :ref:`interrupt-remapping` section describes how the hypervisor manages
 the mapping between physical and virtual interrupts for passthrough
@@ -23,21 +23,8 @@ in VMX root mode. While in VMX non-root mode, physical interrupts are
 delivered to the RTVM directly.
 
 Devices are emulated inside the Service VM Device Model, i.e.,
-``acrn-dm``. However, for performance consideration, vLAPIC, vIOAPIC, and vPIC
+``acrn-dm``. However, for performance consideration, vLAPIC, vIOAPIC
 are emulated inside the hypervisor directly.
-
-From the guest OS point of view, vPIC is Virtual Wire Mode via vIOAPIC. The
-symmetric I/O Mode is shown in :numref:`pending-virt-interrupt` later in
-this section.
-
-The following command-line options to a Linux guest affect whether it uses PIC
-or IOAPIC:
-
--  **Kernel boot parameter with vPIC**: Add ``maxcpu=0``. The guest OS will use
-   PIC.
--  **Kernel boot parameter with vIOAPIC**: Add ``maxcpu=1`` (as long as not
-   "0"). The guest OS will use IOAPIC and keep IOAPIC pin 2 as the source of
-   PIC.
 
 .. _vcpu-request-interrupt-injection:
 
@@ -164,34 +151,6 @@ vIOAPIC triggers a request for a vLAPIC event by calling vLAPIC APIs.
 .. doxygenfunction:: vioapic_set_irqline_nolock
   :project: Project ACRN
 
-Virtual PIC
-***********
-
-vPIC is required for TSC calculation. Normally the guest OS boots with
-vIOAPIC and vPIC as the source of external interrupts. On every
-VM Exit, the hypervisor checks for pending external PIC interrupts.
-Usage of vPIC APIs is similar to that of vIOAPIC.
-
-ACRN hypervisor emulates a vPIC for each VM based on I/O range 0x20~0x21,
-0xa0~0xa1, and 0x4d0~0x4d1.
-
-If an interrupt source from vPIC needs to inject an interrupt, the
-following APIs need be called, which will finally make a request for
-``ACRN_REQUEST_EXTINT`` or ``ACRN_REQUEST_EVENT``:
-
-.. doxygenfunction:: vpic_set_irqline
-  :project: Project ACRN
-
-The following APIs are used to query the vector that needs to be injected and
-ACK the service (move the interrupt from request service - IRR to in
-service - ISR):
-
-.. doxygenfunction:: vpic_pending_intr
-  :project: Project ACRN
-
-.. doxygenfunction:: vpic_intr_accepted
-  :project: Project ACRN
-
 Virtual Exception
 *****************
 
@@ -224,10 +183,7 @@ ACRN hypervisor uses the ``vcpu_inject_gp`` and ``vcpu_inject_pf`` functions to
 queue an exception request. The hypervisor follows `Intel® 64 and IA-32 Architectures Software Developer's Manual <https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html>`__, Volume 3, Section 6.15, Table 6-5, to
 generate a double fault if the condition is met.
 
-ACRN hypervisor can inject ``extint`` and ``nmi`` using similar vCPU APIs:
-
-.. doxygenfunction:: vcpu_inject_extint
-  :project: Project ACRN
+ACRN hypervisor can inject ``nmi`` using similar vCPU APIs:
 
 .. doxygenfunction:: vcpu_inject_nmi
   :project: Project ACRN

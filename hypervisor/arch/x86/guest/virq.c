@@ -134,39 +134,6 @@ void vcpu_make_request(struct acrn_vcpu *vcpu, uint16_t eventid)
 	kick_vcpu(vcpu);
 }
 
-/*
- * @retval true when INT is injected to guest.
- * @retval false when otherwise
- */
-static bool vcpu_do_pending_extint(const struct acrn_vcpu *vcpu)
-{
-	struct acrn_vm *vm;
-	struct acrn_vcpu *primary;
-	uint32_t vector;
-	bool ret = false;
-
-	vm = vcpu->vm;
-
-	/* check if there is valid interrupt from vPIC, if yes just inject it */
-	/* PIC only connect with primary CPU */
-	primary = vcpu_from_vid(vm, BSP_CPU_ID);
-	if (vcpu == primary) {
-
-		vpic_pending_intr(vm_pic(vcpu->vm), &vector);
-		if (vector <= NR_MAX_VECTOR) {
-			dev_dbg(DBG_LEVEL_INTR, "VPIC: to inject PIC vector %d\n",
-					vector & 0xFFU);
-			exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD,
-					VMX_INT_INFO_VALID |
-					(vector & 0xFFU));
-			vpic_intr_accepted(vm_pic(vcpu->vm), vector);
-			ret = true;
-		}
-	}
-
-	return ret;
-}
-
 /* SDM Vol3 -6.15, Table 6-4 - interrupt and exception classes */
 static int32_t get_excep_class(uint32_t vector)
 {
@@ -262,13 +229,6 @@ static void vcpu_inject_exception(struct acrn_vcpu *vcpu)
 	if (get_exception_type(vector) == EXCEPTION_FAULT) {
 		vcpu_set_rflags(vcpu, vcpu_get_rflags(vcpu) | HV_ARCH_VCPU_RFLAGS_RF);
 	}
-}
-
-/* Inject external interrupt to guest */
-void vcpu_inject_extint(struct acrn_vcpu *vcpu)
-{
-	vcpu_make_request(vcpu, ACRN_REQUEST_EXTINT);
-	signal_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 }
 
 /* Inject NMI to guest */
@@ -485,8 +445,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 			 * so use interrupt window to inject NMI.
 			 * After enable virtual NMIs, we can use NMI-Window
 			 */
-			if (bitmap_test(ACRN_REQUEST_EXTINT, pending_req_bits) ||
-				bitmap_test(ACRN_REQUEST_NMI, pending_req_bits) ||
+			if (bitmap_test(ACRN_REQUEST_NMI, pending_req_bits) ||
 				vlapic_has_pending_delivery_intr(vcpu)) {
 				vcpu->arch.proc_vm_exec_ctrls |= VMX_PROCBASED_CTLS_IRQ_WIN;
 				exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
@@ -501,19 +460,8 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 static inline void acrn_inject_pending_intr(struct acrn_vcpu *vcpu,
 		uint64_t *pending_req_bits, bool injected)
 {
-	bool ret = injected;
-	bool guest_irq_enabled = is_guest_irq_enabled(vcpu);
-
-	if (guest_irq_enabled && (!ret)) {
-		/* Inject external interrupt first */
-		if (bitmap_test_and_clear_lock(ACRN_REQUEST_EXTINT, pending_req_bits)) {
-			/* has pending external interrupts */
-			ret = vcpu_do_pending_extint(vcpu);
-		}
-	}
-
 	if (bitmap_test_and_clear_lock(ACRN_REQUEST_EVENT, pending_req_bits)) {
-		vlapic_inject_intr(vcpu_vlapic(vcpu), guest_irq_enabled, ret);
+		vlapic_inject_intr(vcpu_vlapic(vcpu), is_guest_irq_enabled(vcpu), injected);
 	}
 }
 

@@ -35,6 +35,7 @@
 #include <mmio_dev.h>
 #include <asm/trampoline.h>
 #include <asm/guest/assign.h>
+#include <vpic.h>
 #include <vgpio.h>
 #include <asm/irq.h>
 #include <uart16550.h>
@@ -640,9 +641,7 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 
 		init_guest_pm(vm);
 
-		if (!is_lapic_pt_configured(vm)) {
-			vpic_init(vm);
-		}
+		vpic_hide(vm);
 
 		if (is_rt_vm(vm) || !is_postlaunched_vm(vm)) {
 			vrtc_init(vm);
@@ -666,9 +665,6 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 			init_legacy_vuarts(vm, vm_config->vuart);
 
 			register_reset_port_handler(vm);
-
-			/* vpic wire_mode default is INTR */
-			vm->wire_mode = VPIC_WIRE_INTR;
 
 			/* Init full emulated vIOAPIC instance:
 			* Present a virtual IOAPIC to guest, as a placeholder interrupt controller,

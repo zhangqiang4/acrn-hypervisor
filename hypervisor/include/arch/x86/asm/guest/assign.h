@@ -30,7 +30,7 @@
  *
  * @param[in] vm pointer to acrn_vm
  * @param[in] virt_gsi virtual GSI number associated with the passthrough device
- * @param[in] vgsi_ctlr INTX_CTLR_IOAPIC or INTX_CTLR_PIC
+ * @param[in] vgsi_ctlr INTX_CTLR_IOAPIC
  *
  * @pre vm != NULL
  *
@@ -72,7 +72,7 @@ int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf,  uint16_
  *
  * @param[in] vm pointer to acrn_vm
  * @param[in] virt_gsi virtual GSI number associated with the passthrough device
- * @param[in] vgsi_ctlr INTX_CTLR_IOAPIC or INTX_CTLR_PIC
+ * @param[in] vgsi_ctlr INTX_CTLR_IOAPIC
  *
  * @return
  *    - 0: on success
@@ -95,7 +95,7 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ct
  * @param[in] vm pointer to acrn_vm
  * @param[in] virt_gsi virtual pin number associated with the passthrough device
  * @param[in] phys_gsi physical pin number associated with the passthrough device
- * @param[in] pic_pin true for pic, false for ioapic
+ * @param[in] pic_pin ununsed
  *
  * @return
  *    - 0: on success
@@ -105,7 +105,7 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ct
  * @pre vm != NULL
  *
  */
-int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t phys_gsi, bool pic_pin);
+int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t phys_gsi, __unused bool pic_pin);
 
 /**
  * @brief Remove an interrupt remapping entry for INTx.
@@ -115,13 +115,13 @@ int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t
  *
  * @param[in] vm pointer to acrn_vm
  * @param[in] gsi virtual gsi number or physical gsi number associated with the passthrough device
- * @param[in] pic_pin true for pic, false for ioapic
+ * @param[in] pic_pin unused
  * @param[in] is_phy_gsi true if gsi is physical, false if gsi is virtual
  *
  * @pre vm != NULL
  *
  */
-void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool pic_pin, bool is_phy_gsi);
+void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, __unused bool pic_pin, bool is_phy_gsi);
 
 /**
  * @brief Remove interrupt remapping entry/entries for MSI/MSI-x.

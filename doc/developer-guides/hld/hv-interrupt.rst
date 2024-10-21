@@ -30,7 +30,7 @@ interrupt modules (e.g., IOAPIC/LAPIC/IDT). It dispatches the interrupt
 in the hypervisor interrupt flow control layer to the corresponding
 handlers; this could be predefined IPI notification, timer, or runtime
 registered passthrough devices. The ACRN hypervisor then uses its VM
-interfaces based on vPIC, vIOAPIC, and vMSI modules, to inject the
+interfaces based on vIOAPIC, and vMSI modules, to inject the
 necessary virtual interrupt into the specific VM, or directly deliver
 interrupt to the specific RT VM with passthrough LAPIC.
 

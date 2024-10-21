@@ -140,8 +140,7 @@ I/O - Virtual Devices
 =====================
 
 Port I/O is supported for PCI device config space 0xcfc and 0xcf8, vUART
-0x3f8, vRTC 0x70 and 0x71, and vPIC ranges 0x20/21, 0xa0/a1, and
-0x4d0/4d1. MMIO is supported for vIOAPIC. ACRN exposes a virtual
+0x3f8, vRTC 0x70 and 0x71. MMIO is supported for vIOAPIC. ACRN exposes a virtual
 host-bridge at BDF (Bus Device Function) 0.0:0 to each guest. Access to
 256 bytes of config space for virtual host bridge is emulated.
 
@@ -293,7 +292,7 @@ Virtual Device Support
 ACRN provides read-only vRTC support for partition mode guests. Writes
 to the data port are discarded.
 
-For port I/O to ports other than vPIC, vRTC, or vUART, reads return 0xFF and
+For port I/O to ports other than vRTC, or vUART, reads return 0xFF and
 writes are discarded.
 
 Interrupt Delivery
@@ -370,7 +369,7 @@ deadline timer, ACRN uses the VMX preemption timer to poll the serial device.
 Guest Console
 =============
 
-ACRN exposes vUART to partition mode guests. vUART uses vPIC to inject an
+ACRN exposes vUART to partition mode guests. vUART uses vIOAPIC to inject an
 interrupt to the guest BSP. If the guest has more than one core,
 during runtime, vUART might need to inject an interrupt to the guest BSP from
 another core (other than BSP). As mentioned in section `Hypervisor IPI
