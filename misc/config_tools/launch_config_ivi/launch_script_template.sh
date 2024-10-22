@@ -7,6 +7,10 @@
 
 # Helper functions
 
+function log2stderr() {
+    echo "launchscript: $@" >&2
+}
+
 function probe_modules() {
     modprobe pci_stub
 }
@@ -14,19 +18,20 @@ function probe_modules() {
 function offline_cpus() {
     # Each parameter of this function is considered the APIC ID (as is reported in /proc/cpuinfo, in decimal) of a CPU
     # assigned to a post-launched RTVM.
+    log2stderr "Guest VM configured to exclusively own pCPU."
     for i in $*; do
         processor_id=$(grep -B 15 "apicid.*: ${i}$" /proc/cpuinfo | grep "^processor" | head -n 1 | cut -d ' ' -f 2)
         if [ -z ${processor_id} ]; then
             continue
         fi
         if [ "${processor_id}" = "0" ]; then
-            echo "Warning: processor 0 can't be offline, there may be unexpect error!" >> /dev/stderr
+            log2stderr "Warning: processor 0 can't be offlined. Skipping processor 0."
             continue
         fi
         cpu_path="/sys/devices/system/cpu/cpu${processor_id}"
         if [ -f ${cpu_path}/online ]; then
             online=`cat ${cpu_path}/online`
-            echo cpu${processor_id} online=${online} >> /dev/stderr
+            log2stderr "Offlining cpu${processor_id} from Service OS..."
             if [ "${online}" = "1" ]; then
                 echo 0 > ${cpu_path}/online
                 online=`cat ${cpu_path}/online`
@@ -36,6 +41,7 @@ function offline_cpus() {
                     echo 0 > ${cpu_path}/online
                     online=`cat ${cpu_path}/online`
                 done
+                log2stderr "Offlining vcpu${processor_id} from Service VM..."
                 echo ${processor_id} > /sys/devices/virtual/misc/acrn_hsm/remove_cpu
             fi
         fi
@@ -45,12 +51,22 @@ function offline_cpus() {
 function unbind_device() {
     physical_bdf=$1
 
-    vendor_id=$(cat /sys/bus/pci/devices/${physical_bdf}/vendor)
-    device_id=$(cat /sys/bus/pci/devices/${physical_bdf}/device)
+    log2stderr "$1: Preparing passthrough"
+    if [ ! -f /sys/bus/pci/devices/${physical_bdf}/vendor ]; then
+        log2stderr "$1: ERROR: Device not found."
+    else
+        vendor_id=$(cat /sys/bus/pci/devices/${physical_bdf}/vendor)
+        device_id=$(cat /sys/bus/pci/devices/${physical_bdf}/device)
 
-    echo $(printf "%04x %04x" ${vendor_id} ${device_id}) > /sys/bus/pci/drivers/pci-stub/new_id
-    echo ${physical_bdf} > /sys/bus/pci/devices/${physical_bdf}/driver/unbind
-    echo ${physical_bdf} > /sys/bus/pci/drivers/pci-stub/bind
+        log2stderr "$1: Unbinding driver from Service OS..."
+        if [ -f /sys/bus/pci/devices/${physical_bdf}/driver/unbind ] && [ ! -d /sys/bus/pci/drivers/pci-stub/${physical_bdf} ]; then
+            echo $(printf "%04x %04x" ${vendor_id} ${device_id}) > /sys/bus/pci/drivers/pci-stub/new_id
+            echo ${physical_bdf} > /sys/bus/pci/devices/${physical_bdf}/driver/unbind
+            echo ${physical_bdf} > /sys/bus/pci/drivers/pci-stub/bind
+        else
+            log2stderr "$1: No driver bound. Skipping".
+        fi
+    fi
 }
 
 function create_tap() {
@@ -58,7 +74,7 @@ function create_tap() {
     tap=$1
     tap_exist=$(ip a show dev $tap)
     if [ "$tap_exist"x != "x" ]; then
-        echo "$tap TAP device already available, reusing it."
+        log2stderr "$tap TAP device already available, reusing it."
     else
         ip tuntap add dev $tap mode tap
     fi
@@ -66,7 +82,7 @@ function create_tap() {
     # if acrn-br0 exists, add VM's unique tap device under it
     br_exist=$(ip a | grep acrn-br0 | awk '{print $1}')
     if [ "$br_exist"x != "x" -a "$tap_exist"x = "x" ]; then
-        echo "acrn-br0 bridge already exists, adding new $tap TAP device to it..."
+        log2stderr "acrn-br0 bridge already exists, adding new $tap TAP device to it..."
         ip link set "$tap" master acrn-br0
         ip link set dev "$tap" down
         ip link set dev "$tap" up
@@ -133,7 +149,7 @@ function add_virtual_device() {
         # Create the tap device
         if [[ ${options} =~ tap=([^,]+) ]]; then
             tap_conf="${BASH_REMATCH[1]}"
-            create_tap "${tap_conf}" >&2
+            create_tap "${tap_conf}"
         fi
     fi
 
@@ -168,9 +184,9 @@ function add_virtual_device() {
         fi
 
         if [[ ${options} =~ event([0-9]+) ]]; then
-            echo "${options} input device path is available in the service vm." >> /dev/stderr
+            log2stderr "${options} input device path is available in the service vm."
         else
-            echo "${options} input device path is not found in the service vm." >> /dev/stderr
+            log2stderr "${options} input device path is not found in the service vm."
             return
         fi
 
@@ -213,7 +229,7 @@ numvfs=2
 
 function enable_vf() {
 	if [ ! -f $totalvfs_file ]; then
-		echo "iGPU SR-IOV not supported, skipping."
+		log2stderr "iGPU SR-IOV not supported, skipping."
 	else
 		local reserved_ggtt_size=268435456
 		vfschedexecq=25
@@ -229,24 +245,24 @@ function enable_vf() {
 		for (( i = 1; i <= $numvfs; i++ ))
 		do
 			if [ -f /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms ]; then
-				echo $vfschedexecq | tee -a /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
-				echo $vfschedtimeout | tee -a /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
-				echo 1610612736 | tee -a /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
-				echo 28672 | tee -a /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
-				echo 128 | tee -a /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
+				echo $vfschedexecq > /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
+				echo $vfschedtimeout > /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
+				echo 1610612736 > /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
+				echo 28672 > /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
+				echo 128 > /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
 			else
-				echo $vfschedexecq | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
-				echo $vfschedtimeout | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
-				echo 1610612736 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
-				echo 28672 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
-				echo 128 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
+				echo $vfschedexecq > /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
+				echo $vfschedtimeout > /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
+				echo 1610612736 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
+				echo 28672 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
+				echo 128 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
 			fi
 		done
 
 		if [ ! -f $numvfs_file ] || [ "0" == `cat $numvfs_file` ]; then
-			echo "Trying to enable $numvfs VF for 00:02.0"
+			log2stderr "Trying to enable $numvfs VF for 00:02.0"
 			(echo 0 > $autoprobe_file && echo $numvfs > $numvfs_file) \
-				    || { echo "Cannot enable VF. Please make sure you have enabled SR-IOV support in BIOS." && exit 1; }
+				    || { log2stderr "Cannot enable VF. Please make sure you have enabled SR-IOV support in BIOS." && exit 1; }
 		fi
 	fi
 }
@@ -267,9 +283,9 @@ function enable_dgpu_vf() {
 	local dg2_totalvfs_file="$dgpu_path/device/sriov_totalvfs"
 
 	if [ ! -e $dg2_totalvfs_file ]; then
-		echo "File $dg2_totalvfs_file doesn't exist, which means DG2 SR-IOV is not ready yet."
-		echo "If dGPU SR-IOV is not required, please set USE_DGPU_SRIOV to 0 in the launch script." >&2
-		echo "Otherwise, check your setup carefully (e.g., kernel cmdline arguments)" >&2
+		log2stderr "File $dg2_totalvfs_file doesn't exist, which means DG2 SR-IOV is not ready yet."
+		log2stderr "If dGPU SR-IOV is not required, please set USE_DGPU_SRIOV to 0 in the launch script."
+		log2stderr "Otherwise, check your setup carefully (e.g., kernel cmdline arguments)"
 		exit 1
 	else
 		local dg2_numvfs=2
@@ -279,18 +295,18 @@ function enable_dgpu_vf() {
 		elif [ -d "$dgpu_path/iov" ]; then
 			iov_dir="$dgpu_path/iov"
 		else
-			echo "Neither $dgpu_path/prelim_iov nor $dgpu_path/iov is found!" >&2
+			log2stderr "Neither $dgpu_path/prelim_iov nor $dgpu_path/iov is found!"
 			exit 1
 		fi
 
 		if [ ! -f $dg2_numvfs_file ] || [ "$dg2_numvfs" != `cat $dg2_numvfs_file` ]; then
 			if [ "0" != `cat $dg2_numvfs_file` ]; then
-				echo "Destroy VFs before create them."
+				log2stderr "Destroy VFs before create them."
 				echo "0" > $dg2_numvfs_file
 			fi
-			echo "Trying to enable $dg2_numvfs VF for 03:00.0"
+			log2stderr "Trying to enable $dg2_numvfs VF for 03:00.0"
 			(echo 0 > $dg2_autoprobe_file && echo $dg2_numvfs > $dg2_numvfs_file) \
-				    || { echo "Cannot enable VF for dGPU" >&2 && exit 1; }
+				    || { log2stderr "Cannot enable VF for dGPU" && exit 1; }
 		fi
 		# Set GGTT size of PF of dGPU to 256MB.  Otherwise, atomic
 		# commit when using direct display could fail due to lack of

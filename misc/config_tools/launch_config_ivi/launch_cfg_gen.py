@@ -185,7 +185,7 @@ class LaunchScript:
             s += f"    {param}\n"
         s += ")\n\n"
 
-        s += "echo \"Launch device model with parameters: ${dm_params[@]}\"\n"
+        s += "log2stderr \"Launching device model with parameters: ${dm_params[@]}\"\n"
         s += "acrn-dm \"${dm_params[@]}\"\n\n"
 
         s += "# Deinitializing\n"
