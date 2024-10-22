@@ -1,0 +1,342 @@
+#!/bin/bash
+#
+# Copyright (C) 2022 Intel Corporation.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+
+# Helper functions
+
+function probe_modules() {
+    modprobe pci_stub
+}
+
+function offline_cpus() {
+    # Each parameter of this function is considered the APIC ID (as is reported in /proc/cpuinfo, in decimal) of a CPU
+    # assigned to a post-launched RTVM.
+    for i in $*; do
+        processor_id=$(grep -B 15 "apicid.*: ${i}$" /proc/cpuinfo | grep "^processor" | head -n 1 | cut -d ' ' -f 2)
+        if [ -z ${processor_id} ]; then
+            continue
+        fi
+        if [ "${processor_id}" = "0" ]; then
+            echo "Warning: processor 0 can't be offline, there may be unexpect error!" >> /dev/stderr
+            continue
+        fi
+        cpu_path="/sys/devices/system/cpu/cpu${processor_id}"
+        if [ -f ${cpu_path}/online ]; then
+            online=`cat ${cpu_path}/online`
+            echo cpu${processor_id} online=${online} >> /dev/stderr
+            if [ "${online}" = "1" ]; then
+                echo 0 > ${cpu_path}/online
+                online=`cat ${cpu_path}/online`
+                # during boot time, cpu hotplug may be disabled by pci_device_probe during a pci module insmod
+                while [ "${online}" = "1" ]; do
+                    sleep 1
+                    echo 0 > ${cpu_path}/online
+                    online=`cat ${cpu_path}/online`
+                done
+                echo ${processor_id} > /sys/devices/virtual/misc/acrn_hsm/remove_cpu
+            fi
+        fi
+    done
+}
+
+function unbind_device() {
+    physical_bdf=$1
+
+    vendor_id=$(cat /sys/bus/pci/devices/${physical_bdf}/vendor)
+    device_id=$(cat /sys/bus/pci/devices/${physical_bdf}/device)
+
+    echo $(printf "%04x %04x" ${vendor_id} ${device_id}) > /sys/bus/pci/drivers/pci-stub/new_id
+    echo ${physical_bdf} > /sys/bus/pci/devices/${physical_bdf}/driver/unbind
+    echo ${physical_bdf} > /sys/bus/pci/drivers/pci-stub/bind
+}
+
+function create_tap() {
+    # create a unique tap device for each VM
+    tap=$1
+    tap_exist=$(ip a show dev $tap)
+    if [ "$tap_exist"x != "x" ]; then
+        echo "$tap TAP device already available, reusing it."
+    else
+        ip tuntap add dev $tap mode tap
+    fi
+
+    # if acrn-br0 exists, add VM's unique tap device under it
+    br_exist=$(ip a | grep acrn-br0 | awk '{print $1}')
+    if [ "$br_exist"x != "x" -a "$tap_exist"x = "x" ]; then
+        echo "acrn-br0 bridge already exists, adding new $tap TAP device to it..."
+        ip link set "$tap" master acrn-br0
+        ip link set dev "$tap" down
+        ip link set dev "$tap" up
+    fi
+}
+
+function mount_partition() {
+    partition=$1
+
+    tmpdir=`mktemp -d`
+    mount ${partition} ${tmpdir}
+    echo ${tmpdir}
+}
+
+function unmount_partition() {
+    tmpdir=$1
+
+    umount ${tmpdir}
+    rmdir ${tmpdir}
+}
+
+# Generators of device model parameters
+
+function add_cpus() {
+    # Each parameter of this function is considered the apicid of processor (as is reported in /proc/cpuinfo) of
+    # a CPU assigned to a post-launched RTVM.
+
+    if [ "${vm_type}" = "RTVM" ] || [ "${scheduler}" = "SCHED_NOOP" ] || [ "${own_pcpu}" = "y" ]; then
+        offline_cpus $*
+    fi
+
+    cpu_list=$(local IFS=, ; echo "$*")
+    echo -n "--cpu_affinity ${cpu_list}"
+}
+
+function add_interrupt_storm_monitor() {
+    threshold_per_sec=$1
+    probe_period_in_sec=$2
+    inject_delay_in_ms=$3
+    delay_duration_in_ms=$4
+
+    echo -n "--intr_monitor ${threshold_per_sec},${probe_period_in_sec},${inject_delay_in_ms},${delay_duration_in_ms}"
+}
+
+function add_logger_settings() {
+    loggers=()
+
+    for conf in $*; do
+        logger=${conf%=*}
+        level=${conf#*=}
+        loggers+=("${logger},level=${level}")
+    done
+
+    cmd_param=$(local IFS=';' ; echo "${loggers[*]}")
+    echo -n "--logger_setting ${cmd_param}"
+}
+
+function add_virtual_device() {
+    slot=$1
+    kind=$2
+    options=$3
+
+    if [ "${kind}" = "virtio-net" ]; then
+        # Create the tap device
+        if [[ ${options} =~ tap=([^,]+) ]]; then
+            tap_conf="${BASH_REMATCH[1]}"
+            create_tap "${tap_conf}" >&2
+        fi
+    fi
+
+    if [ "${kind}" = "virtio-input" ]; then
+        options=$*
+        if [[ "${options}" =~ id:([a-zA-Z0-9_\-]*) ]]; then
+            unique_identifier="${BASH_REMATCH[1]}"
+            options=${options/",id:${unique_identifier}"/''}
+        fi
+
+        if [[ "${options}" =~ (Device name: )(.*),( Device physical path: )(.*) ]]; then
+            device_name="${BASH_REMATCH[2]}"
+            phys_name="${BASH_REMATCH[4]}"
+            local IFS=$'\n'
+            device_name_paths=$(grep -r "${device_name}" /sys/class/input/event*/device/name)
+            phys_paths=$(grep -r "${phys_name}" /sys/class/input/event*/device/phys)
+        fi
+
+        if [ -n "${device_name_paths}" ] && [ -n "${phys_paths}" ]; then
+            for device_path in ${device_name_paths}; do
+                for phys_path in ${phys_paths}; do
+                    if [ "${device_path%/device*}" = "${phys_path%/device*}" ]; then
+                        event_path=${device_path}
+                        if [[ ${event_path} =~ event([0-9]+) ]]; then
+                            event_num="${BASH_REMATCH[1]}"
+                            options="/dev/input/event${event_num}"
+                            break
+                        fi
+                    fi
+                done
+            done
+        fi
+
+        if [[ ${options} =~ event([0-9]+) ]]; then
+            echo "${options} input device path is available in the service vm." >> /dev/stderr
+        else
+            echo "${options} input device path is not found in the service vm." >> /dev/stderr
+            return
+        fi
+
+        if [ -n "${options}" ] && [ -n "${unique_identifier}" ]; then
+            options="${options},${unique_identifier}"
+        fi
+
+    fi
+
+    echo -n "-s ${slot},${kind}"
+    if [ -n "${options}" ]; then
+        echo -n ",${options}"
+    fi
+}
+
+function add_passthrough_device() {
+    slot=$1
+    physical_bdf=$2
+    options=$3
+
+    unbind_device ${physical_bdf%,*}
+
+    # bus, device and function as decimal integers
+    bus_temp=${physical_bdf#*:};     bus=$((16#${bus_temp%:*}))
+    dev_temp=${physical_bdf##*:};    dev=$((16#${dev_temp%.*}))
+    fun=$((16#${physical_bdf#*.}))
+
+    echo -n "-s "
+    printf '%s,passthru,%x/%x/%x' ${slot} ${bus} ${dev} ${fun}
+    if [ -n "${options}" ]; then
+        echo -n ",${options}"
+    fi
+}
+
+# Enable VF
+autoprobe_file=/sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
+numvfs_file=/sys/bus/pci/devices/0000\:00\:02.0/sriov_numvfs
+totalvfs_file=/sys/bus/pci/devices/0000\:00\:02.0/sriov_totalvfs
+numvfs=2
+
+function enable_vf() {
+	if [ ! -f $totalvfs_file ]; then
+		echo "iGPU SR-IOV not supported, skipping."
+	else
+		local reserved_ggtt_size=268435456
+		vfschedexecq=25
+		vfschedtimeout=500000
+		if [ -f /sys/class/drm/card0/iov/pf/gt/ggtt_spare ]; then
+			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/iov/pf/gt/ggtt_spare"
+		else
+			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/prelim_iov/pf/gt0/ggtt_spare"
+		fi
+
+		#change auto provision to manual provision(ggtt contexts doorbell)
+		#alloc fixed 1.5G ggtt size for each VF, it works for 1VF and 2VF sceneria.
+		for (( i = 1; i <= $numvfs; i++ ))
+		do
+			if [ -f /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms ]; then
+				echo $vfschedexecq | tee -a /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
+				echo $vfschedtimeout | tee -a /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
+				echo 1610612736 | tee -a /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
+				echo 28672 | tee -a /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
+				echo 128 | tee -a /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
+			else
+				echo $vfschedexecq | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
+				echo $vfschedtimeout | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
+				echo 1610612736 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
+				echo 28672 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
+				echo 128 | tee -a /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
+			fi
+		done
+
+		if [ ! -f $numvfs_file ] || [ "0" == `cat $numvfs_file` ]; then
+			echo "Trying to enable $numvfs VF for 00:02.0"
+			(echo 0 > $autoprobe_file && echo $numvfs > $numvfs_file) \
+				    || { echo "Cannot enable VF. Please make sure you have enabled SR-IOV support in BIOS." && exit 1; }
+		fi
+	fi
+}
+enable_vf
+
+check_existence() {
+	local file_path=$1
+	if [ ! -f "$file_path" ]; then
+		echo "File $file_path doesn't exist!"
+		exit 1
+	fi
+}
+
+function enable_dgpu_vf() {
+	local dgpu_path="/sys/class/drm/card1"
+	local dg2_autoprobe_file="$dgpu_path/device/sriov_drivers_autoprobe"
+	local dg2_numvfs_file="$dgpu_path/device/sriov_numvfs"
+	local dg2_totalvfs_file="$dgpu_path/device/sriov_totalvfs"
+
+	if [ ! -e $dg2_totalvfs_file ]; then
+		echo "File $dg2_totalvfs_file doesn't exist, which means DG2 SR-IOV is not ready yet."
+		echo "If dGPU SR-IOV is not required, please set USE_DGPU_SRIOV to 0 in the launch script." >&2
+		echo "Otherwise, check your setup carefully (e.g., kernel cmdline arguments)" >&2
+		exit 1
+	else
+		local dg2_numvfs=2
+		local iov_dir=""
+		if [ -d "$dgpu_path/prelim_iov" ]; then
+			iov_dir="$dgpu_path/prelim_iov"
+		elif [ -d "$dgpu_path/iov" ]; then
+			iov_dir="$dgpu_path/iov"
+		else
+			echo "Neither $dgpu_path/prelim_iov nor $dgpu_path/iov is found!" >&2
+			exit 1
+		fi
+
+		if [ ! -f $dg2_numvfs_file ] || [ "$dg2_numvfs" != `cat $dg2_numvfs_file` ]; then
+			if [ "0" != `cat $dg2_numvfs_file` ]; then
+				echo "Destroy VFs before create them."
+				echo "0" > $dg2_numvfs_file
+			fi
+			echo "Trying to enable $dg2_numvfs VF for 03:00.0"
+			(echo 0 > $dg2_autoprobe_file && echo $dg2_numvfs > $dg2_numvfs_file) \
+				    || { echo "Cannot enable VF for dGPU" >&2 && exit 1; }
+		fi
+		# Set GGTT size of PF of dGPU to 256MB.  Otherwise, atomic
+		# commit when using direct display could fail due to lack of
+		# GGTT.
+		local reserved_ggtt_size=268435456
+		echo "$reserved_ggtt_size" > "$dgpu_path/iov/pf/gt/ggtt_spare"
+
+		local vfschedexecq=25
+		local vfschedtimeout=500000
+		for (( i = 1; i <= $dg2_numvfs; i++ ))
+		do
+			check_existence "$iov_dir/vf$i/gt/exec_quantum_ms"
+			check_existence "$iov_dir/vf$i/gt/preempt_timeout_us"
+			echo $vfschedexecq | tee -a "$iov_dir/vf$i/gt/exec_quantum_ms"
+			echo $vfschedtimeout | tee -a "$iov_dir/vf$i/gt/preempt_timeout_us"
+		done
+
+		# W/A: It's likely that dGPU SR-IOV works with lease based
+		# virtualized display. We suffer from race condition in startup
+		# of drm-lease-manager and probing of dGPU KMD (i915_ag), i.e.,
+		# drm-lease-manager would fail to start if it runs before
+		# probing of i915_ag finishes.
+		#
+		# As a workaround, give it a chance to start drm-lease-manager
+		# right before using it. If it is already running, the
+		# following command would be a no-op.
+		#
+		# The race condition would be eliminated when i915_ag is
+		# embedded into the kernel image.
+		systemctl start drm-lease-manager
+	fi
+}
+
+USE_DGPU_SRIOV=@@__USE_DGPU_SRIOV__@@
+if [ "$USE_DGPU_SRIOV" = "1" ]; then
+	enable_dgpu_vf
+fi
+
+wayland_display="$(find /run/user -name wayland-1)"
+if [ -z $wayland_display ]; then
+	wayland_display="/run/user/0/wayland-1"
+fi
+if [ -z ${XDG_RUNTIME_DIR+x} ]; then
+    export WAYLAND_DISPLAY=$wayland_display
+fi
+
+# Read SSD life of nvme0n1
+nvme_percentage_used=$(nvme smart-log /dev/nvme0n1 --raw | od -v -A n -N 1 -j 5 -t d1 | xargs)
+
