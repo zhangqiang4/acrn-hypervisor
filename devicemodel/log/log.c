@@ -26,8 +26,10 @@ DECLARE_LOGGER_SECTION();
 
 extern char *vmname;
 static char *level_strs[] = {
-	"ERROR",
-	"WARNING",
+	/* log level starts from 1 */
+	"",
+	"ERRO",
+	"WARN",
 	"NOTICE",
 	"INFO",
 	"DEBUG",
