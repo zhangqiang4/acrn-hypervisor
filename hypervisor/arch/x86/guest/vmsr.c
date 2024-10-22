@@ -27,6 +27,8 @@
 #define INTERCEPT_WRITE			(1U << 1U)
 #define INTERCEPT_READ_WRITE		(INTERCEPT_READ | INTERCEPT_WRITE)
 
+static void set_tsc_msr_interception(struct acrn_vcpu *vcpu, bool interception);
+
 static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	/*
 	 * This may include MSR_IA32_STAR, MSR_IA32_LSTAR, MSR_IA32_FMASK,
@@ -339,6 +341,55 @@ static void intercept_x2apic_msrs(uint8_t *msr_bitmap_arg, uint32_t mode)
 	}
 }
 
+static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
+{
+	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
+
+	if (is_lapic_pt_configured(vcpu->vm)) {
+		/*
+		 * After switch to x2apic mode, most MSRs are passthrough to guest.
+		 * for virtualization of some MSRs for security consideration:
+		 * - XAPICID/LDR: Read to XAPICID/LDR need to be trapped to guarantee guest always see right vlapic_id.
+		 * - ICR: Write to ICR need to be trapped to avoid milicious IPI.
+		 */
+		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_DISABLE);
+		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_XAPICID, INTERCEPT_READ);
+		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LDR, INTERCEPT_READ);
+		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_WRITE);
+		if (!is_vtm_configured(vcpu->vm)) {
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LVT_THERMAL, INTERCEPT_READ_WRITE);
+		}
+		set_tsc_msr_interception(vcpu, exec_vmread64(VMX_TSC_OFFSET_FULL) != 0UL);
+
+	} else {
+		if (is_apicv_advanced_feature_supported()) {
+			intercept_x2apic_msrs(msr_bitmap, INTERCEPT_WRITE);
+
+			/*
+			 * Open read-only interception for write-only
+			 * registers to inject gp on reads. EOI and Self-IPI
+			 * Writes are disabled for EOI, TPR and Self-IPI as
+			 * writes to them are virtualized with Register Virtualization
+			 * Refer to Section 29.1 in Intel SDM Vol. 3
+			 */
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_CUR_COUNT, INTERCEPT_READ);
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_EOI, INTERCEPT_DISABLE);
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_SELF_IPI, INTERCEPT_DISABLE);
+		} else {
+			/*
+			 * For platforms that do not support register virtualization
+			 * all x2APIC MSRs need to intercepted.
+			 */
+			intercept_x2apic_msrs(msr_bitmap, INTERCEPT_READ_WRITE);
+		}
+
+		/*
+		 * TPR is virtualized even when register virtualization is not supported
+		 */
+		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_TPR, INTERCEPT_DISABLE);
+	}
+}
+
 /**
  * @pre vcpu != NULL && vcpu->vm != NULL && vcpu->vm->vm_id < CONFIG_MAX_VM_NUM
  * @pre (is_platform_rdt_capable() == false()) || (is_platform_rdt_capable() && get_vm_config(vcpu->vm->vm_id)->pclosids != NULL)
@@ -524,7 +575,7 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 		}
 	}
 
-	intercept_x2apic_msrs(msr_bitmap, INTERCEPT_READ_WRITE);
+	init_x2apic_msrs(vcpu);
 
 	for (i = 0U; i < ARRAY_SIZE(unsupported_msrs); i++) {
 		enable_msr_interception(msr_bitmap, unsupported_msrs[i], INTERCEPT_READ_WRITE);
@@ -1328,59 +1379,3 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	return err;
 }
 
-/**
- * @pre vcpu != NULL
- */
-void update_msr_bitmap_x2apic_apicv(struct acrn_vcpu *vcpu)
-{
-	uint8_t *msr_bitmap;
-
-	msr_bitmap = vcpu->arch.msr_bitmap;
-	/*
-	 * For platforms that do not support register virtualization
-	 * all x2APIC MSRs need to intercepted. So no need to update
-	 * the MSR bitmap.
-	 *
-	 * TPR is virtualized even when register virtualization is not
-	 * supported
-	 */
-	if (is_apicv_advanced_feature_supported()) {
-		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_WRITE);
-		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_CUR_COUNT, INTERCEPT_READ);
-		/*
-		 * Open read-only interception for write-only
-		 * registers to inject gp on reads. EOI and Self-IPI
-		 * Writes are disabled for EOI, TPR and Self-IPI as
-		 * writes to them are virtualized with Register Virtualization
-		 * Refer to Section 29.1 in Intel SDM Vol. 3
-		 */
-		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_EOI, INTERCEPT_DISABLE);
-		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_SELF_IPI, INTERCEPT_DISABLE);
-	}
-
-	enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_TPR, INTERCEPT_DISABLE);
-}
-
-/*
- * After switch to x2apic mode, most MSRs are passthrough to guest, but vlapic is still valid
- * for virtualization of some MSRs for security consideration:
- * - XAPICID/LDR: Read to XAPICID/LDR need to be trapped to guarantee guest always see right vlapic_id.
- * - ICR: Write to ICR need to be trapped to avoid milicious IPI.
- */
-
-/**
- * @pre vcpu != NULL
- */
-void update_msr_bitmap_x2apic_passthru(struct acrn_vcpu *vcpu)
-{
-	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
-
-	intercept_x2apic_msrs(msr_bitmap, INTERCEPT_DISABLE);
-	enable_msr_interception(msr_bitmap, MSR_IA32_EXT_XAPICID, INTERCEPT_READ);
-	enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LDR, INTERCEPT_READ);
-	enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_WRITE);
-	if (!is_vtm_configured(vcpu->vm)) {
-		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LVT_THERMAL, INTERCEPT_READ_WRITE);
-	}
-	set_tsc_msr_interception(vcpu, exec_vmread64(VMX_TSC_OFFSET_FULL) != 0UL);
-}

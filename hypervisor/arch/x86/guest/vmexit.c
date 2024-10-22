@@ -131,7 +131,7 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_TPR_BELOW_THRESHOLD] = {
 		.handler = tpr_below_threshold_vmexit_handler},
 	[VMX_EXIT_REASON_APIC_ACCESS] = {
-		.handler = apic_access_vmexit_handler,
+		.handler = unhandled_vmexit_handler,
 		.need_exit_qualification = 1},
 	[VMX_EXIT_REASON_VIRTUALIZED_EOI] = {
 		.handler = veoi_vmexit_handler,
@@ -155,7 +155,7 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_XSETBV] = {
 		.handler = xsetbv_vmexit_handler},
 	[VMX_EXIT_REASON_APIC_WRITE] = {
-		.handler = apic_write_vmexit_handler,
+		.handler = unhandled_vmexit_handler,
 		.need_exit_qualification = 1},
 	[VMX_EXIT_REASON_RDRAND] = {
 		.handler = unhandled_vmexit_handler},
@@ -238,13 +238,13 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 			/* exit dispatch handling */
 			if (basic_exit_reason == VMX_EXIT_REASON_EXTERNAL_INTERRUPT) {
 				/* Handling external_interrupt should disable intr */
-				if (!is_lapic_pt_enabled(vcpu)) {
+				if (!is_lapic_pt_configured(vcpu->vm)) {
 					CPU_IRQ_DISABLE();
 				}
 
 				ret = dispatch->handler(vcpu);
 
-				if (!is_lapic_pt_enabled(vcpu)) {
+				if (!is_lapic_pt_configured(vcpu->vm)) {
 					CPU_IRQ_ENABLE();
 				}
 			} else {

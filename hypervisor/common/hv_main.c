@@ -21,7 +21,7 @@ void vcpu_thread(struct thread_object *obj)
 	int32_t ret = 0;
 
 	do {
-		if (!is_lapic_pt_enabled(vcpu)) {
+		if (!is_lapic_pt_configured(vcpu->vm)) {
 			CPU_IRQ_DISABLE();
 		}
 
@@ -58,7 +58,7 @@ void vcpu_thread(struct thread_object *obj)
 
 		profiling_pre_vmexit_handler(vcpu);
 
-		if (!is_lapic_pt_enabled(vcpu)) {
+		if (!is_lapic_pt_configured(vcpu->vm)) {
 			CPU_IRQ_ENABLE();
 		}
 		/* Dispatch handler */

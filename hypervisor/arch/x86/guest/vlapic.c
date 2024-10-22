@@ -90,7 +90,8 @@ static inline void vlapic_dump_irr(__unused const struct acrn_vlapic *vlapic, __
 static inline void vlapic_dump_isr(__unused const struct acrn_vlapic *vlapic, __unused const char *msg) {}
 #endif
 
-const struct acrn_apicv_ops *apicv_ops;
+static const struct acrn_apicv_ops *apicv_ops;
+static const struct acrn_apicv_ops ptapic_ops;
 
 static bool apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector);
 
@@ -177,25 +178,6 @@ static inline uint32_t vlapic_find_isrv(const struct acrn_vlapic *vlapic)
 	}
 
 	return isrv;
-}
-
-static void
-vlapic_write_dfr(struct acrn_vlapic *vlapic)
-{
-	struct lapic_regs *lapic;
-
-	lapic = &(vlapic->apic_page);
-	lapic->dfr.v &= APIC_DFR_MODEL_MASK;
-	lapic->dfr.v |= APIC_DFR_RESERVED;
-
-	if ((lapic->dfr.v & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_FLAT) {
-		dev_dbg(DBG_LEVEL_VLAPIC, "vlapic DFR in Flat Model");
-	} else if ((lapic->dfr.v & APIC_DFR_MODEL_MASK)
-			== APIC_DFR_MODEL_CLUSTER) {
-		dev_dbg(DBG_LEVEL_VLAPIC, "vlapic DFR in Cluster Model");
-	} else {
-		dev_dbg(DBG_LEVEL_VLAPIC, "DFR in Unknown Model %#x", lapic->dfr);
-	}
 }
 
 static void
@@ -368,7 +350,7 @@ uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic)
 	uint64_t ret;
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
-	if (is_lapic_pt_enabled(vcpu)) {
+	if (is_lapic_pt_configured(vcpu->vm)) {
 		/* If physical TSC_DEADLINE is zero which means it's not armed (automatically disarmed
 		 * after timer triggered), return 0 and reset the virtual TSC_DEADLINE;
 		 * If physical TSC_DEADLINE is not zero, return the virtual TSC_DEADLINE value.
@@ -395,7 +377,7 @@ void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 	uint64_t val = val_arg;
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
-	if (is_lapic_pt_enabled(vcpu)) {
+	if (is_lapic_pt_configured(vcpu->vm)) {
 		vcpu_set_guest_msr(vcpu, MSR_IA32_TSC_DEADLINE, val);
 		/* If val is not zero, which mean guest intends to arm the tsc_deadline timer,
 		 * if the calculated value to write to the physical TSC_DEADLINE msr is zero,
@@ -894,42 +876,12 @@ static inline bool is_dest_field_matched(const struct acrn_vlapic *vlapic, uint3
 	uint32_t ldr = vlapic->apic_page.ldr.v;
 	bool ret = false;
 
-	if (is_x2apic_enabled(vlapic)) {
-		logical_id = ldr & 0xFFFFU;
-		cluster_id = (ldr >> 16U) & 0xFFFFU;
-		dest_logical_id = dest & 0xFFFFU;
-		dest_cluster_id = (dest >> 16U) & 0xFFFFU;
-		if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
-			ret = true;
-		}
-	} else {
-		uint32_t dfr = vlapic->apic_page.dfr.v;
-		if ((dfr & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_FLAT) {
-			/*
-			 * In the "Flat Model" the MDA is interpreted as an 8-bit wide
-			 * bitmask. This model is available in the xAPIC mode only.
-			 */
-			logical_id = ldr >> 24U;
-			dest_logical_id = dest & 0xffU;
-			if ((logical_id & dest_logical_id) != 0U) {
-				ret = true;
-			}
-		} else if ((dfr & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_CLUSTER) {
-			/*
-			 * In the "Cluster Model" the MDA is used to identify a
-			 * specific cluster and a set of APICs in that cluster.
-			 */
-			logical_id = (ldr >> 24U) & 0xfU;
-			cluster_id = ldr >> 28U;
-			dest_logical_id = dest & 0xfU;
-			dest_cluster_id = (dest >> 4U) & 0xfU;
-			if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
-				ret = true;
-			}
-		} else {
-			/* Guest has configured a bad logical model for this vcpu. */
-			dev_dbg(DBG_LEVEL_VLAPIC, "vlapic has bad logical model %x", dfr);
-		}
+	logical_id = ldr & 0xFFFFU;
+	cluster_id = (ldr >> 16U) & 0xFFFFU;
+	dest_logical_id = dest & 0xFFFFU;
+	dest_cluster_id = (dest >> 16U) & 0xFFFFU;
+	if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
+		ret = true;
 	}
 
 	return ret;
@@ -1090,13 +1042,8 @@ static void vlapic_write_icrlo(struct acrn_vlapic *vlapic)
 
 	icr_low = lapic->icr_lo.v;
 	icr_high = lapic->icr_hi.v;
-	if (is_x2apic_enabled(vlapic)) {
-		dest = icr_high;
-		is_broadcast = (dest == 0xffffffffU);
-	} else {
-		dest = icr_high >> APIC_ID_SHIFT;
-		is_broadcast = (dest == 0xffU);
-	}
+	dest = icr_high;
+	is_broadcast = (dest == 0xffffffffU);
 	vec = icr_low & APIC_VECTOR_MASK;
 	mode = icr_low & APIC_DELMODE_MASK;
 	phys = ((icr_low & APIC_DESTMODE_LOG) == 0UL);
@@ -1304,14 +1251,8 @@ static int32_t vlapic_read(struct acrn_vlapic *vlapic, uint32_t offset_arg, uint
 		case APIC_OFFSET_PPR:
 			*data = lapic->ppr.v;
 			break;
-		case APIC_OFFSET_EOI:
-			*data = lapic->eoi.v;
-			break;
 		case APIC_OFFSET_LDR:
 			*data = lapic->ldr.v;
-			break;
-		case APIC_OFFSET_DFR:
-			*data = lapic->dfr.v;
 			break;
 		case APIC_OFFSET_SVR:
 			*data = lapic->svr.v;
@@ -1354,12 +1295,7 @@ static int32_t vlapic_read(struct acrn_vlapic *vlapic, uint32_t offset_arg, uint
 			break;
 		case APIC_OFFSET_ICR_LOW:
 			*data = lapic->icr_lo.v;
-			if (is_x2apic_enabled(vlapic)) {
-				*data |= ((uint64_t)lapic->icr_hi.v) << 32U;
-			}
-			break;
-		case APIC_OFFSET_ICR_HI:
-			*data = lapic->icr_hi.v;
+			*data |= ((uint64_t)lapic->icr_hi.v) << 32U;
 			break;
 		case APIC_OFFSET_CMCI_LVT:
 		case APIC_OFFSET_TIMER_LVT:
@@ -1409,9 +1345,6 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 
 	if (offset <= sizeof(*lapic)) {
 		switch (offset) {
-		case APIC_OFFSET_ID:
-			/* Force APIC ID as read only */
-			break;
 		case APIC_OFFSET_EOI:
 			vlapic_process_eoi(vlapic);
 			break;
@@ -1419,23 +1352,14 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 			lapic->ldr.v = data32;
 			vlapic_write_ldr(vlapic);
 			break;
-		case APIC_OFFSET_DFR:
-			lapic->dfr.v = data32;
-			vlapic_write_dfr(vlapic);
-			break;
 		case APIC_OFFSET_SVR:
 			lapic->svr.v = data32;
 			vlapic_write_svr(vlapic);
 			break;
 		case APIC_OFFSET_ICR_LOW:
-			if (is_x2apic_enabled(vlapic)) {
-				lapic->icr_hi.v = (uint32_t)(data >> 32U);
-			}
+			lapic->icr_hi.v = (uint32_t)(data >> 32U);
 			lapic->icr_lo.v = data32;
 			vlapic_write_icrlo(vlapic);
-			break;
-		case APIC_OFFSET_ICR_HI:
-			lapic->icr_hi.v = data32;
 			break;
 		case APIC_OFFSET_CMCI_LVT:
 		case APIC_OFFSET_TIMER_LVT:
@@ -1466,12 +1390,9 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 			break;
 
 		case APIC_OFFSET_SELF_IPI:
-			if (is_x2apic_enabled(vlapic)) {
-				lapic->self_ipi.v = data32;
-				vlapic_x2apic_self_ipi_handler(vlapic);
-				break;
-			}
-			/* falls through */
+			lapic->self_ipi.v = data32;
+			vlapic_x2apic_self_ipi_handler(vlapic);
+			break;
 		default:
 			ret = -EACCES;
 			/* Read only */
@@ -1488,41 +1409,26 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
  * @pre vlapic != NULL && ops != NULL
  */
 void
-vlapic_reset(struct acrn_vlapic *vlapic, const struct acrn_apicv_ops *ops, enum vlapic_reset_mode mode)
+vlapic_reset(struct acrn_vcpu *vcpu)
 {
 	struct lapic_regs *lapic;
-	uint64_t preserved_lapic_mode = vlapic->msr_apicbase & APICBASE_LAPIC_MODE;
-	uint32_t preserved_apic_id = vlapic->apic_page.id.v;
+	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
 
 	vlapic->msr_apicbase = DEFAULT_APIC_BASE;
 
 	if (vlapic2vcpu(vlapic)->vcpu_id == BSP_CPU_ID) {
 		vlapic->msr_apicbase |= APICBASE_BSP;
 	}
-	if (mode == VLAPIC_INIT_RESET) {
-		if ((preserved_lapic_mode & APICBASE_ENABLED) != 0U ) {
-			/* Per SDM 11.12.5.1 vol.3, need to preserve lapic mode after INIT */
-			vlapic->msr_apicbase |= preserved_lapic_mode;
-		}
-	} else {
-		/* Upon reset, vlapic is set to xAPIC mode. */
-		vlapic->msr_apicbase |= APICBASE_XAPIC;
-	}
+
+	/* vlapic is always locked on x2APIC mode. */
+	vlapic->msr_apicbase |= APICBASE_XAPIC | APICBASE_X2APIC;
 
 	lapic = &(vlapic->apic_page);
 	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
 
-	if (mode == VLAPIC_INIT_RESET) {
-		if ((preserved_lapic_mode & APICBASE_ENABLED) != 0U ) {
-			/* the local APIC ID register should be preserved in XAPIC or X2APIC mode */
-			lapic->id.v = preserved_apic_id;
-		}
-	} else {
-		lapic->id.v = vlapic->vapic_id;
-		if (!is_x2apic_enabled(vlapic)) {
-			lapic->id.v <<= APIC_ID_SHIFT;
-		}
-	}
+	/* Local APIC ID register is Read-only in x2APIC mode */
+	vlapic_build_x2apic_id(vlapic);
+
 	lapic->version.v = VLAPIC_VERSION;
 	lapic->version.v |= (VLAPIC_MAXLVT_INDEX << MAXLVTSHIFT);
 	lapic->dfr.v = 0xffffffffU;
@@ -1539,7 +1445,12 @@ vlapic_reset(struct acrn_vlapic *vlapic, const struct acrn_apicv_ops *ops, enum 
 
 	vlapic->isrv = 0U;
 
-	vlapic->ops = ops;
+	if (!is_lapic_pt_configured(vcpu->vm)) {
+		vlapic->ops = apicv_ops;
+	} else {
+		vlapic->ops = &ptapic_ops;
+	}
+
 }
 
 void vlapic_restore(struct acrn_vlapic *vlapic, const struct lapic_regs *regs)
@@ -1606,8 +1517,6 @@ static const struct acrn_apicv_ops ptapic_ops = {
 	.inject_intr = ptapic_inject_intr,
 	.has_pending_delivery_intr = ptapic_has_pending_delivery_intr,
 	.has_pending_intr = ptapic_has_pending_intr,
-	.apic_read_access_may_valid  = ptapic_invalid,
-	.apic_write_access_may_valid  = ptapic_invalid,
 	.x2apic_read_msr_may_valid  = ptapic_invalid,
 	.x2apic_write_msr_may_valid  = ptapic_invalid,
 };
@@ -1615,49 +1524,18 @@ static const struct acrn_apicv_ops ptapic_ops = {
 int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 {
 	int32_t ret = 0;
-	uint64_t changed;
-	bool change_in_vlapic_mode = false;
 
 	if (vlapic->msr_apicbase != new) {
-		changed = vlapic->msr_apicbase ^ new;
-		change_in_vlapic_mode = ((changed & APICBASE_LAPIC_MODE) != 0U);
-
-		/*
-		 * TODO: Logic to check for change in Reserved Bits and Inject GP
-		 */
-
-		/*
-		 * Logic to check for change in Bits 11:10 for vLAPIC mode switch
-		 */
-		if (change_in_vlapic_mode) {
-			if ((new & APICBASE_LAPIC_MODE) ==
-						(APICBASE_XAPIC | APICBASE_X2APIC)) {
-				struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
-
-				if (is_lapic_pt_configured(vcpu->vm)) {
-					uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
-					/* vlapic need to be reset to make sure it is in correct state */
-					vlapic_reset(vlapic, &ptapic_ops, VLAPIC_POWER_UP);
-					vcpu->arch.lapic_pt_enabled = true;
-					per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_PAUSE;
-					per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
-				}
-				vlapic->msr_apicbase = new;
-				vlapic_build_x2apic_id(vlapic);
-				switch_apicv_mode_x2apic(vcpu);
-				update_vm_vlapic_state(vcpu->vm);
-			} else {
-				/*
-				 * TODO: Logic to check for Invalid transitions, Invalid State
-				 * and mode switch according to SDM 10.12.5
-				 * Fig. 10-27
-				 */
-			}
+		if ((new & APICBASE_LAPIC_MODE) != (APICBASE_XAPIC | APICBASE_X2APIC)) {
+			/* local APIC is locked in x2APIC mode */
+			pr_err("%s, try to disable x2APIC mode", __func__);
+			ret = -EACCES;
+		} else {
+			vlapic->msr_apicbase = new;
+			/*
+			 * TODO: Logic to check for change in Bits 35:12 and Bit 8 and emulate
+			 */
 		}
-
-		/*
-		 * TODO: Logic to check for change in Bits 35:12 and Bit 7 and emulate
-		 */
 	}
 
 	return ret;
@@ -1688,9 +1566,7 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 		dmask = vlapic_calc_dest_noshort(vm, false, dest, phys, lowprio);
 		dev_dbg(DBG_LEVEL_VLAPIC, "%s: target_vcpu destination mask 0x%016lx", __func__, dmask);
 
-		enum vm_vlapic_mode vlapic_mode  = check_vm_vlapic_mode(vm);
-		bool lapic_pt = is_lapic_pt_configured(vm);
-		if (lapic_pt && (vlapic_mode == VM_VLAPIC_X2APIC)) {
+		if (is_lapic_pt_configured(vm)) {
 			union apic_icr icr;
 			uint32_t pdest = 0;
 			vcpu_id = ffs64(dmask);
@@ -1709,7 +1585,7 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 
 			msr_write(MSR_IA32_EXT_APIC_ICR, icr.value);
 			dev_dbg(DBG_LEVEL_LAPICPT, "%s: icr.value 0x%016lx", __func__, icr.value);
-		} else if ((lapic_pt && (vlapic_mode == VM_VLAPIC_XAPIC)) || !lapic_pt) {
+		} else {
 			for (vcpu_id = 0U; vcpu_id < vm->hw.created_vcpus; vcpu_id++) {
 				struct acrn_vlapic *vlapic;
 				if ((dmask & (1UL << vcpu_id)) != 0UL) {
@@ -1722,12 +1598,6 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 					}
 				}
 			}
-		} else {
-			/*
-			 * Returns error for VM_VLAPIC_DISABLED and VM_VLAPIC_TRANSITION
-			 * cases when LAPIC PT configured
-			 */
-			ret = -1;
 		}
 	}
 
@@ -1855,30 +1725,6 @@ static void vlapic_timer_expired(void *data)
 	}
 }
 
-/*
- * @pre vm != NULL
- */
-bool is_x2apic_enabled(const struct acrn_vlapic *vlapic)
-{
-	bool ret = false;
-
-	if ((vlapic_get_apicbase(vlapic) & APICBASE_LAPIC_MODE) == (APICBASE_X2APIC | APICBASE_XAPIC)) {
-		ret = true;
-	}
-
-	return ret;
-}
-
-bool is_xapic_enabled(const struct acrn_vlapic *vlapic)
-{
-	bool ret = false;
-	if ((vlapic_get_apicbase(vlapic) & APICBASE_LAPIC_MODE) == APICBASE_XAPIC) {
-	        ret = true;
-	}
-
-	return ret;
-}
-
 static inline  uint32_t x2apic_msr_to_regoff(uint32_t msr)
 {
 
@@ -1903,51 +1749,42 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 	struct acrn_vcpu *target_vcpu;
 	bool phys;
 	uint32_t shorthand;
-	int32_t ret = 0;
-	enum vm_vlapic_mode vlapic_mode = check_vm_vlapic_mode(vcpu->vm);
 	uint64_t dmask;
 
 	phys = ((icr_low & APIC_DESTMODE_LOG) == 0UL);
 	shorthand = icr_low & APIC_DEST_MASK;
+	dmask = vlapic_calc_dest(vcpu, shorthand, (dest == 0xffffffffU), dest, phys, false);
 
-	if ((vlapic_mode != VM_VLAPIC_X2APIC) && !phys) {
-		pr_err("Only Physical Destination Mode could work on non-VM_VLAPIC_X2APIC mode\n");
-		ret = -1;
-	} else {
-		dmask = vlapic_calc_dest(vcpu, shorthand, (dest == 0xffffffffU), dest, phys, false);
+	/**
+	 * The hypervisor sets the "Destination Shorthand" field to 00B (No Shorthand)
+	 * since the emulation is done through sending IPI to each VCPU in dmask one by one.
+	 */
+	icr_low = icr_low & (~APIC_DEST_MASK);
+	for (vcpu_id = 0U; vcpu_id < vcpu->vm->hw.created_vcpus; vcpu_id++) {
+		if (((dmask & (1UL << vcpu_id)) != 0UL) &&
+				(vcpu->vm->hw.vcpu_array[vcpu_id].state != VCPU_OFFLINE)) {
+			target_vcpu = vcpu_from_vid(vcpu->vm, vcpu_id);
 
-		/**
-		 * The hypervisor sets the "Destination Shorthand" field to 00B (No Shorthand)
-		 * since the emulation is done through sending IPI to each VCPU in dmask one by one.
-		 */
-		icr_low = icr_low & (~APIC_DEST_MASK);
-		for (vcpu_id = 0U; vcpu_id < vcpu->vm->hw.created_vcpus; vcpu_id++) {
-			if (((dmask & (1UL << vcpu_id)) != 0UL) &&
-					(vcpu->vm->hw.vcpu_array[vcpu_id].state != VCPU_OFFLINE)) {
-				target_vcpu = vcpu_from_vid(vcpu->vm, vcpu_id);
-
-				switch (mode) {
-				case APIC_DELMODE_INIT:
-					vlapic_process_init_sipi(target_vcpu, mode, icr_low);
-				break;
-				case APIC_DELMODE_STARTUP:
-					vlapic_process_init_sipi(target_vcpu, mode, icr_low);
-				break;
-				default:
-					/* convert the dest from virtual apic_id to physical apic_id */
-					if (is_x2apic_enabled(vcpu_vlapic(target_vcpu))) {
-						papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
-							dev_dbg(DBG_LEVEL_LAPICPT,
-							"%s vapic_id: 0x%08lx papic_id: 0x%08lx icr_low:0x%08lx",
-							 __func__, target_vcpu->arch.vlapic.vapic_id, papic_id, icr_low);
-						msr_write(MSR_IA32_EXT_APIC_ICR, (((uint64_t)papic_id) << 32U) | icr_low);
-					}
-				break;
-				}
+			switch (mode) {
+			case APIC_DELMODE_INIT:
+				vlapic_process_init_sipi(target_vcpu, mode, icr_low);
+			break;
+			case APIC_DELMODE_STARTUP:
+				vlapic_process_init_sipi(target_vcpu, mode, icr_low);
+			break;
+			default:
+				/* convert the dest from virtual apic_id to physical apic_id */
+				papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
+					dev_dbg(DBG_LEVEL_LAPICPT,
+					"%s vapic_id: 0x%08lx papic_id: 0x%08lx icr_low:0x%08lx",
+					 __func__, target_vcpu->arch.vlapic.vapic_id, papic_id, icr_low);
+				msr_write(MSR_IA32_EXT_APIC_ICR, (((uint64_t)papic_id) << 32U) | icr_low);
+			break;
 			}
 		}
 	}
-	return ret;
+
+	return 0;
 }
 
 static bool apicv_basic_x2apic_read_msr_may_valid(uint32_t offset)
@@ -1977,29 +1814,23 @@ int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
 	uint32_t offset;
 	int32_t error = -1;
 
-	/*
-	 * If vLAPIC is in xAPIC mode and guest tries to access x2APIC MSRs
-	 * inject a GP to guest
-	 */
 	vlapic = vcpu_vlapic(vcpu);
-	if (is_x2apic_enabled(vlapic)) {
-		if (is_lapic_pt_configured(vcpu->vm)) {
-			switch (msr) {
-			case MSR_IA32_EXT_APIC_LDR:
-			case MSR_IA32_EXT_XAPICID:
-			case MSR_IA32_EXT_APIC_LVT_THERMAL:
-				offset = x2apic_msr_to_regoff(msr);
-				error = vlapic_read(vlapic, offset, val);
-				break;
-			default:
-				pr_err("%s: unexpected MSR[0x%x] read with lapic_pt", __func__, msr);
-				break;
-			}
-		} else {
+	if (is_lapic_pt_configured(vcpu->vm)) {
+		switch (msr) {
+		case MSR_IA32_EXT_APIC_LDR:
+		case MSR_IA32_EXT_XAPICID:
+		case MSR_IA32_EXT_APIC_LVT_THERMAL:
 			offset = x2apic_msr_to_regoff(msr);
-			if (vlapic->ops->x2apic_read_msr_may_valid(offset)) {
-				error = vlapic_read(vlapic, offset, val);
-			}
+			error = vlapic_read(vlapic, offset, val);
+			break;
+		default:
+			pr_err("%s: unexpected MSR[0x%x] read with lapic_pt", __func__, msr);
+			break;
+		}
+	} else {
+		offset = x2apic_msr_to_regoff(msr);
+		if (vlapic->ops->x2apic_read_msr_may_valid(offset)) {
+			error = vlapic_read(vlapic, offset, val);
 		}
 	}
 
@@ -2012,30 +1843,25 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 	uint32_t offset;
 	int32_t error = -1;
 
-	/*
-	 * If vLAPIC is in xAPIC mode and guest tries to access x2APIC MSRs
-	 * inject a GP to guest
-	 */
 	vlapic = vcpu_vlapic(vcpu);
-	if (is_x2apic_enabled(vlapic)) {
-		if (is_lapic_pt_configured(vcpu->vm)) {
-			switch (msr) {
-			case MSR_IA32_EXT_APIC_ICR:
-				error = vlapic_x2apic_pt_icr_access(vcpu, val);
-				break;
-			case MSR_IA32_EXT_APIC_LVT_THERMAL:
-				offset = x2apic_msr_to_regoff(msr);
-				error = vlapic_write(vlapic, offset, val);
-				break;
-			default:
-				pr_err("%s: unexpected MSR[0x%x] write with lapic_pt", __func__, msr);
-				break;
-			}
-		} else {
+
+	if (is_lapic_pt_configured(vcpu->vm)) {
+		switch (msr) {
+		case MSR_IA32_EXT_APIC_ICR:
+			error = vlapic_x2apic_pt_icr_access(vcpu, val);
+			break;
+		case MSR_IA32_EXT_APIC_LVT_THERMAL:
 			offset = x2apic_msr_to_regoff(msr);
-			if (vlapic->ops->x2apic_write_msr_may_valid(offset)) {
-				error = vlapic_write(vlapic, offset, val);
-			}
+			error = vlapic_write(vlapic, offset, val);
+			break;
+		default:
+			pr_err("%s: unexpected MSR[0x%x] write with lapic_pt", __func__, msr);
+			break;
+		}
+	} else {
+		offset = x2apic_msr_to_regoff(msr);
+		if (vlapic->ops->x2apic_write_msr_may_valid(offset)) {
+			error = vlapic_write(vlapic, offset, val);
 		}
 	}
 
@@ -2238,81 +2064,6 @@ bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu)
 	return vlapic->ops->has_pending_intr(vcpu);
 }
 
-static bool apicv_basic_apic_read_access_may_valid(__unused uint32_t offset)
-{
-	return true;
-}
-
-static bool apicv_advanced_apic_read_access_may_valid(uint32_t offset)
-{
-	return ((offset == APIC_OFFSET_CMCI_LVT) || (offset == APIC_OFFSET_TIMER_CCR));
-}
-
-static bool apicv_basic_apic_write_access_may_valid(uint32_t offset)
-{
-	return (offset != APIC_OFFSET_SELF_IPI);
-}
-
-static bool apicv_advanced_apic_write_access_may_valid(uint32_t offset)
-{
-	return (offset == APIC_OFFSET_CMCI_LVT);
-}
-
-int32_t apic_access_vmexit_handler(struct acrn_vcpu *vcpu)
-{
-	int32_t err;
-	uint32_t offset;
-	uint64_t qual, access_type;
-	struct acrn_vlapic *vlapic;
-	struct acrn_mmio_request *mmio;
-
-	qual = vcpu->arch.exit_qualification;
-	access_type = apic_access_type(qual);
-
-	/*
-	 * We only support linear access for a data read/write during instruction execution.
-	 * for other access types:
-	 * a) we don't support vLAPIC work in real mode;
-	 * 10 = guest-physical access during event delivery
-	 * 15 = guest-physical access for an instruction fetch or during instruction execution
-	 * b) we don't support fetch from APIC-access page since its memory type is UC;
-	 * 2 = linear access for an instruction fetch
-	 * c) we suppose the guest goes wrong when it will access the APIC-access page
-	 * when process event-delivery. According chap 26.5.1.2 VM Exits During Event Injection,
-	 * vol 3, sdm: If the "virtualize APIC accesses" VM-execution control is 1 and
-	 * event delivery generates an access to the APIC-access page, that access is treated as
-	 * described in Section 29.4 and may cause a VM exit.
-	 * 3 = linear access (read or write) during event delivery
-	 */
-	if (((access_type == TYPE_LINEAR_APIC_INST_READ) || (access_type == TYPE_LINEAR_APIC_INST_WRITE)) &&
-			(decode_instruction(vcpu, true) >= 0)) {
-		vlapic = vcpu_vlapic(vcpu);
-		offset = (uint32_t)apic_access_offset(qual);
-		mmio = &vcpu->req.reqs.mmio_request;
-		if (access_type == TYPE_LINEAR_APIC_INST_WRITE) {
-			err = emulate_instruction(vcpu);
-			if (err == 0) {
-				if (vlapic->ops->apic_write_access_may_valid(offset)) {
-					(void)vlapic_write(vlapic, offset, mmio->value);
-				}
-			}
-		} else {
-			if (vlapic->ops->apic_read_access_may_valid(offset)) {
-				(void)vlapic_read(vlapic, offset, &mmio->value);
-			} else {
-				mmio->value = 0UL;
-			}
-			err = emulate_instruction(vcpu);
-		}
-		TRACE_2L(TRACE_VMEXIT_APICV_ACCESS, qual, (uint64_t)vlapic);
-	} else {
-		pr_err("%s, unhandled access type: %lu\n", __func__, access_type);
-		err = -EINVAL;
-	}
-
-	return err;
-}
-
 int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = NULL;
@@ -2356,70 +2107,6 @@ static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
 	}
 }
 
-int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu)
-{
-	uint64_t qual;
-	int32_t err = 0;
-	uint32_t offset;
-	struct acrn_vlapic *vlapic = NULL;
-
-	qual = vcpu->arch.exit_qualification;
-	offset = (uint32_t)(qual & 0xFFFUL);
-
-	vcpu_retain_rip(vcpu);
-	vlapic = vcpu_vlapic(vcpu);
-
-	switch (offset) {
-	case APIC_OFFSET_ID:
-		/* Force APIC ID as read only */
-		break;
-	case APIC_OFFSET_LDR:
-		vlapic_write_ldr(vlapic);
-		break;
-	case APIC_OFFSET_DFR:
-		vlapic_write_dfr(vlapic);
-		break;
-	case APIC_OFFSET_SVR:
-		vlapic_write_svr(vlapic);
-		break;
-	case APIC_OFFSET_ESR:
-		vlapic_write_esr(vlapic);
-		break;
-	case APIC_OFFSET_ICR_LOW:
-		vlapic_write_icrlo(vlapic);
-		break;
-	case APIC_OFFSET_CMCI_LVT:
-	case APIC_OFFSET_TIMER_LVT:
-	case APIC_OFFSET_THERM_LVT:
-	case APIC_OFFSET_PERF_LVT:
-	case APIC_OFFSET_LINT0_LVT:
-	case APIC_OFFSET_LINT1_LVT:
-	case APIC_OFFSET_ERROR_LVT:
-		vlapic_write_lvt(vlapic, offset);
-		break;
-	case APIC_OFFSET_TIMER_ICR:
-		vlapic_write_icrtmr(vlapic);
-		break;
-	case APIC_OFFSET_TIMER_DCR:
-		vlapic_write_dcr(vlapic);
-		break;
-	case APIC_OFFSET_SELF_IPI:
-		if (is_x2apic_enabled(vlapic)) {
-			vlapic_x2apic_self_ipi_handler(vlapic);
-			break;
-		}
-		/* falls through */
-	default:
-		err = -EACCES;
-		pr_err("Unhandled APIC-Write, offset:0x%x", offset);
-		break;
-	}
-
-	TRACE_2L(TRACE_VMEXIT_APICV_WRITE, offset, 0UL);
-
-	return err;
-}
-
 /*
  * TPR threshold (32 bits). Bits 3:0 of this field determine the threshold
  * below which bits 7:4 of VTPR (see Section 29.1.1) cannot fall.
@@ -2450,8 +2137,6 @@ static const struct acrn_apicv_ops apicv_basic_ops = {
 	.inject_intr = apicv_basic_inject_intr,
 	.has_pending_delivery_intr = apicv_basic_has_pending_delivery_intr,
 	.has_pending_intr = apicv_basic_has_pending_intr,
-	.apic_read_access_may_valid = apicv_basic_apic_read_access_may_valid,
-	.apic_write_access_may_valid = apicv_basic_apic_write_access_may_valid,
 	.x2apic_read_msr_may_valid = apicv_basic_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid = apicv_basic_x2apic_write_msr_may_valid,
 };
@@ -2461,8 +2146,6 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.inject_intr = apicv_advanced_inject_intr,
 	.has_pending_delivery_intr = apicv_advanced_has_pending_delivery_intr,
 	.has_pending_intr = apicv_advanced_has_pending_intr,
-	.apic_read_access_may_valid  = apicv_advanced_apic_read_access_may_valid,
-	.apic_write_access_may_valid  = apicv_advanced_apic_write_access_may_valid,
 	.x2apic_read_msr_may_valid  = apicv_advanced_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
 };

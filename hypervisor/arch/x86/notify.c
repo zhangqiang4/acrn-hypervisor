@@ -63,7 +63,7 @@ void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 
 			struct acrn_vcpu *vcpu = get_ever_run_vcpu(pcpu_id);
 
-			if ((vcpu != NULL) && (is_lapic_pt_enabled(vcpu))) {
+			if ((vcpu != NULL) && (is_lapic_pt_configured(vcpu->vm))) {
 				if (vcpu->state == VCPU_RUNNING) {
 					vcpu_make_request(vcpu, ACRN_REQUEST_SMP_CALL);
 				} else {

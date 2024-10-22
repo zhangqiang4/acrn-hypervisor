@@ -572,6 +572,9 @@ void init_vmcs(struct acrn_vcpu *vcpu)
 	init_guest_state(vcpu);
 	init_entry_ctrl(vcpu);
 	init_exit_ctrl(vcpu);
+
+	/* TODO: remove switch_apicv_mode_x2apic */
+	switch_apicv_mode_x2apic(vcpu);
 }
 
 /**
@@ -628,14 +631,10 @@ void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 			value32 &= ~VMX_PROCBASED_CTLS2_VAPIC_REGS;
 		}
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
-
-		update_msr_bitmap_x2apic_passthru(vcpu);
-
 	} else {
 		value32 = exec_vmread32(VMX_PROC_VM_EXEC_CONTROLS2);
 		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC;
 		value32 |= VMX_PROCBASED_CTLS2_VX2APIC;
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
-		update_msr_bitmap_x2apic_apicv(vcpu);
 	}
 }

@@ -93,13 +93,10 @@ struct acrn_apicv_ops {
 	void (*inject_intr)(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
 	bool (*has_pending_delivery_intr)(struct acrn_vcpu *vcpu);
 	bool (*has_pending_intr)(struct acrn_vcpu *vcpu);
-	bool (*apic_read_access_may_valid)(uint32_t offset);
-	bool (*apic_write_access_may_valid)(uint32_t offset);
 	bool (*x2apic_read_msr_may_valid)(uint32_t offset);
 	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
 };
 
-extern const struct acrn_apicv_ops *apicv_ops;
 void vlapic_set_apicv_ops(void);
 
 /**
@@ -195,19 +192,15 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id);
  */
 void vlapic_free(struct acrn_vcpu *vcpu);
 
-void vlapic_reset(struct acrn_vlapic *vlapic, const struct acrn_apicv_ops *ops, enum vlapic_reset_mode mode);
+void vlapic_reset(struct acrn_vcpu *vcpu);
 void vlapic_restore(struct acrn_vlapic *vlapic, const struct lapic_regs *regs);
 uint64_t vlapic_apicv_get_apic_access_addr(void);
 uint64_t vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic);
-int32_t apic_access_vmexit_handler(struct acrn_vcpu *vcpu);
-int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu);
 int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu);
 void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic);
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu);
 uint64_t vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 		uint32_t dest, bool phys, bool lowprio);
-bool is_x2apic_enabled(const struct acrn_vlapic *vlapic);
-bool is_xapic_enabled(const struct acrn_vlapic *vlapic);
 /**
  * @}
  */

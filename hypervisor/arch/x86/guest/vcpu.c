@@ -232,14 +232,11 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	int32_t i;
-	struct acrn_vlapic *vlapic;
-	enum vlapic_reset_mode lapic_mode;
 
 	vcpu->launched = false;
 	vcpu->arch.nr_sipi = 0U;
 
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;
-	vcpu->arch.lapic_pt_enabled = false;
 	vcpu->arch.irq_window_enabled = false;
 	vcpu->arch.emulating_lock = false;
 	(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
@@ -259,13 +256,7 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	(void)memset((void *)(&vcpu->arch.contexts), 0U,
 			sizeof(struct run_context));
 
-	vlapic = vcpu_vlapic(vcpu);
-	lapic_mode = reset_mode_vcpu2vlapic(mode);
-	if (lapic_mode == VLAPIC_RESET_INVALID) {
-		pr_err("lapic reset, unsupported vcpu mode: %d", mode);
-		lapic_mode = VLAPIC_POWER_UP;
-	}
-	vlapic_reset(vlapic, apicv_ops, lapic_mode);
+	vlapic_reset(vcpu);
 
 	reset_vcpu_regs(vcpu, mode);
 
@@ -1044,5 +1035,4 @@ void vcpu_handle_pi_notification(uint32_t vcpu_index)
 void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 {
 	vcpu->state = new_state;
-	update_vm_vlapic_state(vcpu->vm);
 }

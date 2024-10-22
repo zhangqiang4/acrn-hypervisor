@@ -80,13 +80,6 @@ enum vm_state {
 	VM_PAUSED,	/* VM paused */
 };
 
-enum vm_vlapic_mode {
-	VM_VLAPIC_DISABLED = 0U,
-	VM_VLAPIC_XAPIC,
-	VM_VLAPIC_X2APIC,
-	VM_VLAPIC_TRANSITION
-};
-
 struct vm_arch {
 	/* I/O bitmaps A and B for this VM, MUST be 4-Kbyte aligned */
 	uint8_t io_bitmap[PAGE_SIZE*2];
@@ -101,7 +94,6 @@ struct vm_arch {
 	struct pgtable ept_pgtable;
 
 	struct acrn_vioapics vioapics;	/* Virtual IOAPIC/s */
-	enum vm_vlapic_mode vlapic_mode; /* Represents vLAPIC mode across vCPUs*/
 
 	/*
 	 * Keylocker spec 4.5:
@@ -262,8 +254,6 @@ bool is_pi_capable(const struct acrn_vm *vm);
 bool has_rt_vm(void);
 struct acrn_vm *get_highest_severity_vm(bool runtime);
 bool vm_hide_mtrr(const struct acrn_vm *vm);
-void update_vm_vlapic_state(struct acrn_vm *vm);
-enum vm_vlapic_mode check_vm_vlapic_mode(const struct acrn_vm *vm);
 bool is_vhwp_configured(const struct acrn_vm *vm);
 bool is_mc_pt_configured(const struct acrn_vm *vm);
 bool is_vtm_configured(const struct acrn_vm *vm);
