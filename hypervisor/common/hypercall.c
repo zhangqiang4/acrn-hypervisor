@@ -92,13 +92,22 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 
 	foreach_vcpu(i, vcpu->vm, target_vcpu) {
 		if (vlapic_get_apicid(vcpu_vlapic(target_vcpu)) == lapicid) {
-			/* should not offline BSP */
-			if (target_vcpu->vcpu_id == BSP_CPU_ID) {
+			uint64_t mask = 0UL;
+			uint16_t pcpu_id = pcpuid_from_vcpu(target_vcpu);
+			bitmap_set_nolock(pcpu_id, &mask);
+
+			/* should not offline BSP or current vCPU*/
+			if ((target_vcpu->vcpu_id == BSP_CPU_ID) || (target_vcpu == vcpu)) {
 				ret = -1;
 				break;
 			}
 			zombie_vcpu(target_vcpu, VCPU_ZOMBIE);
 			offline_vcpu(target_vcpu);
+
+			/* restart pcpu so that it restores all its states */
+			make_pcpu_offline(pcpu_id);
+			wait_pcpus_offline(mask);
+			start_pcpus(mask);
 		}
 	}
 
