@@ -82,6 +82,12 @@
 #define IOREQ_PIO_INVAL		(~0U)
 #define IOREQ_MMIO_INVAL	(~0UL)
 
+extern int init_dump_shmem(struct vmctx *ctx);
+extern void deinit_dump_shmem(void);
+extern void dump_guest_memory(struct vmctx *ctx);
+extern int acrn_parse_dump_log_path(char *arg);
+extern char dump_log_path[];
+
 typedef void (*vmexit_handler_t)(struct vmctx *,
 		struct acrn_io_request *, int *vcpu);
 
@@ -157,7 +163,7 @@ usage(int code)
 		"       %*s [--vtpm2 sock_path] [--virtio_poll interval]\n"
 		"       %*s [--cpu_affinity lapic_id] [--lapic_pt] [--rtvm] [--windows]\n"
 		"       %*s [--debugexit] [--logger_setting param_setting]\n"
-		"       %*s [--ssram] <vm>\n"
+		"       %*s [--ssram] [--dump_log dump_log_path] <vm>\n"
 		"       -B: bootargs for kernel\n"
 		"       -E: elf image path\n"
 		"       -h: help\n"
@@ -189,6 +195,7 @@ usage(int code)
 		"       --logger_setting: params like console,level=4;kmsg,level=3\n"
 		"       --windows: support Oracle virtio-blk, virtio-net and virtio-input devices\n"
 		"            for windows guest with secure boot\n"
+		"       --dump_log: specify crash dump log path\n"
 		"       --virtio_msi: force virtio to use single-vector MSI\n",
 		progname, (int)strnlen(progname, PATH_MAX), "", (int)strnlen(progname, PATH_MAX), "",
 		(int)strnlen(progname, PATH_MAX), "", (int)strnlen(progname, PATH_MAX), "",
@@ -733,6 +740,7 @@ vm_system_reset(struct vmctx *ctx)
 	 */
 
 	vm_pause(ctx);
+	dump_guest_memory(ctx);
 
 	/*
 	 * After vm_pause, there should be no new coming ioreq.
@@ -907,6 +915,7 @@ enum {
 	CMD_OPT_WINDOWS,
 	CMD_OPT_FORCE_VIRTIO_MSI,
 	CMD_OPT_BE,
+	CMD_OPT_DUMP_LOG,
 };
 
 static struct option long_options[] = {
@@ -950,6 +959,7 @@ static struct option long_options[] = {
 	{"pm_by_vuart",	required_argument,	0, CMD_OPT_PM_BY_VUART},
 	{"windows",		no_argument,		0, CMD_OPT_WINDOWS},
 	{"virtio_msi",		no_argument,		0, CMD_OPT_FORCE_VIRTIO_MSI},
+	{"dump_log",		required_argument,	0, CMD_OPT_DUMP_LOG},
 	{0,			0,			0,  0  },
 };
 
@@ -1181,6 +1191,11 @@ main(int argc, char *argv[])
 			}
 			acrn_be(argc, argv);
 			exit(1);
+		case CMD_OPT_DUMP_LOG:
+			if (acrn_parse_dump_log_path(optarg) != 0)
+				exit(1);
+			else
+				break;
 		case 'h':
 			usage(0);
 		default:
@@ -1295,11 +1310,17 @@ main(int argc, char *argv[])
 			goto vm_fail;
 		}
 
+		/* map crash dump shmem ept before loading OVMF */
+		if (init_dump_shmem(ctx) < 0) {
+			pr_err("init_dump_shmem failed\n");
+			goto vm_fail;
+		}
+
 		pr_notice("acrn_sw_load\n");
 		error = acrn_sw_load(ctx);
 		if (error) {
 			pr_err("acrn_sw_load failed, error=%d\n", error);
-			goto vm_fail;
+			goto dump_fail;
 		}
 
 		/*
@@ -1314,7 +1335,7 @@ main(int argc, char *argv[])
 		error = add_cpu(ctx, guest_ncpus);
 		if (error) {
 			pr_err("add_cpu failed, error=%d\n", error);
-			goto vm_fail;
+			goto dump_fail;
 		}
 
 		/* Make a copy for ctx */
@@ -1326,6 +1347,7 @@ main(int argc, char *argv[])
 		mevent_dispatch();
 
 		vm_pause(ctx);
+		dump_guest_memory(ctx);
 		delete_cpu(ctx, BSP);
 
 		if (vm_get_suspend_mode() != VM_SUSPEND_FULL_RESET){
@@ -1334,6 +1356,7 @@ main(int argc, char *argv[])
 		}
 
 		vm_event_deinit();
+		deinit_dump_shmem();
 		vm_deinit_vdevs(ctx);
 		mevent_deinit();
 		iothread_deinit();
@@ -1344,6 +1367,9 @@ main(int argc, char *argv[])
 		pr_info("%s: setting VM state to %s\n", __func__, vm_state_to_str(VM_SUSPEND_NONE));
 		vm_set_suspend_mode(VM_SUSPEND_NONE);
 	}
+
+dump_fail:
+	deinit_dump_shmem();
 
 vm_fail:
 	vm_event_deinit();

@@ -49,6 +49,9 @@ struct mngr_msg {
 		/* ack of DM_QUERY */
 		int state;
 
+		/* dump mode */
+		enum dm_dump_mode dump_mode;
+
 		/* req of ACRND_TIMER */
 		struct req_acrnd_timer {
 			char name[MAX_VM_NAME_LEN];
@@ -99,6 +102,7 @@ enum dm_msgid {
 	DM_ADD_PCI,
 	DM_DEL_PCI,
 	DM_SET_GPIO,
+	DM_DUMP,
 	DM_MAX,
 };
 

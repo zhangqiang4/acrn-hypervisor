@@ -61,5 +61,6 @@ int blkrescan_vm(const char *vmname, char *devargs);
 int add_pci_dev(const char *vmname, char *devargs);
 int del_pci_dev(const char *vmname, char *devargs);
 int set_gpio(const char *vmname, char *devargs);
+int enable_dump(const char *vmname, char *cond);
 
 #endif				/* _ACRNCTL_H_ */

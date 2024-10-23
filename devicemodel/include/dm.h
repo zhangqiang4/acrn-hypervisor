@@ -62,6 +62,13 @@ enum acrn_thread_prio {
 	PRIO_VIRTIO_GPU
 };
 
+/* DM dummp mode */
+enum dm_dump_mode {
+	DM_DUMP_ON_PANIC,
+	DM_DUMP_ON_REBOOT,
+	DM_DUMP_OFF,
+};
+
 /**
  * @brief Convert guest physical address to host virtual address
  *
@@ -78,4 +85,5 @@ size_t high_bios_size(void);
 void init_debugexit(void);
 void deinit_debugexit(void);
 void set_thread_priority(int priority, bool reset_on_fork);
+int dump_set_params(enum dm_dump_mode mode);
 #endif

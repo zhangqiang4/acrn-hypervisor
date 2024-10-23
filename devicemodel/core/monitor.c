@@ -517,6 +517,22 @@ static void handle_set_gpio(struct mngr_msg *msg, int client_fd, void *param)
 	mngr_send_msg(client_fd, &ack, NULL, ACK_TIMEOUT);
 }
 
+static void handle_dump(struct mngr_msg *msg, int client_fd, void *param)
+{
+	struct mngr_msg ack;
+	int ret = 0;
+
+	ack.magic = MNGR_MSG_MAGIC;
+	ack.msgid = msg->msgid;
+	ack.timestamp = msg->timestamp;
+
+	ret = dump_set_params(msg->data.dump_mode);
+
+	ack.data.err = ret;
+
+	mngr_send_msg(client_fd, &ack, NULL, ACK_TIMEOUT);
+}
+
 static struct monitor_vm_ops pmc_ops = {
 	.stop       = NULL,
 	.resume     = vm_monitor_resume,
@@ -560,6 +576,8 @@ int monitor_init(struct vmctx *ctx)
 	ret += mngr_add_handler(monitor_fd, DM_ADD_PCI, handle_add_pci, ctx);
 	ret += mngr_add_handler(monitor_fd, DM_DEL_PCI, handle_del_pci, ctx);
 	ret += mngr_add_handler(monitor_fd, DM_SET_GPIO, handle_set_gpio, ctx);
+	ret += mngr_add_handler(monitor_fd, DM_DUMP, handle_dump, ctx);
+
 
 	if (ret) {
 		pr_err("%s %d\r\n", __func__, __LINE__);

@@ -38,11 +38,14 @@
 #define E820_TYPE_ACPI_NVS      4U   /* EFI 10 */
 #define E820_TYPE_UNUSABLE      5U   /* EFI 8 */
 
-#define NUM_E820_ENTRIES	7
+#define NUM_E820_ENTRIES	8
 #define LOWRAM_E820_ENTRY	1
 #define HIGHRAM_E820_ENTRY	6
 
 #define HIGHRAM_START_ADDR	 0x100000000UL /* 4GB */
+
+#define DUMP_E820_ENTRY_BASE 0x1000000000  /* 64GB */
+#define DUMP_E820_SECTION_SZ 0x4000	       /* 16KB */
 
 /* Defines a single entry in an E820 memory map. */
 struct e820_entry {

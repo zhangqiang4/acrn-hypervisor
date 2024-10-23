@@ -88,6 +88,7 @@ LIBS += -lrt
 LIBS += -lpthread
 LIBS += -lcrypto
 LIBS += -luring
+LIBS += -lblkid
 LIBS += -lpciaccess
 LIBS += -lusb-1.0
 LIBS += -lacrn-mngr
@@ -185,6 +186,7 @@ SRCS += hw/shmem/virtio_over_shmem.c
 
 # core
 #SRCS += core/bootrom.c
+SRCS += core/dump.c
 SRCS += core/monitor.c
 SRCS += core/sw_load_common.c
 SRCS += core/sw_load_bzimage.c

@@ -109,6 +109,13 @@ const struct e820_entry e820_default_entries[NUM_E820_ENTRIES] = {
 		.length   = 0x0,
 		.type     = E820_TYPE_RESERVED
 	},
+
+	{
+		/* crash dump shared memory */
+		.baseaddr = DUMP_E820_ENTRY_BASE,
+		.length   = DUMP_E820_SECTION_SZ,
+		.type     = E820_TYPE_RESERVED
+	},
 };
 
 int
@@ -267,6 +274,9 @@ acrn_create_e820_table(struct vmctx *ctx, struct e820_entry *e820)
 	if (ctx->highmem > 0) {
 		e820[HIGHRAM_E820_ENTRY].type = E820_TYPE_RAM;
 		e820[HIGHRAM_E820_ENTRY].length = ctx->highmem;
+		if ((ctx->highmem + e820[HIGHRAM_E820_ENTRY].baseaddr) > DUMP_E820_ENTRY_BASE) {
+			pr_err("SW_LOAD ERR: high memory overlay with shared memory\n");
+		}
 	}
 
 	/* Remove empty entries in e820 table */

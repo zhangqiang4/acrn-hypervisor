@@ -469,6 +469,34 @@ int del_pci_dev(const char *vmname, char *devargs)
 	return ack.data.err;
 }
 
+int enable_dump(const char *vmname, char *cond)
+{
+	struct mngr_msg req;
+	struct mngr_msg ack;
+
+	req.msgid = DM_DUMP;
+	if (!strcmp(cond, "panic")) {
+		req.data.dump_mode = DM_DUMP_ON_PANIC;
+	} else if (!strcmp(cond, "reboot")) {
+		req.data.dump_mode = DM_DUMP_ON_REBOOT;
+	} else if (!strcmp(cond, "off")) {
+		req.data.dump_mode = DM_DUMP_OFF;
+	} else {
+		req.msgid = DM_MAX;
+	}
+	req.magic = MNGR_MSG_MAGIC;
+	req.timestamp = time(NULL);
+
+	send_msg(vmname, &req, &ack);
+
+	if (ack.data.err) {
+		printf("Unable to set dump condition to %s. errno(%d)\n",
+		       cond, ack.data.err);
+	}
+
+	return ack.data.err;
+}
+
 int set_gpio(const char *vmname, char *devargs)
 {
 	struct mngr_msg req;

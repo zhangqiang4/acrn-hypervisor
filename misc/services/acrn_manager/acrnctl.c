@@ -37,6 +37,7 @@
 #define ADD_PCI_DESC    "Hot add a PCIe device to a virtual machine"
 #define DEL_PCI_DESC    "Hot remove a PCIe device from a virtual machine"
 #define SET_GPIO_DESC	"Set input value for a mock gpio line"
+#define DUMP_DESC	"Dump guest memory on specified condition"
 
 #define VM_NAME (1)
 #define CMD_ARGS (2)
@@ -680,6 +681,19 @@ static int acrnctl_do_reset(int argc, char *argv[])
 	return ret;
 }
 
+static int acrnctl_do_dump(int argc , char *argv[])
+{
+	struct vmmngr_struct *s;
+
+	s = vmmngr_find(argv[1]);
+	if (!s) {
+		printf("can't find %s\n", argv[1]);
+		return -1;
+	}
+
+	return enable_dump(argv[VM_NAME], argv[CMD_ARGS]);
+}
+
 /* Default args validation function */
 int df_valid_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
 {
@@ -776,6 +790,21 @@ static int valid_list_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
 	return 0;
 }
 
+static int valid_dump_args(struct acrnctl_cmd *cmd, int argc, char *argv[])
+{
+	char df_opt[] = "VM_NAME [panic|reboot|off]";
+
+	if (argc != 3 || !strcmp(argv[1], "help") ||
+	    (strcmp(argv[CMD_ARGS], "panic") &&
+	     strcmp(argv[CMD_ARGS], "reboot") &&
+	     strcmp(argv[CMD_ARGS], "off"))) {
+		printf("acrnctl %s %s\n", cmd->cmd, df_opt);
+		return -1;
+	}
+
+	return 0;
+}
+
 struct acrnctl_cmd acmds[] = {
 	ACMD("list", acrnctl_do_list, LIST_DESC, valid_list_args),
 	ACMD("start", acrnctl_do_start, START_DESC, valid_start_args),
@@ -787,6 +816,7 @@ struct acrnctl_cmd acmds[] = {
 	ACMD("add_pci", acrnctl_do_add_pci, ADD_PCI_DESC, valid_add_pci_args),
 	ACMD("del_pci", acrnctl_do_del_pci, DEL_PCI_DESC, valid_del_pci_args),
 	ACMD("set_gpio", acrnctl_do_set_gpio, SET_GPIO_DESC, valid_set_gpio_args),
+	ACMD("dump", acrnctl_do_dump, DUMP_DESC, valid_dump_args),
 };
 
 #define NCMD	(sizeof(acmds)/sizeof(struct acrnctl_cmd))
