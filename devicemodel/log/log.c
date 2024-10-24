@@ -36,8 +36,29 @@ static char *level_strs[] = {
 };
 #define PREFIX_MAX_LEN 50
 
+#define LOG_DEBUG_DOMAIN_MAX 8
+static char *domains[LOG_DEBUG_DOMAIN_MAX];
+static size_t domain_cnt;
+static bool domain_all;
+bool debug_log = false;
+
+bool domain_selected(const char *domain_prefix)
+{
+	/* suppress logs from domains we don't care */
+	if (domain_all) {
+		return true;
+	} else {
+		for (int i = 0; i < domain_cnt; i++) {
+			if (!strncmp(domain_prefix, domains[i], strlen(domains[i]))) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 /*
- * --logger_setting: console,level=4;disk,level=4;kmsg,level=3
+ * --logger_setting: console,level=4;disk,level=4;kmsg,level=3[;debug_domains=<all|a,b,c>]
  * the setting param is from acrn-dm input, will be parsed here
  */
 int init_logger_setting(const char *opt)
@@ -53,34 +74,55 @@ int init_logger_setting(const char *opt)
 		return -1;
 	}
 
-	/* param example: --logger_setting console,level=4;kmsg,level=3 */
 	for (elem = strsep(&str, ";"); elem != NULL; elem = strsep(&str, ";")) {
-		name = strsep(&elem, ",");
-		level = elem;
+		if (!strncmp(elem, "debug_domains=", 14)) {
+			debug_log = true;
+			elem += 14;
+			if (!strcmp(elem, "all")) {
+				domain_all = true;
+				continue;
+			}
 
-		if ((strncmp(level, "level=", 6) != 0) || (dm_strtoui(level + 6, &level, 10, &lvl_val))) {
-			fprintf(stderr, "logger setting param error: %s, please check!\n", elem);
-			error = -1;
-			break;
-		}
+			for (char *domain = strsep(&elem, ","); domain; domain = strsep(&elem, ",")) {
+				if (domain_cnt < LOG_DEBUG_DOMAIN_MAX) {
+					domains[domain_cnt++] = strdup(domain);
+				} else {
+					fprintf(stderr, "logger setting error: too many debug domains!\n");
+				}
+			}
+			printf("logger: debug domains:");
+			for (int i = 0; i < domain_cnt; i++) {
+				printf(i == 0 ? "%s": ",%s", domains[i]);
+			}
+			printf("\n");
+		} else {
+			name = strsep(&elem, ",");
+			level = elem;
 
-		printf("logger: name=%s, level=%d\n", name, lvl_val);
-
-		plogger = NULL;
-		FOR_EACH_LOGGER(pp_logger) {
-			plogger = *pp_logger;
-			if (strcmp(name, plogger->name) == 0) {
-				if (plogger->init)
-					plogger->init(true, (uint8_t)lvl_val);
-
+			if ((strncmp(level, "level=", 6) != 0) || (dm_strtoui(level + 6, &level, 10, &lvl_val))) {
+				fprintf(stderr, "logger setting param error: %s, please check!\n", elem);
+				error = -1;
 				break;
 			}
-		}
 
-		if (plogger == NULL) {
-			fprintf(stderr, "there is no logger: %s found in DM, please check!\n", name);
-			error = -1;
-			break;
+			printf("logger: name=%s, level=%d\n", name, lvl_val);
+
+			plogger = NULL;
+			FOR_EACH_LOGGER(pp_logger) {
+				plogger = *pp_logger;
+				if (strcmp(name, plogger->name) == 0) {
+					if (plogger->init)
+						plogger->init(true, (uint8_t)lvl_val);
+
+					break;
+				}
+			}
+
+			if (plogger == NULL) {
+				fprintf(stderr, "there is no logger: %s found in DM, please check!\n", name);
+				error = -1;
+				break;
+			}
 		}
 	}
 
@@ -96,6 +138,10 @@ void deinit_loggers(void)
 		plogger = *pp_logger;
 		if (plogger->deinit)
 			plogger->deinit();
+	}
+
+	for (int i = 0; i < domain_cnt; i++) {
+		free(domains[i]);
 	}
 }
 

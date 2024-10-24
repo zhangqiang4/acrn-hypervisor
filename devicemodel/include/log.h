@@ -32,6 +32,8 @@ struct logger_ops {
 int init_logger_setting(const char *opt);
 void deinit_loggers(void);
 void output_log(uint8_t level, const char *fmt, ...);
+extern bool debug_log;
+bool domain_selected(const char *domain_prefix);
 
 /*
  * Put all logger instances' addresses into one section named logger_dev_ops
@@ -43,13 +45,16 @@ void output_log(uint8_t level, const char *fmt, ...);
 
 
 #ifndef pr_prefix
-#define pr_prefix
+#define pr_prefix ""
 #endif
 
 #define pr_err(...) output_log(LOG_ERROR, pr_prefix __VA_ARGS__)
 #define pr_warn(...) output_log(LOG_WARNING, pr_prefix __VA_ARGS__)
 #define pr_notice(...) output_log(LOG_NOTICE, pr_prefix __VA_ARGS__)
 #define pr_info(...) output_log(LOG_INFO, pr_prefix __VA_ARGS__)
-#define pr_dbg(...) output_log(LOG_DEBUG, pr_prefix __VA_ARGS__)
+#define pr_dbg(...) do {  \
+	if (debug_log && domain_selected(pr_prefix))	\
+		output_log(LOG_DEBUG, pr_prefix __VA_ARGS__);		\
+} while(0)
 
 #endif /* __LOG_H__ */
