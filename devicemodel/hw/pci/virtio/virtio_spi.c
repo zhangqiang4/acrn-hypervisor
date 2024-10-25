@@ -24,6 +24,7 @@
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
 
+#define pr_prefix "virtio-spi: "
 #include "dm.h"
 #include "dm_string.h"
 #include "mevent.h"
@@ -78,12 +79,6 @@
  * Note: virtual chipselects are determined according to the argument
  * index.
  */
-
-static int virtio_spi_debug=0;
-#define VIRTIO_SPI_PREF "virtio_spi: "
-#define DPRINTF(fmt, args...) \
-       do { if (virtio_spi_debug) pr_info(VIRTIO_SPI_PREF fmt, ##args); } while (0)
-#define WPRINTF(fmt, args...) pr_err(VIRTIO_SPI_PREF fmt, ##args)
 
 #define MAX_SPIDEVS		16
 #define MAX_NODE_NAME_LEN	40
@@ -243,14 +238,14 @@ static int spidev_init_physical(struct vspidev *vspidev, char *opts)
 	int ret = 0;
 
 	if (data == NULL) {
-		WPRINTF("memory allocation failed\n");
+		pr_err("memory allocation failed\n");
 		return -1;
 	}
 
 	data->vspidev = vspidev;
 	cp = strsep(&opts, ":");
 	if (cp == NULL || opts == NULL) {
-		WPRINTF("%s@%d: Bad options\n", vspidev->be->name, vspidev->cs);
+		pr_err("%s@%d: Bad options\n", vspidev->be->name, vspidev->cs);
 		ret = -1;
 		goto err;
 	}
@@ -267,7 +262,7 @@ static int spidev_init_physical(struct vspidev *vspidev, char *opts)
 	snprintf(devname, MAX_NODE_NAME_LEN, "/dev/spidev%d.%d", data->bus, data->cs);
 	data->fd = open(devname, O_RDWR);
 	if (data->fd < 0) {
-		WPRINTF("fail to open physical %s\n", devname);
+		pr_err("fail to open physical %s\n", devname);
 		ret = -1;
 		goto err;
 	}
@@ -297,36 +292,36 @@ static uint8_t spidev_transfer_physical(struct vspidev *vspidev, struct virtio_s
 	int fd = data->fd;
 
 	if (fd < 0) {
-		WPRINTF("Not a valid fd to access spidev%d.%d",
+		pr_err("Not a valid fd to access spidev%d.%d",
 				data->bus, data->cs);
 		ret = -1;
 		goto err;
 	}
-	DPRINTF("%s: fd %d\n", __func__, fd);
+	pr_dbg("%s: fd %d\n", __func__, fd);
 
 	ret = ioctl(fd, SPI_IOC_WR_MODE32, &req->head->mode);
 	if (ret == -1) {
-		WPRINTF("can't set spi mode\n");
+		pr_err("can't set spi mode\n");
 		goto err;
 	}
 
 	ret = ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &req->head->bits_per_word);
 	if (ret == -1) {
-		WPRINTF("can't set bits per word\n");
+		pr_err("can't set bits per word\n");
 		goto err;
 	}
 
 	ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &req->head->freq);
 	if (ret == -1) {
-		WPRINTF("can't set max speed hz");
+		pr_err("can't set max speed hz");
 		goto err;
 	}
 
-	DPRINTF("spi mode: 0x%x\n", req->head->mode);
-	DPRINTF("bits per word: %u\n", req->head->bits_per_word);
-	DPRINTF("max speed: %u Hz\n", req->head->freq);
-	DPRINTF("tx nbits: %u\n", req->head->tx_nbits);
-	DPRINTF("rx nbits: %u\n", req->head->rx_nbits);
+	pr_dbg("spi mode: 0x%x\n", req->head->mode);
+	pr_dbg("bits per word: %u\n", req->head->bits_per_word);
+	pr_dbg("max speed: %u Hz\n", req->head->freq);
+	pr_dbg("tx nbits: %u\n", req->head->tx_nbits);
+	pr_dbg("rx nbits: %u\n", req->head->rx_nbits);
 
 	struct spi_ioc_transfer tr = {
 		.tx_buf = (unsigned long)req->tx_buf,
@@ -344,7 +339,7 @@ static uint8_t spidev_transfer_physical(struct vspidev *vspidev, struct virtio_s
 	/* return 1 on success */
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1) {
-		WPRINTF("fail to send spi message to spidev%d.%d",
+		pr_err("fail to send spi message to spidev%d.%d",
 				data->bus, data->cs);
 		ret = -1;
 		goto err;
@@ -377,7 +372,7 @@ static int spidev_init_tcp(struct vspidev *vspidev, char *opts)
 	struct sockaddr_in server;
 
 	if (data == NULL) {
-		WPRINTF("memory allocation failed\n");
+		pr_err("memory allocation failed\n");
 		return -1;
 	}
 	data->vspidev = vspidev;
@@ -392,12 +387,12 @@ static int spidev_init_tcp(struct vspidev *vspidev, char *opts)
 
 	data->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (data->fd < 0) {
-		WPRINTF("fail to open socket\n");
+		pr_err("fail to open socket\n");
 		ret = -1;
 		goto err_free;
 	}
 	if (connect(data->fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
-		WPRINTF("fail to connect to port %d\n", data->port);
+		pr_err("fail to connect to port %d\n", data->port);
 		ret = -1;
 		goto err_closefd;
 	}
@@ -488,24 +483,24 @@ static uint8_t spidev_transfer_tcp(struct vspidev *vspidev, struct virtio_spi_tr
 	int fd = data->fd;
 
 	if (fd < 0) {
-		WPRINTF("Not a valid fd to access spidev emulated at port %d\n",
+		pr_err("Not a valid fd to access spidev emulated at port %d\n",
 				data->port);
 		ret = -1;
 		goto err;
 	}
-	DPRINTF("%s: fd %d\n", __func__, fd);
+	pr_dbg("%s: fd %d\n", __func__, fd);
 
 	uint32_t len = htonl(req->tx_buf_size);
 	ret = write_all_timeout(data->fd, &len, sizeof(uint32_t), RW_TIMEOUT_MS);
 	ret += write_all_timeout(data->fd, req->tx_buf, req->tx_buf_size, RW_TIMEOUT_MS);
 	if (ret < 0) {
-		WPRINTF("fail to send data to spi device\n");
+		pr_err("fail to send data to spi device\n");
 		ret = -1;
 		goto err;
 	}
 	ret = read_all_timeout(data->fd, req->rx_buf, req->rx_buf_size, RW_TIMEOUT_MS);
 	if (ret < 0) {
-		WPRINTF("fail to receive data from spi device\n");
+		pr_err("fail to receive data from spi device\n");
 		ret = -1;
 		goto err;
 	}
@@ -628,7 +623,7 @@ virtio_spi_reset(void *vdev)
 {
 	struct virtio_spi *vspi = vdev;
 
-	DPRINTF("device reset requested !\n");
+	pr_dbg("device reset requested !\n");
 	virtio_reset_dev(&vspi->base);
 }
 
@@ -733,7 +728,7 @@ virtio_spi_proc_thread(void *arg)
 		while (vq_has_descs(xferq)) {
 			n = vq_getchain(xferq, &idx, iov, 4, flags);
 			if (n < 3 || n > 4) {
-				WPRINTF("virtio_spi_proc: failed to get iov from transfer queue\n");
+				pr_err("virtio_spi_proc: failed to get iov from transfer queue\n");
 				continue;
 			}
 			memset(&req, 0, sizeof(req));
@@ -771,7 +766,7 @@ virtio_spi_proc_thread(void *arg)
 		while (vq_has_descs(evtq)) {
 			n = vq_getchain(evtq, &idx, iov, 2, flags);
 			if (n != 2) {
-				WPRINTF("virtio_spi_proc: failed to get iov from event queue\n");
+				pr_err("virtio_spi_proc: failed to get iov from event queue\n");
 				continue;
 			}
 			irq_req = iov[0].iov_base;
@@ -782,7 +777,7 @@ virtio_spi_proc_thread(void *arg)
 				evtq_desc_used = true;
 			} else {
 				vspidev = vspi->vspidevs[irq_req->cs];
-				DPRINTF("unmask event for cs %d\n", vspidev->cs);
+				pr_dbg("unmask event for cs %d\n", vspidev->cs);
 				pthread_mutex_lock(&vspi->evt_mtx);
 				if (vspidev->irq_pending) {
 					irq_resp->status = VIRTIO_SPI_IRQ_STATUS_VALID;
@@ -790,7 +785,7 @@ virtio_spi_proc_thread(void *arg)
 					evtq_desc_used = true;
 					vspidev->irq_pending = false;
 					vspidev->irq_enabled = false;
-					DPRINTF("inject event for cs %d: status: %d\n",
+					pr_dbg("inject event for cs %d: status: %d\n",
 							vspidev->cs, irq_resp->status);
 				} else {
 					vspidev->irq_enabled = true;
@@ -816,12 +811,12 @@ void vspidev_inject_irq(struct vspidev *vspidev, uint8_t irq_status)
 		vq_relchain(evtq, vspidev->evtq_idx, 1);
 		vspidev->irq_pending = false;
 		vspidev->irq_enabled = false;
-		DPRINTF("inject event for cs %d: status: %d\n",
+		pr_dbg("inject event for cs %d: status: %d\n",
 					vspidev->cs, irq_status);
 		vq_endchains(evtq, 0);
 	} else {
 		vspidev->irq_pending = true;
-		DPRINTF("pending event for cs %d\n", vspidev->cs);
+		pr_dbg("pending event for cs %d\n", vspidev->cs);
 	}
 	pthread_mutex_unlock(&vspidev->vspi->evt_mtx);
 }
@@ -850,14 +845,14 @@ vspi_event_handler(int fd, enum ev_type ev, void *arg)
 				 */
 				mevent_delete(vspi->mevent_event);
 				vspi->mevent_event = NULL;
-				WPRINTF("%s: connection closed, rc = %d, errno = %d\n",
+				pr_err("%s: connection closed, rc = %d, errno = %d\n",
 					__func__, rc, errno);
 			}
 			break;
 		}
 
 		if (cs >= vspi->spidev_num) {
-			WPRINTF("%s try to inject event for a non-existent spi device, ignored!\n", __func__);
+			pr_err("%s try to inject event for a non-existent spi device, ignored!\n", __func__);
 		} else {
 			vspidev_inject_irq(vspi->vspidevs[cs], VIRTIO_SPI_IRQ_STATUS_VALID);
 		}
@@ -889,12 +884,12 @@ vspi_event_proxy_accept(int fd __attribute__((unused)),
 
 	s = accept(vspi->evt_listen_fd, NULL, NULL);
 	if (s < 0) {
-		DPRINTF("vspi event: accept error %d\n", s);
+		pr_dbg("vspi event: accept error %d\n", s);
 		return;
 	}
 
 	if (vspi->evt_port_opened) {
-		DPRINTF("vspi event: already connected\n");
+		pr_dbg("vspi event: already connected\n");
 		close(s);
 		return;
 	}
@@ -907,8 +902,8 @@ vspi_event_proxy_accept(int fd __attribute__((unused)),
 	vspi->mevent_event = mevent_add(s, EVF_READ_ET, vspi_event_handler, vspi,
 		vspi_mevent_teardown, vspi);
 	if (!vspi->mevent_event)
-		WPRINTF("vspi event: failed to add mevent for event injector\n");
-	DPRINTF("vspi event: %s\r\n", __func__);
+		pr_err("vspi event: failed to add mevent for event injector\n");
+	pr_dbg("vspi event: %s\r\n", __func__);
 }
 
 static void
@@ -934,10 +929,10 @@ virtio_spi_start_evt_injector(struct virtio_spi *vspi, int port)
 
 	fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
 	if (fd < 0) {
-	    WPRINTF("vspi event: socket creation failed...\n");
+	    pr_err("vspi event: socket creation failed...\n");
 	    return;
 	} else {
-	    DPRINTF("vspi event: Socket successfully created..\n");
+	    pr_dbg("vspi event: Socket successfully created..\n");
 	}
 	vspi->evt_listen_fd = fd;
 
@@ -945,11 +940,11 @@ virtio_spi_start_evt_injector(struct virtio_spi *vspi, int port)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(vspi->evt_listen_port);
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		WPRINTF("vspi event: bind failed, errno = %d\n", errno);
+		pr_err("vspi event: bind failed, errno = %d\n", errno);
 		goto close_listen_fd;
 	}
 	if (listen(fd, 1) < 0) {
-		WPRINTF("vspi event: listen failed, errno = %d\n", errno);
+		pr_err("vspi event: listen failed, errno = %d\n", errno);
 		goto close_listen_fd;
 	}
 	vspi->evt_port_opened = false;
@@ -957,7 +952,7 @@ virtio_spi_start_evt_injector(struct virtio_spi *vspi, int port)
 			vspi_event_proxy_accept, vspi,
 			vspi_listen_event_teardown, vspi);
 	if (!vspi->mevent_listen) {
-		WPRINTF("vspi event: mevent_add failed\n");
+		pr_err("vspi event: mevent_add failed\n");
 		goto close_listen_fd;
 	}
 	return;
@@ -1001,7 +996,7 @@ virtio_spi_parse(struct virtio_spi *vspi, char *optstr)
 			type = strsep(&cp, ":");
 			if (strncmp("evt-port", type, 8) == 0) {
 				if (dm_strtoi(cp, &t, 10, &port) || port < 0) {
-					WPRINTF("%s: fail to parse evt-port\n", __func__);
+					pr_err("%s: fail to parse evt-port\n", __func__);
 					return -1;
 				}
 				virtio_spi_start_evt_injector(vspi, port);
@@ -1009,12 +1004,12 @@ virtio_spi_parse(struct virtio_spi *vspi, char *optstr)
 			}
 			vspidev_be = find_vspidev_be_from_name(type);
 			if (vspidev_be == NULL) {
-				WPRINTF("Not supported type %s\n", type);
+				pr_err("Not supported type %s\n", type);
 				return -1;
 			}
 			vspidev = calloc(1, sizeof(struct vspidev));
 			if (!vspidev) {
-				WPRINTF("%s: fail to calloc\n", __func__);
+				pr_err("%s: fail to calloc\n", __func__);
 				return -1;
 			}
 
@@ -1026,11 +1021,11 @@ virtio_spi_parse(struct virtio_spi *vspi, char *optstr)
 
 			ret = vspidev_be->init(vspidev, cp);
 			if (ret) {
-				WPRINTF("Fail to init SPI device %d, type: %s\n",
+				pr_err("Fail to init SPI device %d, type: %s\n",
 						vspidev->cs, vspidev_be->name);
 				return -1;
 			}
-			DPRINTF("init SPI device %s@%d\n", vspidev_be->name, vspidev->cs);
+			pr_dbg("init SPI device %s@%d\n", vspidev_be->name, vspidev->cs);
 		}
 	}
 	return 0;
@@ -1063,7 +1058,7 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	vspi = calloc(1, sizeof(struct virtio_spi));
 	if (!vspi) {
-		WPRINTF("calloc returns NULL\n");
+		pr_err("calloc returns NULL\n");
 		return -ENOMEM;
 	}
 #ifdef VSPI_EVT_INJECTOR
@@ -1072,7 +1067,7 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 #endif
 
 	if (virtio_spi_parse(vspi, opts)) {
-		WPRINTF("failed to parse parameters\n");
+		pr_err("failed to parse parameters\n");
 		goto mtx_fail;
 	}
 	vspi->config.cs_num = vspi->spidev_num;
@@ -1090,19 +1085,19 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	/* init mutex attribute properly to avoid deadlock */
 	rc = pthread_mutexattr_init(&attr);
 	if (rc) {
-		WPRINTF("mutexattr init failed with erro %d!\n", rc);
+		pr_err("mutexattr init failed with erro %d!\n", rc);
 		goto mtx_fail;
 	}
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (rc) {
-		WPRINTF("mutexattr_settype failed with "
+		pr_err("mutexattr_settype failed with "
 					"error %d!\n", rc);
 		goto mtx_fail;
 	}
 
 	rc = pthread_mutex_init(&vspi->mtx, &attr);
 	if (rc) {
-		WPRINTF("pthread_mutex_init failed with "
+		pr_err("pthread_mutex_init failed with "
 					"error %d!\n", rc);
 		goto mtx_fail;
 	}
@@ -1121,7 +1116,7 @@ virtio_spi_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pci_set_cfgdata16(dev, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
 	if (virtio_interrupt_init(&vspi->base, virtio_uses_msix())) {
-		WPRINTF("failed to init interrupt");
+		pr_err("failed to init interrupt");
 		rc = -1;
 		goto fail;
 	}
@@ -1152,7 +1147,7 @@ virtio_spi_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	struct virtio_spi *vspi;
 
 	if (dev->arg) {
-		DPRINTF("deinit\n");
+		pr_dbg("deinit\n");
 		vspi = (struct virtio_spi *) dev->arg;
 		virtio_spi_stop_evt_injector(vspi);
 		vspi_remove_devices(vspi);
@@ -1209,12 +1204,12 @@ virtio_spi_dsdt(struct pci_vdev *dev)
 
 	spi_bus = acpi_spi_controller_num;
 	acpi_add_spi_controller(dev, spi_bus);
-	DPRINTF("add dsdt for spi controller #%d@%02x:%02x.%01x\n", spi_bus,
+	pr_dbg("add dsdt for spi controller #%d@%02x:%02x.%01x\n", spi_bus,
 			dev->bus, dev->slot, dev->func);
 
 	for (i = 0; i < vspi->spidev_num; i++) {
 		acpi_add_spi_dev(spi_bus, i);
-		DPRINTF("add dsdt for %s@spi%d-%d \n",
+		pr_dbg("add dsdt for %s@spi%d-%d \n",
 			vspi->vspidevs[i]->be->name, spi_bus, i);
 	}
 	acpi_spi_controller_num++;
