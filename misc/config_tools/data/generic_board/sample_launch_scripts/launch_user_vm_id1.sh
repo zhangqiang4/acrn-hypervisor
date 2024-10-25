@@ -120,9 +120,16 @@ function add_logger_settings() {
     loggers=()
 
     for conf in $*; do
-        logger=${conf%=*}
-        level=${conf#*=}
-        loggers+=("${logger},level=${level}")
+	case "$conf" in
+		console*|kmsg*|disk*)
+			logger=${conf%=*}
+			level=${conf#*=}
+			loggers+=("${logger},level=${level}")
+			;;
+		*)
+			loggers+=("${conf}")
+			;;
+	esac
     done
 
     cmd_param=$(local IFS=';' ; echo "${loggers[*]}")
