@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#define pr_prefix "hyper-dmabuf: "
 #include "dm.h"
 #include "pci_core.h"
 #include "virtio.h"
@@ -35,15 +36,6 @@
 #define HYPER_DMABUF_VQ_NUM 2
 
 const char *hyper_dmabuf_vbs_dev_path = "/dev/vbs_hyper_dmabuf";
-
-static int virtio_hyper_dmabuf_debug;
-#define DPRINTF(...)\
-do {\
-       if (virtio_hyper_dmabuf_debug)\
-               pr_dbg(__VA_ARGS__);\
-} while (0)
-
-#define WPRINTF(...) pr_err(__VA_ARGS__)
 
 static enum VBS_K_STATUS kstatus = VIRTIO_DEV_INITIAL;
 static int vbs_k_hyper_dmabuf_fd = -1;
@@ -89,17 +81,17 @@ static int
 virtio_hyper_dmabuf_k_init()
 {
 	if (vbs_k_hyper_dmabuf_fd != -1) {
-		WPRINTF("virtio_hyper_dmabuf: Ooops! Re-entered!!\n");
+		pr_err("virtio_hyper_dmabuf: Ooops! Re-entered!!\n");
 		return -VIRTIO_ERROR_REENTER;
 	}
 
 	vbs_k_hyper_dmabuf_fd = open(hyper_dmabuf_vbs_dev_path, O_RDWR);
 	if (vbs_k_hyper_dmabuf_fd < 0) {
-		WPRINTF("virtio_hyper_dmabuf: Failed to open %s!\n",
+		pr_err("virtio_hyper_dmabuf: Failed to open %s!\n",
 			 hyper_dmabuf_vbs_dev_path);
 		return -VIRTIO_ERROR_FD_OPEN_FAILED;
 	}
-	DPRINTF("virtio_hyper_dmabuf: Open %s success!\n",
+	pr_dbg("virtio_hyper_dmabuf: Open %s success!\n",
 		 hyper_dmabuf_vbs_dev_path);
 
 	memset(&kdev, 0, sizeof(kdev));
@@ -132,7 +124,7 @@ virtio_hyper_dmabuf_k_vq_set(unsigned int nvq, unsigned int idx,
 			     uint32_t msix_data)
 {
 	if (nvq <= idx) {
-		WPRINTF("virtio_hyper_dmabuf: wrong idx for vq_set!\n");
+		pr_err("virtio_hyper_dmabuf: wrong idx for vq_set!\n");
 		return -VIRTIO_ERROR_GENERAL;
 	}
 
@@ -151,11 +143,11 @@ static int
 virtio_hyper_dmabuf_k_start(void)
 {
 	if (vbs_kernel_start(vbs_k_hyper_dmabuf_fd, &kdev, &kvqs) < 0) {
-		WPRINTF("virtio_hyper_dmabuf: Failed in vbs_kernel_start!\n");
+		pr_err("virtio_hyper_dmabuf: Failed in vbs_kernel_start!\n");
 		return -VIRTIO_ERROR_START;
 	}
 
-	DPRINTF("virtio_hyper_dmabuf: vbs_kernel_started!\n");
+	pr_dbg("virtio_hyper_dmabuf: vbs_kernel_started!\n");
 	return VIRTIO_SUCCESS;
 }
 
@@ -181,7 +173,7 @@ virtio_hyper_dmabuf_reset(void *base)
 
 	hyper_dmabuf = (struct virtio_hyper_dmabuf *)base;
 
-	DPRINTF("virtio_hyper_dmabuf: device reset requested !\n");
+	pr_dbg("virtio_hyper_dmabuf: device reset requested !\n");
 	virtio_reset_dev(&hyper_dmabuf->base);
 	if (kstatus == VIRTIO_DEV_STARTED) {
 		virtio_hyper_dmabuf_k_stop();
@@ -244,16 +236,16 @@ virtio_hyper_dmabuf_set_status(void *base, uint64_t status)
 				msix_data);
 
 			if (rc < 0) {
-				WPRINTF("virtio_hyper_dmabuf:");
-				WPRINTF("kernel_set_vq");
-				WPRINTF("failed, i %d ret %d\n", i, rc);
+				pr_err("virtio_hyper_dmabuf:");
+				pr_err("kernel_set_vq");
+				pr_err("failed, i %d ret %d\n", i, rc);
 				return;
 			}
 		}
 		rc = virtio_hyper_dmabuf_k_start();
 		if (rc < 0) {
-			WPRINTF("virtio_hyper_dmabuf:");
-			WPRINTF("kernel_start() failed\n");
+			pr_err("virtio_hyper_dmabuf:");
+			pr_err("kernel_start() failed\n");
 			kstatus = VIRTIO_DEV_START_FAILED;
 		} else {
 			kstatus = VIRTIO_DEV_STARTED;
@@ -272,28 +264,28 @@ virtio_hyper_dmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	hyper_dmabuf = calloc(1, sizeof(struct virtio_hyper_dmabuf));
 	if (!hyper_dmabuf) {
-		WPRINTF(("virtio_hdma: calloc returns NULL\n"));
+		pr_err("virtio_hdma: calloc returns NULL\n");
 		return -1;
 	}
 
 	/* init mutex attribute properly */
 	rc = pthread_mutexattr_init(&attr);
 	if (rc)
-		DPRINTF("mutexattr init failed with erro %d!\n", rc);
+		pr_dbg("mutexattr init failed with erro %d!\n", rc);
 
 	if (virtio_uses_msix()) {
 		rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
-		DPRINTF("virtio_msix: mutexattr_settype ");
-		DPRINTF("failed with error %d!\n", rc);
+		pr_dbg("virtio_msix: mutexattr_settype ");
+		pr_dbg("failed with error %d!\n", rc);
 	} else {
 		rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		DPRINTF("virtio_intx: mutexattr_settype ");
-		DPRINTF("failed with error %d!\n", rc);
+		pr_dbg("virtio_intx: mutexattr_settype ");
+		pr_dbg("failed with error %d!\n", rc);
 	}
 
 	rc = pthread_mutex_init(&hyper_dmabuf->mtx, &attr);
 	if (rc)
-		DPRINTF("mutex init failed with error %d!\n", rc);
+		pr_dbg("mutex init failed with error %d!\n", rc);
 
 	virtio_linkup(&hyper_dmabuf->base,
 		      &virtio_hyper_dmabuf_ops_k,
@@ -304,8 +296,8 @@ virtio_hyper_dmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	rc = virtio_hyper_dmabuf_k_init();
 	if (rc < 0) {
-		WPRINTF("virtio_hyper_dmabuf: VBS-K ");
-		WPRINTF("init failed with error %d!\n", rc);
+		pr_err("virtio_hyper_dmabuf: VBS-K ");
+		pr_err("init failed with error %d!\n", rc);
 		kstatus = VIRTIO_DEV_INIT_FAILED;
 	} else {
 		kstatus = VIRTIO_DEV_INIT_SUCCESS;
@@ -338,7 +330,7 @@ static void
 virtio_hyper_dmabuf_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	if (kstatus == VIRTIO_DEV_STARTED) {
-		DPRINTF("virtio_hyper_dmabuf: deinitializing\n");
+		pr_dbg("virtio_hyper_dmabuf: deinitializing\n");
 		virtio_hyper_dmabuf_k_stop();
 		virtio_hyper_dmabuf_k_reset();
 		kstatus = VIRTIO_DEV_INITIAL;
