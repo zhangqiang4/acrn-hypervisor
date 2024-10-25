@@ -194,7 +194,7 @@ struct acrn_vm_config {
 	uint16_t *pclosids;
 
 	/* A bitmask of MC bank IDs to passthrough to a guest. */
-	uint16_t mcbanks_bitmask;
+	uint32_t mcbanks_bitmask;
 
 	/* max_type_pcbm (type: l2 or l3) specifies the allocated portion of physical cache
 	 * for the VM and is a contiguous capacity bitmask (CBM) starting at bit position low
