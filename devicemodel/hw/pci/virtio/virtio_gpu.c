@@ -2408,20 +2408,43 @@ virtio_gpu_cmd_update_cursor(struct virtio_gpu_command *cmd)
 
 	gpu = cmd->gpu;
 	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
-	if (req.resource_id > 0) {
-		r2d = virtio_gpu_find_resource_2d(cmd->gpu, req.resource_id);
-		if (r2d == NULL) {
-			pr_err("%s: Illegal resource id %d\n", __func__,
-					req.resource_id);
+
+	if (req.resource_id <= 0) {
+		vdpy_cursor_define(gpu->vdpy_handle, req.pos.scanout_id, NULL);
+		return;
+	}
+
+	r2d = virtio_gpu_find_resource_2d(cmd->gpu, req.resource_id);
+	if (r2d == NULL) {
+		pr_err("%s: Illegal resource id %d\n", __func__,
+				req.resource_id);
+		return;
+	}
+
+	cur.x = req.pos.x;
+	cur.y = req.pos.y;
+	cur.hot_x = req.hot_x;
+	cur.hot_y = req.hot_y;
+	// TODO: curosr size is fixed for now.
+	cur.width = 64;
+	cur.height = 64;
+	if (r2d->blob) {
+		if (r2d->dma_info->size < 4 * cur.width * cur.height) {
+			pr_err("%s: invalid cursor buffer size %u\n", r2d->dma_info->size);
 			return;
 		}
-		cur.x = req.pos.x;
-		cur.y = req.pos.y;
-		cur.hot_x = req.hot_x;
-		cur.hot_y = req.hot_y;
-		cur.width = r2d->width;
-		cur.height = r2d->height;
+		virtio_gpu_dmabuf_ref(r2d->dma_info);
+		cur.surf_type = SURFACE_DMABUF;
+		cur.fd = r2d->dma_info->dmabuf_fd;
+		vdpy_cursor_define(gpu->vdpy_handle, req.pos.scanout_id, &cur);
+		virtio_gpu_dmabuf_unref(r2d->dma_info);
+	} else {
+		if (r2d->width != cur.width || r2d->height != cur.height) {
+			pr_err("%s: invalid cursor buffer size %ux%u\n", r2d->width, r2d->height);
+			return;
+		}
 		pixman_image_ref(r2d->image);
+		cur.surf_type = SURFACE_PIXMAN;
 		cur.data = pixman_image_get_data(r2d->image);
 		vdpy_cursor_define(gpu->vdpy_handle, req.pos.scanout_id, &cur);
 		pixman_image_unref(r2d->image);

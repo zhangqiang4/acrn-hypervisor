@@ -1240,8 +1240,15 @@ void vdpy_cursor_define(int handle, int scanout_id, struct cursor *cur)
 	if (scanout_id >= vdpy.scrs_num) {
 		return;
 	}
-	if(vscr->vscreen_ops->vdpy_cursor_define)
+	if (vscr->vscreen_ops->vdpy_cursor_define) {
 		vscr->vscreen_ops->vdpy_cursor_define(vscr->backend, cur);
+	} else {
+		static bool warned = false;
+		if (!warned) {
+			warned = true;
+			pr_err("cursor_define is not supported by the display backend\n");
+		}
+	}
 }
 
 void vdpy_cursor_move(int handle, int scanout_id, uint32_t x, uint32_t y)

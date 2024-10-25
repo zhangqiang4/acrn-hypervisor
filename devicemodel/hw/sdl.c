@@ -9,6 +9,7 @@
 
 #include <SDL.h>
 #include <SDL_syswm.h>
+#include <drm_fourcc.h>
 #include <egl.h>
 #include <eglext.h>
 #include <gl2.h>
@@ -17,7 +18,7 @@
 #include "vdisplay.h"
 #include "log.h"
 #include <stdio.h>
-
+#include <sys/mman.h>
 
 static unsigned char default_raw_argb[VDPY_DEFAULT_WIDTH * VDPY_DEFAULT_HEIGHT * 4];
 
@@ -140,12 +141,57 @@ static void sdl_gl_prepare_draw(struct vscreen *vscr)
 	SDL_RenderCopy(vscr->renderer, vscr->bogus_tex, NULL, &bogus_rect);
 	return;
 }
+
+static EGLImageKHR
+sdl_create_egl_image(struct egl_display_ops *gl_ops, int fd,
+		     uint32_t width, uint32_t height,
+		     uint32_t stride, uint32_t offset,
+		     uint32_t fourcc, uint64_t modifier)
+{
+	EGLImageKHR egl_img = EGL_NO_IMAGE_KHR;
+	EGLint attrs[64];
+	int i = 0;
+
+	attrs[i++] = EGL_WIDTH;
+	attrs[i++] = width;
+	attrs[i++] = EGL_HEIGHT;
+	attrs[i++] = height;
+	attrs[i++] = EGL_LINUX_DRM_FOURCC_EXT;
+	attrs[i++] = fourcc;
+	attrs[i++] = EGL_DMA_BUF_PLANE0_FD_EXT;
+	attrs[i++] = fd;
+	attrs[i++] = EGL_DMA_BUF_PLANE0_PITCH_EXT;
+	attrs[i++] = stride;
+	attrs[i++] = EGL_DMA_BUF_PLANE0_OFFSET_EXT;
+	attrs[i++] = offset;
+
+	if (modifier) {
+		attrs[i++] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
+		attrs[i++] = modifier & 0xffffffff;
+		attrs[i++] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
+		attrs[i++] = modifier >> 32;
+	}
+
+	attrs[i++] = EGL_NONE;
+
+	egl_img = gl_ops->eglCreateImageKHR(sdl.eglDisplay, EGL_NO_CONTEXT,
+					    EGL_LINUX_DMA_BUF_EXT,
+					    NULL, attrs);
+	if (egl_img == EGL_NO_IMAGE_KHR) {
+		pr_err("%s: failed in eglCreateImageKHR, "
+			"width=%u,height=%u,stride=%u,fd=%d,"
+			"fourcc=0x%x,modifier=0x%lx\n",
+			__func__, width, height, stride, fd, fourcc, modifier);
+	}
+	return egl_img;
+}
+
 static void
 sdl_surface_set(void *backend, struct surface *surf)
 {
 	pixman_image_t *src_img;
 	int format;
-	int access, i;
+	int access;
 	struct vscreen *vscr = (struct vscreen *)backend;
 
 	if (surf == NULL ) {
@@ -233,53 +279,15 @@ sdl_surface_set(void *backend, struct surface *surf)
 		SDL_RenderCopy(vscr->renderer, vscr->surf_tex, NULL, NULL);
 		SDL_RenderPresent(vscr->renderer);
 	} else if (surf->surf_type == SURFACE_DMABUF) {
-		EGLImageKHR egl_img = EGL_NO_IMAGE_KHR;
-		EGLint attrs[64];
-		struct egl_display_ops *gl_ops;
-
-		gl_ops = &sdl.gl_ops;
-		i = 0;
-		attrs[i++] = EGL_WIDTH;
-		attrs[i++] = surf->width;
-		attrs[i++] = EGL_HEIGHT;
-		attrs[i++] = surf->height;
-		attrs[i++] = EGL_LINUX_DRM_FOURCC_EXT;
-		attrs[i++] = surf->dma_info.surf_fourcc;
-		attrs[i++] = EGL_DMA_BUF_PLANE0_FD_EXT;
-		attrs[i++] = surf->dma_info.dmabuf_fd;
-		attrs[i++] = EGL_DMA_BUF_PLANE0_PITCH_EXT;
-		attrs[i++] = surf->stride[0];
-		attrs[i++] = EGL_DMA_BUF_PLANE0_OFFSET_EXT;
-		attrs[i++] = surf->dma_info.dmabuf_offset;
-
-               if (vscr->modifier) {
-                       attrs[i++] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
-                       attrs[i++] = vscr->modifier & 0xffffffff;
-                       attrs[i++] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
-                       attrs[i++] = (vscr->modifier & 0xffffffff00000000) >> 32;
-               }
-
-		attrs[i++] = EGL_NONE;
-
-		egl_img = gl_ops->eglCreateImageKHR(sdl.eglDisplay,
-				EGL_NO_CONTEXT,
-				EGL_LINUX_DMA_BUF_EXT,
-				NULL, attrs);
-		if (egl_img == EGL_NO_IMAGE_KHR) {
-			pr_err("%s: failed in eglCreateImageKHR, "
-				"width=%u,height=%u,stride=%u,fd=%d,"
-				"fourcc=0x%x,modifier=0x%lx\n",
-				__func__, surf->width, surf->height,
-				surf->stride, surf->dma_info.dmabuf_fd,
-				surf->dma_info.surf_fourcc, vscr->modifier);
-			return;
-		}
-
+		struct egl_display_ops *gl_ops = &sdl.gl_ops;
+		EGLImageKHR egl_img = sdl_create_egl_image(&sdl.gl_ops,
+			surf->dma_info.dmabuf_fd, surf->width, surf->height,
+			surf->stride[0], surf->dma_info.dmabuf_offset,
+			surf->dma_info.surf_fourcc, vscr->modifier);
 		SDL_GL_BindTexture(vscr->surf_tex, NULL, NULL);
 		gl_ops->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_img);
 		if (vscr->egl_img != EGL_NO_IMAGE_KHR)
-			gl_ops->eglDestroyImageKHR(sdl.eglDisplay,
-					vscr->egl_img);
+			gl_ops->eglDestroyImageKHR(sdl.eglDisplay, vscr->egl_img);
 
 		/* In theory the created egl_img can be released after it is bound
 		 * to texture.
@@ -346,7 +354,13 @@ sdl_cursor_define(void *backend, struct cursor *cur)
 {
 	struct vscreen *vscr = (struct vscreen *)backend;
 
-	if (cur->data == NULL)
+	if (cur == NULL) {
+		vscr->cur.x = (uint32_t) -1;
+		vscr->cur.y = (uint32_t) -1;
+		return;
+	}
+
+	if (cur->surf_type != SURFACE_PIXMAN && cur->surf_type != SURFACE_DMABUF)
 		return;
 
 	if (vscr->cur_tex)
@@ -364,7 +378,19 @@ sdl_cursor_define(void *backend, struct cursor *cur)
 
 	SDL_SetTextureBlendMode(vscr->cur_tex, SDL_BLENDMODE_BLEND);
 	vscr->cur = *cur;
-	SDL_UpdateTexture(vscr->cur_tex, NULL, cur->data, cur->width * 4);
+
+	if (cur->surf_type == SURFACE_PIXMAN) {
+		SDL_UpdateTexture(vscr->cur_tex, NULL, cur->data, 4 * cur->width);
+	} else if (cur->surf_type == SURFACE_DMABUF) {
+		cur->data = mmap(NULL, 4 * cur->width * cur->height,
+				 PROT_READ | PROT_WRITE, MAP_SHARED, cur->fd, 0);
+		if (cur->data == MAP_FAILED) {
+			pr_err("%s: failed to map cursor buffer\n", __func__);
+			return;
+		}
+		SDL_UpdateTexture(vscr->cur_tex, NULL, cur->data, 4 * cur->width);
+		munmap(cur->data, 4 * cur->width * cur->height);
+	}
 }
 
 static void
