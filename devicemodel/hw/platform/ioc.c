@@ -63,6 +63,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#define pr_prefix "ioc: "
 #include "pty_vuart.h"
 
 #include "dm.h"
@@ -70,11 +71,6 @@
 #include "vmmapi.h"
 #include "monitor.h"
 #include "log.h"
-
-static int ioc_debug;
-#define DPRINTF(format, arg...) \
-do { if (ioc_debug) { pr_dbg(format, arg); } } while (0)
-#define	WPRINTF(format, arg...) pr_err(format, ##arg)
 
 /*
  * For debugging only, to generate lifecycle, signal and oem-raw data
@@ -649,7 +645,7 @@ ioc_ch_recv(enum ioc_ch_id id, uint8_t *buf, size_t size)
 	 * If change epoll work mode to ET, need to handle EAGAIN.
 	 */
 	if (count < 0) {
-		DPRINTF("ioc read bytes error:%s\r\n", strerror(errno));
+		pr_dbg("ioc read bytes error:%s\n", strerror(errno));
 		return -1;
 	}
 	return count;
@@ -676,7 +672,7 @@ ioc_ch_xmit(enum ioc_ch_id id, const uint8_t *buf, size_t size)
 		 * If change epoll work mode to ET, need to handle EAGAIN.
 		 */
 		if (rc < 0) {
-			DPRINTF("ioc write error:%s\r\n", strerror(errno));
+			pr_dbg("ioc write error:%s\n", strerror(errno));
 			break;
 		}
 		count += rc;
@@ -696,7 +692,7 @@ ioc_open_native_ch(const char *dev_name)
 		return -1;
 	fd = open(dev_name, O_RDWR | O_NOCTTY | O_NONBLOCK);
 	if (fd < 0)
-		DPRINTF("ioc open %s failed:%s\r\n", dev_name, strerror(errno));
+		pr_dbg("ioc open %s failed:%s\n", dev_name, strerror(errno));
 	return fd;
 }
 
@@ -729,7 +725,7 @@ ioc_ch_init(struct ioc_dev *ioc)
 				ioc->evt_fd = pipe_fds[1];
 			} else {
 				fd = IOC_INIT_FD;
-				DPRINTF("%s", "ioc open event fd failed\r\n");
+				pr_dbg("ioc open event fd failed\n");
 			}
 			break;
 		/*
@@ -883,7 +879,7 @@ send_tx_request(struct ioc_dev *ioc, enum cbc_request_type type)
 
 	req = cbc_request_dequeue(ioc, CBC_QUEUE_T_FREE);
 	if (!req) {
-		DPRINTF("%s", "ioc sends a tx request failed\r\n");
+		pr_dbg("ioc sends a tx request failed\n");
 		return -1;
 	}
 
@@ -1003,7 +999,7 @@ process_resume_event(struct ioc_dev *ioc)
 				epoll_ctl(ioc->epfd, EPOLL_CTL_ADD, chl->fd,
 						&ioc->evts[i]);
 			else
-				DPRINTF("ioc open failed, channel:%s\r\n",
+				pr_dbg("ioc open failed, channel:%s\n",
 						chl->name);
 			break;
 		}
@@ -1016,7 +1012,7 @@ process_resume_event(struct ioc_dev *ioc)
 	 */
 	if (ioc_ch_xmit(IOC_NATIVE_SIGNAL, cbc_open_channel_command,
 				sizeof(cbc_open_channel_command)) <= 0)
-		DPRINTF("%s", "ioc reopen signal channel failed\r\n");
+		pr_dbg("ioc reopen signal channel failed\n");
 
 	return 0;
 }
@@ -1032,7 +1028,7 @@ ioc_process_events(struct ioc_dev *ioc, enum ioc_ch_id id)
 
 	/* Get one event */
 	if (ioc_ch_recv(id, &evt, sizeof(evt)) < 0) {
-		DPRINTF("%s", "ioc state gets event failed\r\n");
+		pr_dbg("ioc state gets event failed\n");
 		return;
 	}
 
@@ -1047,7 +1043,7 @@ ioc_process_events(struct ioc_dev *ioc, enum ioc_ch_id id)
 				ioc_state_tbl[i].handler(ioc) == 0)
 				ioc->state = ioc_state_tbl[i].next_stat;
 			else
-				DPRINTF("ioc state switching failed,%d->%d\r\n",
+				pr_dbg("ioc state switching failed,%d->%d\n",
 						ioc_state_tbl[i].cur_stat,
 						ioc_state_tbl[i].next_stat);
 		}
@@ -1065,7 +1061,7 @@ ioc_update_event(int fd, enum ioc_event_type evt)
 	uint8_t val = evt;
 
 	if (write(fd, &val, sizeof(val)) < 0)
-		DPRINTF("ioc update event failed, error:%s\r\n",
+		pr_dbg("ioc update event failed, error:%s\n",
 				strerror(errno));
 }
 
@@ -1082,7 +1078,7 @@ ioc_build_request(struct ioc_dev *ioc, int32_t link_len, int32_t srv_len)
 
 	req = cbc_request_dequeue(ioc, CBC_QUEUE_T_FREE);
 	if (!req) {
-		WPRINTF(("ioc queue is full!!, drop the data\n\r"));
+		pr_err("ioc queue is full!!, drop the data\n");
 		return;
 	}
 	for (i = 0; i < link_len; i++) {
@@ -1127,7 +1123,7 @@ ioc_process_tx(struct ioc_dev *ioc, enum ioc_ch_id id)
 
 	req = cbc_request_dequeue(ioc, CBC_QUEUE_T_FREE);
 	if (!req) {
-		WPRINTF("ioc free queue is full!!, drop the data\r\n");
+		pr_err("ioc free queue is full!!, drop the data\n");
 		return -1;
 	}
 
@@ -1139,7 +1135,7 @@ ioc_process_tx(struct ioc_dev *ioc, enum ioc_ch_id id)
 	count = ioc_ch_recv(id, req->buf + CBC_SRV_POS, CBC_MAX_SERVICE_SIZE);
 	if (count <= 0) {
 		cbc_request_enqueue(ioc, req, CBC_QUEUE_T_FREE, false);
-		DPRINTF("ioc channel=%d,recv error\r\n", id);
+		pr_dbg("ioc channel=%d,recv error\n", id);
 		return -1;
 	}
 
@@ -1183,7 +1179,7 @@ ioc_dispatch(struct ioc_dev *ioc, struct ioc_ch_info *chl)
 		ioc_process_events(ioc, chl->id);
 		break;
 	default:
-		DPRINTF("ioc dispatch got wrong channel:%d\r\n", chl->id);
+		pr_dbg("ioc dispatch got wrong channel:%d\n", chl->id);
 		break;
 	}
 }
@@ -1211,7 +1207,7 @@ ioc_core_thread(void *arg)
 			ioc->evts[i].data.ptr = chl;
 			if (epoll_ctl(ioc->epfd, EPOLL_CTL_ADD, chl->fd,
 						&ioc->evts[i]) < 0)
-				DPRINTF("ioc epoll ctl %s failed, error:%s\r\n",
+				pr_dbg("ioc epoll ctl %s failed, error:%s\n",
 						chl->name, strerror(errno));
 		}
 	}
@@ -1220,7 +1216,7 @@ ioc_core_thread(void *arg)
 	while (!ioc->closing) {
 		n = epoll_wait(ioc->epfd, eventlist, IOC_MAX_EVENTS, -1);
 		if (n < 0 && errno != EINTR) {
-			DPRINTF("ioc epoll wait error:%s, exit ioc core\r\n",
+			pr_dbg("ioc epoll wait error:%s, exit ioc core\n",
 					strerror(errno));
 			goto exit;
 		}
@@ -1373,7 +1369,7 @@ ioc_create_thread(const char *name, pthread_t *tid,
 		ioc_work func, void *arg)
 {
 	if (pthread_create(tid, NULL, func, arg) != 0) {
-		DPRINTF("%s", "ioc can not create thread\r\n");
+		pr_dbg("ioc can not create thread\n");
 		return -1;
 	}
 	pthread_setname_np(*tid, name);
@@ -1404,7 +1400,7 @@ vm_stop_handler(void *arg)
 	struct ioc_dev *ioc = arg;
 
 	if (!ioc) {
-		DPRINTF("%s", "ioc vm stop gets NULL pointer\r\n");
+		pr_dbg("ioc vm stop gets NULL pointer\n");
 		return -1;
 	}
 	ioc->vm_req = VM_REQ_STOP;
@@ -1421,7 +1417,7 @@ vm_suspend_handler(void *arg)
 	struct ioc_dev *ioc = arg;
 
 	if (!ioc) {
-		DPRINTF("%s", "ioc vm suspend gets NULL pointer\r\n");
+		pr_dbg("ioc vm suspend gets NULL pointer\n");
 		return -1;
 	}
 	ioc->vm_req = VM_REQ_SUSPEND;
@@ -1439,13 +1435,13 @@ vm_resume_handler(void *arg)
 	uint32_t reason;
 
 	if (!ioc) {
-		DPRINTF("%s", "ioc vm resume gets NULL pointer\r\n");
+		pr_dbg("ioc vm resume gets NULL pointer\n");
 		return -1;
 	}
 
 	reason = get_wakeup_reason();
 	if (!reason) {
-		DPRINTF("%s", "ioc vm resume gets invalid wakeup reason \r\n");
+		pr_dbg("ioc vm resume gets invalid wakeup reason\n");
 		return -1;
 	}
 
@@ -1485,7 +1481,7 @@ ioc_parse(const char *opts)
 
 	rc = snprintf(virtual_uart_path, sizeof(virtual_uart_path), "%s", tmp);
 	if (rc < 0 || rc >= sizeof(virtual_uart_path))
-		WPRINTF("ioc gets incomplete virtual uart path:%s\r\n",
+		pr_err("ioc gets incomplete virtual uart path:%s\n",
 				virtual_uart_path);
 
 	if (!str)
@@ -1550,7 +1546,7 @@ ioc_init(struct vmctx *ctx)
 	 * Register IOC mediator VM ops for stop/suspend/resume.
 	 */
 	if (monitor_register_vm_ops(&vm_ops, ioc, "ioc_dm") < 0) {
-		DPRINTF("%s", "ioc register to VM monitor failed\r\n");
+		pr_dbg("ioc register to VM monitor failed\n");
 		goto alloc_err;
 	}
 
@@ -1590,7 +1586,7 @@ ioc_init(struct vmctx *ctx)
 	 */
 	if (ioc_ch_xmit(IOC_NATIVE_SIGNAL, cbc_open_channel_command,
 				sizeof(cbc_open_channel_command)) <= 0)
-		DPRINTF("%s", "ioc sends CBC open channel command failed\r\n");
+		pr_dbg("ioc sends CBC open channel command failed\n");
 
 	/* Initlialize CBC rx/tx signal and group whitelists */
 	wlist_init_signal(cbc_rx_signal_table, ARRAY_SIZE(cbc_rx_signal_table),
@@ -1609,7 +1605,7 @@ ioc_init(struct vmctx *ctx)
 	/* Setup IOC rx members */
 	rc = snprintf(ioc->rx_name, sizeof(ioc->rx_name), "ioc_rx");
 	if (rc < 0)
-		WPRINTF("%s", "ioc fails to set ioc_rx thread name\r\n");
+		pr_err("ioc fails to set ioc_rx thread name\n");
 
 	ioc->ioc_dev_rx = cbc_rx_handler;
 	pthread_cond_init(&ioc->rx_cond, NULL);
@@ -1627,7 +1623,7 @@ ioc_init(struct vmctx *ctx)
 	/* Setup IOC tx members */
 	rc = snprintf(ioc->tx_name, sizeof(ioc->tx_name), "ioc_tx");
 	if (rc < 0)
-		WPRINTF("%s", "ioc fails to set ioc_tx thread name\r\n");
+		pr_err("ioc fails to set ioc_tx thread name\n");
 
 	ioc->ioc_dev_tx = cbc_tx_handler;
 	pthread_cond_init(&ioc->tx_cond, NULL);
@@ -1657,7 +1653,7 @@ ioc_init(struct vmctx *ctx)
 		goto work_err;
 	rc = snprintf(ioc->name, sizeof(ioc->name), "ioc_core");
 	if (rc < 0)
-		WPRINTF("%s", "ioc fails to set ioc_core thread name\r\n");
+		pr_err("ioc fails to set ioc_core thread name\n");
 
 	if (ioc_create_thread(ioc->name, &ioc->tid, ioc_core_thread,
 			(void *)ioc) < 0)
@@ -1683,7 +1679,7 @@ alloc_err:
 	free(ioc->pool);
 	free(ioc);
 ioc_err:
-	DPRINTF("%s", "ioc mediator startup failed!!\r\n");
+	pr_dbg("ioc mediator startup failed!!\n");
 	return -1;
 }
 
@@ -1696,7 +1692,7 @@ ioc_deinit(struct vmctx *ctx)
 	struct ioc_dev *ioc = ctx->ioc_dev;
 
 	if (!ioc) {
-		DPRINTF("%s", "ioc deinit parameter is NULL\r\n");
+		pr_dbg("ioc deinit parameter is NULL\n");
 		return;
 	}
 	ioc_kill_workers(ioc);
