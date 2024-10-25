@@ -140,10 +140,11 @@ function add_logger_settings() {
     echo -n "--logger_setting ${cmd_param}"
 }
 
-function add_virtual_device() {
-    slot=$1
-    kind=$2
-    options=$3
+function __add_virtual_device() {
+    property=$1
+    slot=$2
+    kind=$3
+    options=$4
 
     if [ "${kind}" = "virtio-net" ]; then
         # Create the tap device
@@ -196,16 +197,31 @@ function add_virtual_device() {
 
     fi
 
-    echo -n "-s ${slot},${kind}"
+    if [[ "${property}" =~ (mandatory)(.*) ]]; then
+        echo -n "-S "
+    else
+        echo -n "-s "
+    fi
+
+    echo -n "${slot},${kind}"
     if [ -n "${options}" ]; then
         echo -n ",${options}"
     fi
 }
 
-function add_passthrough_device() {
-    slot=$1
-    physical_bdf=$2
-    options=$3
+function add_virtual_device() {
+    __add_virtual_device optional $@
+}
+
+function add_mandatory_virtual_device() {
+    __add_virtual_device mandatory $@
+}
+
+function __add_passthrough_device() {
+    property=$1
+    slot=$2
+    physical_bdf=$3
+    options=$4
 
     unbind_device ${physical_bdf%,*}
 
@@ -214,11 +230,24 @@ function add_passthrough_device() {
     dev_temp=${physical_bdf##*:};    dev=$((16#${dev_temp%.*}))
     fun=$((16#${physical_bdf#*.}))
 
-    echo -n "-s "
+    if [[ "${property}" =~ (mandatory)(.*) ]]; then
+        echo -n "-S "
+    else
+        echo -n "-s "
+    fi
+
     printf '%s,passthru,%x/%x/%x' ${slot} ${bus} ${dev} ${fun}
     if [ -n "${options}" ]; then
         echo -n ",${options}"
     fi
+}
+
+function add_passthrough_device() {
+    __add_passthrough_device optional $@
+}
+
+function add_mandatory_passthrough_device() {
+    __add_passthrough_device mandatory $@
 }
 
 # Enable VF
