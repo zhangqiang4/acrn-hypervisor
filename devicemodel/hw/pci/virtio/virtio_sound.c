@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#define pr_prefix "virtio-sound: "
 #include "dm.h"
 #include "pci_core.h"
 #include "virtio.h"
@@ -84,7 +85,6 @@
 #define HDA_JACK_DEFREG_DEVICE_SHIFT	20
 #define HDA_JACK_DEFREG_LOCATION_SHIFT	24
 
-#define WPRINTF(format, arg...) pr_err(format, ##arg)
 enum {
 	VIRTIO_SND_BE_INITED = 1,
 	VIRTIO_SND_BE_PRE,
@@ -403,12 +403,12 @@ virtio_sound_notify_xfer(struct virtio_sound *virt_snd, struct virtio_vq_info *v
 	while (vq_has_descs(vq)) {
 		msg_node = malloc(sizeof(struct virtio_sound_msg_node));
 		if (msg_node == NULL) {
-			WPRINTF("%s: malloc data node fail!\n", __func__);
+			pr_err("%s: malloc data node fail!\n", __func__);
 			return;
 		}
 		msg_node->iov = malloc(sizeof(struct iovec) * iov_cnt);
 		if (msg_node->iov == NULL) {
-			WPRINTF("%s: malloc iov nodes fail!\n", __func__);
+			pr_err("%s: malloc iov nodes fail!\n", __func__);
 			free(msg_node);
 			return;
 		}
@@ -416,7 +416,7 @@ virtio_sound_notify_xfer(struct virtio_sound *virt_snd, struct virtio_vq_info *v
 		n = vq_getchain(vq, &msg_node->idx, msg_node->iov, iov_cnt, NULL);
 		pthread_mutex_unlock(&vq->mtx);
 		if (n <= 0) {
-			WPRINTF("%s: fail to getchain, cnt %d!\n", __func__, iov_cnt);
+			pr_err("%s: fail to getchain, cnt %d!\n", __func__, iov_cnt);
 			free(msg_node->iov);
 			free(msg_node);
 			return;
@@ -475,34 +475,34 @@ virtio_sound_set_hwparam(struct virtio_sound_pcm *stream)
 	snd_pcm_hw_params_alloca(&hwparams);
 	err = snd_pcm_hw_params_any(stream->handle, hwparams);
 	if(err < 0) {
-		WPRINTF("%s: no configurations available, error number %d!\n", __func__, err);
+		pr_err("%s: no configurations available, error number %d!\n", __func__, err);
 		return -1;
 	}
 
 	err = snd_pcm_hw_params_set_access(stream->handle, hwparams, SND_PCM_ACCESS_MMAP_INTERLEAVED);
 	if(err < 0) {
-		WPRINTF("%s: set access, error number %d!\n", __func__, err);
+		pr_err("%s: set access, error number %d!\n", __func__, err);
 		return -1;
 	}
 
 	err = snd_pcm_hw_params_set_format(stream->handle, hwparams,
 		virtio_sound_v2s_format[stream->param.format]);
 	if(err < 0) {
-		WPRINTF("%s: set format(%d), error number %d!\n", __func__,
+		pr_err("%s: set format(%d), error number %d!\n", __func__,
 			virtio_sound_v2s_format[stream->param.format], err);
 		return -1;
 	}
 	err = snd_pcm_hw_params_set_channels(stream->handle,
 		hwparams, stream->param.channels);
 	if(err < 0) {
-		WPRINTF("%s: set channels(%d) fail, error number %d!\n", __func__,
+		pr_err("%s: set channels(%d) fail, error number %d!\n", __func__,
 			stream->param.channels, err);
 		return -1;
 	}
 	stream->param.rrate = virtio_sound_t_rate[stream->param.rate];
 	err = snd_pcm_hw_params_set_rate_near(stream->handle, hwparams, &stream->param.rrate, &dir);
 	if(err < 0) {
-		WPRINTF("%s: set rate(%u) fail, error number %d!\n", __func__,
+		pr_err("%s: set rate(%u) fail, error number %d!\n", __func__,
 			virtio_sound_t_rate[stream->param.rate], err);
 		return -1;
 	}
@@ -510,7 +510,7 @@ virtio_sound_set_hwparam(struct virtio_sound_pcm *stream)
 	buffer_size = stream->param.buffer_bytes / virtio_sound_get_frame_size(stream);
 	err = snd_pcm_hw_params_set_buffer_size_near(stream->handle, hwparams, &buffer_size);
 	if(err < 0) {
-		WPRINTF("%s: set buffer_size(%ld) fail, error number %d!\n", __func__, buffer_size, err);
+		pr_err("%s: set buffer_size(%ld) fail, error number %d!\n", __func__, buffer_size, err);
 		return -1;
 	}
 	period_size = stream->param.period_bytes / virtio_sound_get_frame_size(stream);
@@ -518,19 +518,19 @@ virtio_sound_set_hwparam(struct virtio_sound_pcm *stream)
 	err = snd_pcm_hw_params_set_period_size_near(stream->handle, hwparams,
 		&period_size, &dir);
 	if(err < 0) {
-		WPRINTF("%s: set period_size(%ld) fail, error number %d!\n", __func__, period_size, err);
+		pr_err("%s: set period_size(%ld) fail, error number %d!\n", __func__, period_size, err);
 		return -1;
 	}
 
 	err = snd_pcm_hw_params(stream->handle, hwparams);
 	if (err < 0) {
-		WPRINTF("%s: set hw params fail, error number %d!\n", __func__, err);
+		pr_err("%s: set hw params fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 
 	err = snd_pcm_hw_params_get_buffer_size(hwparams, &buffer_size);
 	if(err < 0) {
-		WPRINTF("%s: get buffer_size(%ld) fail, error number %d!\ne", __func__, buffer_size, err);
+		pr_err("%s: get buffer_size(%ld) fail, error number %d!\ne", __func__, buffer_size, err);
 		return -1;
 	}
 	stream->param.buffer_bytes = buffer_size * virtio_sound_get_frame_size(stream);
@@ -538,7 +538,7 @@ virtio_sound_set_hwparam(struct virtio_sound_pcm *stream)
 	dir = stream->dir;
 	err = snd_pcm_hw_params_get_period_size(hwparams, &period_size, &dir);
 	if(err < 0) {
-		WPRINTF("%s: set period_size(%ld) fail, error number %d!\n", __func__, period_size, err);
+		pr_err("%s: set period_size(%ld) fail, error number %d!\n", __func__, period_size, err);
 		return -1;
 	}
 	stream->param.period_bytes = period_size * virtio_sound_get_frame_size(stream);
@@ -557,29 +557,29 @@ virtio_sound_set_swparam(struct virtio_sound_pcm *stream)
 	snd_pcm_sw_params_alloca(&swparams);
 	err = snd_pcm_sw_params_current(stream->handle, swparams);
 	if(err < 0) {
-		WPRINTF("%s: no sw params available, error number %d!\n", __func__, err);
+		pr_err("%s: no sw params available, error number %d!\n", __func__, err);
 		return -1;
 	}
 
 	err = snd_pcm_sw_params_set_start_threshold(stream->handle, swparams, 1);
 	if(err < 0) {
-		WPRINTF("%s: set threshold fail, error number %d!\n", __func__, err);
+		pr_err("%s: set threshold fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 	period_size = stream->param.period_bytes / virtio_sound_get_frame_size(stream);
 	err = snd_pcm_sw_params_set_avail_min(stream->handle, swparams, period_size);
 	if(err < 0) {
-		WPRINTF("%s: set avail min fail, error number %d!\n", __func__, err);
+		pr_err("%s: set avail min fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 	err = snd_pcm_sw_params_set_period_event(stream->handle, swparams, 1);
 	if(err < 0) {
-		WPRINTF("%s: set period event fail, error number %d!\n", __func__, err);
+		pr_err("%s: set period event fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 	err = snd_pcm_sw_params(stream->handle, swparams);
 	if (err < 0) {
-		WPRINTF("%s: set sw params fail, error number %d!\n", __func__, err);
+		pr_err("%s: set sw params fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 	return 0;
@@ -600,13 +600,13 @@ virtio_sound_recover(struct virtio_sound_pcm *stream)
 	if (state == SND_PCM_STATE_XRUN || state == SND_PCM_STATE_SETUP) {
 		err = snd_pcm_prepare(stream->handle);
 		if(err < 0) {
-			WPRINTF("%s: recorver from xrun prepare fail, error number %d!\n", __func__, err);
+			pr_err("%s: recorver from xrun prepare fail, error number %d!\n", __func__, err);
 			return -1;
 		}
 		if (stream->dir == SND_PCM_STREAM_CAPTURE) {
 			err = snd_pcm_start(stream->handle);
 			if(err < 0) {
-				WPRINTF("%s: recorver from xrun start fail, error number %d!\n", __func__, err);
+				pr_err("%s: recorver from xrun start fail, error number %d!\n", __func__, err);
 				return -1;
 			}
 		}
@@ -614,20 +614,20 @@ virtio_sound_recover(struct virtio_sound_pcm *stream)
 		for (i = 0; i < 10; i++) {
 			err = snd_pcm_resume(stream->handle);
 			if (err == -EAGAIN) {
-				WPRINTF("%s: waiting for resume!\n", __func__);
+				pr_err("%s: waiting for resume!\n", __func__);
 				usleep(5000);
 				continue;
 			}
 			err = snd_pcm_prepare(stream->handle);
 			if(err < 0) {
-				WPRINTF("%s: recorver form suspend prepare fail, error number %d!\n", __func__, err);
+				pr_err("%s: recorver form suspend prepare fail, error number %d!\n", __func__, err);
 				return -1;
 			}
 
 			if (stream->dir == SND_PCM_STREAM_CAPTURE) {
 				err = snd_pcm_start(stream->handle);
 				if(err < 0) {
-					WPRINTF("%s: recorver from suspend start fail, error number %d!\n",
+					pr_err("%s: recorver from suspend start fail, error number %d!\n",
 						__func__, err);
 					return -1;
 				}
@@ -648,7 +648,7 @@ virtio_snd_release_data_node(struct virtio_sound_pcm *stream, struct virtio_soun
 	ret_status->status = VIRTIO_SND_S_OK;
 	err = snd_pcm_delay(stream->handle, &sd);
 	if (err < 0) {
-		WPRINTF("%s: get pcm delay, error number %d, %ld!\n", __func__, err, sd);
+		pr_err("%s: get pcm delay, error number %d, %ld!\n", __func__, err, sd);
 		sd = 0;
 	}
 	ret_status->latency_bytes = sd * virtio_sound_get_frame_size(stream);
@@ -675,7 +675,7 @@ virtio_sound_xfer(struct virtio_sound_pcm *stream)
 
 	avail = snd_pcm_avail_update(stream->handle);
 	if (avail < 0) {
-		WPRINTF("%s: recorver form suspend prepare fail, available %ld!\n", __func__, avail);
+		pr_err("%s: recorver form suspend prepare fail, available %ld!\n", __func__, avail);
 		return -1;
 	}
 	frame_size = virtio_sound_get_frame_size(stream);
@@ -688,7 +688,7 @@ virtio_sound_xfer(struct virtio_sound_pcm *stream)
 	}
 	err = snd_pcm_mmap_begin(stream->handle, &pcm_areas, &pcm_offset, &frames);
 	if (err < 0) {
-		WPRINTF("%s: mmap begin fail, error number %d!\n", __func__, err);
+		pr_err("%s: mmap begin fail, error number %d!\n", __func__, err);
 		return -1;
 	}
 	/*
@@ -738,7 +738,7 @@ virtio_sound_xfer(struct virtio_sound_pcm *stream)
 
 	commit = snd_pcm_mmap_commit(stream->handle, pcm_offset, xfer);
 	if(xfer < 0 || xfer != commit) {
-		WPRINTF("%s: mmap commit fail, xfer %ld!\n", __func__, xfer);
+		pr_err("%s: mmap commit fail, xfer %ld!\n", __func__, xfer);
 		return -1;
 	}
 
@@ -791,21 +791,21 @@ virtio_sound_create_poll_fds(struct virtio_sound_pcm *stream)
 		stream->pfd_count = snd_pcm_poll_descriptors_count(stream->handle) + 1;
 		stream->poll_fd = malloc(sizeof(struct pollfd) * stream->pfd_count);
 		if (stream->poll_fd == NULL) {
-			WPRINTF("%s: malloc poll fd fail\n", __func__);
+			pr_err("%s: malloc poll fd fail\n", __func__);
 			return -1;
 		}
 		stream->poll_fd[0].fd = stream->ctrl_fd[0];
 		stream->poll_fd[0].events = POLLIN | POLLERR | POLLNVAL;
 		if ((err = snd_pcm_poll_descriptors(stream->handle,
 			&stream->poll_fd[1], stream->pfd_count - 1)) <= 0) {
-			WPRINTF("%s: get poll descriptor fail, error number %d!\n", __func__, err);
+			pr_err("%s: get poll descriptor fail, error number %d!\n", __func__, err);
 			return -1;
 		}
 	} else {
 		stream->pfd_count = 1;
 		stream->poll_fd = malloc(sizeof(struct pollfd) * stream->pfd_count);
 		if (stream->poll_fd == NULL) {
-			WPRINTF("%s: malloc poll fd fail\n", __func__);
+			pr_err("%s: malloc poll fd fail\n", __func__);
 			return -1;
 		}
 		stream->poll_fd[0].fd = stream->ctrl_fd[0];
@@ -828,13 +828,13 @@ virtio_sound_pcm_thread(void *param)
 	event.data = stream->id;
 	err = virtio_sound_create_poll_fds(stream);
 	if (err) {
-		WPRINTF("%s: stream create pool fd failed!\n", __func__);
+		pr_err("%s: stream create pool fd failed!\n", __func__);
 	}
 	do {
 		err = poll(stream->poll_fd, stream->pfd_count, timeout);
 		if (err < 0) {
 			if (errno != EINTR)
-				WPRINTF("%s: pool errno %d!\n", __func__, errno);
+				pr_err("%s: pool errno %d!\n", __func__, errno);
 			continue;
 		}
 		/*
@@ -847,7 +847,7 @@ virtio_sound_pcm_thread(void *param)
 			stream->status = VIRTIO_SND_BE_START;
 			err = virtio_sound_create_poll_fds(stream);
 			if (err) {
-				WPRINTF("%s: stream create pool fd failed!\n", __func__);
+				pr_err("%s: stream create pool fd failed!\n", __func__);
 			}
 			continue;
 		}
@@ -855,7 +855,7 @@ virtio_sound_pcm_thread(void *param)
 			if (virtio_sound_process_ctrl_cmds(stream, &timeout) == 1)
 				continue;
 		} else if (stream->poll_fd[0].revents) {
-			WPRINTF("%s: stream ctrl fd error 0x%X!\n", __func__, stream->poll_fd[0].revents);
+			pr_err("%s: stream ctrl fd error 0x%X!\n", __func__, stream->poll_fd[0].revents);
 		}
 		if (stream->status != VIRTIO_SND_BE_START) {
 			continue;
@@ -867,7 +867,7 @@ virtio_sound_pcm_thread(void *param)
 			if (err < 0) {
 				err = virtio_sound_recover(stream);
 				if (err < 0) {
-					WPRINTF("%s: stream %d xfer error!\n", __func__, stream->id);
+					pr_err("%s: stream %d xfer error!\n", __func__, stream->id);
 					virtio_sound_send_event(stream->snd_card, &event);
 					continue;
 				}
@@ -877,7 +877,7 @@ virtio_sound_pcm_thread(void *param)
 
 			err = virtio_sound_recover(stream);
 			if (err < 0) {
-				WPRINTF("%s: stream %d poll error %d!\n", __func__, stream->id,
+				pr_err("%s: stream %d poll error %d!\n", __func__, stream->id,
 					(int)snd_pcm_state(stream->handle));
 				virtio_sound_send_event(stream->snd_card, &event);
 				continue;
@@ -904,14 +904,14 @@ virtio_sound_create_pcm_thread(struct virtio_sound_pcm *stream)
 		stream->id, cur_time.tv_nsec);
 	err = mkfifo(ctrl_path, S_IFIFO | 0666);
 	if (err == -1) {
-		WPRINTF("%s: ctrl fd %s mkfifo fail!\n", __func__, ctrl_path);
+		pr_err("%s: ctrl fd %s mkfifo fail!\n", __func__, ctrl_path);
 		return -1;
 	}
 
 	stream->ctrl_fd[0] = open(ctrl_path, O_RDONLY | O_NONBLOCK);
 	stream->ctrl_fd[1] = open(ctrl_path, O_WRONLY | O_NONBLOCK);
 	if (stream->ctrl_fd[0] == -1 || stream->ctrl_fd[1] == -1) {
-		WPRINTF("%s: create ctrl %s fd(%d)(%d) fail!\n", __func__, ctrl_path,
+		pr_err("%s: create ctrl %s fd(%d)(%d) fail!\n", __func__, ctrl_path,
 			stream->ctrl_fd[0], stream->ctrl_fd[1]);
 		return -1;
 	}
@@ -942,11 +942,11 @@ virtio_sound_get_ctl_elem(snd_hctl_t *hctl, char *identifier)
 
 	snd_ctl_elem_id_alloca(&id);
 	if (snd_ctl_ascii_elem_id_parse(id, identifier) < 0) {
-		WPRINTF("%s: wrong identifier %s!\n", __func__, identifier);
+		pr_err("%s: wrong identifier %s!\n", __func__, identifier);
 		return NULL;
 	}
 	if ((elem = snd_hctl_find_elem(hctl, id)) == NULL) {
-		WPRINTF("%s: find elem fail, identifier is %s!\n", __func__, identifier);
+		pr_err("%s: find elem fail, identifier is %s!\n", __func__, identifier);
 		return NULL;
 	}
 	return elem;
@@ -961,12 +961,12 @@ virtio_sound_get_jack_value(snd_hctl_elem_t *elem)
 
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_readable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__, snd_hctl_elem_get_name(elem));
+		pr_err("%s: access check fail, identifier is %s!\n", __func__, snd_hctl_elem_get_name(elem));
 		return -1;
 	}
 	snd_ctl_elem_value_alloca(&ctl_value);
 	if (snd_hctl_elem_read(elem, ctl_value) < 0) {
-		WPRINTF("%s: read %s value fail!\n", __func__, snd_hctl_elem_get_name(elem));
+		pr_err("%s: read %s value fail!\n", __func__, snd_hctl_elem_get_name(elem));
 		return -1;
 	}
 	value = snd_ctl_elem_value_get_boolean(ctl_value, 0);
@@ -996,18 +996,18 @@ virtio_sound_r_jack_info(struct virtio_sound *virt_snd, struct iovec *iov, uint8
 
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if ((info->start_id + info->count) > virt_snd->jack_cnt) {
-		WPRINTF("%s: invalid jack, start %d, count = %d!\n", __func__,
+		pr_err("%s: invalid jack, start %d, count = %d!\n", __func__,
 			info->start_id, info->count);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	ret_len = info->count * sizeof(struct virtio_snd_jack_info);
 	if (ret_len > iov[2].iov_len) {
-		WPRINTF("%s: too small buffer %d, required %d!\n", __func__,
+		pr_err("%s: too small buffer %d, required %d!\n", __func__,
 			iov[2].iov_len, ret_len);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1035,18 +1035,18 @@ virtio_sound_r_pcm_info(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	struct virtio_snd_hdr *ret = iov[1].iov_base;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if ((info->start_id + info->count) > virt_snd->stream_cnt) {
-		WPRINTF("%s: invalid stream, start %d, count = %d!\n", __func__,
+		pr_err("%s: invalid stream, start %d, count = %d!\n", __func__,
 			info->start_id, info->count);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	ret_len = info->count * sizeof(struct virtio_snd_pcm_info);
 	if (ret_len > iov[2].iov_len) {
-		WPRINTF("%s: too small buffer %d, required %d!\n", __func__,
+		pr_err("%s: too small buffer %d, required %d!\n", __func__,
 			iov[2].iov_len, ret_len);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1055,7 +1055,7 @@ virtio_sound_r_pcm_info(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	for (i = 0; i < info->count; i++) {
 		stream = virt_snd->streams[info->start_id + i];
 		if (stream == NULL) {
-			WPRINTF("%s: invalid stream, start %d, count = %d!\n", __func__,
+			pr_err("%s: invalid stream, start %d, count = %d!\n", __func__,
 				info->start_id, info->count);
 			ret->code = VIRTIO_SND_S_BAD_MSG;
 			return (int)iov[1].iov_len;
@@ -1084,7 +1084,7 @@ virtio_sound_r_set_params(struct virtio_sound_pcm *stream, struct virtio_sound_c
 		(stream->param.rates && (1 << params->rate) == 0) ||
 		(params->channels < stream->param.channels_min) ||
 		(params->channels > stream->param.channels_max)) {
-		WPRINTF("%s: invalid parameters sample format %d, frame rate %d, channels %d!\n", __func__,
+		pr_err("%s: invalid parameters sample format %d, frame rate %d, channels %d!\n", __func__,
 		params->format, params->rate, params->channels);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
@@ -1108,19 +1108,19 @@ virtio_sound_r_set_params(struct virtio_sound_pcm *stream, struct virtio_sound_c
 	if (!stream->handle)
 		if (snd_pcm_open(&stream->handle, stream->dev_name,
 			stream->dir, SND_PCM_NONBLOCK) < 0 || stream->handle == NULL) {
-			WPRINTF("%s: stream %s open fail!\n", __func__, stream->dev_name);
+			pr_err("%s: stream %s open fail!\n", __func__, stream->dev_name);
 			ret->code = VIRTIO_SND_S_BAD_MSG;
 			virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 			return -1;
 		}
 	err = virtio_sound_set_hwparam(stream);
 	if (err < 0) {
-		WPRINTF("%s: set hw params fail!\n", __func__);
+		pr_err("%s: set hw params fail!\n", __func__);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 	}
 	err = virtio_sound_set_swparam(stream);
 	if (err < 0) {
-		WPRINTF("%s: set sw params fail!\n", __func__);
+		pr_err("%s: set sw params fail!\n", __func__);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 	}
 	virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
@@ -1134,7 +1134,7 @@ virtio_sound_r_pcm_prepare(struct virtio_sound_pcm *stream, struct virtio_sound_
 	int err;
 
 	if (stream->status == VIRTIO_SND_BE_RELEASE) {
-		WPRINTF("%s: stream %d is releasing!\n", __func__, stream->id);
+		pr_err("%s: stream %d is releasing!\n", __func__, stream->id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 		return -1;
@@ -1143,22 +1143,22 @@ virtio_sound_r_pcm_prepare(struct virtio_sound_pcm *stream, struct virtio_sound_
 	if(!stream->handle) {
 		if (snd_pcm_open(&stream->handle, stream->dev_name,
 			stream->dir, SND_PCM_NONBLOCK) < 0  || stream->handle == NULL) {
-			WPRINTF("%s: stream %s open fail!\n", __func__, stream->dev_name);
+			pr_err("%s: stream %s open fail!\n", __func__, stream->dev_name);
 			goto err;
 		}
 		err = virtio_sound_set_hwparam(stream);
 		if (err < 0) {
-			WPRINTF("%s: set hw params fail!\n", __func__);
+			pr_err("%s: set hw params fail!\n", __func__);
 			goto err;
 		}
 		err = virtio_sound_set_swparam(stream);
 		if (err < 0) {
-			WPRINTF("%s: set sw params fail!\n", __func__);
+			pr_err("%s: set sw params fail!\n", __func__);
 			goto err;
 		}
 	}
 	if (snd_pcm_prepare(stream->handle) < 0) {
-		WPRINTF("%s: stream %s prepare fail!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s prepare fail!\n", __func__, stream->dev_name);
 		goto err;
 	}
 	if (write2file != 0 && stream->dbg_fd == NULL)
@@ -1184,7 +1184,7 @@ virtio_sound_r_pcm_release(struct virtio_sound_pcm *stream, struct virtio_sound_
 	virtio_sound_clean_vq(stream);
 	if (stream->handle) {
 		if (snd_pcm_close(stream->handle) < 0) {
-			WPRINTF("%s: stream %s close error!\n", __func__, stream->dev_name);
+			pr_err("%s: stream %s close error!\n", __func__, stream->dev_name);
 		}
 		stream->handle = NULL;
 	}
@@ -1206,7 +1206,7 @@ virtio_sound_r_pcm_start(struct virtio_sound_pcm *stream, struct virtio_sound_ct
 	int i;
 	ret->code = VIRTIO_SND_S_OK;
 	if (stream->status == VIRTIO_SND_BE_RELEASE) {
-		WPRINTF("%s: stream %d is releasing!\n", __func__, stream->id);
+		pr_err("%s: stream %d is releasing!\n", __func__, stream->id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 		return -1;
@@ -1228,7 +1228,7 @@ virtio_sound_r_pcm_start(struct virtio_sound_pcm *stream, struct virtio_sound_ct
 		 */
 		for (i = 0; i < 2; i++) {
 			if (virtio_sound_xfer(stream) < 0) {
-				WPRINTF("%s: stream fn_id %d xfer error!\n", __func__, stream->hda_fn_nid);
+				pr_err("%s: stream fn_id %d xfer error!\n", __func__, stream->hda_fn_nid);
 				ret->code = VIRTIO_SND_S_BAD_MSG;
 				virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 				return -1;
@@ -1238,7 +1238,7 @@ virtio_sound_r_pcm_start(struct virtio_sound_pcm *stream, struct virtio_sound_ct
 	} else {
 		stream->status = VIRTIO_SND_BE_START;
 		if (virtio_sound_create_poll_fds(stream) < 0) {
-			WPRINTF("%s: stream create pool fd failed!\n", __func__);
+			pr_err("%s: stream create pool fd failed!\n", __func__);
 			ret->code = VIRTIO_SND_S_BAD_MSG;
 			virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 			return -1;
@@ -1246,7 +1246,7 @@ virtio_sound_r_pcm_start(struct virtio_sound_pcm *stream, struct virtio_sound_ct
 	}
 
 	if (snd_pcm_start(stream->handle) < 0) {
-		WPRINTF("%s: stream %s start error!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s start error!\n", __func__, stream->dev_name);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 		return -1;
@@ -1262,12 +1262,12 @@ virtio_sound_r_pcm_stop(struct virtio_sound_pcm *stream, struct virtio_sound_ctr
 	int err;
 
 	if (stream->handle != NULL && snd_pcm_drop(stream->handle) < 0) {
-		WPRINTF("%s: stream %s drop error!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s drop error!\n", __func__, stream->dev_name);
 	}
 	stream->status = VIRTIO_SND_BE_STOP;
 	err = virtio_sound_create_poll_fds(stream);
 	if (err) {
-		WPRINTF("%s: stream create pool fd failed!\n", __func__);
+		pr_err("%s: stream create pool fd failed!\n", __func__);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(stream->snd_card, ctrl, ctrl->iov[1].iov_len);
 		return -1;
@@ -1289,11 +1289,11 @@ virtio_sound_r_chmap_info(struct virtio_sound *virt_snd, struct iovec *iov, uint
 	int s, c = 0, i = 0, ret_len;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if ((info->start_id + info->count) > virt_snd->chmap_cnt) {
-		WPRINTF("%s: invalid chmap, start %d, count = %d!\n", __func__,
+		pr_err("%s: invalid chmap, start %d, count = %d!\n", __func__,
 			info->start_id, info->count);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1301,7 +1301,7 @@ virtio_sound_r_chmap_info(struct virtio_sound *virt_snd, struct iovec *iov, uint
 
 	ret_len = info->count * sizeof(struct virtio_snd_chmap_info);
 	if (ret_len > iov[2].iov_len) {
-		WPRINTF("%s: too small buffer %d, required %d!\n", __func__,
+		pr_err("%s: too small buffer %d, required %d!\n", __func__,
 			iov[2].iov_len, ret_len);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1358,18 +1358,18 @@ virtio_sound_r_ctl_info(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	int c = 0, i = 0, ret_len;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if ((info->start_id + info->count) > virt_snd->ctl_cnt) {
-		WPRINTF("%s: invalid kcontrol, start %d, count = %d!\n", __func__,
+		pr_err("%s: invalid kcontrol, start %d, count = %d!\n", __func__,
 			info->start_id, info->count);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	ret_len = info->count * sizeof(struct virtio_snd_ctl_info);
 	if (ret_len > iov[2].iov_len) {
-		WPRINTF("%s: too small buffer %d, required %d!\n", __func__,
+		pr_err("%s: too small buffer %d, required %d!\n", __func__,
 			iov[2].iov_len, ret_len);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1380,7 +1380,7 @@ virtio_sound_r_ctl_info(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	for (i = 0; i < info->count; i++) {
 		elem = virt_snd->ctls[c]->elem;
 		if (snd_hctl_elem_info(elem, ctl) < 0) {
-			WPRINTF("%s: find elem info fail, identifier is %s!\n", __func__,
+			pr_err("%s: find elem info fail, identifier is %s!\n", __func__,
 				snd_hctl_elem_get_name(virt_snd->ctls[c]->elem));
 			ret->code = VIRTIO_SND_S_BAD_MSG;
 			return (int)iov[1].iov_len;
@@ -1428,11 +1428,11 @@ virtio_sound_r_ctl_enum_items(struct virtio_sound *virt_snd, struct iovec *iov, 
 	int items, i;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
@@ -1440,20 +1440,20 @@ virtio_sound_r_ctl_enum_items(struct virtio_sound *virt_snd, struct iovec *iov, 
 	snd_ctl_elem_info_alloca(&ctl);
 	elem = virt_snd->ctls[info->control_id]->elem;
 	if (snd_hctl_elem_info(elem, ctl) < 0) {
-		WPRINTF("%s: get elem info fail, identifier is %s!\n", __func__,
+		pr_err("%s: get elem info fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	if (snd_ctl_elem_info_get_type(ctl) != SND_CTL_ELEM_TYPE_ENUMERATED) {
-		WPRINTF("%s: elem is not enumerated, identifier is %s!\n", __func__,
+		pr_err("%s: elem is not enumerated, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	items = snd_ctl_elem_info_get_items(ctl);
 	if (items != (iov[2].iov_len / sizeof(struct virtio_snd_ctl_enum_item))) {
-		WPRINTF("%s: %s item count(%d) err!\n", __func__,
+		pr_err("%s: %s item count(%d) err!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem), items);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1461,7 +1461,7 @@ virtio_sound_r_ctl_enum_items(struct virtio_sound *virt_snd, struct iovec *iov, 
 	for(i = 0; i < items; i++) {
 		snd_ctl_elem_info_set_item(ctl, i);
 		if (snd_hctl_elem_info(elem, ctl) < 0) {
-			WPRINTF("%s: %s get item %d err!\n", __func__,
+			pr_err("%s: %s get item %d err!\n", __func__,
 				snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem), i);
 			ret->code = VIRTIO_SND_S_BAD_MSG;
 			return (int)iov[1].iov_len;
@@ -1484,11 +1484,11 @@ virtio_sound_r_ctl_read(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	struct virtio_snd_hdr *ret = iov[1].iov_base;
 
 	if (n != 2) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
@@ -1496,14 +1496,14 @@ virtio_sound_r_ctl_read(struct virtio_sound *virt_snd, struct iovec *iov, uint8_
 	elem = virt_snd->ctls[info->control_id]->elem;
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_readable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__,
+		pr_err("%s: access check fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	snd_ctl_elem_value_alloca(&ctl_value);
 	if (snd_hctl_elem_read(elem, ctl_value) < 0) {
-		WPRINTF("%s: read %s value fail!\n", __func__,
+		pr_err("%s: read %s value fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1527,11 +1527,11 @@ virtio_sound_r_ctl_write(struct virtio_sound *virt_snd, struct iovec *iov, uint8
 	snd_ctl_elem_info_t *ctl;
 
 	if (n != 2) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
@@ -1539,21 +1539,21 @@ virtio_sound_r_ctl_write(struct virtio_sound *virt_snd, struct iovec *iov, uint8
 	elem = virt_snd->ctls[info->control_id]->elem;
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_writable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__,
+		pr_err("%s: access check fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	snd_ctl_elem_value_alloca(&ctl_value);
 	if (snd_hctl_elem_read(elem, ctl_value) < 0) {
-		WPRINTF("%s: read %s value fail!\n", __func__,
+		pr_err("%s: read %s value fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	snd_ctl_elem_set_bytes(ctl_value, val, sizeof(struct virtio_snd_ctl_value));
 	if (snd_hctl_elem_write(elem, ctl_value) < 0) {
-		WPRINTF("%s: write %s value fail!\n", __func__,
+		pr_err("%s: write %s value fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1573,11 +1573,11 @@ virtio_sound_r_ctl_tlv_read(struct virtio_sound *virt_snd, struct iovec *iov, ui
 	snd_ctl_elem_info_t *ctl;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
@@ -1585,13 +1585,13 @@ virtio_sound_r_ctl_tlv_read(struct virtio_sound *virt_snd, struct iovec *iov, ui
 	elem = virt_snd->ctls[info->control_id]->elem;
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_tlv_readable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__,
+		pr_err("%s: access check fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
 	}
 	if (snd_hctl_elem_tlv_read(elem, iov[2].iov_base, iov[2].iov_len / sizeof(int)) < 0) {
-		WPRINTF("%s: read %s tlv fail!\n", __func__,
+		pr_err("%s: read %s tlv fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[1].iov_len;
@@ -1611,11 +1611,11 @@ virtio_sound_r_ctl_tlv_write(struct virtio_sound *virt_snd, struct iovec *iov, u
 	uint32_t *tlv = (uint32_t *)iov[1].iov_base;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
 	}
@@ -1623,13 +1623,13 @@ virtio_sound_r_ctl_tlv_write(struct virtio_sound *virt_snd, struct iovec *iov, u
 	elem = virt_snd->ctls[info->control_id]->elem;
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_tlv_writable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__,
+		pr_err("%s: access check fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
 	}
 	if (snd_hctl_elem_tlv_write(elem, tlv) < 0) {
-		WPRINTF("%s: write %s tlv fail!\n", __func__,
+		pr_err("%s: write %s tlv fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
@@ -1649,11 +1649,11 @@ virtio_sound_r_ctl_tlv_command(struct virtio_sound *virt_snd, struct iovec *iov,
 	uint32_t *tlv = (uint32_t *)iov[1].iov_base;
 
 	if (n != 3) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return 0;
 	}
 	if (virt_snd->ctl_cnt <= info->control_id) {
-		WPRINTF("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
+		pr_err("%s: invalid ctrl, control_id %d!\n", __func__, info->control_id);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
 	}
@@ -1661,13 +1661,13 @@ virtio_sound_r_ctl_tlv_command(struct virtio_sound *virt_snd, struct iovec *iov,
 	elem = virt_snd->ctls[info->control_id]->elem;
 	snd_ctl_elem_info_alloca(&ctl);
 	if (snd_hctl_elem_info(elem, ctl) < 0 || snd_ctl_elem_info_is_tlv_commandable(ctl) == 0) {
-		WPRINTF("%s: access check fail, identifier is %s!\n", __func__,
+		pr_err("%s: access check fail, identifier is %s!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
 	}
 	if (snd_hctl_elem_tlv_command(elem, tlv) < 0) {
-		WPRINTF("%s: %s tlv command fail!\n", __func__,
+		pr_err("%s: %s tlv command fail!\n", __func__,
 			snd_hctl_elem_get_name(virt_snd->ctls[info->control_id]->elem));
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		return (int)iov[2].iov_len;
@@ -1684,7 +1684,7 @@ virtio_sound_r_pcm_pending(struct virtio_sound_pcm *stream, struct virtio_sound_
 	int i, err = 0;
 
 	if (stream->status != VIRTIO_SND_BE_PENDING) {
-		WPRINTF("%s: status(%d) err\n", __func__, stream->status);
+		pr_err("%s: status(%d) err\n", __func__, stream->status);
 		err = -1;
 		goto end;
 	}
@@ -1692,13 +1692,13 @@ virtio_sound_r_pcm_pending(struct virtio_sound_pcm *stream, struct virtio_sound_
 		/ virtio_sound_get_frame_size(stream)));
 	for (i = 0; i < 2; i++) {
 		if (virtio_sound_xfer(stream) < 0) {
-			WPRINTF("%s: stream %d xfer error!\n", __func__, stream->id);
+			pr_err("%s: stream %d xfer error!\n", __func__, stream->id);
 			err = -1;
 			goto end;
 		}
 	}
 	if (snd_pcm_start(stream->handle) < 0) {
-		WPRINTF("%s: stream %s start error!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s start error!\n", __func__, stream->dev_name);
 		err = -1;
 		goto end;
 	}
@@ -1722,13 +1722,13 @@ virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout)
 		cnt += size;
 	} while (size > 0 && cnt < sizeof(ctrl));
 	if (cnt != sizeof(ctrl)) {
-		WPRINTF("%s: read data size(%d) err\n", __func__, cnt);
+		pr_err("%s: read data size(%d) err\n", __func__, cnt);
 		return -1;
 	}
 	*timeout = -1;
 	hdr = (struct virtio_snd_hdr *)ctrl.iov[0].iov_base;
 	if (print_ctrl_msg > 1)
-		WPRINTF("%s: deal ctrl msg 0x%x\n", __func__, hdr->code);
+		pr_err("%s: deal ctrl msg 0x%x\n", __func__, hdr->code);
 	switch (hdr->code) {
 		case VIRTIO_SND_R_PCM_SET_PARAMS:
 			err = virtio_sound_r_set_params(stream, &ctrl);
@@ -1749,7 +1749,7 @@ virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout)
 			err = virtio_sound_r_pcm_pending(stream, &ctrl, timeout);
 			break;
 		default:
-			WPRINTF("%s: unsupported request 0x%X!\n", __func__, hdr->code);
+			pr_err("%s: unsupported request 0x%X!\n", __func__, hdr->code);
 			err = -1;
 			break;
 	}
@@ -1767,7 +1767,7 @@ virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream)
 	info = malloc(sizeof(struct virtio_snd_query_info));
 	iov = malloc(sizeof(struct iovec));
 	if (info == NULL || iov == NULL) {
-		WPRINTF("%s: malloc iov(%p) & info(%p) fail!\n", __func__, iov, info);
+		pr_err("%s: malloc iov(%p) & info(%p) fail!\n", __func__, iov, info);
 		if (info)
 			free(info);
 		if (iov)
@@ -1781,7 +1781,7 @@ virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream)
 
 	size = write(stream->ctrl_fd[1], (char *)&ctrl, sizeof(ctrl));
 	if (size != sizeof(ctrl)) {
-		WPRINTF("%s: write error %d!\n", __func__, size);
+		pr_err("%s: write error %d!\n", __func__, size);
 		free(info);
 		free(iov);
 		return -1;
@@ -1802,11 +1802,11 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 	ctrl.idx = idx;
 
 	if (n != 2) {
-		WPRINTF("%s: invalid seg num %d!\n", __func__, n);
+		pr_err("%s: invalid seg num %d!\n", __func__, n);
 		return -1;
 	}
 	if ((s = pcm->stream_id) >= virt_snd->stream_cnt) {
-		WPRINTF("%s: invalid stream %d!\n", __func__, s);
+		pr_err("%s: invalid stream %d!\n", __func__, s);
 		ret->code = VIRTIO_SND_S_BAD_MSG;
 		virtio_sound_release_ctrl_msg(virt_snd, &ctrl, iov[1].iov_len);
 		return -1;
@@ -1814,7 +1814,7 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 
 	ctrl.iov = malloc(sizeof(struct iovec) * 2);
 	if (ctrl.iov == NULL) {
-		WPRINTF("%s: malloc iov fail\n", __func__);
+		pr_err("%s: malloc iov fail\n", __func__);
 		virtio_sound_release_ctrl_msg(virt_snd, &ctrl, iov[1].iov_len);
 		return -1;
 	}
@@ -1822,12 +1822,12 @@ virtio_sound_send_ctrl(struct virtio_sound *virt_snd, struct iovec *iov, uint8_t
 
 	if (print_ctrl_msg > 1) {
 		info = (struct virtio_snd_query_info *)iov[0].iov_base;
-		WPRINTF("%s: send ctrl msg 0x%x\n", __func__, info->hdr.code);
+		pr_err("%s: send ctrl msg 0x%x\n", __func__, info->hdr.code);
 	}
 
 	size = write(virt_snd->streams[s]->ctrl_fd[1], (char *)&ctrl, sizeof(ctrl));
 	if (size != sizeof(ctrl)) {
-		WPRINTF("%s: write error %d!\n", __func__, size);
+		pr_err("%s: write error %d!\n", __func__, size);
 		free(ctrl.iov);
 		return -1;
 	}
@@ -1848,13 +1848,13 @@ virtio_sound_notify_ctl(void *vdev, struct virtio_vq_info *vq)
 		n = vq_getchain(vq, &idx, iov, VIRTIO_SOUND_CTL_SEGS, NULL);
 		pthread_mutex_unlock(&vq->mtx);
 		if (n <= 0) {
-			WPRINTF("%s: fail to getchain!\n", __func__);
+			pr_err("%s: fail to getchain!\n", __func__);
 			return;
 		}
 
 		hdr = (struct virtio_snd_hdr *)iov[0].iov_base;
 		if (print_ctrl_msg > 0)
-				WPRINTF("Receive ctrl msg: 0x%x\n", hdr->code);
+				pr_err("Receive ctrl msg: 0x%x\n", hdr->code);
 		switch (hdr->code) {
 			case VIRTIO_SND_R_JACK_INFO:
 				ret_len = virtio_sound_r_jack_info (virt_snd, iov, n);
@@ -1896,7 +1896,7 @@ virtio_sound_notify_ctl(void *vdev, struct virtio_vq_info *vq)
 				ret_len = virtio_sound_r_ctl_tlv_command(virt_snd, iov, n);
 				break;
 			default:
-				WPRINTF("%s: unsupported request 0x%X!\n", __func__, n);
+				pr_err("%s: unsupported request 0x%X!\n", __func__, n);
 				break;
 		}
 		if (ret_len > 0) {
@@ -1932,7 +1932,7 @@ virtio_sound_format_support(snd_pcm_t *handle, uint32_t format)
 
 	snd_pcm_hw_params_alloca(&hwparams);
 	if(snd_pcm_hw_params_any(handle, hwparams) < 0) {
-		WPRINTF("%s: no configurations available!\n", __func__);
+		pr_err("%s: no configurations available!\n", __func__);
 		return false;
 	}
 	return (snd_pcm_hw_params_test_format(handle, hwparams, format) == 0);
@@ -1946,7 +1946,7 @@ virtio_sound_rate_support(snd_pcm_t *handle, uint32_t rate, int dir)
 
 	snd_pcm_hw_params_alloca(&hwparams);
 	if(snd_pcm_hw_params_any(handle, hwparams) < 0) {
-		WPRINTF("%s: no configurations available!\n", __func__);
+		pr_err("%s: no configurations available!\n", __func__);
 		return false;
 	}
 	rrate = rate;
@@ -1991,7 +1991,7 @@ virtio_sound_pcm_fake_param_init(struct virtio_sound_pcm *stream, int dir, char 
 		cpy = strdup(val);
 		arg = strsep(&val, "=");
 		if (val == NULL || arg == NULL) {
-			WPRINTF("%s: %s param err\n", __func__, cpy);
+			pr_err("%s: %s param err\n", __func__, cpy);
 			free(cpy);
 			continue;
 		}
@@ -2005,7 +2005,7 @@ virtio_sound_pcm_fake_param_init(struct virtio_sound_pcm *stream, int dir, char 
 				}
 			}
 			if (i == len)
-				WPRINTF("%s: %s param err\n", __func__, cpy);
+				pr_err("%s: %s param err\n", __func__, cpy);
 		} else if (strcmp(arg, "rate") == 0) {
 			len = sizeof(rate) / sizeof(struct str2mask);
 			for (i = 0; i < len; i++) {
@@ -2015,13 +2015,13 @@ virtio_sound_pcm_fake_param_init(struct virtio_sound_pcm *stream, int dir, char 
 				}
 			}
 			if (i == len)
-				WPRINTF("%s: %s param err\n", __func__, cpy);
+				pr_err("%s: %s param err\n", __func__, cpy);
 		} else if (strcmp(arg, "channels_min") == 0) {
 			stream->param.channels_min = atoi(val);
 		} else if (strcmp(arg, "channels_max") == 0) {
 			stream->param.channels_max = atoi(val);
 		} else {
-			WPRINTF("%s: %s param err\n", __func__, cpy);
+			pr_err("%s: %s param err\n", __func__, cpy);
 		}
 		free(cpy);
 	} while (param != NULL);
@@ -2041,7 +2041,7 @@ virtio_sound_pcm_param_init(struct virtio_sound_pcm *stream, int dir, char *name
 
 	if (snd_pcm_open(&stream->handle, stream->dev_name,
 		stream->dir, SND_PCM_NONBLOCK) < 0 || stream->handle == NULL) {
-		WPRINTF("%s: stream %s open fail!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s open fail!\n", __func__, stream->dev_name);
 		return -1;
 	}
 
@@ -2054,19 +2054,19 @@ virtio_sound_pcm_param_init(struct virtio_sound_pcm *stream, int dir, char *name
 			stream->param.rates |= (1 << i);
 	}
 	if (stream->param.rates == 0 || stream->param.formats == 0) {
-		WPRINTF("%s: get param fail rates 0x%lx formats 0x%lx!\n", __func__,
+		pr_err("%s: get param fail rates 0x%lx formats 0x%lx!\n", __func__,
 			stream->param.rates, stream->param.formats);
 		return -1;
 	}
 	stream->param.features = (1 << VIRTIO_SND_PCM_F_EVT_XRUNS);
 	snd_pcm_hw_params_alloca(&hwparams);
 	if(snd_pcm_hw_params_any(stream->handle, hwparams) < 0) {
-		WPRINTF("%s: no configurations available!\n", __func__);
+		pr_err("%s: no configurations available!\n", __func__);
 		return -1;
 	}
 	if (snd_pcm_hw_params_get_channels_min(hwparams, &channels_min) < 0 ||
 		snd_pcm_hw_params_get_channels_max(hwparams, &channels_max) < 0) {
-			WPRINTF("%s: get channel info fail!\n", __func__);
+			pr_err("%s: get channel info fail!\n", __func__);
 			return -1;
 	}
 	stream->param.channels_min = channels_min;
@@ -2077,7 +2077,7 @@ virtio_sound_pcm_param_init(struct virtio_sound_pcm *stream, int dir, char *name
 	while (chmaps != NULL && chmaps[i] != NULL) {
 		stream->chmaps[i] = malloc(sizeof(struct virtio_sound_chmap));
 		if (stream->chmaps[i] == NULL) {
-			WPRINTF("%s: malloc chmap buffer fail!\n", __func__);
+			pr_err("%s: malloc chmap buffer fail!\n", __func__);
 			return -1;
 		}
 		stream->chmaps[i]->channels = chmaps[i]->map.channels;
@@ -2090,7 +2090,7 @@ virtio_sound_pcm_param_init(struct virtio_sound_pcm *stream, int dir, char *name
 	STAILQ_INIT(&stream->head);
 
 	if (snd_pcm_close(stream->handle) < 0) {
-		WPRINTF("%s: stream %s close error!\n", __func__, stream->dev_name);
+		pr_err("%s: stream %s close error!\n", __func__, stream->dev_name);
 		return -1;
 	}
 	stream->handle = NULL;
@@ -2105,16 +2105,16 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 	int err;
 
 	if (device == NULL || hda_fn_nid == NULL) {
-		WPRINTF("%s: pcm stream parameter error!\n", __func__);
+		pr_err("%s: pcm stream parameter error!\n", __func__);
 		return -1;
 	}
 	if (virt_snd->stream_cnt >= VIRTIO_SOUND_STREAMS) {
-		WPRINTF("%s: too many audio streams(%d)!\n", __func__, VIRTIO_SOUND_VQ_NUM);
+		pr_err("%s: too many audio streams(%d)!\n", __func__, VIRTIO_SOUND_VQ_NUM);
 		return -1;
 	}
 	stream = malloc(sizeof(struct virtio_sound_pcm));
 	if (stream == NULL) {
-		WPRINTF("%s: malloc data node fail!\n", __func__);
+		pr_err("%s: malloc data node fail!\n", __func__);
 		return -1;
 	}
 	memset(stream, 0, sizeof(struct virtio_sound_pcm));
@@ -2129,7 +2129,7 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 			virt_snd->stream_cnt++;
 			virt_snd->chmap_cnt += stream->chmap_cnt;
 		} else {
-			WPRINTF("%s: stream %s param init error!\n", __func__, stream->dev_name);
+			pr_err("%s: stream %s param init error!\n", __func__, stream->dev_name);
 			free(stream);
 			return -1;
 		}
@@ -2139,7 +2139,7 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 			virt_snd->stream_cnt++;
 			virt_snd->chmap_cnt += stream->chmap_cnt;
 		} else {
-			WPRINTF("%s: stream %s param init error!\n", __func__, stream->dev_name);
+			pr_err("%s: stream %s param init error!\n", __func__, stream->dev_name);
 			free(stream);
 			return -1;
 		}
@@ -2147,19 +2147,19 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 	stream->dbg_fd = NULL;
 	err = virtio_sound_create_pcm_thread(stream);
 	if (err) {
-		WPRINTF("%s: stream create thread failed!\n", __func__);
+		pr_err("%s: stream create thread failed!\n", __func__);
 		free(stream);
 		return -1;
 	}
 	err = pthread_mutex_init(&stream->mtx, NULL);
 	if (err) {
-		WPRINTF("%s: mutex init failed with error %d!\n", __func__, err);
+		pr_err("%s: mutex init failed with error %d!\n", __func__, err);
 		free(stream);
 		return -1;
 	}
 	err = pthread_mutex_init(&stream->ctl_mtx, NULL);
 	if (err) {
-		WPRINTF("%s: mutex init failed with error %d!\n", __func__, err);
+		pr_err("%s: mutex init failed with error %d!\n", __func__, err);
 		pthread_mutex_destroy(&stream->mtx);
 		free(stream);
 		return -1;
@@ -2226,22 +2226,22 @@ virtio_sound_get_card(struct virtio_sound *virt_snd, char *card)
 		}
 	}
 	if (virt_snd->card_cnt >= VIRTIO_SOUND_CARD) {
-		WPRINTF("%s: too many cards %d!\n", __func__, virt_snd->card_cnt);
+		pr_err("%s: too many cards %d!\n", __func__, virt_snd->card_cnt);
 		return NULL;
 	}
 	num = virt_snd->card_cnt;
 	virt_snd->cards[num] = malloc(sizeof(struct vbs_card));
 	if (virt_snd->cards[num] == NULL) {
-		WPRINTF("%s: malloc card node %d fail!\n", __func__, num);
+		pr_err("%s: malloc card node %d fail!\n", __func__, num);
 		return NULL;
 	}
 	strncpy(virt_snd->cards[num]->card, card, VIRTIO_SOUND_CARD_NAME);
 	if (snd_hctl_open(&virt_snd->cards[num]->handle, virt_snd->cards[num]->card, 0)) {
-		WPRINTF("%s: hctl open fail, card %s!\n", __func__, virt_snd->cards[num]->card);
+		pr_err("%s: hctl open fail, card %s!\n", __func__, virt_snd->cards[num]->card);
 		return NULL;
 	}
 	if (snd_hctl_load(virt_snd->cards[num]->handle) < 0) {
-		WPRINTF("%s: hctl load fail, card %s!\n", __func__, virt_snd->cards[num]->card);
+		pr_err("%s: hctl load fail, card %s!\n", __func__, virt_snd->cards[num]->card);
 		snd_hctl_close(virt_snd->cards[num]->handle);
 		return NULL;
 	}
@@ -2262,13 +2262,13 @@ virtio_sound_init_emu_ctl(struct virtio_sound *virt_snd, char *card_str, char *i
 	if (strstr(ident, "Jack") != NULL) {
 		virt_snd->jacks[virt_snd->jack_cnt] = malloc(sizeof(struct vbs_jack_elem));
 		if (virt_snd->jacks[virt_snd->jack_cnt] == NULL) {
-			WPRINTF("%s: malloc jack elem fail!\n", __func__);
+			pr_err("%s: malloc jack elem fail!\n", __func__);
 			free(cpy);
 			return -1;
 		}
 		virt_snd->jacks[virt_snd->jack_cnt]->identifier = malloc(VIRTIO_SOUND_IDENTIFIER);
 		if (virt_snd->jacks[virt_snd->jack_cnt] == NULL) {
-			WPRINTF("%s: malloc jack identifier fail!\n", __func__);
+			pr_err("%s: malloc jack identifier fail!\n", __func__);
 			free(virt_snd->jacks[virt_snd->jack_cnt]);
 			free(cpy);
 			return -1;
@@ -2286,7 +2286,7 @@ virtio_sound_init_emu_ctl(struct virtio_sound *virt_snd, char *card_str, char *i
 			virt_snd->jacks[virt_snd->jack_cnt]->connected = 0;
 		virt_snd->jack_cnt++;
 	} else {
-		WPRINTF("%s: emu card unsupport %s ctl elem!\n", __func__, ident);
+		pr_err("%s: emu card unsupport %s ctl elem!\n", __func__, ident);
 	}
 	free(cpy);
 	return 0;
@@ -2302,32 +2302,32 @@ virtio_sound_init_ctl_elem(struct virtio_sound *virt_snd, char *card_str, char *
 	char card_name[VIRTIO_SOUND_CARD_NAME];
 
 	if(card_str == NULL || identifier == NULL) {
-		WPRINTF("%s: kcontrol info unset!\n", __func__);
+		pr_err("%s: kcontrol info unset!\n", __func__);
 		return -1;
 	}
 	if (virtio_sound_init_emu_ctl(virt_snd, card_str, identifier) == 0) {
 		return 0;
 	}
 	if (virtio_sound_get_card_name(card_str, card_name) < 0) {
-		WPRINTF("%s: card(%s) err, get %s ctl elem fail!\n", __func__, card_str, identifier);
+		pr_err("%s: card(%s) err, get %s ctl elem fail!\n", __func__, card_str, identifier);
 		return -1;
 	}
 	card = virtio_sound_get_card(virt_snd, card_name);
 	if(card == NULL) {
-		WPRINTF("%s: set card(%s) fail!\n", __func__, card_name);
+		pr_err("%s: set card(%s) fail!\n", __func__, card_name);
 		return -1;
 	}
 	snd_ctl_elem_info_alloca(&info);
 
 	elem = virtio_sound_get_ctl_elem(card->handle, identifier);
 	if (elem == NULL) {
-		WPRINTF("%s: get %s ctl elem fail!\n", __func__, identifier);
+		pr_err("%s: get %s ctl elem fail!\n", __func__, identifier);
 		return -1;
 	}
 	if (strstr(identifier, "Jack") != NULL) {
 		virt_snd->jacks[virt_snd->jack_cnt] = malloc(sizeof(struct vbs_jack_elem));
 		if (virt_snd->jacks[virt_snd->jack_cnt] == NULL) {
-			WPRINTF("%s: malloc jack elem fail!\n", __func__);
+			pr_err("%s: malloc jack elem fail!\n", __func__);
 			return -1;
 		}
 		virt_snd->jacks[virt_snd->jack_cnt]->elem = elem;
@@ -2344,7 +2344,7 @@ virtio_sound_init_ctl_elem(struct virtio_sound *virt_snd, char *card_str, char *
 	} else {
 		virt_snd->ctls[virt_snd->ctl_cnt] = malloc(sizeof(struct vbs_ctl_elem));
 		if (virt_snd->ctls[virt_snd->ctl_cnt] == NULL) {
-			WPRINTF("%s: malloc ctl elem fail!\n", __func__);
+			pr_err("%s: malloc ctl elem fail!\n", __func__);
 			return -1;
 		}
 		virt_snd->ctls[virt_snd->ctl_cnt]->elem = elem;
@@ -2386,13 +2386,13 @@ virtio_sound_parse_opts(struct virtio_sound *virt_snd, char *opts)
 			while ((param = strsep(&str, "|")) != NULL) {
 				device = strsep(&param, "@");
 				if (param == NULL) {
-					WPRINTF("%s: fail to init pcmp stream %s!\n", __func__, device);
+					pr_err("%s: fail to init pcmp stream %s!\n", __func__, device);
 					free(c);
 					return -1;
 				}
 				fn_id = strsep(&param, "@");
 				if (virtio_sound_pcm_init(virt_snd, device, fn_id, param, VIRTIO_SND_D_OUTPUT) < 0) {
-					WPRINTF("%s: fail to init pcmp stream %s!\n", __func__, device);
+					pr_err("%s: fail to init pcmp stream %s!\n", __func__, device);
 					free(c);
 					return -1;
 				}
@@ -2401,13 +2401,13 @@ virtio_sound_parse_opts(struct virtio_sound *virt_snd, char *opts)
 			while ((param = strsep(&str, "|")) != NULL) {
 				device = strsep(&param, "@");
 				if (param == NULL) {
-					WPRINTF("%s: fail to init pcmc stream %s!\n", __func__, device);
+					pr_err("%s: fail to init pcmc stream %s!\n", __func__, device);
 					free(c);
 					return -1;
 				}
 				fn_id = strsep(&param, "@");
 				if (virtio_sound_pcm_init(virt_snd, device, fn_id, param, VIRTIO_SND_D_INPUT) < 0) {
-					WPRINTF("%s: fail to init pcmc stream %s!\n", __func__, device);
+					pr_err("%s: fail to init pcmc stream %s!\n", __func__, device);
 					free(c);
 					return -1;
 				}
@@ -2416,13 +2416,13 @@ virtio_sound_parse_opts(struct virtio_sound *virt_snd, char *opts)
 			while ((param = strsep(&str, "|")) != NULL) {
 				identifier = strsep(&param, "@");
 				if (virtio_sound_init_ctl_elem(virt_snd, param, identifier) < 0) {
-					WPRINTF("%s: ctl elem %s init error!\n", __func__, identifier);
+					pr_err("%s: ctl elem %s init error!\n", __func__, identifier);
 					free(c);
 					return -1;
 				}
 			}
 		} else {
-			WPRINTF("%s: unknow type %s!\n", __func__, type);
+			pr_err("%s: unknow type %s!\n", __func__, type);
 			free(c);
 			return -1;
 		}
@@ -2440,14 +2440,14 @@ virtio_sound_send_event(struct virtio_sound *virt_snd, struct virtio_snd_event *
 	uint16_t idx;
 
 	if(!vq_has_descs(vq)) {
-		WPRINTF("%s: vq has no descriptors!\n", __func__);
+		pr_err("%s: vq has no descriptors!\n", __func__);
 		return -1;
 	}
 	pthread_mutex_lock(&vq->mtx);
 	n = vq_getchain(vq, &idx, iov, VIRTIO_SOUND_EVENT_SEGS, NULL);
 	pthread_mutex_unlock(&vq->mtx);
 	if (n <= 0) {
-		WPRINTF("%s: fail to getchain!\n", __func__);
+		pr_err("%s: fail to getchain!\n", __func__);
 		return -1;
 	}
 	if (n > VIRTIO_SOUND_EVENT_SEGS) {
@@ -2482,7 +2482,7 @@ virtio_sound_inject_jack_event(char *param)
 	c = cpy = strdup(param);
 	identifier = strsep(&c, "@");
 	if (identifier == NULL || c == NULL) {
-		WPRINTF("%s: parameter is error %s", __func__, cpy);
+		pr_err("%s: parameter is error %s", __func__, cpy);
 		free(cpy);
 		return -1;
 	}
@@ -2491,7 +2491,7 @@ virtio_sound_inject_jack_event(char *param)
 	} else if (strcmp(c, "unconnect") == 0) {
 		logic_state = 0;
 	} else {
-		WPRINTF("%s: connect status error %s\n", __func__, c);
+		pr_err("%s: connect status error %s\n", __func__, c);
 		free(cpy);
 		return -1;
 	}
@@ -2504,7 +2504,7 @@ virtio_sound_inject_jack_event(char *param)
 	}
 
 	if (!match) {
-		WPRINTF("%s: no match jack, param %s\n", __func__, cpy);
+		pr_err("%s: no match jack, param %s\n", __func__, cpy);
 		free(cpy);
 		return -1;
 	}
@@ -2513,13 +2513,13 @@ virtio_sound_inject_jack_event(char *param)
 		event.hdr.code = VIRTIO_SND_EVT_JACK_CONNECTED;
 		event.data = jack->id;
 		if (virtio_sound_send_event(virt_snd, &event) != 0) {
-			WPRINTF("%s: event send fail!\n", __func__);
+			pr_err("%s: event send fail!\n", __func__);
 		}
 	} else if (logic_state != jack->connected && logic_state == 0) {
 		event.hdr.code = VIRTIO_SND_EVT_JACK_DISCONNECTED;
 		event.data = jack->id;
 		if (virtio_sound_send_event(virt_snd, &event) != 0) {
-			WPRINTF("%s: event send fail!\n", __func__);
+			pr_err("%s: event send fail!\n", __func__);
 		}
 	}
 	jack->connected = logic_state;
@@ -2538,7 +2538,7 @@ virtio_sound_event_callback(snd_hctl_elem_t *helem, unsigned int mask)
 	if (strstr(snd_hctl_elem_get_name(helem), "Jack")) {
 		jack = (struct vbs_jack_elem *)snd_hctl_elem_get_callback_private(helem);
 		if (jack == NULL) {
-			WPRINTF("%s: fail get jack elem %s!\n", __func__,
+			pr_err("%s: fail get jack elem %s!\n", __func__,
 				snd_hctl_elem_get_name(helem));
 			return 0;
 		}
@@ -2552,7 +2552,7 @@ virtio_sound_event_callback(snd_hctl_elem_t *helem, unsigned int mask)
 			return 0;
 		jack->connected = virtio_sound_get_jack_value(jack->elem);
 		if (jack->connected < 0) {
-			WPRINTF("%s: Jack %s read value fail!\n", __func__,
+			pr_err("%s: Jack %s read value fail!\n", __func__,
 				snd_hctl_elem_get_name(helem));
 			return 0;
 		}
@@ -2564,7 +2564,7 @@ virtio_sound_event_callback(snd_hctl_elem_t *helem, unsigned int mask)
 	} else {
 		ctrl = (struct vbs_ctl_elem *)snd_hctl_elem_get_callback_private(helem);
 		if (ctrl == NULL) {
-			WPRINTF("%s: fail get ctl elem %s!\n", __func__,
+			pr_err("%s: fail get ctl elem %s!\n", __func__,
 				snd_hctl_elem_get_name(helem));
 			return 0;
 		}
@@ -2576,7 +2576,7 @@ virtio_sound_event_callback(snd_hctl_elem_t *helem, unsigned int mask)
 		event.data = (ctrl->id << 16) | (mask & 0xffff);
 	}
 	if (virtio_sound_send_event(virt_snd, &event) != 0) {
-		WPRINTF("%s: event send fail!\n", __func__);
+		pr_err("%s: event send fail!\n", __func__);
 	}
 	return 0;
 }
@@ -2600,7 +2600,7 @@ virtio_sound_event_thread(void *param)
 		err = snd_hctl_poll_descriptors(virt_snd->cards[i]->handle, &pfd[virt_snd->cards[i]->start],
 			virt_snd->cards[i]->count);
 		if (err < 0) {
-			WPRINTF("%s: fail to get poll descriptors!\n", __func__);
+			pr_err("%s: fail to get poll descriptors!\n", __func__);
 			pthread_exit(NULL);
 		}
 	}
@@ -2647,26 +2647,26 @@ virtio_sound_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	int err;
 	virt_snd = calloc(1, sizeof(struct virtio_sound));
 	if (!virt_snd) {
-		WPRINTF(("virtio_sound: calloc returns NULL\n"));
+		pr_err("virtio_sound: calloc returns NULL\n");
 		return -1;
 	}
 
 	err = pthread_mutexattr_init(&attr);
 	if (err) {
-		WPRINTF("%s: mutexattr init failed with erro %d!\n", __func__, err);
+		pr_err("%s: mutexattr init failed with erro %d!\n", __func__, err);
 		free(virt_snd);
 		return -1;
 	}
 	err = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (err) {
-		WPRINTF("%s: mutexattr_settype failed with error %d.\n",
+		pr_err("%s: mutexattr_settype failed with error %d.\n",
 			       __func__, err);
 		free(virt_snd);
 		return -1;
 	}
 	err = pthread_mutex_init(&virt_snd->mtx, &attr);
 	if (err) {
-		WPRINTF("mutex init failed with error %d!\n", err);
+		pr_err("mutex init failed with error %d!\n", err);
 		free(virt_snd);
 		return -1;
 	}
@@ -2750,7 +2750,7 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	for (s = 0; s < virt_snd->stream_cnt; s++) {
 		pthread_join(virt_snd->streams[s]->tid, NULL);
 		if (virt_snd->streams[s]->handle && snd_pcm_close(virt_snd->streams[s]->handle) < 0) {
-			WPRINTF("%s: stream %s close error!\n", __func__, virt_snd->streams[s]->dev_name);
+			pr_err("%s: stream %s close error!\n", __func__, virt_snd->streams[s]->dev_name);
 		}
 		pthread_mutex_destroy(&virt_snd->streams[s]->mtx);
 		for (i = 0; i < virt_snd->streams[s]->chmap_cnt; i++) {
