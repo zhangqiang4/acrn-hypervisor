@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <linux/vhost.h>
 
+#define pr_prefix "vhost-vsock: "
 #include "dm.h"
 #include "pci_core.h"
 #include "virtio.h"
@@ -146,7 +147,7 @@ virtio_vsock_reset(void *vdev)
 {
 	struct virtio_vsock *vsock = vdev;
 
-	pr_dbg(("vsock: device reset requested.\n"));
+	pr_dbg("vsock: device reset requested.\n");
 	/* now reset rings, MSI-X vectors, and negotiated capabilities */
 	virtio_reset_dev(&vsock->base);
 }
@@ -172,7 +173,7 @@ vhost_vsock_init(struct virtio_base *base, int vq_idx)
 
 	vhost_vsock = calloc(1, sizeof(struct vhost_vsock));
 	if (!vhost_vsock) {
-		pr_err(("vhost init out of memory.\n"));
+		pr_err("vhost init out of memory.\n");
 		goto fail;
 	}
 
@@ -181,23 +182,23 @@ vhost_vsock_init(struct virtio_base *base, int vq_idx)
 	vhost_vsock->vdev.vqs = vhost_vsock->vqs;
 	vhost_vsock->vhost_fd = open("/dev/vhost-vsock", O_RDWR);;
 	if (vhost_vsock->vhost_fd < 0) {
-		pr_err(("Open vhost-vsock fail, pls open vsock kernel config.\n"));
+		pr_err("Open vhost-vsock fail, pls open vsock kernel config.\n");
 		goto fail;
 	}
 	rc = fcntl(vhost_vsock->vhost_fd, F_GETFL);
 	if (rc == -1) {
-		pr_err(("fcntl vhost node fail.\n"));
+		pr_err("fcntl vhost node fail.\n");
 		goto fail;
 	}
 	if (fcntl(vhost_vsock->vhost_fd, F_SETFL, rc | O_NONBLOCK) == -1) {
-		pr_err(("fcntl set NONBLOCK fail.\n"));
+		pr_err("fcntl set NONBLOCK fail.\n");
 		goto fail;
 	}
 
 	rc = vhost_dev_init(&vhost_vsock->vdev, base, vhost_vsock->vhost_fd, vq_idx,
 		vhost_features, 0, 0);
 	if (rc < 0) {
-		pr_err(("vhost_dev_init failed.\n"));
+		pr_err("vhost_dev_init failed.\n");
 		goto fail;
 	}
 
@@ -241,12 +242,12 @@ virtio_vhost_vsock_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	char *tmp = NULL;
 
 	if (opts == NULL) {
-		pr_err(("vsock: must have a valid guest_cid.\n"));
+		pr_err("vsock: must have a valid guest_cid.\n");
 		return -1;
 	}
 	devopts = tmp = strdup(opts);
 	if (!devopts) {
-		pr_err(("vsock: The vsock parameter is NULL.\n"));
+		pr_err("vsock: The vsock parameter is NULL.\n");
 		return -1;
 	}
 	if (!strncmp(tmp, "cid=", 4)) {
