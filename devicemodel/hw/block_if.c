@@ -43,6 +43,7 @@
 #include <unistd.h>
 #include <liburing.h>
 
+#define pr_prefix "block-if: "
 #include "dm.h"
 #include "block_if.h"
 #include "ahci.h"
@@ -73,13 +74,6 @@
 
 /* the max number of entries for the io_uring submission/completion queue */
 #define MAX_IO_URING_ENTRIES	256
-
-/*
- * Debug printf
- */
-static int block_if_debug;
-#define DPRINTF(params) do { if (block_if_debug) pr_dbg params; } while (0)
-#define WPRINTF(params) (pr_err params)
 
 enum blockop {
 	BOP_READ,
@@ -218,7 +212,7 @@ blockif_enqueue(struct blockif_queue *bq, struct blockif_req *breq,
 
 	be = TAILQ_FIRST(&bq->freeq);
 	if (be == NULL || be->status != BST_FREE) {
-		WPRINTF(("%s: failed to get element from freeq\n", __func__));
+		pr_err("%s: failed to get element from freeq\n", __func__);
 		return 0;
 	}
 	TAILQ_REMOVE(&bq->freeq, be, link);
@@ -342,11 +336,11 @@ blockif_process_discard(struct blockif_ctxt *bc, struct blockif_req *br)
 			arg[i][1] = range[i].num_sectors * DEV_BSIZE;
 			segment++;
 			if (segment > bc->max_discard_seg) {
-				WPRINTF(("segment > max_discard_seg\n"));
+				pr_err("segment > max_discard_seg\n");
 				return EINVAL;
 			}
 			if (discard_range_validate(bc, arg[i][0], arg[i][1])) {
-				WPRINTF(("range [%ld: %ld] is invalid\n", arg[i][0], arg[i][1]));
+				pr_err("range [%ld: %ld] is invalid\n", arg[i][0], arg[i][1]);
 				return EINVAL;
 			}
 		}
@@ -373,8 +367,8 @@ blockif_process_discard(struct blockif_ctxt *bc, struct blockif_req *br)
 				err = fdatasync(bc->fd);
 		}
 		if (err) {
-			WPRINTF(("Failed to discard offset=%ld nbytes=%ld err code: %d\n",
-				 arg[i][0], arg[i][1], err));
+			pr_err("Failed to discard offset=%ld nbytes=%ld err code: %d\n",
+				 arg[i][0], arg[i][1], err);
 			bc->failed_discard = 1;
 			return err;
 		}
@@ -419,29 +413,29 @@ blockif_dump_align_info(struct blockif_req *br)
 	int i;
 
 	if (!info->is_offset_aligned) {
-		DPRINTF(("%s: Misaligned offset 0x%llx \n\r", __func__, (info->aligned_dn_start + info->head)));
+		pr_dbg("%s: Misaligned offset 0x%llx \n\r", __func__, (info->aligned_dn_start + info->head));
 	}
 
 	/* iov info */
 	if (!info->is_iov_base_aligned) {
-		DPRINTF(("%s: Misaligned iov_base \n\r", __func__));
+		pr_dbg("%s: Misaligned iov_base \n\r", __func__);
 	}
 	if (!info->is_iov_len_aligned) {
-		DPRINTF(("%s: Misaligned iov_len \n\r", __func__));
+		pr_dbg("%s: Misaligned iov_len \n\r", __func__);
 	}
 
-	DPRINTF(("%s: alignment %d, br->iovcnt %d \n\r", __func__, info->alignment, br->iovcnt));
+	pr_dbg("%s: alignment %d, br->iovcnt %d \n\r", __func__, info->alignment, br->iovcnt);
 	for (i = 0; i < br->iovcnt; i++) {
-		DPRINTF(("%s: iov[%d].iov_base 0x%llx (remainder %d), iov[%d].iov_len %d (remainder %d) \n\r",
+		pr_dbg("%s: iov[%d].iov_base 0x%llx (remainder %d), iov[%d].iov_len %d (remainder %d) \n\r",
 			__func__,
 			i, (uint64_t)(br->iov[i].iov_base), (uint64_t)(br->iov[i].iov_base) % info->alignment,
-			i, br->iov[i].iov_len, (br->iov[i].iov_len) % info->alignment));
+			i, br->iov[i].iov_len, (br->iov[i].iov_len) % info->alignment);
 	}
 
 	/* overall info */
-	DPRINTF(("%s: head %d, tail %d, org_size %d, bounced_size %d, aligned_dn_start 0x%lx aligned_dn_end 0x%lx \n\r",
+	pr_dbg("%s: head %d, tail %d, org_size %d, bounced_size %d, aligned_dn_start 0x%lx aligned_dn_end 0x%lx \n\r",
 		__func__, info->head, info->tail, info->org_size, info->bounced_size,
-		info->aligned_dn_start, info->aligned_dn_end));
+		info->aligned_dn_start, info->aligned_dn_end);
 }
 
 /*
@@ -901,7 +895,7 @@ blockif_sigcont_handler(int signal)
 {
 	struct blockif_sig_elem *bse;
 
-	WPRINTF(("block_if sigcont handler!\n"));
+	pr_err("block_if sigcont handler!\n");
 
 	for (;;) {
 		/*
@@ -951,7 +945,7 @@ sub_file_validate(struct blockif_ctxt *bc, int fd, int read_only,
 
 	/* use "open file description locks" to validate */
 	if (fcntl(fd, F_OFD_SETLK, fl) == -1) {
-		DPRINTF(("failed to lock subfile!\n"));
+		pr_dbg("failed to lock subfile!\n");
 		return -1;
 	}
 
@@ -966,13 +960,13 @@ sub_file_unlock(struct blockif_ctxt *bc)
 
 	if (bc->sub_file_assign) {
 		fl = &bc->fl;
-		DPRINTF(("blockif: release file lock...\n"));
+		pr_dbg("blockif: release file lock...\n");
 		fl->l_type = F_UNLCK;
 		if (fcntl(bc->fd, F_OFD_SETLK, fl) == -1) {
 			pr_err("blockif: failed to unlock subfile!\n");
 			exit(1);
 		}
-		DPRINTF(("blockif: release done\n"));
+		pr_dbg("blockif: release done\n");
 	}
 }
 
@@ -1350,7 +1344,7 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 	 */
 	nopt = xopts = strdup(optstr);
 	if (!nopt) {
-		WPRINTF(("block_if.c: strdup retruns NULL\n"));
+		pr_err("block_if.c: strdup retruns NULL\n");
 		return NULL;
 	}
 	while (xopts != NULL) {
@@ -1472,11 +1466,11 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 			else
 				size = b;
 		}
-		DPRINTF(("block partition size is 0x%lx\n", size));
+		pr_dbg("block partition size is 0x%lx\n", size);
 
 		/* get sector size, 512 on Linux */
 		sectsz = DEV_BSIZE;
-		DPRINTF(("block partition sector size is 0x%x\n", sectsz));
+		pr_dbg("block partition sector size is 0x%x\n", sectsz);
 
 		/* get physical sector size */
 		err_code = ioctl(fd, BLKPBSZGET, &psectsz);
@@ -1485,13 +1479,13 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 				err_code);
 			psectsz = DEV_BSIZE;  /* set default physical size */
 		}
-		DPRINTF(("block partition physical sector size is 0x%lx\n",
-			 psectsz));
+		pr_dbg("block partition physical sector size is 0x%lx\n",
+			 psectsz);
 
 	} else {
 		if (size < DEV_BSIZE || (size & (DEV_BSIZE - 1))) {
-			WPRINTF(("%s size not corret, should be multiple of %d\n",
-						nopt, DEV_BSIZE));
+			pr_err("%s size not corret, should be multiple of %d\n",
+						nopt, DEV_BSIZE);
 			goto err;
 		}
 		psectsz = sbuf.st_blksize;
@@ -1532,18 +1526,18 @@ blockif_open(const char *optstr, const char *ident, int queue_num, struct iothre
 	}
 
 	if (sub_file_assign) {
-		DPRINTF(("sector size is %d\n", sectsz));
+		pr_dbg("sector size is %d\n", sectsz);
 		bc->sub_file_assign = 1;
 		bc->sub_file_start_lba = sub_file_start_lba * sectsz;
 		size = sub_file_size * sectsz;
-		DPRINTF(("Validating sub file...\n"));
+		pr_dbg("Validating sub file...\n");
 		err_code = sub_file_validate(bc, fd, ro, bc->sub_file_start_lba,
 					     size);
 		if (err_code < 0) {
 			pr_err("subfile range specified not valid!\n");
 			exit(1);
 		}
-		DPRINTF(("Validated done!\n"));
+		pr_dbg("Validated done!\n");
 	} else {
 		/* normal case */
 		bc->sub_file_assign = 0;
