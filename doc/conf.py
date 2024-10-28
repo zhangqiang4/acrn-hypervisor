@@ -19,6 +19,7 @@
 import os
 import sys
 from datetime import datetime
+from importlib import import_module
 
 sys.path.insert(0, os.path.abspath('.'))
 
@@ -232,6 +233,11 @@ html_static_path = ['static']
 
 def setup(app):
    import sphinx
+   try:
+       mod_name = 'breathe_renderer'
+       import_module(mod_name)  # override SphinxRenderer
+   except Exception as e:
+       sys.stderr.write(f"ERROR: {e}\n")
 
    if float(sphinx.__version__[0:3]) < 3.0:
       app.add_stylesheet("acrn-custom.css")
@@ -364,6 +370,7 @@ breathe_domain_by_extension = {
    "h": "c",
    "c": "c",
 }
+breathe_show_define_initializer = True
 
 cpp_id_attributes = [
     '__syscall', '__deprecated', '__may_alias',
