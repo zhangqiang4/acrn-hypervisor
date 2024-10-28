@@ -25,6 +25,9 @@ typedef uint64_t cap_ioctl_t;
 
 #define BIT(x) (1 << (x))
 
+#define ALIGN_UP(x, align)	(((x) + ((align)-1)) & ~((align)-1))
+#define ALIGN_DOWN(x, align)	((x) & ~((align)-1))
+
 #define container_of(ptr, type, member) ({                   \
 	const typeof(((type *)0)->member) * __mptr = (ptr);  \
 	(type *)((char *)__mptr - (offsetof(type, member))); \

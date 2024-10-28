@@ -41,9 +41,6 @@
  */
 #define	VMMAPI_VERSION	0103	/* 2 digit major followed by 2 digit minor */
 
-#define ALIGN_UP(x, align)	(((x) + ((align)-1)) & ~((align)-1))
-#define ALIGN_DOWN(x, align)	((x) & ~((align)-1))
-
 #define CMOS_BUF_SIZE		256
 
 struct vmctx {
