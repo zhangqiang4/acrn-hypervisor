@@ -401,20 +401,6 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	exec_vmwrite64(VMX_EPT_POINTER_FULL, value64);
 	pr_dbg("VMX_EPT_POINTER: 0x%016lx ", value64);
 
-	/* Set up guest exception mask bitmap setting a bit * causes a VM exit
-	 * on corresponding guest * exception - pg 2902 24.6.3
-	 * enable VM exit on MC for VMs that does NOT enable MC PT
-	 * enable AC for split-lock emulation when split-lock detection is enabled on physical platform.
-	 */
-	value32 = is_mc_pt_enabled(vcpu) ? 0U : (1U << IDT_MC);
-	if (is_ac_enabled()) {
-		value32 = (value32 | (1U << IDT_AC));
-	}
-	if (is_gp_enabled()) {
-		value32 = (value32 | (1U << IDT_GP));
-	}
-	exec_vmwrite32(VMX_EXCEPTION_BITMAP, value32);
-
 	/* Set up page fault error code mask - second paragraph * pg 2902
 	 * 24.6.3 - guest page fault exception causing * vmexit is governed by
 	 * both VMX_EXCEPTION_BITMAP and * VMX_PF_ERROR_CODE_MASK
@@ -443,6 +429,20 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	pr_dbg("VMX_IO_BITMAP_B: 0x%016lx ", value64);
 
 	init_msr_emulation(vcpu);
+
+	/* Set up guest exception mask bitmap setting a bit * causes a VM exit
+	 * on corresponding guest * exception - pg 2902 24.6.3
+	 * enable VM exit on MC for VMs that does NOT enable MC PT
+	 * enable AC for split-lock emulation when split-lock detection is enabled on physical platform.
+	 */
+	value32 = is_mc_pt_enabled(vcpu) ? 0U : (1U << IDT_MC);
+	if (is_ac_enabled()) {
+		value32 = (value32 | (1U << IDT_AC));
+	}
+	if (is_gp_enabled()) {
+		value32 = (value32 | (1U << IDT_GP));
+	}
+	exec_vmwrite32(VMX_EXCEPTION_BITMAP, value32);
 
 	/* Set up executive VMCS pointer - pg 2905 24.6.10 */
 	exec_vmwrite64(VMX_EXECUTIVE_VMCS_PTR_FULL, 0UL);
