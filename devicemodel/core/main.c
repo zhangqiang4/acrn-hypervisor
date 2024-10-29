@@ -1041,8 +1041,7 @@ main(int argc, char *argv[])
 		case 's':
 			if (pci_parse_slot(optarg, 0) != 0)
 				pr_warn("WARNING: Parse failed: '%s', device skipped.\n", optarg);
-			else
-				break;
+			break;
 		case 'S':
 			if (pci_parse_slot(optarg, ABORT_VM_ON_FAILURE) != 0)
 				errx(EX_USAGE, "Parse failed: '%s'. Aborting.\n", optarg);
