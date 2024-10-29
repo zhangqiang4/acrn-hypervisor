@@ -58,6 +58,8 @@
 #define VIRTIO_GPU_F_BACKLIGHT		8
 #define VIRTIO_GPU_F_MULTI_PLANE	9
 #define VIRTIO_GPU_F_ROTATION		10
+#define VIRTIO_GPU_F_PIXEL_BLEND_MODE  11
+#define VIRTIO_GPU_F_MULTI_PLANAR_FORMAT 12
 #define VIRTIO_GPU_F_ALLOW_P2P		13
 /*
  * Host capabilities
@@ -128,8 +130,7 @@ enum virtio_gpu_ctrl_type {
         VIRTIO_GPU_CMD_FLUSH_SYNC,
         VIRTIO_GPU_CMD_GET_PLANES,
         VIRTIO_GPU_CMD_GET_PLANE_ROTATION,
-	VIRTIO_GPU_CMD_SET_ROTATION,
-	VIRTIO_GPU_CMD_SET_SPRITE_SCALING,
+	VIRTIO_GPU_CMD_SET_MISC,
 
 	/* cursor commands */
 	VIRTIO_GPU_CMD_UPDATE_CURSOR = 0x0300,
@@ -321,6 +322,26 @@ struct virtio_gpu_flush_sync{
 	uint32_t padding;
 };
 
+#define MAX_SUPPORT_CMD 20
+struct virtio_gpu_cmd {
+        uint32_t cmd;
+        uint32_t size;
+        union {
+                uint64_t data64[8];
+                uint32_t data32[16];
+        };
+};
+
+/* VIRTIO_GPU_CMD_SET_MISC */
+struct virtio_gpu_set_misc {
+        struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t scanout_id;
+        uint32_t plane_id;
+        uint32_t cmd_cnt;
+        uint32_t padding;
+        struct virtio_gpu_cmd cmd[MAX_SUPPORT_CMD];
+};
+
 /*
  * Command: VIRTIO_GPU_CMD_FLUSH_SPRITE
  */
@@ -329,7 +350,8 @@ struct virtio_gpu_flush_sprite {
 	struct virtio_gpu_rect r;
 	uint32_t scanout_id;
 	uint32_t plane_id;
-	uint32_t resource_id;
+	uint32_t resource_id[4];
+	uint32_t resource_cnt;
 	uint32_t format;
 	uint32_t width;
 	uint32_t height;
@@ -414,14 +436,6 @@ struct virtio_gpu_set_modifier {
 	uint32_t padding;
 };
 
-/* VIRTIO_GPU_CMD_SET_ROTATION*/
-struct virtio_gpu_set_rotation{
-        struct virtio_gpu_ctrl_hdr hdr;
-        uint32_t scanout_id;
-        uint32_t plane_id;
-        uint64_t rotation;
-};
-
 /*VIRTIO_GPU_CMD_GET_PLANE_ROTATION*/
 struct virtio_gpu_cmd_get_plane_rotation{
         struct virtio_gpu_ctrl_hdr hdr;
@@ -482,14 +496,6 @@ struct virtio_gpu_resp_backlight_info {
 	int32_t type;
 	int32_t scale;
 	uint32_t padding;
-};
-
-/* VIRTIO_GPU_CMD_SET_SPRITE_SCALING */
-struct virtio_gpu_set_sprite_scaling {
-	struct virtio_gpu_ctrl_hdr hdr;
-	struct virtio_gpu_rect dst;
-	uint32_t scanout_id;
-	uint32_t plane_id;
 };
 
 enum vga_thread_status {
@@ -1286,23 +1292,31 @@ virtio_gpu_cmd_flush_sprite(struct virtio_gpu_command *cmd)
 {
 	struct virtio_gpu_flush_sprite req;
 	struct virtio_gpu_ctrl_hdr resp;
-	struct virtio_gpu_resource_2d *r2d;
+	struct virtio_gpu_resource_2d *r2d = NULL;
 	struct surface surf;
 	struct virtio_gpu *gpu;
-
+	int i;
 	gpu = cmd->gpu;
 	memset(&surf, 0, sizeof(surf));
 	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
 	virtio_gpu_update_resp_fence(&cmd->hdr, &resp);
-	r2d = virtio_gpu_find_resource_2d(gpu, req.resource_id);
-	if (r2d == NULL) {
-		pr_err("%s: Illegal resource id %d\n", __func__,
-				req.resource_id);
-		resp.type = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
-		memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
-		return;
+	for(i=0; i<req.resource_cnt; i++) {
+		r2d = virtio_gpu_find_resource_2d(gpu, req.resource_id[i]);
+		if (r2d == NULL) {
+			pr_err("%s: Illegal resource id %d\n", __func__,
+					req.resource_id);
+			resp.type = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
+			memcpy(cmd->iov[1].iov_base, &resp, sizeof(resp));
+			return;
+		}
+		if(i==0)
+			surf.dma_info.dmabuf_fd = r2d->dma_info->dmabuf_fd;
+		else
+			surf.dma_info.dmabuf_planar_fd[i -1] = r2d->dma_info->dmabuf_fd;
+
 	}
+	surf.dma_info.dmabuf_planar_fd_cnt = i-1;
 	surf.fb_width = req.width;
 	surf.fb_height = req.height;
 	surf.width = req.r.width;
@@ -1315,7 +1329,6 @@ virtio_gpu_cmd_flush_sprite(struct virtio_gpu_command *cmd)
 		surf.offset[i] = req.offsets[i];
 	}
 	surf.modifier = req.modifier;
-	surf.dma_info.dmabuf_fd = r2d->dma_info->dmabuf_fd;
 	surf.dma_info.surf_fourcc = req.format;
 	virtio_gpu_dmabuf_ref(r2d->dma_info);
 	vdpy_update_sprite(gpu->vdpy_handle, req.scanout_id, req.plane_id, &surf);
@@ -1378,10 +1391,10 @@ virtio_gpu_cmd_resource_flush(struct virtio_gpu_command *cmd)
 	int bytes_pp;
 
 	gpu = cmd->gpu;
+	memset(&surf, 0, sizeof(surf));
 	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
 	virtio_gpu_update_resp_fence(&cmd->hdr, &resp);
-
 	r2d = virtio_gpu_find_resource_2d(gpu, req.resource_id);
 	if (r2d == NULL) {
 		pr_err("%s: Illegal resource id %d\n", __func__,
@@ -1668,6 +1681,7 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 		resp.type = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
 		memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
 		return;
+
 	}
 
 	/*
@@ -1798,40 +1812,6 @@ virtio_gpu_cmd_set_modifier(struct virtio_gpu_command *cmd)
 	cmd->iolen = sizeof(resp);
 	memset(&resp, 0, sizeof(resp));
 	vdpy_set_modifier(gpu->vdpy_handle, req.modifier, req.scanout_id);
-	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
-	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
-	return;
-}
-
-static void
-virtio_gpu_cmd_set_rotation(struct virtio_gpu_command *cmd)
-{
-	struct virtio_gpu_set_rotation req;
-	struct virtio_gpu_ctrl_hdr resp;
-	struct virtio_gpu *gpu;
-
-	gpu = cmd->gpu;
-	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
-	cmd->iolen = sizeof(resp);
-	memset(&resp, 0, sizeof(resp));
-	vdpy_set_rotation(gpu->vdpy_handle, req.scanout_id, req.plane_id, req.rotation);
-	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
-	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
-	return;
-}
-
-static void
-virtio_gpu_cmd_set_sprite_scaling(struct virtio_gpu_command *cmd)
-{
-	struct virtio_gpu_set_sprite_scaling req;
-	struct virtio_gpu_ctrl_hdr resp;
-	struct virtio_gpu *gpu;
-
-	gpu = cmd->gpu;
-	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
-	cmd->iolen = sizeof(resp);
-	memset(&resp, 0, sizeof(resp));
-	vdpy_set_scaling(gpu->vdpy_handle, req.scanout_id, req.plane_id, req.dst.x, req.dst.y, req.dst.width, req.dst.height);
 	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
 	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
 	return;
@@ -2004,6 +1984,10 @@ virtio_gpu_cmd_set_scanout_blob(struct virtio_gpu_command *cmd)
 	case VIRTIO_GPU_FORMAT_R8G8B8X8_UNORM:
 		drm_fourcc = DRM_FORMAT_XBGR8888;
 		break;
+	case DRM_FORMAT_NV12:
+		drm_fourcc = DRM_FORMAT_NV12;
+		break;
+
 	default:
 		pr_err("%s : unuspported surface format %d.\n",
 			__func__, req.format);
@@ -2028,6 +2012,69 @@ virtio_gpu_cmd_set_scanout_blob(struct virtio_gpu_command *cmd)
 static void
 virtio_gpu_irq_bh(void *data)
 {
+}
+
+#define VIRTIO_GPU_TUNNEL_CMD_SET_ROTATION 1
+#define VIRTIO_GPU_TUNNEL_CMD_SET_BLEND 2
+#define VIRTIO_GPU_TUNNEL_CMD_SET_PLANARS 3
+#define VIRTIO_GPU_TUNNEL_CMD_SET_SPRITE_SCALING 4
+
+static void dispatch_tunnel_cmd(struct virtio_gpu *gpu, int handle, uint32_t scanout_id, uint32_t plane_id, struct virtio_gpu_cmd *cmdp)
+{
+
+	switch (cmdp->cmd) {
+
+	case VIRTIO_GPU_TUNNEL_CMD_SET_ROTATION:
+		vdpy_set_rotation(handle, scanout_id, plane_id, cmdp->data64[0]);
+		break;
+	case VIRTIO_GPU_TUNNEL_CMD_SET_BLEND:
+		vdpy_set_pixel_blend_mode(handle, scanout_id, plane_id, cmdp->data32[0],(uint16_t)cmdp->data32[1]);
+		break;
+	case VIRTIO_GPU_TUNNEL_CMD_SET_PLANARS:
+		uint32_t dmabuf_planar[3];
+		struct virtio_gpu_resource_2d *r2d;
+		int i;
+		for(i=0; i<cmdp->size; i++) {
+			r2d = virtio_gpu_find_resource_2d(gpu, cmdp->data32[i]);
+			if(!r2d)
+				pr_err("cannot find the rd dmabuf fd?--i:%d-------\r\n",i);
+
+			dmabuf_planar[i] = r2d->dma_info->dmabuf_fd;
+		}
+		vdpy_set_planar(handle, scanout_id, plane_id, cmdp->size, dmabuf_planar);
+
+		break;
+	case VIRTIO_GPU_TUNNEL_CMD_SET_SPRITE_SCALING:
+		vdpy_set_scaling(handle, scanout_id, plane_id, cmdp->data32[0], cmdp->data32[1], cmdp->data32[2], cmdp->data32[3]);
+		break;
+	default:
+		pr_err("not allowable tunnel cmd \r\n");
+		break;
+
+	}
+
+}
+
+static void virtio_gpu_cmd_set_misc(struct virtio_gpu_command *cmd)
+{
+	struct virtio_gpu_set_misc req;
+	struct virtio_gpu_ctrl_hdr resp;
+	struct virtio_gpu *gpu;
+	int i;
+
+	gpu = cmd->gpu;
+	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
+	cmd->iolen = sizeof(resp);
+	memset(&resp, 0, sizeof(resp));
+	for(i=0; i<req.cmd_cnt; i++) {
+		struct virtio_gpu_cmd *cmdp = &req.cmd[i];
+		dispatch_tunnel_cmd(gpu, gpu->vdpy_handle, req.scanout_id, req.plane_id, cmdp);
+	}
+
+	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
+	memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
+
+	return;
 }
 
 static void
@@ -2094,6 +2141,9 @@ virtio_gpu_ctrl_bh(void *data)
 		case VIRTIO_GPU_CMD_RESOURCE_FLUSH:
 			virtio_gpu_cmd_resource_flush(&cmd);
 			break;
+		case VIRTIO_GPU_CMD_SET_MISC:
+			virtio_gpu_cmd_set_misc(&cmd);
+			break;
 		case VIRTIO_GPU_CMD_FLUSH_SPRITE:
 			virtio_gpu_cmd_flush_sprite(&cmd);
 			break;
@@ -2123,14 +2173,8 @@ virtio_gpu_ctrl_bh(void *data)
 		case VIRTIO_GPU_CMD_BACKLIGHT_UPDATE_STATUS:
 			virtio_gpu_cmd_backlight_update_status(&cmd);
 			break;
-		case VIRTIO_GPU_CMD_SET_SPRITE_SCALING:
-			virtio_gpu_cmd_set_sprite_scaling(&cmd);
-			break;
 		case VIRTIO_GPU_CMD_GET_PLANE_ROTATION:
 			virtio_gpu_cmd_get_rotation(&cmd);
-			break;
-		case VIRTIO_GPU_CMD_SET_ROTATION:
-			virtio_gpu_cmd_set_rotation(&cmd);
 			break;
 		case VIRTIO_GPU_CMD_BACKLIGHT_GET:
 			virtio_gpu_cmd_get_brightness(&cmd);
@@ -2315,6 +2359,8 @@ virtio_gpu_vga_render(void *param)
 	return NULL;
 }
 
+
+
 static int
 virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
@@ -2366,7 +2412,6 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	memset(&gpu->vdpy_if, 0, sizeof(struct vdpy_if));
 	gpu->vdpy_handle = vdpy_init(&gpu->vdpy_if,insert_vblank_irq,gpu);
-
 	virtio_gpu_ops.nvq = gpu->vdpy_if.pipe_num + 2;
 
 	gpu->vq = calloc(virtio_gpu_ops.nvq, sizeof(struct virtio_vq_info));
@@ -2429,10 +2474,12 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		if (gpu->is_blob_supported) {
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_RESOURCE_BLOB);
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MODIFIER);
+			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_PIXEL_BLEND_MODE);
 
 			if(vdpy_mplane_check()) {
-				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_ROTATION);
 				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MULTI_PLANE);
+				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_ROTATION);
+				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MULTI_PLANAR_FORMAT);
 			}
 		}
 	}

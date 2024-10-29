@@ -608,6 +608,22 @@ void vdpy_set_rotation(int handle,int scanout_id, int plane_id, uint64_t rotatio
 		vscr->vscreen_ops->vdpy_set_rotation(vscr->backend, plane_id, rotation);
 }
 
+void vdpy_set_pixel_blend_mode(int handle,int scanout_id, int plane_id, uint32_t mode, uint16_t alpha)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_set_pixel_blend_mode)
+		vscr->vscreen_ops->vdpy_set_pixel_blend_mode(vscr->backend, plane_id, mode, alpha);
+}
+
+void vdpy_set_planar(int handle,int scanout_id, int plane_id, uint32_t size, uint32_t *dmabuf)
+{
+	struct screen *vscr;
+	vscr = vdpy.scrs + scanout_id;
+	if(vscr->vscreen_ops->vdpy_set_planar)
+		vscr->vscreen_ops->vdpy_set_planar(vscr->backend, plane_id, size, dmabuf);
+}
+
 void
 vdpy_get_plane_rotation(int handle, int scanout_id, int plane_id, uint64_t *rotation, uint32_t *count)
 {

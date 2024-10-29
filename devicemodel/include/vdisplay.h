@@ -88,6 +88,8 @@ struct surface {
 		int dmabuf_fd;
 		uint32_t surf_fourcc;
 		uint32_t dmabuf_offset;
+		int dmabuf_planar_fd[3];
+		int dmabuf_planar_fd_cnt;
 	} dma_info;
 };
 
@@ -126,7 +128,9 @@ struct screen_backend_ops {
 	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
 	void (*vdpy_cursor_define)(void *backend, struct cursor *cur);
 	void (*vdpy_get_plane_info)(void *backend, uint32_t *size, uint32_t *num, uint32_t *info);
-	void (*vdpy_set_rotation)(void *backend, uint32_t plane_id, uint64_t rotation);
+	void (*vdpy_set_rotation)(void *backend, int plane_id, uint64_t rotation);
+	void (*vdpy_set_pixel_blend_mode)(void *backend, int plane_id, uint32_t rotation, uint16_t alpha);
+	void (*vdpy_set_planar)(void *backend, int plane_id, int size, uint32_t *dmabuf);
 	void (*vdpy_get_plane_rotation)(void *backend, int plane_id, uint64_t *rotation, uint32_t *count);
 	void (*vdpy_update_sprite)(void *backend, int plane_id, struct surface *surf);
 	void (*vdpy_sprite_flush_sync)(void *backend);
@@ -166,6 +170,8 @@ void vdpy_cursor_move(int handle, int scanout_id, uint32_t x, uint32_t y);
 void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id);
 void vdpy_set_scaling(int handle,int scanout_id, int plane_id, int x1, int y1, int x2, int y2);
 void vdpy_set_rotation(int handle,int scanout_id, int plane_id, uint64_t rotation);
+void vdpy_set_pixel_blend_mode(int handle,int scanout_id, int plane_id, uint32_t mode, uint16_t alpha);
+void vdpy_set_planar(int handle,int scanout_id, int plane_id, uint32_t size, uint32_t *dmabuf);
 int vdpy_backlight_update_status(int handle, uint32_t backlight_id, struct backlight_properties *props);
 int vdpy_get_backlight(int handle, uint32_t backlight_id, int32_t *brightness);
 int vdpy_get_backlight_info(int handle, uint32_t backlight_id, struct backlight_info *info);
