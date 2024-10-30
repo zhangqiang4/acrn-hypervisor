@@ -523,14 +523,16 @@ vhost_dev_stop(struct vhost_dev *vdev)
 	for (i = 0; i < vdev->nvqs; i++)
 		vhost_vq_stop(vdev, i);
 
-	/* the following are done by this ioctl:
+	/* the following are done by this reset:
 	 * 1) resources of the vhost dev are freed
 	 * 2) vhost virtqueues are reset
 	 */
-	rc = vdev->vhost_ops->vhost_reset_device(vdev);
-	if (rc < 0) {
-		WPRINTF("vhost_reset_device failed\n");
-		rc = -1;
+	if(vdev->vhost_ops->vhost_reset_device) {
+		rc = vdev->vhost_ops->vhost_reset_device(vdev);
+		if (rc < 0) {
+			WPRINTF("vhost_reset_device failed\n");
+			rc = -1;
+		}
 	}
 
 	vdev->started = false;

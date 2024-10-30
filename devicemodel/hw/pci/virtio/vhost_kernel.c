@@ -199,12 +199,6 @@ vhost_k_set_owner(struct vhost_dev *vdev)
 	return vhost_kernel_ioctl(vdev, VHOST_SET_OWNER, NULL);
 }
 
-static int
-vhost_k_reset_device(struct vhost_dev *vdev)
-{
-	return vhost_kernel_ioctl(vdev, VHOST_RESET_OWNER, NULL);
-}
-
 const struct vhost_dev_ops vhost_kernel_ops = {
 	.vhost_init = vhost_k_init,
 	.vhost_deinit = vhost_k_deinit,
@@ -219,5 +213,5 @@ const struct vhost_dev_ops vhost_kernel_ops = {
 	.vhost_set_features = vhost_k_set_features,
 	.vhost_get_features = vhost_k_get_features,
 	.vhost_set_owner = vhost_k_set_owner,
-	.vhost_reset_device = vhost_k_reset_device
+	.vhost_reset_device = NULL
 };

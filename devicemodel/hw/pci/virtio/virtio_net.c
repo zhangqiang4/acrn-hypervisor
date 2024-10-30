@@ -208,6 +208,12 @@ vhost_kernel_net_set_backend(struct vhost_dev *vdev,
 	return vhost_kernel_ioctl(vdev, VHOST_NET_SET_BACKEND, file);
 }
 
+static int
+vhost_kernel_net_reset_owner(struct vhost_dev *vdev)
+{
+	return vhost_kernel_ioctl(vdev, VHOST_RESET_OWNER, NULL);
+}
+
 int
 vhost_net_set_backend(struct vhost_dev *vdev, int backend_fd)
 {
@@ -1250,6 +1256,7 @@ vhost_net_start(struct vhost_net *vhost_net)
 
 fail_set_backend:
 	vhost_dev_stop(&vhost_net->vdev);
+	vhost_kernel_net_reset_owner(&vhost_net->vdev);
 fail:
 	return -1;
 }
@@ -1271,6 +1278,12 @@ vhost_net_stop(struct vhost_net *vhost_net)
 	rc = vhost_dev_stop(&vhost_net->vdev);
 	if (rc < 0)
 		WPRINTF(("vhost_dev_stop failed\n"));
+
+	if (vhost_kernel_net_reset_owner(&vhost_net->vdev) < 0) {
+		WPRINTF(("vhost_net reset owner failed, "
+			"but vhost backend will deinit when closing /dev/vhost-net\n"));
+		rc = -1;
+	}
 
 	vhost_net->vhost_started = false;
 	return rc;
