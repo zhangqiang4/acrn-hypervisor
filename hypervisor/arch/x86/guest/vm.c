@@ -42,6 +42,7 @@
 #include <quirks/security_vm_fixup.h>
 #endif
 #include <asm/boot/ld_sym.h>
+#include <asm/guest/optee.h>
 
 /* Local variables */
 
@@ -738,7 +739,7 @@ static bool is_ready_for_system_shutdown(void)
 	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
 		vm = get_vm_from_vmid(vm_id);
 		/* TODO: Update code to cover hybrid mode */
-		if (!is_poweroff_vm(vm)) {
+		if (!is_poweroff_vm(vm) && !is_tee_vm(vm)) {
 			ret = false;
 			break;
 		}

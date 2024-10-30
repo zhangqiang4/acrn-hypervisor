@@ -263,6 +263,7 @@ VM_CFG_C_SRCS += $(BOARD_CFG_DIR)/pci_dev.c
 VP_BASE_C_SRCS += arch/x86/guest/vcpuid.c
 VP_BASE_C_SRCS += arch/x86/guest/vcpu.c
 VP_BASE_C_SRCS += arch/x86/guest/vm.c
+VP_BASE_C_SRCS += arch/x86/guest/optee.c
 VP_BASE_C_SRCS += arch/x86/guest/vmtrr.c
 VP_BASE_C_SRCS += arch/x86/guest/guest_memory.c
 VP_BASE_C_SRCS += arch/x86/guest/vmsr.c
