@@ -130,7 +130,7 @@ struct screen_backend_ops {
 	void (*vdpy_get_plane_info)(void *backend, uint32_t *size, uint32_t *num, uint32_t *info);
 	void (*vdpy_set_rotation)(void *backend, int plane_id, uint64_t rotation);
 	void (*vdpy_set_pixel_blend_mode)(void *backend, int plane_id, uint32_t rotation, uint16_t alpha);
-	void (*vdpy_set_planar)(void *backend, int plane_id, int size, uint32_t *dmabuf);
+	void (*vdpy_set_planar)(void *backend, int plane_id, uint32_t size, uint32_t *dmabuf);
 	void (*vdpy_get_plane_rotation)(void *backend, int plane_id, uint64_t *rotation, uint32_t *count);
 	void (*vdpy_update_sprite)(void *backend, int plane_id, struct surface *surf);
 	void (*vdpy_sprite_flush_sync)(void *backend);
