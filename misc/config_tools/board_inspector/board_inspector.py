@@ -195,7 +195,19 @@ def main(board_name, board_xml, args):
                 logger.info("All board checks passed.")
 
             # Finally overwrite the output with the updated XML
-            board_etree.write(board_xml, pretty_print=True)
+            if not args.cam:
+                board_etree.write(board_xml, pretty_print=True)
+            else:
+                try:
+                    import camera_inspector
+                    board_etree.write(board_xml)
+                    camera_inspector.main(board_name, board_xml, args)
+                except ImportError as e:
+                    logger.warning(f"{e}. Camera inspector skipped. "
+                                   f"If you need to generate with camera information, "
+                                   f"please run board_inspector with camera inspector dependencies installed "
+                                   f"and re-run board_inspector with --cam option.")
+                    board_etree.write(board_xml, pretty_print=True)
 
             #Format and out put the log info
             summary_loginfo(board_xml)
@@ -214,6 +226,8 @@ if __name__ == "__main__":
     parser.add_argument("--check-device-status", action="store_true", default=False, help="filter out devices whose _STA object evaluates to 0")
     parser.add_argument("--add-llc-cat", default=None, action=AddLLCCATAction,
                         metavar="<capacity_mask_length:int>,<clos_number:int>,<has_CDP:bool>", help="manually set the Cache Allocation Technology capability of the last level cache")
+    parser.add_argument("--cam", action="store_true", default=False,
+                        help="retrieve camera configuration from board")
     args = parser.parse_args()
     try:
         tmpfile = tempfile.NamedTemporaryFile(delete=True)
