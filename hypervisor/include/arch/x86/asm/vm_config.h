@@ -141,6 +141,8 @@ struct acrn_vm_pci_dev_config {
 	uint32_t emu_type;				/* the type how the device is emulated. */
 	union pci_bdf vbdf;				/* virtual BDF of PCI device */
 	union pci_bdf pbdf;				/* physical BDF of PCI device */
+	uint16_t vendor_id; 				/* vendor id of PCI device */
+	uint16_t device_id;				/* device id of PCI device */
 	char shm_region_name[32];			/* TODO: combine pbdf and shm_region_name into a union member */
 	/* TODO: All device specific attributions need move to other place */
 	struct target_vuart t_vuart;

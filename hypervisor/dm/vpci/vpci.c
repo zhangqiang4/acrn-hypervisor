@@ -735,7 +735,6 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 			vdev->vdev_ops = &pci_pt_dev_ops;
 			ASSERT(dev_config->emu_type == PCI_DEV_TYPE_PTDEV,
 				"Only PCI_DEV_TYPE_PTDEV could not configure vdev_ops");
-			ASSERT(dev_config->pdev != NULL, "PCI PTDev is not present on platform!");
 		}
 		vdev->vdev_ops->init_vdev(vdev);
 	}
@@ -770,12 +769,36 @@ static int32_t vpci_init_vdevs(struct acrn_vm *vm)
 	struct pci_vdev *vdev;
 	struct acrn_vpci *vpci = &(vm->vpci);
 	const struct acrn_vm_config *vm_config = get_vm_config(vpci2vm(vpci)->vm_id);
+	struct acrn_vm_pci_dev_config *dev_config;
 	int32_t ret = 0;
 
 	for (idx = 0U; idx < vm_config->pci_dev_num; idx++) {
+		dev_config = &vm_config->pci_devs[idx];
+
+		if (dev_config->emu_type == PCI_DEV_TYPE_PTDEV) {
+			if (dev_config->pdev == NULL) {
+				pr_err("vm(name: %s) PTDev pbdf: %02x:%02x.%x does not exist on host platform."
+					" Device ignored!\n", vm_config->name,
+					dev_config->pbdf.bits.b, dev_config->pbdf.bits.d, dev_config->pbdf.bits.f);
+				ret = -ENODEV;
+				break;
+			}
+			/* Check PTdevs for prelaunch VM, mismatched PID&VID will fail to init vpci */
+			if (is_prelaunched_vm(vm) && ((dev_config->pdev->vendor_id != dev_config->vendor_id) ||
+						(dev_config->pdev->device_id != dev_config->device_id))) {
+				pr_err("vm(name: %s) PTDev pbdf: %02x:%02x.%x mismatch, configured vendor_id: %x,"
+					" device_id: %x, but detected vendor_id: %x, device_id: %x\n",
+					vm_config->name, dev_config->pbdf.bits.b, dev_config->pbdf.bits.d,
+					dev_config->pbdf.bits.f, dev_config->vendor_id, dev_config->device_id,
+					dev_config->pdev->vendor_id, dev_config->pdev->device_id);
+				ret = -ENODEV;
+				break;
+			}
+		}
+
 		/* the vdev whose vBDF is unassigned will be created by hypercall */
-		if ((!is_postlaunched_vm(vm)) || (vm_config->pci_devs[idx].vbdf.value != UNASSIGNED_VBDF)) {
-			vdev = vpci_init_vdev(vpci, &vm_config->pci_devs[idx], NULL);
+		if ((!is_postlaunched_vm(vm)) || (dev_config->vbdf.value != UNASSIGNED_VBDF)) {
+			vdev = vpci_init_vdev(vpci, dev_config, NULL);
 			if (vdev == NULL) {
 				pr_err("%s: failed to initialize vpci, increase MAX_PCI_DEV_NUM in scenario!\n", __func__);
 				break;

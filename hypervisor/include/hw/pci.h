@@ -297,6 +297,9 @@ struct pci_pdev {
 	/* The bus/device/function triple of the physical PCI device. */
 	union pci_bdf bdf;
 
+	uint16_t vendor_id; /* The vendor id of the physical PCI device. */
+	uint16_t device_id; /* The device id of the physical PCI device. */
+
 	uint32_t msi_capoff;
 	uint32_t pcie_capoff;
 
