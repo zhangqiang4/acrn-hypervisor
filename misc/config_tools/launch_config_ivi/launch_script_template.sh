@@ -268,12 +268,16 @@ function enable_vf() {
 		log2stderr "iGPU SR-IOV not supported, skipping."
 	else
 		local reserved_ggtt_size=268435456
-		vfschedexecq=25
-		vfschedtimeout=500000
+		schedexecq=25
+		schedtimeout=500000
 		if [ -f /sys/class/drm/card0/iov/pf/gt/ggtt_spare ]; then
 			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/iov/pf/gt/ggtt_spare"
+			echo $schedexecq | tee -a /sys/class/drm/card0/iov/pf/gt/exec_quantum_ms
+			echo $schedtimeout | tee -a /sys/class/drm/card0/iov/pf/gt/preempt_timeout_us
 		else
 			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/prelim_iov/pf/gt0/ggtt_spare"
+			echo $schedexecq | tee -a /sys/class/drm/card0/prelim_iov/pf/gt0/exec_quantum_ms
+			echo $schedtimeout | tee -a /sys/class/drm/card0/prelim_iov/pf/gt0/preempt_timeout_us
 		fi
 
 		#change auto provision to manual provision(ggtt contexts doorbell)
@@ -281,14 +285,14 @@ function enable_vf() {
 		for (( i = 1; i <= $numvfs; i++ ))
 		do
 			if [ -f /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms ]; then
-				echo $vfschedexecq > /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
-				echo $vfschedtimeout > /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
+				echo $schedexecq > /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
+				echo $schedtimeout > /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
 				echo 1610612736 > /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
 				echo 28672 > /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
 				echo 128 > /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
 			else
-				echo $vfschedexecq > /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
-				echo $vfschedtimeout > /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
+				echo $schedexecq > /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
+				echo $schedtimeout > /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
 				echo 1610612736 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
 				echo 28672 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
 				echo 128 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
@@ -350,14 +354,16 @@ function enable_dgpu_vf() {
 		local reserved_ggtt_size=268435456
 		echo "$reserved_ggtt_size" > "$dgpu_path/iov/pf/gt/ggtt_spare"
 
-		local vfschedexecq=25
-		local vfschedtimeout=500000
+		local schedexecq=25
+		local schedtimeout=500000
+		echo $schedexecq | tee -a "$iov_dir/pf/gt/exec_quantum_ms"
+		echo $schedtimeout | tee -a "$iov_dir/pf/gt/preempt_timeout_us"
 		for (( i = 1; i <= $dg2_numvfs; i++ ))
 		do
 			check_existence "$iov_dir/vf$i/gt/exec_quantum_ms"
 			check_existence "$iov_dir/vf$i/gt/preempt_timeout_us"
-			echo $vfschedexecq | tee -a "$iov_dir/vf$i/gt/exec_quantum_ms"
-			echo $vfschedtimeout | tee -a "$iov_dir/vf$i/gt/preempt_timeout_us"
+			echo $schedexecq | tee -a "$iov_dir/vf$i/gt/exec_quantum_ms"
+			echo $schedtimeout | tee -a "$iov_dir/vf$i/gt/preempt_timeout_us"
 		done
 
 		# W/A: It's likely that dGPU SR-IOV works with lease based
