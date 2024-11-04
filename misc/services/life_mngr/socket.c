@@ -268,16 +268,20 @@ int open_socket(struct socket_dev *sock, data_handler_f *fn)
 	return 0;
 }
 
-void close_socket(struct socket_dev *sock)
+void stop_socket(struct socket_dev *sock)
+{
+	sock->listening = false;
+	sock->polling = false;
+}
+
+void wait_and_close_socket(struct socket_dev *sock)
 {
 	struct socket_client *client, *tclient;
 
-	sock->listening = false;
-	sock->polling = false;
-	shutdown(sock->sock_fd, SHUT_RDWR);
-
-	pthread_join(sock->listen_thread, NULL);
 	pthread_join(sock->connect_thread, NULL);
+
+	shutdown(sock->sock_fd, SHUT_RDWR);
+	pthread_join(sock->listen_thread, NULL);
 
 	pthread_mutex_lock(&sock->client_mtx);
 	list_foreach_safe(client, &sock->client_head, list, tclient) {

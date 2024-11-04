@@ -88,12 +88,17 @@ static void start_system_reboot(void)
 static void start_system_shutdown(void)
 {
 	static bool platform_shutdown;
-
+#ifdef IOC_VIRT
 	if (is_uart_channel_connection_list_empty(channel) && (!platform_shutdown)) {
+#else
+	if (!platform_shutdown) {
+#endif
 		platform_shutdown = true;
+#ifdef IOC_VIRT
 		LOG_WRITE("UART connection list is empty, will trigger shutdown system\n");
-		close_socket(sock_server);
 		stop_listen_uart_channel_dev(channel);
+#endif
+		stop_socket(sock_server);
 		if (wait_post_vms_shutdown()) {
 			LOG_WRITE("Service VM starts to power off.\n");
 			system_shutdown_flag = true;
@@ -129,8 +134,10 @@ int socket_req_shutdown_service_vm_handler(void *arg, int fd)
 	ret = send_socket_ack(arg, fd, ACK_REQ_SYS_SHUTDOWN);
 	if (ret < 0)
 		return 0;
+#ifdef IOC_VIRT
 	start_all_uart_channel_dev_resend(channel, POWEROFF_CMD, VM_SHUTDOWN_RETRY_TIMES);
 	notify_all_connected_uart_channel_dev(channel, POWEROFF_CMD);
+#endif
 	start_system_shutdown();
 	return 0;
 }
@@ -429,7 +436,7 @@ static int user_vm_shutdown_reboot(struct uart_channel *c, int fd, char *ack, bo
 	}
 	disconnect_uart_channel_dev(c_dev, c);
 	usleep(2 * WAIT_RECV);
-	close_socket(sock_server);
+	stop_socket(sock_server);
 	if (reboot) {
 		user_vm_reboot_flag = true;
 	} else {
@@ -480,7 +487,7 @@ int ack_timeout_default_handler(void *arg, int fd)
 		return 0;
 	stop_uart_channel_dev_resend(c_dev);
 	disconnect_uart_channel_dev(c_dev, c);
-	close_socket(sock_server);
+	stop_socket(sock_server);
 	LOG_PRINTF("Failed to receive ACK message from service VM (fd = %d)\n", fd);
 	return 0;
 }

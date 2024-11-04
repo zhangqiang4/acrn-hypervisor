@@ -58,9 +58,13 @@ struct socket_client *find_socket_client(struct socket_dev *sock, int fd);
  */
 int open_socket(struct socket_dev *sock, data_handler_f *fn);
 /**
- * @brief Close one unix domain socket server
+ * @brief Stop one unix domain socket server
  */
-void close_socket(struct socket_dev *sock);
+void stop_socket(struct socket_dev *sock);
+/**
+ * @brief Wait and close one unix domain socket server
+ */
+void wait_and_close_socket(struct socket_dev *sock);
 /**
  * @brief Initialize a socket
  *

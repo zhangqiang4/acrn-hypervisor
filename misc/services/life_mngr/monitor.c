@@ -188,7 +188,9 @@ static int start_life_mngr(void)
 	if (strncmp("service_vm", life_conf.vm_type, MAX_CONFIG_VALUE_LEN) == 0) {
 		if ((ret = init_socket_server_and_shutdown_commands(true)) < 0)
 			return ret;
+#ifdef IOC_VIRT
 		ret = init_uart_channel_devs_and_shutdown_commands(true, life_conf.dev_names);
+#endif
 	} else if (strncmp("user_vm", life_conf.vm_type, MAX_CONFIG_VALUE_LEN) == 0) {
 		if ((ret = init_socket_server_and_shutdown_commands(false)) < 0)
 			return ret;
@@ -198,8 +200,11 @@ static int start_life_mngr(void)
 		close_log();
 		return -EINVAL;
 	}
+	wait_and_close_socket(sock_server);
+#ifdef IOC_VIRT
 	/* Wait all uart channel threads exit */
 	wait_uart_channel_devs_threads(channel);
+#endif
 	return ret;
 }
 static void stop_life_mngr(void)
