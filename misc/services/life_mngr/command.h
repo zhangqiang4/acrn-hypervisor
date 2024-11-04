@@ -12,6 +12,8 @@
 #define ACK_SYNC "ack_sync"
 #define REQ_SYS_SHUTDOWN "req_sys_shutdown"
 #define ACK_REQ_SYS_SHUTDOWN "ack_req_sys_shutdown"
+#define REQ_SYS_SUSPEND "req_sys_suspend"
+#define ACK_REQ_SYS_SUSPEND "ack_req_sys_suspend"
 #define POWEROFF_CMD "poweroff_cmd"
 #define ACK_POWEROFF "ack_poweroff"
 #define ACK_TIMEOUT "ack_timeout"
@@ -32,8 +34,9 @@
 
 #define SYNC_LEN (sizeof(SYNC_CMD))
 
-#define POWEROFF "poweroff"
-#define REBOOT "reboot"
+#define SYS_POWEROFF "poweroff"
+#define SYS_REBOOT "reboot"
+#define SYS_SUSPEND "echo mem > /sys/power/state"
 
 #define CMD_NAME_MAX 32U
 
@@ -41,7 +44,9 @@ enum command_id {
 	SYNC_ID = 0x0,
 	ACKED_SYNC_ID,
 	REQ_SYS_SHUTDOWN_ID,
+	REQ_SYS_SUSPEND_ID,
 	ACKED_REQ_SYS_SHUTDOWN_ID,
+	ACKED_REQ_SYS_SUSPEND_ID,
 	POWEROFF_CMD_ID,
 	ACKED_POWEROFF_ID,
 	ACK_TIMEOUT_ID,

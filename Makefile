@@ -148,7 +148,7 @@ tools:
 	mkdir -p $(TOOLS_OUT)
 	$(MAKE) -C $(T)/misc OUT_DIR=$(TOOLS_OUT) RELEASE=$(RELEASE)
 
-life_mngr:
+life_mngr: tools
 	mkdir -p $(TOOLS_OUT)
 	$(MAKE) -C $(T)/misc OUT_DIR=$(TOOLS_OUT) RELEASE=$(RELEASE) life_mngr
 

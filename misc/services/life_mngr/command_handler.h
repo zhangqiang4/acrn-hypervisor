@@ -22,6 +22,14 @@ bool get_vm_reboot_flag(void);
  */
 int socket_req_shutdown_service_vm_handler(void *arg, int fd);
 /**
+ * @brief The handler of request system reboot command on socket in service VM
+ */
+int socket_req_reboot_service_vm_handler(void *arg, int fd);
+/**
+ * @brief The handler of request system suspend command on socket in service VM
+ */
+int socket_req_suspend_service_vm_handler(void *arg, int fd);
+/**
  * @brief The handler of request user shutdown command on socket in service VM
  */
 int socket_req_user_vm_shutdown_handler(void *arg, int fd);

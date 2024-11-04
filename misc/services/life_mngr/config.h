@@ -61,11 +61,4 @@ static inline char *get_allow_sysreboot_config(struct life_mngr_config *conf)
  * @return false fail to load configuration items
  */
 bool load_config(char *conf_path);
-/**
- * @brief Check folder exist or not, if not, create the folder
- *
- * @param path the folder path
- * @param flags the folder attribute
- */
-int check_dir(const char *path, int flags);
 #endif

@@ -3,6 +3,12 @@ T := $(CURDIR)
 OUT_DIR ?= $(shell mkdir -p $(T)/build;cd $(T)/build;pwd)
 CC ?= gcc
 
+CFLAGS += -I../../../devicemodel/include
+CFLAGS += -I../../../devicemodel/include/public
+CFLAGS += -I../acrn_manager
+
+LDFLAGS += -L$(OUT_DIR)
+
 LIFEMNGR_CFLAGS := -g -std=gnu11
 LIFEMNGR_CFLAGS += -D_GNU_SOURCE
 LIFEMNGR_CFLAGS += -DNO_OPENSSL
@@ -13,6 +19,7 @@ LIFEMNGR_CFLAGS += -O2 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2
 LIFEMNGR_CFLAGS += -Wformat -Wformat-security -fno-strict-aliasing
 LIFEMNGR_CFLAGS += -fno-delete-null-pointer-checks -fwrapv
 LIFEMNGR_CFLAGS += -fpie -fpic
+LIFEMNGR_CFLAGS += -Wno-stringop-truncation
 LIFEMNGR_CFLAGS += $(CFLAGS)
 
 GCC_MAJOR=$(shell echo __GNUC__ | $(CC) -E -x c - | tail -n 1)
@@ -35,7 +42,7 @@ endif
 
 LIFEMNGR_LDFLAGS := -Wl,-z,noexecstack
 LIFEMNGR_LDFLAGS += -Wl,-z,relro,-z,now
-LIFEMNGR_LDFLAGS += -pie
+LIFEMNGR_LDFLAGS += -pie -lacrn-mngr
 LIFEMNGR_LDFLAGS += $(LDFLAGS)
 
 # set cross compiler for Windows
@@ -50,6 +57,7 @@ LM_C_SRCS += uart.c
 LM_C_SRCS += socket.c
 LM_C_SRCS += command_handler.c
 LM_C_SRCS += config.c
+LM_C_SRCS += ../acrn_manager/acrn_vm_ops.c
 all: all-linux all-win
 
 life_mngr.service: life_mngr.service.in
@@ -93,3 +101,6 @@ install:
 	install -t $(DESTDIR)$(bindir) $(OUT_DIR)/life_mngr
 	install -m 0644 -t $(DESTDIR)$(CONF_DIR) $(OUT_DIR)/life_mngr.conf
 	install -p -D -m 0644 $(OUT_DIR)/life_mngr.service $(DESTDIR)$(systemd_unitdir)/system/
+	install -d $(DESTDIR)$(datadir)/acrn/life-mngr
+	install -m 0644 -t $(DESTDIR)$(datadir)/acrn/life-mngr $(OUT_DIR)/s3_trigger_linux.py
+	install -m 0644 -t $(DESTDIR)$(datadir)/acrn/life-mngr $(OUT_DIR)/s5_trigger_linux.py

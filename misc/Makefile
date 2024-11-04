@@ -21,7 +21,7 @@ endif
 
 .PHONY: all acrn-manager acrnbridge life_mngr acrn-crashlog acrnlog acrntrace ivshmem-timesync
 ifeq ($(RELEASE),n)
-all: acrn-manager acrnbridge acrn-crashlog acrnlog acrntrace ivshmem-timesync
+all: acrn-manager acrnbridge acrn-crashlog acrnlog acrntrace ivshmem-timesync life_mngr
 else
 all: acrn-manager acrnbridge
 endif

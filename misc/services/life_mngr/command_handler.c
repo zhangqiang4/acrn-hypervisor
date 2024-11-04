@@ -18,6 +18,8 @@
 #include "command_handler.h"
 #include "log.h"
 #include "config.h"
+#include "acrn_mngr.h"
+#include "acrnctl.h"
 
 bool system_shutdown_flag;
 bool get_system_shutdown_flag(void)
@@ -33,6 +35,7 @@ bool get_vm_reboot_flag(void)
 	return user_vm_reboot_flag | system_reboot_flag;
 }
 
+#ifdef IOC_VIRT
 /**
  * @brief check whether all acrn-dm instance have been exit or not
  *
@@ -68,23 +71,67 @@ static bool wait_post_vms_shutdown(void)
 	} while (check_time > 0);
 	return all_done;
 }
-static void start_system_reboot(void)
+#else
+static bool wait_post_vms_enter_state(int state)
 {
-	static bool platform_reboot;
+	struct vmmngr_struct *vm;
+	int check_time = SHUTDOWN_TIMEOUT/5;
+	bool all_done;
+	long val;
 
-	if (is_uart_channel_connection_list_empty(channel) && (!platform_reboot)) {
-		platform_reboot = true;
-		LOG_WRITE("UART connection list is empty, will trigger system reboot\n");
-		close_socket(sock_server);
-		stop_listen_uart_channel_dev(channel);
-		if (wait_post_vms_shutdown()) {
-			LOG_WRITE("Service VM starts to reboot.\n");
-			system_reboot_flag = true;
-		} else {
-			LOG_WRITE("Some User VMs failed to power off, cancelled the platform reboot process.\n");
+	do {
+		all_done = true;
+		val = 0;
+		vmmngr_update();
+
+		// check if all vms are in target state
+		LIST_FOREACH(vm, &vmmngr_head, list) {
+			if (vm->state != state) {
+				all_done = false;
+				val++;
+			}
 		}
-	}
+
+		if (all_done) {
+			break;
+		}
+		check_time--;
+		LOG_PRINTF("Wait post launched VMs %s check_time:%d, Running VM num:%ld\n",
+				state_str[vm->state], check_time, val);
+		sleep(5);
+	} while (check_time > 0);
+
+	return all_done;
 }
+#endif
+
+static int notify_post_vms_msg_id(unsigned int msg_id)
+{
+	int acrnd_fd;
+	struct mngr_msg req;
+	struct mngr_msg ack;
+	int ret;
+
+	acrnd_fd = mngr_open_un("acrnd", MNGR_CLIENT);
+	if (acrnd_fd < 0) {
+		LOG_WRITE("Unable to open acrnd socket\n");
+		return -1;
+	}
+
+	req.magic = MNGR_MSG_MAGIC;
+	req.msgid = msg_id;
+	req.timestamp = time(NULL);
+
+	ret = mngr_send_msg(acrnd_fd, &req, &ack, 1);
+	mngr_close(acrnd_fd);
+	if (ret != sizeof(ack)) {
+		LOG_WRITE("Unable to send msg to acrnd socket\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static void start_system_shutdown(void)
 {
 	static bool platform_shutdown;
@@ -93,18 +140,62 @@ static void start_system_shutdown(void)
 #else
 	if (!platform_shutdown) {
 #endif
-		platform_shutdown = true;
+		if (notify_post_vms_msg_id(ACRND_STOP) < 0) {
+			return;
+		}
+
 #ifdef IOC_VIRT
 		LOG_WRITE("UART connection list is empty, will trigger shutdown system\n");
 		stop_listen_uart_channel_dev(channel);
 #endif
-		stop_socket(sock_server);
-		if (wait_post_vms_shutdown()) {
+		if (wait_post_vms_enter_state(VM_CREATED)) {
 			LOG_WRITE("Service VM starts to power off.\n");
+			platform_shutdown = true;
 			system_shutdown_flag = true;
+			stop_socket(sock_server);
 		} else {
 			LOG_WRITE("Some User VMs failed to power off, cancelled the platform shutdown process.\n");
 		}
+	}
+}
+
+static void start_system_reboot(void)
+{
+	static bool platform_reboot;
+
+	if (!platform_reboot) {
+		if (notify_post_vms_msg_id(ACRND_STOP) < 0) {
+			return;
+		}
+
+		if (wait_post_vms_enter_state(VM_CREATED)) {
+			LOG_WRITE("Service VM starts to reboot.\n");
+			platform_reboot = true;
+			system_reboot_flag = true;
+			stop_socket(sock_server);
+		} else {
+			LOG_WRITE("Some User VMs failed to power off, cancelled the platform reboot process.\n");
+		}
+	}
+}
+
+static void start_system_suspend(void)
+{
+	int ret;
+
+	if (notify_post_vms_msg_id(ACRND_SUSPEND) < 0) {
+		return;
+	}
+
+	if (wait_post_vms_enter_state(VM_SUSPENDED)) {
+		LOG_WRITE("Service VM starts to suspend.\n");
+		do {
+			ret = system(SYS_SUSPEND);
+		} while (ret < 0);
+
+		notify_post_vms_msg_id(ACRND_RESUME);
+	} else {
+		LOG_WRITE("Some User VMs failed to suspend, cancelled the platform suspend process.\n");
 	}
 }
 
@@ -118,7 +209,7 @@ static int send_socket_ack(void *arg, int fd, char *ack)
 	if (client == NULL)
 		return -1;
 
-	LOG_PRINTF("Receive shutdown request from unix socket, fd=%d\n", client->fd);
+	LOG_PRINTF("Receive request from unix socket, fd=%d\n", client->fd);
 	memset(client->buf, 0, CLIENT_BUF_LEN);
 	memcpy(client->buf, ack, strlen(ack));
 	client->len = strlen(ack);
@@ -141,6 +232,32 @@ int socket_req_shutdown_service_vm_handler(void *arg, int fd)
 	start_system_shutdown();
 	return 0;
 }
+
+int socket_req_reboot_service_vm_handler(void *arg, int fd)
+{
+	int ret;
+
+	usleep(LISTEN_INTERVAL + SECOND_TO_US);
+	ret = send_socket_ack(arg, fd, ACK_REQ_SYS_REBOOT);
+	if (ret < 0)
+		return 0;
+
+	start_system_reboot();
+	return 0;
+}
+
+int socket_req_suspend_service_vm_handler(void *arg, int fd)
+{
+	int ret;
+
+	usleep(LISTEN_INTERVAL + SECOND_TO_US);
+	ret = send_socket_ack(arg, fd, ACK_REQ_SYS_SUSPEND);
+	if (ret < 0)
+		return 0;
+	start_system_suspend();
+	return 0;
+}
+
 static int req_user_vm_shutdown_reboot(void *arg, int fd, char *msg, char *ack_msg)
 {
 	int ret;

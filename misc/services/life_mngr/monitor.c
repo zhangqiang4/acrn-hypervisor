@@ -20,6 +20,7 @@
 #include "command_handler.h"
 #include "log.h"
 #include "config.h"
+#include "acrn_mngr.h"
 
 #define NODE_SIZE 5
 #define S5_SOCKET_DIR "/var/lib/life_mngr"
@@ -91,6 +92,10 @@ int init_socket_server_and_shutdown_commands(bool service_vm)
 	if (service_vm) {
 		register_command_handler(socket_req_shutdown_service_vm_handler,
 						sock_server, REQ_SYS_SHUTDOWN);
+		register_command_handler(socket_req_suspend_service_vm_handler,
+						sock_server, REQ_SYS_SUSPEND);
+		register_command_handler(socket_req_reboot_service_vm_handler,
+						sock_server, REQ_SYS_REBOOT);
 		register_command_handler(socket_req_user_vm_shutdown_handler,
 						sock_server, USER_VM_SHUTDOWN);
 		register_command_handler(socket_req_user_vm_reboot_handler,
@@ -225,12 +230,12 @@ int main(int argc, char *argv[])
 	stop_life_mngr();
 	if (get_system_shutdown_flag()) {
 		do {
-			ret = system(POWEROFF);
+			ret = system(SYS_POWEROFF);
 		} while (ret < 0);
 	}
 	if (get_vm_reboot_flag()) {
 		do {
-			ret = system(REBOOT);
+			ret = system(SYS_REBOOT);
 		} while (ret < 0);
 	}
 	return 0;

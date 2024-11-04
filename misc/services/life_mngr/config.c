@@ -15,32 +15,10 @@
 #include <sys/stat.h>
 #include "log.h"
 #include "config.h"
+#include "acrn_mngr.h"
 
 struct life_mngr_config life_conf;
 
-int check_dir(const char *path, int flags)
-{
-	struct stat st;
-
-	if (stat(path, &st)) {
-		if (flags) {
-			if (mkdir(path, 0666)) {
-				LOG_PRINTF("Failed to create folder (%s)\n", path);
-				return -1;
-			}
-			return 0;
-		} else {
-			LOG_PRINTF("%s doesn't exist!\n", path);
-			return -1;
-		}
-	}
-
-	if (S_ISDIR(st.st_mode))
-		return 0;
-
-	fprintf(stderr, "%s exists, and is not a directory!\n", path);
-	return -1;
-}
 bool load_config(char *conf_path)
 {
 	int pos;
