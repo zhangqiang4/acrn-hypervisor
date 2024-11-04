@@ -573,6 +573,20 @@
     <func:result select="concat('{', $bus, $dev, $func, '}')" />
   </func:function>
 
+  <func:function name="acrn:get-device-id">
+    <xsl:param name="vmid" />
+    <xsl:param name="name" />
+    <xsl:variable name="did" select="acrn:initializer('device_id', concat(//vm[@id = $vmid]/device[@name = $name]/device_id, 'U'), '')" />
+    <func:result select="$did" />
+  </func:function>
+
+  <func:function name="acrn:get-vendor-id">
+    <xsl:param name="vmid" />
+    <xsl:param name="name" />
+    <xsl:variable name="vid" select="acrn:initializer('vendor_id', concat(//vm[@id = $vmid]/device[@name = $name]/vendor_id, 'U'), '')" />
+    <func:result select="$vid" />
+  </func:function>
+
   <func:function name="acrn:ptdev-name-suffix">
     <xsl:param name="pci_dev" />
     <xsl:variable name="bus" select="translate(substring-before($pci_dev, ':'), $uppercase, $lowercase)" />

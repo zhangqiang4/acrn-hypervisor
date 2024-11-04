@@ -156,6 +156,8 @@
       <xsl:value-of select="acrn:initializer('emu_type', 'PCI_DEV_TYPE_PTDEV', '')" />
       <xsl:value-of select="acrn:initializer('vbdf.bits', acrn:get-vbdf($vm_id, $dev_name), '')" />
       <xsl:value-of select="acrn:initializer('pbdf.bits', acrn:get-pbdf(.), '')" />
+      <xsl:value-of select="acrn:get-vendor-id($vm_id, $dev_name)" />
+      <xsl:value-of select="acrn:get-device-id($vm_id, $dev_name)" />
       <xsl:for-each select="//device[@name = $dev_name]/bar">
         <xsl:value-of select="acrn:initializer(concat('vbar_base[', @id,']'), concat(text(), 'UL'), '')" />
       </xsl:for-each>

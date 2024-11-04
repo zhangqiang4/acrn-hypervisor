@@ -105,7 +105,7 @@ def get_devs_bdf_passthrough(scenario_etree):
         dev_list.append(bdf)
     return dev_list
 
-def create_device_node(allocation_etree, vm_id, devdict):
+def create_device_node(board_etree, allocation_etree, vm_id, devdict):
     for dev in devdict:
         dev_name = dev
         bdf = devdict.get(dev)
@@ -121,6 +121,23 @@ def create_device_node(allocation_etree, vm_id, devdict):
             acrn_config_utilities.append_node(f"./dev", f"{bdf.dev:#04x}", dev_node)
         if get_node(f"./func", dev_node) is None:
             acrn_config_utilities.append_node(f"./func", f"{bdf.func:#04x}", dev_node)
+
+        # for passthrough dev, its dev_name comes from BusDevFunc.__str__(), which is PTDEV_xx:xx.x
+        if dev_name.startswith("PTDEV_"):
+            phy_bus = int(dev_name.split('_')[1].split(':')[0], 16)
+            phy_dev = int(dev_name.split(':')[1].split('.')[0], 16)
+            phy_func = int(dev_name.split(':')[1].split('.')[1], 16)
+            pt_dev_node = get_node(f"//bus[@type = 'pci' and @address = '{hex(phy_bus)}']/device[@address = '{hex(phy_dev << 16 | phy_func)}']", board_etree)
+            if pt_dev_node is None:
+                print(f"failed to find physical pci device(bdf {phy_bus:x}:{phy_dev:x}.{phy_func:x}) in board xml. ",
+                    "pls make sure this pci dev is plugged in when generating board xml, or cancel this bdf passthrough in scenario xml. exits!")
+                exit(-1)
+            vendor = int(get_node("./vendor/text()", pt_dev_node), 16)
+            identifier = int(get_node("./identifier/text()", pt_dev_node), 16)    
+            if get_node(f"./vendor_id", dev_node) is None:
+                acrn_config_utilities.append_node(f"./vendor_id", f"{vendor:#04x}", dev_node)
+            if get_node(f"./device_id", dev_node) is None:
+                acrn_config_utilities.append_node(f"./device_id", f"{identifier:#04x}", dev_node)
 
 def create_igd_sbdf(board_etree, allocation_etree):
     """
@@ -158,4 +175,4 @@ def fn(board_etree, scenario_etree, allocation_etree):
         insert_vuart_to_dev_dict(vm_node, devdict, used)
         insert_ivsheme_to_dev_dict(scenario_etree, devdict, vm_id, used)
         insert_pt_devs_to_dev_dict(vm_node, devdict, used)
-        create_device_node(allocation_etree, vm_id, devdict)
+        create_device_node(board_etree, allocation_etree, vm_id, devdict)
