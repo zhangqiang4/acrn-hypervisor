@@ -54,7 +54,7 @@ extern struct vmmngr_list_struct vmmngr_head;
 int list_vm(void);
 int stop_vm(const char *vmname, int force);
 int start_vm(const char *vmname);
-int pause_vm(const char *vmname);
+int suspend_vm(const char *vmname);
 int continue_vm(const char *vmname);
 int resume_vm(const char *vmname, unsigned reason);
 int blkrescan_vm(const char *vmname, char *devargs);

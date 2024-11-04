@@ -45,8 +45,10 @@ struct acrnd_work {
 static LIST_HEAD(acrnd_work_list, acrnd_work) work_head;
 static pthread_mutex_t work_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#ifdef IOC_VIRT
 static pthread_mutex_t acrnd_stop_mutex = PTHREAD_MUTEX_INITIALIZER;
 static unsigned int acrnd_stop_timeout;
+#endif
 static unsigned char platform_has_hw_ioc;
 
 static int sigterm = 0; /* Exit acrnd when recevied SIGTERM and stop all vms */
@@ -298,6 +300,7 @@ static void stop_all_vms(void)
 	}
 }
 
+#ifdef IOC_VIRT
 static int wakeup_suspended_vms(unsigned wakeup_reason)
 {
 	struct vmmngr_struct *vm;
@@ -312,6 +315,7 @@ static int wakeup_suspended_vms(unsigned wakeup_reason)
 
 	return ret ? -1 : 0;
 }
+#endif
 
 static int acrnd_fd = -1;
 
@@ -493,6 +497,7 @@ static int wait_for_stop(unsigned int timeout)
 	return -1;
 }
 
+#ifdef IOC_VIRT
 static void* notify_stop_state(void *arg)
 {
 	int lcs_fd;
@@ -626,6 +631,63 @@ reply_ack:
 	if (client_fd > 0)
 		mngr_send_msg(client_fd, &ack, NULL, 0);
 }
+
+#else
+static void handle_acrnd_stop(struct mngr_msg *msg, int client_fd, void *param)
+{
+	struct mngr_msg ack;
+
+	ack.msgid = msg->msgid;
+	ack.timestamp = msg->timestamp;
+	ack.data.err = 0;
+	if (client_fd > 0)
+		mngr_send_msg(client_fd, &ack, NULL, 0);
+
+	stop_all_vms();
+}
+
+static void handle_acrnd_resume(struct mngr_msg *msg, int client_fd, void *param)
+{
+	struct mngr_msg ack;
+
+	ack.msgid = msg->msgid;
+	ack.timestamp = msg->timestamp;
+	ack.data.err = 0;
+	if (client_fd > 0)
+		mngr_send_msg(client_fd, &ack, NULL, 0);
+
+	active_all_vms();
+}
+static void suspend_all_vms(void)
+{
+	struct vmmngr_struct *vm;
+	int err;
+
+	vmmngr_update();
+
+	LIST_FOREACH(vm, &vmmngr_head, list) {
+		err = suspend_vm(vm->name);
+		if (err != 0) {
+			fprintf(stderr, "Fail to send suspend cmd to vm %s\n", vm->name);
+		} else {
+			printf("Send suspend cmd to vm %s successfully\n", vm->name);
+		}
+	}
+}
+
+static void handle_acrnd_suspend(struct mngr_msg *msg, int client_fd, void *param)
+{
+	struct mngr_msg ack;
+
+	ack.msgid = msg->msgid;
+	ack.timestamp = msg->timestamp;
+	ack.data.err = 0;
+	if (client_fd > 0)
+		mngr_send_msg(client_fd, &ack, NULL, 0);
+
+	suspend_all_vms();
+}
+#endif
 
 static void handle_on_exit(void)
 {
@@ -787,6 +849,7 @@ int main(int argc, char *argv[])
 	mngr_add_handler(acrnd_fd, ACRND_TIMER, handle_timer_req, NULL);
 	mngr_add_handler(acrnd_fd, ACRND_STOP, handle_acrnd_stop, NULL);
 	mngr_add_handler(acrnd_fd, ACRND_RESUME, handle_acrnd_resume, NULL);
+	mngr_add_handler(acrnd_fd, ACRND_SUSPEND, handle_acrnd_suspend, NULL);
 
 	/* Last thing, run our timer works */
 	while (!sigterm) {
