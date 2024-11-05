@@ -57,5 +57,3 @@ def extract(args, board_etree):
 
     ioapics_node = get_node(board_etree, "//ioapics")
     extract_topology(ioapics_node, tables)
-
-    extract_tcc_capabilities(board_etree)
