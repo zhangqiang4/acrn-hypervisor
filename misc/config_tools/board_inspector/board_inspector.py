@@ -61,7 +61,7 @@ def check_deps():
     try:
         logger.info("Updating pci.ids for latest PCI device descriptions.")
         res = external_tools.run("update-pciids -q", stderr=subprocess.DEVNULL)
-        if res.wait(timeout=40) != 0:
+        if res.wait(timeout=5) != 0:
             logger.warning(f"Failed to invoke update-pciids. No functional impact is foreseen, but descriptions of PCI devices may be inaccurate.")
     except Exception as e:
         logger.warning(f"Failed to invoke update-pciids: {e}. No functional impact is foreseen, but descriptions of PCI devices may be unavailable.")
