@@ -150,19 +150,34 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 				base = 0UL;
 			}
 		} else {
-			if ((!is_pci_mem_bar_base_valid(vpci2vm(vdev->vpci), base))
-					|| (!mem_aligned_check(base, vdev->vbars[idx].size))) {
-				res = (base < (1UL << 32UL)) ? &(vdev->vpci->res32) : &(vdev->vpci->res64);
+			if (!mem_aligned_check(base, PAGE_SIZE)) {
+				struct acrn_vcpu *vcpu = vcpu_from_pid(vpci2vm(vdev->vpci), get_pcpu_id());
+				if (vcpu != NULL) {
+					vcpu_inject_gp(vcpu, 0U);
+				}
+				pr_err("VBDF(%02x:%02x.%x): A reprogramming attempt of BAR%d to non-page-aligned address"
+					"0x%llx was dropped: Operation not supported",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx, base);
+				base = 0UL;
+			} else if (!mem_aligned_check(base, vdev->vbars[idx].size)) {
+				pr_err("VBDF(%02x:%02x.%x): A reprogramming attempt of BAR%d to non-size-aligned address"
+					"0x%llx  was dropped: Invalid argument",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx, base);
+				base = 0UL;
+			} else if (!is_pci_mem_bar_base_valid(vpci2vm(vdev->vpci), base)) {
 				/* VM tries to reprogram vbar address out of pci mmio bar window, it can be caused by:
 				 * 1. For Service VM, <board>.xml is misaligned with the actual native platform,
 				 *    and we get wrong mmio window.
 				 * 2. Malicious operation from VM, it tries to reprogram vbar address out of
 				 *    pci mmio bar window
 				 */
-				pr_err("%s reprogram PCI:%02x:%02x.%x BAR%d to addr:0x%lx,"
-					" which is out of mmio window[0x%lx - 0x%lx] or not aligned with size: 0x%lx",
-					__func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx, base,
-					res->start, res->end, vdev->vbars[idx].size);
+				res = (base < (1UL << 32UL)) ? &(vdev->vpci->res32) : &(vdev->vpci->res64);
+				pr_err("VBDF(%02x:%02x.%x): Guest attempts to re-program BAR%d to address 0x%llx, which is out of"
+					" MMIO window [0x%llx, 0x%llx]. This is likely caused by BIOS bug or board mismatch",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f,
+					idx, base, res->start, res->end);
+			} else {
+				/* Nothing to do. Skip. */
 			}
 		}
 	}
