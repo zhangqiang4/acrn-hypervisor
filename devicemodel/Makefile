@@ -266,7 +266,11 @@ $(VERSION_H):
 	if [ "$(DM_BUILD_VERSION)"x = x ];then\
 		COMMIT=`git rev-parse --verify --short HEAD 2>/dev/null`;\
 		DIRTY=`git diff-index --name-only HEAD`;\
-		if [ -n "$$DIRTY" ];then PATCH="$$COMMIT-dirty";else PATCH="$$COMMIT";fi;\
+		if [ -n "$$DIRTY" ];then\
+			DIFFHASH=`(command -v md5sum > /dev/null 2>&1) && (git diff | md5sum | head -c10) || (echo unknown)`;\
+			PATCH="$$COMMIT-patched-$$DIFFHASH";\
+		else\
+			PATCH="$$COMMIT";fi;\
 	else\
 		PATCH="$(DM_BUILD_VERSION)";\
 	fi;\
