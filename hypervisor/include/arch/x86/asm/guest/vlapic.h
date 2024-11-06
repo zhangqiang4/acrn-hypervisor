@@ -196,6 +196,7 @@ void vlapic_reset(struct acrn_vcpu *vcpu);
 void vlapic_restore(struct acrn_vlapic *vlapic, const struct lapic_regs *regs);
 uint64_t vlapic_apicv_get_apic_access_addr(void);
 uint64_t vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic);
+int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu);
 int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu);
 void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic);
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu);

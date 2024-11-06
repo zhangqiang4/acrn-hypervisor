@@ -88,6 +88,10 @@ struct vm_arch {
 	void *nworld_eptp;
 	struct pgtable ept_pgtable;
 
+	/* PID-pointer table for IPI Virtualization */
+	uint64_t *pid_table;
+	uint16_t max_lapic_id;
+
 	struct acrn_vioapics vioapics;	/* Virtual IOAPIC/s */
 
 	/*
@@ -206,6 +210,11 @@ static inline uint16_t vmid_2_rel_vmid(uint16_t service_vmid, uint16_t vmid) {
 static inline bool is_severity_pass(uint16_t target_vmid)
 {
 	return SEVERITY_SERVICE_VM >= get_vm_severity(target_vmid);
+}
+
+static inline bool can_ipiv_enabled(struct acrn_vm *vm)
+{
+	return (vm->arch_vm.pid_table != NULL);
 }
 
 void make_shutdown_vm_request(uint16_t pcpu_id);

@@ -48,6 +48,7 @@
 /* Local variables */
 
 static struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
+static struct page pid_pointer_tables[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 
 static struct acrn_vm *service_vm_ptr = NULL;
 
@@ -687,6 +688,21 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 	}
 
 	if (status == 0) {
+		/* Now only reserve one page for PID-pointer table per-VM,
+		 * Last PID-pointer index should less than 512 (4096 / 8)
+		 *
+		 * check physical lapic id because ACRN vLAPIC ID is same as pLAPIC ID
+		 */
+		if (!is_lapic_pt_configured(vm) && is_apicv_ipiv_feature_supported()) {
+			if (get_max_lapic_id() < 512U) {
+				vm->arch_vm.pid_table = (uint64_t *)&pid_pointer_tables[vm_id];
+				(void)memset((void *)(vm->arch_vm.pid_table), 0U, sizeof(struct page));
+			} else {
+				pr_err("%s, max physical lapic id %d is beyond limit 512, can't enable IPIv",
+					__func__, get_max_lapic_id());
+			}
+		}
+
 		/* We have assumptions:
 		 *   1) vcpus used by Service VM has been offlined by DM before User VM re-use it.
 		 *   2) pcpu_bitmap passed sanitization is OK for vcpu creating.

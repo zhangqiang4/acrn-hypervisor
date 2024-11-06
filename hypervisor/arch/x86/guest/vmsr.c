@@ -365,6 +365,9 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		if (is_apicv_advanced_feature_supported()) {
 			intercept_x2apic_msrs(msr_bitmap, INTERCEPT_WRITE);
 
+			if (can_ipiv_enabled(vcpu->vm)) {
+				enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_DISABLE);
+			}
 			/*
 			 * Open read-only interception for write-only
 			 * registers to inject gp on reads. EOI and Self-IPI

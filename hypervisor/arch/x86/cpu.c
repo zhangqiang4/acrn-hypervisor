@@ -55,6 +55,7 @@ static void set_current_pcpu_id(uint16_t pcpu_id);
 static void print_hv_banner(void);
 static uint16_t get_pcpu_id_from_lapic_id(uint32_t lapic_id);
 static uint64_t start_tick __attribute__((__section__(".bss_noinit")));
+static uint32_t max_lapic_id = 0U;
 
 /* version information */
 const char version_info[] __attribute__((__section__(".version"))) =
@@ -81,6 +82,9 @@ static bool init_percpu_lapic_id(void)
 
 		for (i = 0U; i < phys_cpu_num; i++) {
 			per_cpu(lapic_id, i) = lapic_id_array[i];
+			if (per_cpu(lapic_id, i) > max_lapic_id) {
+				max_lapic_id = per_cpu(lapic_id, i);
+			}
 		}
 		success = true;
 	}
@@ -99,6 +103,11 @@ static void pcpu_set_current_state(uint16_t pcpu_id, enum pcpu_boot_state state)
 
 	/* Set state for the specified CPU */
 	per_cpu(boot_state, pcpu_id) = state;
+}
+
+uint32_t get_max_lapic_id(void)
+{
+	return max_lapic_id;
 }
 
 enum pcpu_boot_state pcpu_get_current_state(uint16_t pcpu_id)

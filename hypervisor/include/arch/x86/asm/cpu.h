@@ -792,6 +792,7 @@ enum pcpu_boot_state pcpu_get_current_state(uint16_t pcpu_id);
 uint16_t get_pcpu_nums(void);
 bool is_pcpu_active(uint16_t pcpu_id);
 uint64_t get_active_pcpu_bitmap(void);
+uint32_t get_max_lapic_id(void);
 #else /* ASSEMBLER defined */
 
 #endif /* ASSEMBLER defined */

@@ -240,7 +240,7 @@ static uint32_t check_vmx_ctrl(uint32_t msr, uint32_t ctrl_req)
 
 }
 
-static uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
+uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
 {
 	uint64_t vmx_msr;
 	uint32_t ctrl = ctrl_req;
@@ -593,6 +593,7 @@ void load_vmcs(const struct acrn_vcpu *vcpu)
 void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
+	uint64_t value64;
 	if (is_lapic_pt_configured(vcpu->vm)) {
 		dev_dbg(DBG_LEVEL_LAPICPT, "%s: switching to x2apic and passthru", __func__);
 		/*
@@ -636,5 +637,17 @@ void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC;
 		value32 |= VMX_PROCBASED_CTLS2_VX2APIC;
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
+
+		if (can_ipiv_enabled(vcpu->vm)) {
+			/* Set up tertiary processor based VM execution controls */
+			if ((exec_vmread32(VMX_PROC_VM_EXEC_CONTROLS) & VMX_PROCBASED_CTLS_TERTIARY) != 0U) {
+				pr_info("%s enable IPIv\n", __func__);
+				value64 = exec_vmread64(VMX_PROC_VM_EXEC_CONTROLS3_FULL);;
+				exec_vmwrite64(VMX_PROC_VM_EXEC_CONTROLS3_FULL, value64 | VMX_PROCBASED_CTLS3_IPI_VIRT);
+
+				exec_vmwrite64(VMX_PID_POINTER_TABLE_ADDR_FULL, hva2hpa(vcpu->vm->arch_vm.pid_table));
+				exec_vmwrite16(VMX_LAST_PID_POINTER_IDX, vcpu->vm->arch_vm.max_lapic_id);
+			}
+		}
 	}
 }

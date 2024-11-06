@@ -10,6 +10,7 @@
 /* 16-bit control fields */
 #define VMX_VPID						0x00000000U
 #define VMX_POSTED_INTR_VECTOR	0x00000002U
+#define VMX_LAST_PID_POINTER_IDX	0x00000008U
 /* 16-bit guest-state fields */
 #define VMX_GUEST_ES_SEL    0x00000800U
 #define VMX_GUEST_CS_SEL    0x00000802U
@@ -78,9 +79,12 @@
 #define VMX_PROC_VM_EXEC_CONTROLS3_FULL		0x00002034U
 #define VMX_PROC_VM_EXEC_CONTROLS3_HIGH		0x00002035U
 
+#define VMX_PID_POINTER_TABLE_ADDR_FULL		0x00002042U
+
 /* 64-bit read-only data fields */
 #define VMX_GUEST_PHYSICAL_ADDR_FULL 0x00002400U
 #define VMX_GUEST_PHYSICAL_ADDR_HIGH 0x00002401U
+
 /* 64-bit guest-state fields */
 #define VMX_VMS_LINK_PTR_FULL   0x00002800U
 #define VMX_VMS_LINK_PTR_HIGH   0x00002801U
@@ -339,6 +343,7 @@
 #define VMX_PROCBASED_CTLS2_UWAIT_PAUSE (1U<<26U)
 #define VMX_PROCBASED_CTLS2_ENCLV_EXIT (1U<<28U)
 #define VMX_PROCBASED_CTLS3_LOADIWKEY  (1U<<0U)
+#define VMX_PROCBASED_CTLS3_IPI_VIRT  (1U<<4U)
 
 /* MSR_IA32_VMX_EPT_VPID_CAP: EPT and VPID capability bits */
 #define VMX_EPT_EXECUTE_ONLY		(1UL << 0U)
@@ -463,6 +468,8 @@ void load_va_vmcs(const uint8_t *vmcs_va);
 
 void init_cr0_cr4_flexible_bits(void);
 bool is_valid_cr0_cr4(uint64_t cr0, uint64_t cr4);
+
+uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req);
 
 #define POSTED_INTR_ON  0U
 #endif /* VMX_H_ */

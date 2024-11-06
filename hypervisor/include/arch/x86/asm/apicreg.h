@@ -44,7 +44,8 @@
  */
 struct lapic_reg {
 	uint32_t v;
-	uint32_t pad[3];
+	uint32_t v_ext;		/* ICR high in x2APIC mode */
+	uint32_t pad[2];
 };
 
 struct lapic_regs {			 /*OFFSET(Hex)*/

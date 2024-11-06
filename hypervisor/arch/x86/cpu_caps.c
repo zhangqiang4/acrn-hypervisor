@@ -25,6 +25,7 @@
 #define VAPIC_FEATURE_TPR_SHADOW	(1U << 3U)
 #define VAPIC_FEATURE_POST_INTR		(1U << 4U)
 #define VAPIC_FEATURE_VX2APIC_MODE	(1U << 5U)
+#define VAPIC_FEATURE_IPI_VIRT		(1U << 6U)
 
 /* BASIC features: must supported by the physical platform and will enabled by default */
 #define APICV_BASIC_FEATURE	(VAPIC_FEATURE_TPR_SHADOW | VAPIC_FEATURE_VIRT_ACCESS | VAPIC_FEATURE_VX2APIC_MODE)
@@ -269,6 +270,10 @@ static void detect_apicv_cap(void)
 		features |= VAPIC_FEATURE_POST_INTR;
 	}
 
+	if (check_vmx_ctrl_64(MSR_IA32_VMX_PROCBASED_CTLS3, VMX_PROCBASED_CTLS3_IPI_VIRT) ==
+			VMX_PROCBASED_CTLS3_IPI_VIRT) {
+		features |= VAPIC_FEATURE_IPI_VIRT;
+	}
 	cpu_caps.apicv_features = features;
 
 	vlapic_set_apicv_ops();
@@ -410,6 +415,12 @@ static inline bool is_apicv_basic_feature_supported(void)
 bool is_apicv_advanced_feature_supported(void)
 {
 	return ((cpu_caps.apicv_features & APICV_ADVANCED_FEATURE) == APICV_ADVANCED_FEATURE);
+}
+
+bool is_apicv_ipiv_feature_supported(void)
+{
+	return (is_apicv_advanced_feature_supported() &&
+		((cpu_caps.apicv_features & VAPIC_FEATURE_IPI_VIRT) != 0U));
 }
 
 bool pcpu_has_vmx_ept_vpid_cap(uint64_t bit_mask)

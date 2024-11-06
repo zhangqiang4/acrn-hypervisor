@@ -1034,14 +1034,11 @@ static void vlapic_write_icrlo(struct acrn_vlapic *vlapic)
 	uint64_t dmask;
 	uint32_t icr_low, icr_high, dest;
 	uint32_t vec, mode, shorthand;
-	struct lapic_regs *lapic;
 	struct acrn_vcpu *target_vcpu;
-
-	lapic = &(vlapic->apic_page);
-	lapic->icr_lo.v &= ~APIC_DELSTAT_PEND;
+	const struct lapic_regs *lapic = &(vlapic->apic_page);
 
 	icr_low = lapic->icr_lo.v;
-	icr_high = lapic->icr_hi.v;
+	icr_high = lapic->icr_lo.v_ext;
 	dest = icr_high;
 	is_broadcast = (dest == 0xffffffffU);
 	vec = icr_low & APIC_VECTOR_MASK;
@@ -1295,7 +1292,7 @@ static int32_t vlapic_read(struct acrn_vlapic *vlapic, uint32_t offset_arg, uint
 			break;
 		case APIC_OFFSET_ICR_LOW:
 			*data = lapic->icr_lo.v;
-			*data |= ((uint64_t)lapic->icr_hi.v) << 32U;
+			*data |= ((uint64_t)lapic->icr_lo.v_ext << 32U);
 			break;
 		case APIC_OFFSET_CMCI_LVT:
 		case APIC_OFFSET_TIMER_LVT:
@@ -1345,6 +1342,11 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 
 	if (offset <= sizeof(*lapic)) {
 		switch (offset) {
+		case APIC_OFFSET_ICR_LOW:
+			lapic->icr_lo.v = data32;
+			lapic->icr_lo.v_ext = (uint32_t)(data >> 32U);
+			vlapic_write_icrlo(vlapic);
+			break;
 		case APIC_OFFSET_EOI:
 			vlapic_process_eoi(vlapic);
 			break;
@@ -1355,11 +1357,6 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 		case APIC_OFFSET_SVR:
 			lapic->svr.v = data32;
 			vlapic_write_svr(vlapic);
-			break;
-		case APIC_OFFSET_ICR_LOW:
-			lapic->icr_hi.v = (uint32_t)(data >> 32U);
-			lapic->icr_lo.v = data32;
-			vlapic_write_icrlo(vlapic);
 			break;
 		case APIC_OFFSET_CMCI_LVT:
 		case APIC_OFFSET_TIMER_LVT:
@@ -1895,6 +1892,16 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 	/* Set vLAPIC ID to be same as pLAPIC ID */
 	vlapic->vapic_id = per_cpu(lapic_id, pcpu_id);
 
+	if (can_ipiv_enabled(vcpu->vm)) {
+#define PID_TABLE_ENTRY_VALID	1UL
+		/* PID_ADDR[5:0] ≠ 000001b // PID pointer not valid or reserved bits set */
+		vcpu->vm->arch_vm.pid_table[vlapic->vapic_id] = hva2hpa(get_pi_desc(vcpu)) | PID_TABLE_ENTRY_VALID;
+		if (vcpu->vm->arch_vm.max_lapic_id < vlapic->vapic_id) {
+			/* the max lapic_id is small than 512 when arch.pid_table is valid */
+			vcpu->vm->arch_vm.max_lapic_id = (uint16_t)vlapic->vapic_id;
+		}
+	}
+
 	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic APIC ID : 0x%04x", vlapic->vapic_id);
 }
 
@@ -2090,6 +2097,35 @@ int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
 	TRACE_2L(TRACE_VMEXIT_APICV_VIRT_EOI, vector, 0UL);
 
 	return 0;
+}
+
+int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu)
+{
+	int32_t err = 0;
+	struct acrn_vlapic *vlapic = NULL;
+	uint64_t qual = vcpu->arch.exit_qualification;
+	uint32_t offset = (uint32_t)(qual & 0xFFFUL);
+
+	vcpu_retain_rip(vcpu);
+	vlapic = vcpu_vlapic(vcpu);
+
+	/* refer to VIRTUALIZING MSR-BASED APIC ACCESSES - WRMSR */
+	if (offset == APIC_OFFSET_ICR_LOW) {
+		/* IPI virtualization */
+		vlapic_write_icrlo(vlapic);
+	} else {
+		if (offset == APIC_OFFSET_SELF_IPI) {
+			/* virtual-interrupt delivery, Vector < 16 */
+			vlapic_set_error(vlapic, APIC_ESR_SEND_ILLEGAL_VECTOR);
+		} else {
+			err = -EACCES;
+			pr_err("%s Unhandled APIC-Write, offset:0x%x", __func__, offset);
+		}
+	}
+
+	TRACE_2L(TRACE_VMEXIT_APICV_WRITE, offset, 0UL);
+	return err;
+
 }
 
 static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
