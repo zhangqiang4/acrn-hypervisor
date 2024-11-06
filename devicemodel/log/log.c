@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <pthread.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -25,6 +26,7 @@
 DECLARE_LOGGER_SECTION();
 
 extern char *vmname;
+#if 0
 static char *level_strs[] = {
 	/* log level starts from 1 */
 	"",
@@ -34,6 +36,7 @@ static char *level_strs[] = {
 	"INFO",
 	"DEBUG",
 };
+#endif
 #define PREFIX_MAX_LEN 50
 
 #define LOG_DEBUG_DOMAIN_MAX 8
@@ -143,19 +146,19 @@ void deinit_loggers(void)
 	}
 }
 
-static void fill_logger_prefix_str(uint8_t level, char *prefix_str, uint32_t size)
+static void  __attribute__((unused)) fill_logger_prefix_str(uint8_t level, char *prefix_str, uint32_t size)
 {
-	struct timeval tv;
-	struct tm *lt;
+	//struct timeval tv;
+	//struct tm *lt;
 	int rc;
 
-	gettimeofday(&tv, NULL);
-	lt = localtime(&tv.tv_sec);
+	//gettimeofday(&tv, NULL);
+	//lt = localtime(&tv.tv_sec);
 
 	/* add the log prefix, e.g. [2024-09-23 03:53:39.737][VM1][DEBUG] */
-	rc = snprintf(prefix_str, size, "[%4d-%02d-%02d %02d:%02d:%02d.%03ld][%s][%s]",
-		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec,
-		tv.tv_usec / 1000, vmname? vmname : "UNINITVM", level_strs[level]);
+	char name[32];
+	pthread_getname_np(pthread_self(), name, sizeof(name));
+	rc = snprintf(prefix_str, size, "[%s] ", name);
 	if(rc < 0 || rc >= size)
 		memcpy(prefix_str, "acrn-dm:", strlen("acrn-dm:"));
 
