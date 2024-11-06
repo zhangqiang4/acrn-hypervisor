@@ -78,6 +78,8 @@
 #include "pm_vspi.h"
 #endif
 
+#include "work.h"
+
 #define IASL_MIN_VER "20190703"
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
 
@@ -1258,6 +1260,8 @@ main(int argc, char *argv[])
 
 	print_cmdline(argc + optind, argv - optind);
 
+	worker_init();
+
 	if (get_iasl_compiler() != 0) {
 		pr_err("Cannot find Intel ACPI ASL compiler tool \"iasl\".\n");
 		exit(1);
@@ -1443,6 +1447,7 @@ create_fail:
 		gfx_ui_deinit();
 	}
 	uninit_hugetlb();
+	worker_deinit();
 	deinit_loggers();
 	exit(ret);
 }

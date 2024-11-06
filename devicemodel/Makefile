@@ -103,6 +103,7 @@ LIBS += -lm
 
 # lib
 SRCS += lib/dm_string.c
+SRCS += lib/work.c
 
 # hw
 SRCS += hw/block_if.c

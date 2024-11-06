@@ -5,6 +5,7 @@ acrnext_dep = declare_dependency(
 
 sources = [
     'lib/dm_string.c',
+    'lib/work.c',
     'hw/block_if.c',
     'hw/usb_core.c',
     'hw/uart_core.c',
