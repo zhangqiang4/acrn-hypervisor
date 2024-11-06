@@ -34,6 +34,7 @@ CFLAGS += -Wformat -Wformat-security -fno-strict-aliasing
 CFLAGS += -fno-delete-null-pointer-checks -fwrapv
 CFLAGS += -fpie
 CFLAGS += -Wno-stringop-truncation -Wno-address-of-packed-member
+CFLAGS += -Wimplicit-fallthrough
 
 CFLAGS += -I$(BASEDIR)/include
 CFLAGS += -I$(BASEDIR)/include/public
