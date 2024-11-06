@@ -203,6 +203,7 @@ sdl_surface_set(void *backend, struct surface *surf)
 			break;
 		case PIXMAN_r8g8b8a8:
 			format = SDL_PIXELFORMAT_RGBA8888;
+			break;
 		case PIXMAN_r8g8b8x8:
 			format = SDL_PIXELFORMAT_RGBX8888;
 			break;
