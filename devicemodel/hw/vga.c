@@ -1376,11 +1376,13 @@ vga_ioport_write(struct vmctx *ctx, int vcpu, struct vga *vga,
 	case 1:
 		val = value & 0xff;
 		vga_port_out_handler(ctx, 1, port, 1, val, vga->dev);
+		break;
 	case 2:
 		val = value & 0xff;
 		vga_port_out_handler(ctx, 1, port, 1, val, vga->dev);
 		val = (value >> 8) & 0xff;
 		vga_port_out_handler(ctx, 1, port + 1, 1, val, vga->dev);
+		break;
 	}
 }
 
@@ -1398,11 +1400,13 @@ vga_ioport_read(struct vmctx *ctx, int vcpu, struct vga *vga,
 	case 1:
 		vga_port_in_handler(ctx, 1, port, 1, &val, vga->dev);
 		value = val;
+		break;
 	case 2:
 		vga_port_in_handler(ctx, 1, port, 1, &val, vga->dev);
 		value |= val & 0xff;
 		vga_port_in_handler(ctx, 1, port + 1, 1, &val, vga->dev);
 		value |= (val & 0xff) << 8;
+		break;
 	}
 
 	return value;
