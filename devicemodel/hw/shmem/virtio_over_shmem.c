@@ -213,6 +213,7 @@ acrn_be(int argc, char *argv[])
 			break;
 		case 'h':
 			be_usage(0);
+			break;
 		default:
 			be_usage(1);
 		}
