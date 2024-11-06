@@ -6,7 +6,6 @@
 import os
 import re
 import logging
-import lxml.etree
 
 from pcieparser import parse_config_space
 from pcieparser.header import IOBar, MemoryBar32, MemoryBar64

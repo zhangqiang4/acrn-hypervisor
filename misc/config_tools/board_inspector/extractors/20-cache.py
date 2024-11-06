@@ -4,7 +4,6 @@
 #
 
 import logging
-import lxml.etree
 from extractors.helpers import add_child, get_node
 
 from cpuparser import parse_cpuid

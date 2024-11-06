@@ -4,7 +4,7 @@
 #
 
 import logging
-import lxml.etree
+import lxml.etree  # nosec
 import re
 
 from cpuparser import parse_cpuid, get_online_cpu_ids

@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-import ctypes
 import logging
-import lxml.etree
 from collections import defaultdict
 
 from acpiparser import parse_dsdt, parse_resource_data, parse_pci_routing

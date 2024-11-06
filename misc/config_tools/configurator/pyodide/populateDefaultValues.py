@@ -9,7 +9,7 @@ __package__ = 'configurator.pyodide'
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from xml.etree.ElementTree import tostring
+from xml.etree.ElementTree import tostring  # nosec
 
 from scenario_config.pipeline import PipelineObject, PipelineEngine
 from scenario_config.xml_loader import XMLLoadStage

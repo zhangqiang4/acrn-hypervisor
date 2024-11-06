@@ -10,7 +10,7 @@ import shutil
 import subprocess # nosec
 import defusedxml.ElementTree as ET
 import re
-import lxml
+import lxml.etree  # nosec
 
 
 ACRN_CONFIG_TARGET = ''

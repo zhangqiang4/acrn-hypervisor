@@ -12,7 +12,7 @@ import logging
 import typing
 import json
 import textwrap
-from lxml import etree
+from defusedxml.lxml import parse
 from copy import deepcopy
 
 from pathlib import Path
@@ -42,8 +42,8 @@ class Doc:
 class GenerateJson:
 
     def __init__(self, board_file_name, scenario_file_name, json_file_name) -> None:
-        self.board_etree = etree.parse(board_file_name)
-        self.scenario_etree = etree.parse(scenario_file_name)
+        self.board_etree = parse(board_file_name)
+        self.scenario_etree = parse(scenario_file_name)
         self.file = open(json_file_name, 'w')
         self.doc = Doc(self.file)
 

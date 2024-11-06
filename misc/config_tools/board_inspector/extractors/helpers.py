@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-import lxml, re
+import re
+import lxml.etree  # nosec
 from pathlib import Path
 
 def add_child(element, tag, text=None, **kwargs):

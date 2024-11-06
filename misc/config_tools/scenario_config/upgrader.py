@@ -10,12 +10,12 @@ import argparse, logging
 import re
 from functools import lru_cache, partialmethod
 from collections import defaultdict, namedtuple
-import lxml.etree as etree
+import lxml.etree as etree  # nosec
 
 from scenario_transformer import ScenarioTransformer
 
 from pipeline import PipelineObject, PipelineStage, PipelineEngine
-from lxml_loader import LXMLLoadStage
+from lxml_loader import LXMLLoadStage  # nosec
 from schema_slicer import SlicingSchemaByVMTypeStage
 
 class VirtualUartConnections:

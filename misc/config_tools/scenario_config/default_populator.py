@@ -75,7 +75,7 @@ class DefaultValuePopulatingStage(PipelineStage):
 
 def main(args):
     from xml_loader import XMLLoadStage
-    from lxml_loader import LXMLLoadStage
+    from lxml_loader import LXMLLoadStage  # nosec
 
     pipeline = PipelineEngine(["schema_path", "scenario_path"])
     pipeline.add_stages([

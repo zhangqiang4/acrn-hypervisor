@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-import lxml.etree
 
 def getkey(child):
     def resource_subkey(node):

@@ -1,7 +1,7 @@
 import os
 import sys
 import argparse
-import lxml.etree
+from defusedxml.lxml import parse
 
 import logging
 from extractors.helpers import add_child, get_node
@@ -64,7 +64,7 @@ def extract(args, board_etree):
 
 def main(board_name, board_xml, args):
     print(f"Adding camera configuration to {board_name}.xml.")
-    board_etree = lxml.etree.parse(board_xml)
+    board_etree = parse(board_xml)
     extract(args, board_etree)
     # Finally overwrite the output with the updated XML
     board_etree.write(board_xml, pretty_print=True)

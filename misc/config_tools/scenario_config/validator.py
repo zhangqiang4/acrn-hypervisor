@@ -262,7 +262,7 @@ def validate_all(validation_pipeline, pipeline_obj, data_dir):
     return nr_all_errors
 
 def main(args):
-    from lxml_loader import LXMLLoadStage
+    from lxml_loader import LXMLLoadStage  # nosec
 
     validator_construction_pipeline = PipelineEngine(["schema_path", "datachecks_path"])
     validator_construction_pipeline.add_stages([

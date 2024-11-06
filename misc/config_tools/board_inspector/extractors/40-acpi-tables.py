@@ -5,8 +5,7 @@
 
 
 import logging
-import re, os, fcntl, errno
-import lxml.etree
+import re, os, fcntl
 from extractors.helpers import add_child, get_node
 
 import acpiparser

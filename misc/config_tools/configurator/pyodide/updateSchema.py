@@ -4,14 +4,15 @@ __package__ = 'configurator.pyodide'
 from .pyodide import convert_result, nuc11_board, nuc11_scenario
 
 import re
-from lxml import etree
+from lxml import etree  # nosec
+from defusedxml.lxml import fromstring
 
 
 class GenerateSchema:
 
     def __init__(self, board, scenario):
         parser = etree.XMLParser(remove_blank_text=True)
-        self.board_etree = etree.fromstring(board, parser)
+        self.board_etree = fromstring(board, parser)
         self.scenario = scenario
 
     @property

@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-import logging
-import lxml.etree
 
 from memmapparser import parse_e820, e820
 from extractors.helpers import get_node, add_child

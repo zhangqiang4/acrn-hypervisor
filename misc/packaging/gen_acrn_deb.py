@@ -11,7 +11,7 @@ import os
 import json
 import shlex
 import shutil
-import subprocess
+import subprocess  # nosec
 import argparse
 import re
 

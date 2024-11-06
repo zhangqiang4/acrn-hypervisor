@@ -16,7 +16,7 @@ import re
 import sys
 
 from urllib.parse import urljoin
-from subprocess import check_output
+from subprocess import check_output  # nosec
 
 from typing import Optional
 
@@ -122,7 +122,7 @@ class ACRNDocumentStringConvertor:
     def get_acrn_document_version(default_version='latest'):
         version = default_version
         try:
-            branch_name = check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode()
+            branch_name = check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode()  # nosec
             version = re.match(r"^release_(\d\.\d)$", branch_name).group(1)
         except:
             print("Can't detect current acrn-hypervisor version, document string will link to latest")

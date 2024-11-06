@@ -221,7 +221,7 @@ class SlicingSchemaByViewStage(PipelineStage):
         obj.set("schema_etree", schema_etree)
 
 def main(args):
-    from lxml_loader import LXMLLoadStage
+    from lxml_loader import LXMLLoadStage  # nosec
 
     pipeline = PipelineEngine(["schema_path"])
     pipeline.add_stages([
