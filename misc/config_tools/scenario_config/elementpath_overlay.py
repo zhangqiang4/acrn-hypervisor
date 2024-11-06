@@ -114,7 +114,7 @@ def select_duplicate_values_function(self, context=None):
 def evaluate_number_of_clos_id_needed(self, context=None):
     op = self.get_argument(context, index=0)
     if op is not None:
-        if isinstance(op, elementpath.TypedElement):
+        if isinstance(op, elementpath.TypedElement if hasattr(elementpath, "TypedElement") else elementpath.ElementNode):
             op = op.elem
 
         # This function may be invoked when the xmlschema library parses the data check schemas, in which case `op` will
