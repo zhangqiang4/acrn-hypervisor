@@ -113,7 +113,7 @@ int32_t ept_violation_vmexit_handler(struct acrn_vcpu *vcpu)
 	/*caused by instruction fetch */
 	if ((exit_qual & 0x4UL) != 0UL) {
 		/* TODO: check wehther the gpa is not a MMIO address. */
-		ept_modify_mr(vcpu->vm, (uint64_t *)vcpu->vm->arch_vm.sworld_eptp,
+		ept_modify_mr(vcpu->vm, (uint64_t *)vcpu->vm->arch_vm.nworld_eptp,
 				gpa & PAGE_MASK, PAGE_SIZE, EPT_EXE, 0UL);
 		vcpu_retain_rip(vcpu);
 		status = 0;

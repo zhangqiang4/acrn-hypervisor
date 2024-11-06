@@ -86,11 +86,6 @@ struct vm_arch {
 
 	/* EPT hierarchy for Normal World */
 	void *nworld_eptp;
-	/* EPT hierarchy for Secure World
-	 * Secure world can access Normal World's memory,
-	 * but Normal World can not access Secure World's memory.
-	 */
-	void *sworld_eptp;
 	struct pgtable ept_pgtable;
 
 	struct acrn_vioapics vioapics;	/* Virtual IOAPIC/s */
