@@ -323,6 +323,7 @@ vm_parse_memsize(const char *optarg, size_t *ret_memsize)
 	case 'b':
 	case '\0': /* No unit. */
 		shift = 0;
+		break;
 	default:
 		/* Unrecognized unit. */
 		return -1;
