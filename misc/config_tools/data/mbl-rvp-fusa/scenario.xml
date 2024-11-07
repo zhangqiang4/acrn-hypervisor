@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<acrn-config>
+  <hv>
+    <FEATURES>
+      <IVSHMEM>
+        <IVSHMEM_REGION>
+          <NAME>tee_ivshmem</NAME>
+          <PROVIDED_BY>Hypervisor</PROVIDED_BY>
+	  <IVSHMEM_SIZE>4</IVSHMEM_SIZE>
+	  <IVSHMEM_REGION_ID>1</IVSHMEM_REGION_ID>
+          <IVSHMEM_VMS>
+            <IVSHMEM_VM>
+              <VM_NAME>VM1</VM_NAME>
+              <VBDF>00:0c.0</VBDF>
+            </IVSHMEM_VM>
+            <IVSHMEM_VM>
+              <VM_NAME>VM3</VM_NAME>
+              <VBDF>00:0c.0</VBDF>
+            </IVSHMEM_VM>
+          </IVSHMEM_VMS>
+        </IVSHMEM_REGION>
+        <IVSHMEM_REGION>
+          <NAME>shm_region1</NAME>
+          <PROVIDED_BY>Hypervisor</PROVIDED_BY>
+	  <IVSHMEM_SIZE>2</IVSHMEM_SIZE>
+          <IVSHMEM_VMS>
+            <IVSHMEM_VM>
+              <VM_NAME>VM0</VM_NAME>
+              <VBDF>00:03.0</VBDF>
+            </IVSHMEM_VM>
+            <IVSHMEM_VM>
+              <VM_NAME>VM2</VM_NAME>
+              <VBDF>00:03.0</VBDF>
+            </IVSHMEM_VM>
+          </IVSHMEM_VMS>
+        </IVSHMEM_REGION>
+      </IVSHMEM>
+      <RELOC_ENABLED>n</RELOC_ENABLED>
+      <SCHEDULER>SCHED_BVT</SCHEDULER>
+      <MULTIBOOT2_ENABLED>n</MULTIBOOT2_ENABLED>
+      <SPLIT_LOCK_DETECTION_ENABLED>n</SPLIT_LOCK_DETECTION_ENABLED>
+      <UC_LOCK_DETECTION_ENABLED>n</UC_LOCK_DETECTION_ENABLED>
+      <ACPI_PARSE_ENABLED>y</ACPI_PARSE_ENABLED>
+      <L1D_VMENTRY_ENABLED>n</L1D_VMENTRY_ENABLED>
+      <MCE_ON_PSC_ENABLED>y</MCE_ON_PSC_ENABLED>
+      <SSRAM>
+        <SSRAM_ENABLED>n</SSRAM_ENABLED>
+      </SSRAM>
+      <RDT>
+        <RDT_ENABLED>y</RDT_ENABLED>
+        <CDP_ENABLED>n</CDP_ENABLED>
+      </RDT>
+      <SECURITY_VM_FIXUP>n</SECURITY_VM_FIXUP>
+      <IOMMU_ENFORCE_SNP>n</IOMMU_ENFORCE_SNP>
+    </FEATURES>
+    <phy_camera>
+      <phy_camera_connection>
+        <id>0</id>
+        <resolution>1920*1080</resolution>
+        <format>V4L2_PIX_FMT_UYVY</format>
+        <sensor_name>isx031-a</sensor_name>
+        <devnode>/dev/video0</devnode>
+        <native_driver>libvcamhal.so</native_driver>
+      </phy_camera_connection>
+      <phy_camera_connection>
+        <id>1</id>
+        <resolution>1920*1080</resolution>
+        <format>V4L2_PIX_FMT_UYVY</format>
+        <sensor_name>isx031-b</sensor_name>
+        <devnode>/dev/video0</devnode>
+        <native_driver>libvcamhal.so</native_driver>
+      </phy_camera_connection>
+	  <phy_camera_connection>
+        <id>2</id>
+        <resolution>1920*1080</resolution>
+        <format>V4L2_PIX_FMT_UYVY</format>
+        <sensor_name>isx031-c</sensor_name>
+        <devnode>/dev/video0</devnode>
+        <native_driver>libvcamhal.so</native_driver>
+      </phy_camera_connection>
+      <phy_camera_connection>
+        <id>3</id>
+        <resolution>1920*1080</resolution>
+        <format>V4L2_PIX_FMT_UYVY</format>
+        <sensor_name>isx031-d</sensor_name>
+        <devnode>/dev/video0</devnode>
+        <native_driver>libvcamhal.so</native_driver>
+      </phy_camera_connection>
+    </phy_camera>
+    <MEMORY>
+      <STACK_SIZE>0x2000</STACK_SIZE>
+    </MEMORY>
+    <CAPACITIES>
+      <MAX_PCI_DEV_NUM>256</MAX_PCI_DEV_NUM>
+      <MAX_PT_IRQ_ENTRIES>256</MAX_PT_IRQ_ENTRIES>
+      <MAX_MSIX_TABLE_NUM>130</MAX_MSIX_TABLE_NUM>
+      <MAX_EMULATED_MMIO>16</MAX_EMULATED_MMIO>
+      <MAX_VM_NUM>5</MAX_VM_NUM>
+      <MAX_IOAPIC_NUM>1</MAX_IOAPIC_NUM>
+      <MAX_IOAPIC_LINES>120</MAX_IOAPIC_LINES>
+    </CAPACITIES>
+    <CACHE_REGION>
+      <CACHE_ALLOCATION>
+        <CACHE_ID>0x0</CACHE_ID>
+        <CACHE_LEVEL>3</CACHE_LEVEL>
+        <POLICY>
+          <VM>VM0</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM0</VM>
+          <VCPU>1</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+      </CACHE_ALLOCATION>
+    </CACHE_REGION>
+    <BUILD_TYPE>debug</BUILD_TYPE>
+    <DEBUG_OPTIONS>
+      <SERIAL_CONSOLE>/dev/ttyS4</SERIAL_CONSOLE>
+      <MEM_LOGLEVEL>5</MEM_LOGLEVEL>
+      <NPK_LOGLEVEL>3</NPK_LOGLEVEL>
+      <CONSOLE_LOGLEVEL>3</CONSOLE_LOGLEVEL>
+    </DEBUG_OPTIONS>
+    <MISC_CFG>
+      <GPU_SBDF>0x00000010</GPU_SBDF>
+    </MISC_CFG>
+  </hv>
+  <vm id="0">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <memory>
+      <size>1024</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>18</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>19</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <lapic_passthrough>y</lapic_passthrough>
+    <os_config>
+      <kern_type>KERNEL_BZIMAGE</kern_type>
+      <kern_mod>Safety_bzImage</kern_mod>
+      <bootargs>rw rootwait root=/dev/nvme0n1p2 console=tty0 console=ttyS0 consoleblank=0 no_timer_check quiet loglevel=3</bootargs>
+    </os_config>
+    <mmio_resources>
+      <TPM2>n</TPM2>
+      <p2sb>n</p2sb>
+    </mmio_resources>
+    <load_order>PRE_LAUNCHED_VM</load_order>
+    <name>VM0</name>
+    <own_pcpu>n</own_pcpu>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+  <vm id="1">
+    <vm_type>TEE_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <memory>
+      <size>1024</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>0</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <os_config>
+      <kern_type>KERNEL_ELF</kern_type>
+      <kern_mod>tee_elf</kern_mod>
+      <bootargs>rw rootwait root=/dev/nvme0n1p2 console=tty0 console=ttyS0 consoleblank=0 no_timer_check quiet loglevel=3</bootargs>
+    </os_config>
+    <mmio_resources>
+      <TPM2>y</TPM2>
+      <p2sb>n</p2sb>
+    </mmio_resources>
+    <lapic_passthrough>n</lapic_passthrough>
+    <io_completion_polling>n</io_completion_polling>
+    <virtual_cat_support>n</virtual_cat_support>
+    <virtual_cat_number>0</virtual_cat_number>
+    <epc_section>
+      <base>0</base>
+      <size>0</size>
+    </epc_section>
+    <load_order>PRE_LAUNCHED_VM</load_order>
+    <name>VM1</name>
+    <own_pcpu>n</own_pcpu>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+  <vm id="2">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <os_config>
+      <kern_type>KERNEL_BZIMAGE</kern_type>
+      <kern_mod>Linux_bzImage</kern_mod>
+      <bootargs>rw rootwait console=tty0 console=ttyS0 consoleblank=0 no_timer_check quiet loglevel=3</bootargs>
+    </os_config>
+    <load_order>SERVICE_VM</load_order>
+    <name>VM2</name>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+  <vm id="3">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <os_type>Non-Windows OS</os_type>
+    <own_pcpu>y</own_pcpu>
+    <vuart0>n</vuart0>
+    <memory>
+      <size>8192</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>2</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>3</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>4</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>5</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>6</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>7</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>8</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>9</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>10</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>11</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <virtio_devices>
+      <camera>
+        <virtual_camera>
+          <physical_camera_id>0</physical_camera_id>
+          <virtual_camera_id>0</virtual_camera_id>
+        </virtual_camera>
+        <virtual_camera>
+          <physical_camera_id>1</physical_camera_id>
+          <virtual_camera_id>1</virtual_camera_id>
+        </virtual_camera>
+		<virtual_camera>
+          <physical_camera_id>2</physical_camera_id>
+          <virtual_camera_id>2</virtual_camera_id>
+        </virtual_camera>
+		<virtual_camera>
+          <physical_camera_id>3</physical_camera_id>
+          <virtual_camera_id>3</virtual_camera_id>
+        </virtual_camera>
+      </camera>
+    </virtio_devices>
+    <customized_parameters>
+    # Bootloader: 0x1800 corresponds to slot 3 for virtio-blk.
+    # Serial by default disabled for performance reasons.
+    -E /usr/share/kernelflinger/kf4sbl.sbl
+    -B "serail_type=0 bdev=VIRTUAL diskbus=0x1800 "
+
+    # GPU VF and display
+    `add_passthrough_device                   2 0000:00:02.1`
+    `add_virtual_device                       4 virtio-gpu geometry=fullscreen:1:timer-vblank`
+
+    # Storage
+    # The guest image can also be a partition for better performance.
+    # For example virtio-blk /dev/nvme0n1p9
+    `add_virtual_device                       3 virtio-blk iothread=2,mq=2,/dev/nvme0n1p5,writeback,discard,aio=io_uring`
+
+    # Passthrough On-Board USB controller
+    # All USB devices plugged to on-board USB panel will be passed-through to this VM
+    #`add_passthrough_device                   6 0000:00:14.0`
+
+    # Passthrough WiFi/Bluetooth (need to passthrough 14.0 also)
+    #`add_passthrough_device                   7 0000:00:14.3`
+
+    # Passthrough DG2
+    #`add_passthrough_device                   8 0000:03:00.0`
+
+    # Add virtio-net connection
+    `add_virtual_device                       9 virtio-net tap=tap0,mac_seed=${mac:0:17}-POST_STD_VM3`
+
+    # Passthrough xDCI
+    #`add_passthrough_device                   10 0000:00:14.1`
+
+    # Add virtio-camera
+    `add_virtual_device                       11 virtio-camera configlib=libcamera_config.so`
+
+    # Add virtio-sound
+    "$(add_virtual_device                     13 virtio-sound "pcmp=C0D0p@1|C1D0p@2|C2D0p@3|C3D0p@4&amp;pcmc=C0D0c@1|C1D0c@2|C2D0c@3&amp;ctl=numid=16,iface=MIXER,name='DAC1 Playback Volume'@0|numid=17,iface=MIXER,name='DAC2 Playback Volume'@0|numid=18,iface=MIXER,name='DAC3 Playback Volume'@0|numid=19,iface=MIXER,name='DAC4 Playback Volume'@0")"
+
+    </customized_parameters>
+    <load_order>POST_LAUNCHED_VM</load_order>
+    <name>VM3</name>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+  <vm id="4">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <os_type>Non-Windows OS</os_type>
+    <own_pcpu>y</own_pcpu>
+    <vuart0>n</vuart0>
+    <vbootloader>y</vbootloader>
+    <memory>
+      <size>2048</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>12</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>13</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>14</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>15</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <virtio_devices/>
+    <customized_parameters>
+    `add_virtual_device                       1:0 lpc`
+
+    `add_virtual_device                       2 virtio-console @stdio:stdio_port`
+
+    # GPU VF and display
+    `add_passthrough_device                   3 0000:00:02.2`
+    `add_virtual_device                       4 virtio-gpu geometry=fullscreen:2`
+
+    # Storage
+    # The guest image can also be a partition for better performance.
+    # For example virtio-blk /dev/nvme0n1p9
+    `add_virtual_device                       5 virtio-blk iothread=2,mq=2,/var/lib/machines/core-image-weston.wic,writeback,discard,aio=io_uring`
+
+    # Add virtio-net connection
+    `add_virtual_device                       6 virtio-net tap=tap1,mac_seed=${mac:0:17}-POST_STD_VM4`
+
+    </customized_parameters>
+    <load_order>POST_LAUNCHED_VM</load_order>
+    <name>VM4</name>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+</acrn-config>
