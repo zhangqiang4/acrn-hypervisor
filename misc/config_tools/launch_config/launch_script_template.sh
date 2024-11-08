@@ -201,11 +201,11 @@ function __add_virtual_device() {
 }
 
 function add_virtual_device() {
-    __add_virtual_device optional $@
+    __add_virtual_device "optional" "$@"
 }
 
 function add_mandatory_virtual_device() {
-    __add_virtual_device mandatory $@
+    __add_virtual_device "mandatory" "$@"
 }
 
 function __add_passthrough_device() {
@@ -235,9 +235,9 @@ function __add_passthrough_device() {
 }
 
 function add_passthrough_device() {
-    __add_passthrough_device optional $@
+    __add_passthrough_device "optional" "$@"
 }
 
 function add_mandatory_passthrough_device() {
-    __add_passthrough_device mandatory $@
+    __add_passthrough_device "mandatory" "$@"
 }
