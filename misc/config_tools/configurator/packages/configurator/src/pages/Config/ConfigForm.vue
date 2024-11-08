@@ -53,7 +53,7 @@ import VUART from "./ConfigForm/CustomWidget/VUART.vue";
 import Network from "./ConfigForm/CustomWidget/Virtio/Network.vue";
 import Console from "./ConfigForm/CustomWidget/Virtio/Console.vue";
 import Input from "./ConfigForm/CustomWidget/Virtio/Input.vue";
-import camera from "./ConfigForm/CustomWidget/Virtio/camera.vue";
+//import camera from "./ConfigForm/CustomWidget/Virtio/camera.vue";
 import CAT from "./ConfigForm/CustomWidget/CAT.vue";
 import GPU from "./ConfigForm/CustomWidget/Virtio/GPU.vue";
 
@@ -97,10 +97,12 @@ export default {
             "ui:title": "",
             "ui:field": GPU,
           },
+          /*
           "camera": {
             "ui:title": "",
             "ui:field": camera,
           },
+          */
         },
         "cpu_affinity": {
           'ui:field': cpu_affinity
