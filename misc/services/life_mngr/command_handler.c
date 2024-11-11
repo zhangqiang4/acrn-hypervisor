@@ -97,7 +97,7 @@ static bool wait_post_vms_enter_state(int state)
 		}
 		check_time--;
 		LOG_PRINTF("Wait post launched VMs %s check_time:%d, Running VM num:%ld\n",
-				state_str[vm->state], check_time, val);
+				state_str[state], check_time, val);
 		sleep(5);
 	} while (check_time > 0);
 
