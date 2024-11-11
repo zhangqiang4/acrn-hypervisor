@@ -73,7 +73,12 @@ static bool init_percpu_lapic_id(void)
 	/* Save all lapic_id detected via parse_mdt in lapic_id_array */
 	phys_cpu_num = parse_madt(lapic_id_array);
 
-	if ((phys_cpu_num != 0U) && (phys_cpu_num <= MAX_PCPU_NUM)) {
+	if (phys_cpu_num != 0U) {
+		/* TODO: flag error bit to record CPU number mismatch */
+		if (phys_cpu_num > MAX_PCPU_NUM) {
+			phys_cpu_num = MAX_PCPU_NUM;
+		}
+
 		for (i = 0U; i < phys_cpu_num; i++) {
 			per_cpu(lapic_id, i) = lapic_id_array[i];
 		}

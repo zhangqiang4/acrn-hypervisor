@@ -218,7 +218,8 @@ int32_t hcall_create_vm(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint6
 			vm_config->guest_flags |= (cv.vm_flag & DM_OWNED_GUEST_FLAG_MASK);
 
 			/* post-launched VM is allowed to choose pCPUs from vm_config->cpu_affinity only */
-			if ((cv.cpu_affinity & ~(vm_config->cpu_affinity)) == 0UL) {
+			if (((cv.cpu_affinity & ~(vm_config->cpu_affinity)) == 0UL) &&
+					((cv.cpu_affinity & ~(ALL_CPUS_MASK)) == 0UL)) {
 				/* By default launch VM with all the configured pCPUs */
 				uint64_t pcpu_bitmap = vm_config->cpu_affinity;
 

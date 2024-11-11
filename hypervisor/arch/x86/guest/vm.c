@@ -967,6 +967,7 @@ int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 {
 	int32_t err = -1;
 	struct acrn_vm *vm = NULL;
+	uint64_t pcpu_bitmap;
 
 #ifdef CONFIG_SECURITY_VM_FIXUP
 	security_vm_fixup(vm_id);
@@ -974,8 +975,17 @@ int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 	if (get_vmid_by_name(vm_config->name) != vm_id) {
 		pr_err("Invalid VM name: %s", vm_config->name);
 	} else {
-		/* Service VM and pre-launched VMs launch on all pCPUs defined in vm_config->cpu_affinity */
-		err = create_vm(vm_id, vm_config->cpu_affinity, vm_config, &vm);
+		pcpu_bitmap = vm_config->cpu_affinity;
+		/* Check the pcpu bitmap for VM, and corrected value is stored in pcpu_bitmap */
+		if ((pcpu_bitmap & (~ALL_CPUS_MASK)) != 0U) {
+			pcpu_bitmap = pcpu_bitmap & ALL_CPUS_MASK;
+			pr_err("Board mismatch detected: Unexpected physical CPU core number. "
+				"CPU bitmap used by VM(name: %s) is reduced from 0x%llx to 0x%llx",
+				vm_config->name, vm_config->cpu_affinity, pcpu_bitmap);
+		}
+
+		/* Service VM and pre-launched VMs launch on all pCPUs defined in pcpu_bitmap */
+		err = create_vm(vm_id, pcpu_bitmap, vm_config, &vm);
 		if (err == 0) {
 			if (is_prelaunched_vm(vm)) {
 				build_vrsdp(vm);
