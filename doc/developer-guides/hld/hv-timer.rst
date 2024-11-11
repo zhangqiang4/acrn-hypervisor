@@ -27,6 +27,8 @@ Data Structures and APIs
 Interfaces Design
 =================
 
+Refer to the module design specification for more details.
+
 .. doxygenfunction:: initialize_timer
    :project: Project ACRN
 
@@ -45,23 +47,17 @@ Interfaces Design
 .. doxygenfunction:: timer_init
    :project: Project ACRN
 
-.. doxygenfunction:: calibrate_tsc
-   :project: Project ACRN
+:c:func:`calibrate_tsc`
 
-.. doxygenfunction:: cpu_ticks
-   :project: Project ACRN
+:c:func:`cpu_ticks`
 
-.. doxygenfunction:: cpu_tickrate
-   :project: Project ACRN
+:c:func:`cpu_tickrate`
 
-.. doxygenfunction:: us_to_ticks
-   :project: Project ACRN
+:c:func:`us_to_ticks`
 
-.. doxygenfunction:: ticks_to_us
-   :project: Project ACRN
+:c:func:`ticks_to_ms`
 
-.. doxygenfunction:: ticks_to_ms
-   :project: Project ACRN
+:c:func:`ticks_to_us`
 
-.. doxygenfunction:: udelay
-   :project: Project ACRN
+:c:func:`udelay`
+

@@ -798,6 +798,9 @@ WARN_LOGFILE           =
 
 INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/e820.c \
+                          ../hypervisor/arch/x86/tsc.c \
+                          ../hypervisor/common/delay.c \
+                          ../hypervisor/common/ticks.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
                           ../hypervisor/include/arch/x86/asm/e820.h \
@@ -806,6 +809,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
+                          ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
                           ../hypervisor/include/arch/x86/asm/guest/vmtrr.h \
                           ../hypervisor/include/arch/x86/asm/guest/vlapic.h \

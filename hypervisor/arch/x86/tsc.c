@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Intel Corporation.
+ * Copyright (C) 2021-2024 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -14,23 +14,68 @@
 #include <logmsg.h>
 #include <acpi.h>
 
-#define CAL_MS	10U
+/**
+ * @addtogroup hwmgmt_time
+ *
+ * @{
+ */
 
-#define HPET_PERIOD	0x004U
-#define HPET_CFG	0x010U
-#define HPET_COUNTER	0x0F0U
+/**
+ * @file
+ * @brief TSC Management
+ *
+ * This file contains the implementation of functions for managing the Time Stamp Counter (TSC). It includes
+ * functions to calibrate the TSC frequency, initialize the HPET, and read the TSC value.
+ */
 
-#define HPET_CFG_ENABLE	0x001UL
+#define CAL_MS	10U  /**< Calibration duration in milliseconds. */
 
+#define HPET_PERIOD	0x004U  /**< HPET period register offset. */
+#define HPET_CFG	0x010U  /**< HPET configuration register offset. */
+#define HPET_COUNTER	0x0F0U  /**< HPET main counter register offset. */
+
+#define HPET_CFG_ENABLE	0x001UL /**< HPET configuration enable register offset. */
+
+/**
+ * @brief TSC frequency in kHz.
+ *
+ * This global variable stores the calibrated TSC frequency in kHz. It is calculated in the function calibrate_tsc()
+ * and used by various functions to get the TSC frequency.
+ */
 static uint32_t tsc_khz;
+
+/**
+ * @brief HPET base address.
+ *
+ * This global variable stores the base address of the HPET. It is initialized in the function hpet_init() and used
+ * by various functions to interact with the HPET registers.
+ */
 static void *hpet_hva;
 
+#define PIT_TICK_RATE	1193182U  /**< PIT tick rate in Hz. */
+#define PIT_TARGET	0x3FFFU  /**< PIT target value. */
+#define PIT_MAX_COUNT	0xFFFFU  /**< Maximum count value for PIT. */
+
+/**
+ * @brief Calibrate the TSC frequency using the PIT.
+ *
+ * This function calibrates the Time Stamp Counter (TSC) frequency using the Programmable Interval Timer (PIT). It is
+ * used as a fallback method when the High Precision Event Timer (HPET) is not available or not capable. The function
+ * measures the TSC frequency by using the PIT to generate a delay and then calculating the TSC frequency based on the
+ * elapsed TSC value during that delay.
+ *
+ * The function is invoked by pit_hpet_calibrate_tsc() when HPET is not available.
+ *
+ * @param[in] cal_ms_arg The calibration duration in milliseconds.
+ *
+ * @return A uint64_t value, the calibrated TSC frequency in Hz.
+ *
+ * @pre cal_ms_arg > 0
+ *
+ * @post N/A
+ */
 static uint64_t pit_calibrate_tsc(uint32_t cal_ms_arg)
 {
-#define PIT_TICK_RATE	1193182U
-#define PIT_TARGET	0x3FFFU
-#define PIT_MAX_COUNT	0xFFFFU
-
 	uint32_t cal_ms = cal_ms_arg;
 	uint32_t initial_pit;
 	uint16_t current_pit;
@@ -75,6 +120,25 @@ static uint64_t pit_calibrate_tsc(uint32_t cal_ms_arg)
 	return (current_tsc / cal_ms) * 1000U;
 }
 
+/**
+ * @brief HPET initialization.
+ *
+ * This function initializes the High Precision Event Timer (HPET). It gets the address of the ACPI HPET
+ * Description Table and sets the general configuration register (offset 0x10) ENABLE_CNF (bit 0) if HPET is
+ * available on the physical platform. This bit is for HPET overall enable. This bit must be set to enable any of
+ * the timers to generate interrupts.
+ *
+ * There are some ways to get TSC frequency: Read from CPUID or use HPET/PIT to measure it. On some physical
+ * platforms, CPUID.15H:ECX (reports the nominal frequency of the core crystal clock in Hz) is equal to 0, and
+ * CPUID.16H:ECX[bit15] can only report frequency in MHz, which is not accurate enough. Thus we use HPET to measure
+ * the TSC frequency when CPUID.15H equals 0 and HPET is available.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 void hpet_init(void)
 {
 	uint64_t cfg;
@@ -89,16 +153,55 @@ void hpet_init(void)
 	}
 }
 
+/**
+ * @brief Check if HPET is capable.
+ *
+ * This function checks whether HPET is capable via the global variable hpet_hva. The hpet_hva refers to the base
+ * address of the ACPI HPET Description Table. If hpet_hva is a null pointer, HPET is not capable.
+ *
+ * @return A boolean value indicating whether HPET is capable.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool is_hpet_capable(void)
 {
 	return (hpet_hva != NULL);
 }
 
+/**
+ * @brief Read HPET memory-mapped registers.
+ *
+ * This function reads HPET memory-mapped registers based on the given offset. For example, if the offset == 0x0F0,
+ * this function will read the main counter value register. Refer to HPET specification for the register definitions.
+ *
+ * @param[in] offset Specify which register would like to read.
+ *
+ * @return The 32bit value read from the given offset.
+ *
+ * @pre offset <= 0x3FF
+ *
+ * @post N/A
+ */
 static inline uint32_t hpet_read(uint32_t offset)
 {
 	return mmio_read32(hpet_hva + offset);
 }
 
+/**
+ * @brief Read TSC and HPET counter.
+ *
+ * This function first reads the HPET counter value and stores it in the provided pointer, then reads the TSC value.
+ *
+ * @param[out] p Pointer to store the HPET counter value.
+ *
+ * @return The current TSC value.
+ *
+ * @pre p != NULL
+ *
+ * @post N/A
+ */
 static inline uint64_t tsc_read_hpet(uint64_t *p)
 {
 	uint64_t current_tsc;
@@ -110,6 +213,23 @@ static inline uint64_t tsc_read_hpet(uint64_t *p)
 	return current_tsc;
 }
 
+/**
+ * @brief Calibrate the TSC frequency using HPET.
+ *
+ * This function calibrates the Time Stamp Counter (TSC) frequency using the High Precision Event Timer (HPET). It
+ * measures the TSC frequency by recording the TSC and HPET values before and after a delay generated by the PIT.
+ * The function calculates the TSC frequency based on the elapsed TSC and HPET values during the delay.
+ *
+ * The function handles the case where the HPET counter wraps around during the measurement.
+ *
+ * @param[in] cal_ms_arg The calibration duration in milliseconds.
+ *
+ * @return A uint64_t value, the calibrated TSC frequency in Hz.
+ *
+ * @pre cal_ms_arg > 0
+ *
+ * @post N/A
+ */
 static uint64_t hpet_calibrate_tsc(uint32_t cal_ms_arg)
 {
 	uint64_t tsc1, tsc2, hpet1, hpet2;
@@ -139,6 +259,25 @@ static uint64_t hpet_calibrate_tsc(uint32_t cal_ms_arg)
 	return tsc_khz * 1000U;
 }
 
+/**
+ * @brief Calibrate the TSC frequency using HPET or PIT.
+ *
+ * This function calibrates the Time Stamp Counter (TSC) frequency using either the High Precision Event Timer (HPET)
+ * or the Programmable Interval Timer (PIT), depending on the availability of HPET. It first checks if HPET is capable
+ * and uses it for calibration if available. Otherwise, it falls back to using the PIT for calibration.
+ *
+ * The function also compares the measured TSC frequency with a reference TSC frequency. If the difference exceeds 5%,
+ * the reference TSC frequency is used as the calibrated value.
+ *
+ * @param[in] cal_ms_arg The calibration duration in milliseconds.
+ * @param[in] tsc_ref_hz The reference TSC frequency in Hz.
+ *
+ * @return A uint64_t value, the calibrated TSC frequency in Hz.
+ *
+ * @pre cal_ms_arg > 0
+ *
+ * @post N/A
+ */
 static uint64_t pit_hpet_calibrate_tsc(uint32_t cal_ms_arg, uint64_t tsc_ref_hz)
 {
 	uint64_t tsc_hz, delta;
@@ -159,8 +298,20 @@ static uint64_t pit_hpet_calibrate_tsc(uint32_t cal_ms_arg, uint64_t tsc_ref_hz)
 	return tsc_hz;
 }
 
-/*
- * Determine TSC frequency via CPUID 0x15.
+/**
+ * @brief Determine TSC frequency via CPUID 0x15.
+ *
+ * This function calculates TSC frequency following this formula if CPUID.15H is available on the physical platform,
+ * and CPUID.15:EAX and CPUID.EBX are both non-zero: tsc_hz = CPUID.15H:ECX * CPUID.15H:EBX / CPUID.15H:EAX.
+ * Otherwise, this function returns 0.
+ *
+ * Refer to Chapter 3.3 CPUID Instruction, Vol. 2, SDM 325426-078 for more details about CPUID.15H.
+ *
+ * @return A uint64_t value, the TSC frequency value in Hz.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static uint64_t native_calculate_tsc_cpuid_0x15(void)
 {
@@ -182,8 +333,21 @@ static uint64_t native_calculate_tsc_cpuid_0x15(void)
 	return tsc_hz;
 }
 
-/*
- * Determine TSC frequency via CPUID 0x16.
+/**
+ * @brief Determine TSC frequency via CPUID 0x16.
+ *
+ * This function calculates TSC frequency following this formula if CPUID.16H is available on the physical platform:
+ * tsc_hz = CPUID.16H:EAX * 1000000U.
+ *
+ * Refer to Chapter 3.3 CPUID Instruction, Vol. 2, SDM 325426-078 for more details about CPUID.16H.
+ *
+ * @return A uint64_t value, the TSC frequency value in Hz.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark CPUID.16H:EAX can only report Processor Base Frequency in MHz, which is not accurate enough.
  */
 static uint64_t native_calculate_tsc_cpuid_0x16(void)
 {
@@ -200,6 +364,32 @@ static uint64_t native_calculate_tsc_cpuid_0x16(void)
 	return tsc_hz;
 }
 
+/**
+ * @brief Calibrate the TSC frequency.
+ *
+ * This function calibrates the Time Stamp Counter (TSC) frequency. The TSC frequency is determined by CPUID.15H if
+ * it reports a non-zero value. Otherwise, the TSC frequency is further calibrated by HPET, PIT and CPUID.16H. It
+ * first measures the TSC frequency using HPET if available; otherwise, it relies on PIT. It then compares the
+ * measured TSC frequency (from either HPET or PIT) with a reference TSC frequency obtained from CPUID.16H (if
+ * available). If the difference exceeds 5%, the reference frequency is used as the calibrated value.
+ *
+ * How to measure TSC frequency using HPET:
+ * - Record the TSC value delta and HPET value delta before and after executing pit_calibrate_tsc(). Divide the TSC
+ *   delta by the HPET delta to get the frequency.
+ *
+ * How to measure TSC frequency using PIT:
+ * - When HPET is not available, use the 8254 Timer: Select counter 0, perform a read operation through port 40h. Use
+ *   a loop to repeatedly read the current value of the PIT counter until it reaches the target value. Calculate the
+ *   elapsed TSC value and return.
+ *
+ * This function does not return a value. The TSC frequency in kHz is recorded in a global variable tsc_khz.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 void calibrate_tsc(void)
 {
 	uint64_t tsc_hz;
@@ -212,6 +402,19 @@ void calibrate_tsc(void)
 	pr_acrnlog("%s: tsc_khz = %ld", __func__, tsc_khz);
 }
 
+/**
+ * @brief Get TSC frequency.
+ *
+ * This function returns the global variable tsc_khz. tsc_khz is calculated in function calibrate_tsc().
+ *
+ * @return A uint32_t value indicates TSC value in kHz.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark This function shall be called after calibrate_tsc() has been called once on the bootstrap processor.
+ */
 uint32_t get_tsc_khz(void)
 {
 	return tsc_khz;
@@ -219,12 +422,41 @@ uint32_t get_tsc_khz(void)
 
 /* external API */
 
+/**
+ * @brief Get CPU ticks.
+ *
+ * This function returns CPU ticks via reading TSC value of the current logical CPU.
+ *
+ * @return A uint64_t value of CPU ticks.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 uint64_t cpu_ticks(void)
 {
 	return rdtsc();
 }
 
+/**
+ * @brief Get CPU tick rate.
+ *
+ * This function returns the CPU tick rate in kHz via global variable tsc_khz. tsc_khz is calculated in function
+ * calibrate_tsc().
+ *
+ * @return A uint32_t value indicating CPU tick rate in kHz.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark This function shall be called after calibrate_tsc() has been called once on the bootstrap processor.
+ */
 uint32_t cpu_tickrate(void)
 {
 	return tsc_khz;
 }
+
+/**
+ * @}
+ */
