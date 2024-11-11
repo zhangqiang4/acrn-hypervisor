@@ -15,7 +15,8 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 [File] dm/vpci/ivshmem.c
 ======================================================================
 
-
+.. doxygenfile:: ivshmem.c
+   :project: Project ACRN
 
 [File] dm/vuart.c
 ======================================================================
@@ -32,7 +33,8 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 [File] dm/vpci/vhostbridge.c
 ======================================================================
 
-
+.. doxygenfile:: vhostbridge.c
+   :project: Project ACRN
 
 [File] dm/vpci/vpci_bridge.c
 ======================================================================

@@ -842,6 +842,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
                           ../hypervisor/dm/vpci/vpci_bridge.c \
+                          ../hypervisor/dm/vpci/ivshmem.c \
+                          ../hypervisor/dm/vpci/vhostbridge.c \
                           ../hypervisor/include/dm/vuart.h \
 
 
