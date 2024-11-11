@@ -251,13 +251,13 @@ The documentation block shall be placed right before the function definition
 in the C source file or header file.
 
 Following documentation items shall be included when applicable.
-   1) (Mandatory) The brief description of the function shall be documented with the format
+   #. (Mandatory) The brief description of the function shall be documented with the format
       ``@brief <brief description>``.
 
-   2) (Optional) The informative description of the function is used to illustrate its purpose,
+   #. (Optional) The informative description of the function is used to illustrate its purpose,
       when it is supposed to be used, etc.
 
-   3) (Mandatory if it is an external API of a component or a module)
+   #. (Mandatory if it is an external API of a component or a module)
       Normal case behaviors and error case behaviors shall be documented following
       the informative description (if applicable).
       It may be omitted if this function is an internal function in a component or a module.
@@ -270,7 +270,7 @@ Following documentation items shall be included when applicable.
          Error case behavior may be omitted if the API shall always be able to conduct
          its expected behavior.
 
-   6) (Mandatory if the function parameter is not void)
+   #. (Mandatory if the function parameter is not void)
       The description of the function parameter shall be documented with the
       format ``@param[direction] <parameter name> <parameter description>``.
       It may be omitted if the function parameter is void.
@@ -290,27 +290,27 @@ Following documentation items shall be included when applicable.
        * Direction of a parameter shall be ``inout`` if neither of the above cases apply,
          indicating that the function is free to read or modify the parameter.
 
-   7) (Mandatory) The description of the return value shall be documented
+   #. (Mandatory) The description of the return value shall be documented
       with the format ``@return <description of the return value>``.
       A void-returning function shall be documented with ``@return None``.
 
-   8) (Mandatory if the return value represents error conditions)
+   #. (Mandatory if the return value represents error conditions)
       A list of more detailed specifications of return values shall be documented with
       the format ``@retval <return value> <return value explanation>``.
       This list is mandatory if the function returns an integer representing error code.
       For functions returning pointers or integers that do not range in a small fixed range,
       this list may be omitted.
 
-   9) (Mandatory) The pre-condition of the function shall be documented with the format
+   #. (Mandatory) The pre-condition of the function shall be documented with the format
       ``@pre <pre-condition description>``. C expressions shall be used when possible.
       If there is no pre-conditions, say ``@pre N/A``.
 
-   10) (Mandatory) The post-condition of the function shall be documented with the format
-       ``@post <post-condition description>``. C expressions shall be used when possible.
-       If there is no post-conditions, say ``@post N/A``.
+   #. (Mandatory) The post-condition of the function shall be documented with the format
+      ``@post <post-condition description>``. C expressions shall be used when possible.
+      If there is no post-conditions, say ``@post N/A``.
 
-   11) (Optional) A set of remarks that specify the additional constraints on using this function
-       shall be documented with the format ``@remark <additional constraints>``.
+   #. (Optional) A set of remarks that specify the additional constraints on using this function
+      shall be documented with the format ``@remark <additional constraints>``.
 
 
 Compliant example::
