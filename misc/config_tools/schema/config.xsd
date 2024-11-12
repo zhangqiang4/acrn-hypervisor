@@ -39,6 +39,11 @@
         <xs:documentation>Select the default VM in hypervisor console output. Default is hypervisor console.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="HV_COREDUMP_ENABLED" type="Boolean" default="y">
+      <xs:annotation acrn:title="Hypervisor Coredump" acrn:views="basic">
+        <xs:documentation>Enable Coredump in hypervisor exception handling, need bootloader support it by warm-reset.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
   </xs:all>
 </xs:complexType>
 

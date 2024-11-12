@@ -11,6 +11,7 @@
 #include <asm/per_cpu.h>
 #include <asm/guest/vm_reset.h>
 #include <vm_event.h>
+#include <dump.h>
 
 /**
  * @pre vm != NULL
@@ -103,6 +104,8 @@ static bool handle_common_reset_reg_write(struct acrn_vcpu *vcpu, bool reset, bo
 		poweroff_if_rt_vm(vm);
 
 		if (get_highest_severity_vm(true) == vm) {
+			/* warm-reset can be used by Slimbootloader to boot coredump process */
+			trigger_coredump(warm);
 			reset_host(warm);
 		} else if (is_postlaunched_vm(vm)) {
 			/* re-inject to DM */

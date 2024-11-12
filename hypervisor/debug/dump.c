@@ -11,9 +11,11 @@
 #include <asm/vmx.h>
 #include <asm/guest/vm.h>
 #include <asm/init.h>
+#include <asm/host_pm.h>
 #include <logmsg.h>
 #include <dump.h>
 #include <reloc.h>
+#include <config.h>
 
 #define CALL_TRACE_HIERARCHY_MAX    20U
 #define DUMP_STACK_SIZE 0x200U
@@ -257,4 +259,22 @@ void dump_exception(struct intr_excp_ctx *ctx, uint16_t pcpu_id)
 
 	/* Release lock to let other CPUs handle exception */
 	spinlock_release(&exception_spinlock);
+#ifdef CONFIG_HV_COREDUMP_ENABLED
+	/* triger warm reset, let Slimbootloader to boot coredump process */
+	reset_host(true);
+#endif
+}
+
+void trigger_coredump(bool dump)
+{
+#ifdef CONFIG_HV_COREDUMP_ENABLED
+	if (dump) {
+		/* trigger coredump through exception of dividing zero, Exception
+		  handler will trigger warm-reset, then Slimbootloader will boot
+		  coredump process to complete dump */
+		asm("movl $0x1, %eax");
+		asm("movl $0x0, %ecx");
+		asm("idiv  %ecx");
+	}
+#endif
 }

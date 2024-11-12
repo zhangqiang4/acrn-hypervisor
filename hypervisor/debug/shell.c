@@ -22,6 +22,7 @@
 #include <shell.h>
 #include <asm/guest/vmcs.h>
 #include <asm/host_pm.h>
+#include <dump.h>
 
 #define TEMP_STR_SIZE		60U
 #define MAX_STR_SIZE		256U
@@ -49,6 +50,7 @@ static int32_t shell_show_ioapic_info(__unused int32_t argc, __unused char **arg
 static int32_t shell_loglevel(int32_t argc, char **argv);
 static int32_t shell_cpuid(int32_t argc, char **argv);
 static int32_t shell_reboot(int32_t argc, char **argv);
+static int32_t shell_coredump(int32_t argc, char **argv);
 static int32_t shell_rdmsr(int32_t argc, char **argv);
 static int32_t shell_wrmsr(int32_t argc, char **argv);
 
@@ -142,6 +144,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_REBOOT_PARAM,
 		.help_str	= SHELL_CMD_REBOOT_HELP,
 		.fcn		= shell_reboot,
+	},
+	{
+		.str		= SHELL_CMD_COREDUMP,
+		.cmd_param	= SHELL_CMD_COREDUMP_PARAM,
+		.help_str	= SHELL_CMD_COREDUMP_HELP,
+		.fcn		= shell_coredump,
 	},
 	{
 		.str		= SHELL_CMD_RDMSR,
@@ -1527,6 +1535,12 @@ static int32_t shell_cpuid(int32_t argc, char **argv)
 static int32_t shell_reboot(__unused int32_t argc, __unused char **argv)
 {
 	reset_host(false);
+	return 0;
+}
+
+static int32_t shell_coredump(__unused int32_t argc, __unused char **argv)
+{
+	trigger_coredump(true);
 	return 0;
 }
 

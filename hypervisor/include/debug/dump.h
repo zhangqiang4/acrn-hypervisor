@@ -11,5 +11,5 @@ struct intr_excp_ctx;
 
 void dump_intr_excp_frame(const struct intr_excp_ctx *ctx);
 void dump_exception(struct intr_excp_ctx *ctx, uint16_t pcpu_id);
-
+void trigger_coredump(bool dump);
 #endif /* DUMP_H */

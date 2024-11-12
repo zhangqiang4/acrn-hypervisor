@@ -71,6 +71,10 @@
     </xsl:call-template>
 
     <xsl:apply-templates select="SERIAL_CONSOLE" />
+
+    <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'HV_COREDUMP_ENABLED'" />
+    </xsl:call-template>
   </xsl:template>
 
   <xsl:template match="FEATURES">

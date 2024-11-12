@@ -88,6 +88,10 @@ struct shell {
 #define SHELL_CMD_REBOOT_PARAM		NULL
 #define SHELL_CMD_REBOOT_HELP		"Trigger a system reboot (immediately)"
 
+#define SHELL_CMD_COREDUMP		"coredump"
+#define SHELL_CMD_COREDUMP_PARAM	NULL
+#define SHELL_CMD_COREDUMP_HELP		"Trigger a system full coredump (immediately,need support of bootloader)"
+
 #define SHELL_CMD_IOAPIC		"dump_ioapic"
 #define SHELL_CMD_IOAPIC_PARAM		NULL
 #define SHELL_CMD_IOAPIC_HELP		"Show native IOAPIC information"
