@@ -13,6 +13,8 @@ from breathe.renderer.sphinxrenderer import SphinxRenderer, \
     WithContext, InlineText, get_param_decl, \
     get_definition_without_template_args
 
+from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS,TAB, TAB_SIZE
+
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
 need_inserted_path = os.path.dirname(os.path.abspath(__file__))
@@ -25,19 +27,11 @@ BaseRender = SphinxRenderer
 class BreatheRenderer(BaseRender):
     sections = BaseRender.sections
 
-    # if need change Defines to Macros
-    define_pos = 0
-    for i, sect in enumerate(sections):
-        if sect[0] == 'define':
-            define_pos = i
-    sections.pop(define_pos)
-    sections.append(('define', 'Macros'))
-
-    # add section title for structs
-    sections.append(('struct', 'Data Structures'))
+    # update sections according settings.py
+    section_titles = dict(sections)
+    section_titles.update(dict(UPDATED_SECTION_NAMES))
 
     # bind section_titles to class SphinxRenderer
-    section_titles = dict(sections)
     BaseRender.section_titles = section_titles
 
     def visit_compounddef(self, node) -> List[Node]:  # add title for structs
@@ -115,25 +109,58 @@ class BreatheRenderer(BaseRender):
             addnode(kind, lambda: section_nodelists.get(kind, []))  # order prefined sections according natural ordering
 
         # add class title
-        if node.kind == "file" and node.innerclass:
-            innerclass_cat = set()
-            for cnode in node.innerclass:
-                file_data = self.compound_parser.parse(cnode.refid)
-                kind_ = file_data.compounddef.kind
-                innerclass_cat.add(kind_)
-            for kind in innerclass_cat:
-                text = self.section_titles[kind]
-                idtext = text.replace(" ", "-").lower()
-                rubric = nodes.rubric(
-                    text=text,
-                    classes=["breathe-sectiondef-title"],
-                    ids=["breathe-section-title-" + idtext],
-                )
-                section_nodelists.setdefault(kind, []).append(rubric)
-                addnode(kind, lambda: section_nodelists.get(kind, []))
+        def add_innerclass():
+            if node.kind == 'file' and node.innerclass:
+                res_set = set()
+                for cnode in node.innerclass:
+                    file_data = self.compound_parser.parse(cnode.refid)
+                    kind_ = file_data.compounddef.kind
+                    res_set.add(kind_)
+
+                for kind in res_set:
+                    # rubric should be first element of children in the container
+                    text = self.section_titles[kind]
+                    idtext = text.replace(" ", "-").lower()
+                    rubric = nodes.rubric(
+                        text=text,
+                        classes=["breathe-sectiondef-title"],
+                        ids=["breathe-section-title-" + idtext],
+                    )
+
+                    # retrieve children
+                    child_nodes = []
+                    top_level_node_names = set()
+                    for cnode in node.innerclass:
+                        cnode_path = cnode.valueOf_.split('.')
+                        top_level_node_name = cnode_path[0]
+                        top_level_node_names.add(top_level_node_name)
+                        ref_node = self.compound_parser.parse(cnode.refid)
+                        ref_node_kind = ref_node.compounddef.kind
+                        if ref_node_kind == kind:
+                            if len(cnode_path) != 1:  # skip if not top level nodes
+                                continue
+                            else:  # top_level_nodes
+                                top_level_node = cnode
+                                child_node = self.render(top_level_node)
+                                child_nodes.extend(child_node)
+
+                    if not child_nodes:
+                        continue
+
+                    # node installation
+                    rst_node = nodes.container(classes=["breathe-sectiondef"])
+                    rst_node.document = self.state.document
+                    rst_node["objtype"] = kind
+                    rst_node.append(rubric)
+                    rst_node.extend(child_nodes)
+                    section_nodelists.setdefault(kind, []).append(rst_node)
+                    # render the node
+                    addnode(kind, lambda: section_nodelists.get(kind, []))
+
+        add_innerclass()
 
         # Take care of innerclasses
-        addnode("innerclass", lambda: self.render_iterable(node.innerclass))
+        # addnode("innerclass", lambda: self.render_iterable(node.innerclass))
         addnode("innernamespace", lambda: self.render_iterable(node.innernamespace))
 
         if "inner" in options:
@@ -161,10 +188,54 @@ class BreatheRenderer(BaseRender):
         # TODO: remove this once Sphinx supports definitions for macros
         def add_definition(declarator: Declarator) -> None:
             if node.initializer and self.app.config.breathe_show_define_initializer:
-                declarator.append(nodes.Text(" \t\t"))  # add spaces to seperate macro name and value
+                declarator.append(nodes.Text(f" {TAB*TAB_SIZE}"))  # add spaces to seperate macro name and value
                 declarator.extend(self.render(node.initializer))
 
         return self.handle_declaration(node, declaration, declarator_callback=add_definition)
+
+    def visit_sectiondef(self, node) -> List[Node]:
+        self.context = cast(RenderContext, self.context)
+        options = self.context.directive_args[2]
+        node_list = []
+        node_list.extend(self.render_optional(node.description))
+
+        # Get all the memberdef info
+        if "sort" in options:
+            member_def = sorted(node.memberdef, key=lambda x: x.name)
+        else:
+            member_def = node.memberdef
+
+        node_list.extend(self.render_iterable(member_def))
+
+        if node_list:
+            if "members-only" in options:
+                return node_list
+
+            if node.kind in SKIPPED_ITEMS:
+                return node_list
+
+            text = self.section_titles[node.kind]
+            # Override default name for user-defined sections. Use "Unnamed
+            # Group" if the user didn't name the section
+            # This is different to Doxygen which will track the groups and name
+            # them Group1, Group2, Group3, etc.
+            if node.kind == "user-defined":
+                if node.header:
+                    text = node.header
+                else:
+                    text = "Unnamed Group"
+
+            # Use rubric for the title because, unlike the docutils element "section",
+            # it doesn't interfere with the document structure.
+            idtext = text.replace(" ", "-").lower()
+            rubric = nodes.rubric(
+                text=text,
+                classes=["breathe-sectiondef-title"],
+                ids=["breathe-section-title-" + idtext],
+            )
+            res: List[Node] = [rubric]
+            return res + node_list
+        return []
 
     # some methods should be modified and not be contained in methods
     met = {
@@ -177,7 +248,8 @@ class BreatheRenderer(BaseRender):
 
     # some methods should be modified and be contained in methods
     BaseRender.methods.update({
-        "compounddef": visit_compounddef
+        "compounddef": visit_compounddef,
+        "sectiondef": visit_sectiondef
     })
 
 
