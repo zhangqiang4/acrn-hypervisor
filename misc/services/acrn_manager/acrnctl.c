@@ -100,7 +100,7 @@ static int check_name(const char *name)
 static const char *acrnctl_bin_path;
 static int find_acrn_dm;
 #define MAX_WORD   64
-#define BUFF_LEN   256
+#define BUFF_LEN   512
 
 static int write_tmp_file(int fd, int n, char *word[])
 {
