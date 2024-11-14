@@ -68,6 +68,7 @@ life_mngr.service: life_mngr.service.in
 all-linux: life_mngr.service
 	$(CC) -g $(LM_C_SRCS) -o $(OUT_DIR)/life_mngr -lpthread $(LIFEMNGR_CFLAGS) $(LIFEMNGR_LDFLAGS)
 	cp life_mngr.conf $(OUT_DIR)/life_mngr.conf
+	cp reboot_trigger_linux.py $(OUT_DIR)/reboot_trigger_linux.py
 	cp s3_trigger_linux.py $(OUT_DIR)/s3_trigger_linux.py
 	cp s5_trigger_linux.py $(OUT_DIR)/s5_trigger_linux.py
 	cp system_reboot_trigger_linux_rtvm.py $(OUT_DIR)/system_reboot_trigger_linux_rtvm.py
@@ -90,6 +91,7 @@ clean:
 ifneq ($(OUT_DIR),.)
 	rm -f $(OUT_DIR)/life_mngr.service
 	rm -f $(OUT_DIR)/life_mngr.conf
+	rm -f $(OUT_DIR)/reboot_trigger_linux.py
 	rm -f $(OUT_DIR)/s3_trigger_linux.py
 	rm -f $(OUT_DIR)/s5_trigger_linux.py
 	rm -f $(OUT_DIR)/system_reboot_trigger_linux_rtvm.py
@@ -104,5 +106,6 @@ install:
 	install -m 0644 -t $(DESTDIR)$(CONF_DIR) $(OUT_DIR)/life_mngr.conf
 	install -p -D -m 0644 $(OUT_DIR)/life_mngr.service $(DESTDIR)$(systemd_unitdir)/system/
 	install -d $(DESTDIR)$(datadir)/acrn/life-mngr
+	install -m 0644 -t $(DESTDIR)$(datadir)/acrn/life-mngr $(OUT_DIR)/reboot_trigger_linux.py
 	install -m 0644 -t $(DESTDIR)$(datadir)/acrn/life-mngr $(OUT_DIR)/s3_trigger_linux.py
 	install -m 0644 -t $(DESTDIR)$(datadir)/acrn/life-mngr $(OUT_DIR)/s5_trigger_linux.py
