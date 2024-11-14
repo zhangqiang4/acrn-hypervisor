@@ -2121,7 +2121,8 @@ PREDEFINED             = "__attribute__(x)=" \
                          "__aligned(x)=" \
                          "__packed=" \
                          "__unused=" \
-                         "__printf_like(x, y)="
+                         "__printf_like(x, y)=" \
+                         "CONFIG_IVSHMEM_ENABLED=" \
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
