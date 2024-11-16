@@ -23,7 +23,9 @@ typedef uint64_t cap_ioctl_t;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-#define BIT(x) (1 << (x))
+#define BIT(x)			(1U << (x))
+#define BITUL(x)		(1UL << (x))
+#define BITULL(x)		(1ULL << (x))
 
 #define ALIGN_UP(x, align)	(((x) + ((align)-1)) & ~((align)-1))
 #define ALIGN_DOWN(x, align)	((x) & ~((align)-1))
@@ -143,6 +145,30 @@ static inline uint16_t ffs64(uint64_t value)
 	 * or if value is zero, returns zero.
 	 */
 	return value ? (uint16_t)__builtin_ffsl(value) - 1U: INVALID_BIT_INDEX;
+}
+
+/*
+ * fnp2 - Find next power of 2 of the value.
+ *
+ * Constraint: 0 < value <= (1ULL << 63).
+ *
+ * @return value: next power of 2 of the value
+ */
+static inline uint64_t fnp2(uint64_t value)
+{
+	return BITULL(flsl(value - 1) + 1);
+}
+
+/*
+ * fpp2 - Find previous power of 2 of the value.
+ *
+ * Input value shall not be zero.
+ *
+ * @return value: previous power of 2 of the value
+ */
+static inline uint64_t fpp2(uint64_t value)
+{
+	return BITULL(flsl(value));
 }
 
 /* memory barrier */

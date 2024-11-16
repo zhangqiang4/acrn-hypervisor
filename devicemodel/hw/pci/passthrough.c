@@ -208,7 +208,7 @@ load_pci_rombar(struct vmctx *ctx, struct pci_vdev *dev, char *rom_file)
 			fseek(fp, 0, SEEK_END);
 			file_size = ftell(fp);
 			fseek(fp, 0, SEEK_SET);
-			if (file_size > (2048 * 1024)) {
+			if (!file_size || file_size > (2048 * 1024)) {
 				pr_warn("Rom file is too big.\n");
 				ptdev->need_rombar = false;
 			}
@@ -217,11 +217,7 @@ load_pci_rombar(struct vmctx *ctx, struct pci_vdev *dev, char *rom_file)
 			ptdev->need_rombar = false;
 		}
 		if (ptdev->need_rombar) {
-			rom_size = ALIGN_UP(file_size, 4096);
-			/* round up to a power of 2 */
-			if ((rom_size & (rom_size - 1)) != 0)
-				rom_size = 1UL << fls(rom_size);
-
+			rom_size = fnp2(file_size);
 			if (posix_memalign((void **)&rom_buffer, 4096, rom_size) == 0) {
 				ptdev->rom_buffer = rom_buffer;
 				read_size = fread(rom_buffer, 1, file_size, fp);
