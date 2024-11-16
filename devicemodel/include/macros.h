@@ -44,6 +44,11 @@
 #define	MB		(1024 * 1024UL)
 #define	GB		(1024 * 1024 * 1024UL)
 
+#undef MIN
+#undef MAX
+#define MIN(a, b)	(((a) < (b)) ? (a) : (b))
+#define MAX(a, b)	(((a) > (b)) ? (a) : (b))
+
 /* Operations on timespecs */
 #define	timespecclear(tvp)	((tvp)->tv_sec = (tvp)->tv_nsec = 0)
 #define	timespecisset(tvp)	((tvp)->tv_sec || (tvp)->tv_nsec)
