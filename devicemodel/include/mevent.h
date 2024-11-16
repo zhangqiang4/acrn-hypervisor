@@ -53,9 +53,4 @@ void	mevent_dispatch(void);
 int	mevent_init(void);
 void	mevent_deinit(void);
 
-#define list_foreach_safe(var, head, field, tvar)	\
-for ((var) = LIST_FIRST((head));			\
-	(var) && ((tvar) = LIST_NEXT((var), field), 1);\
-	(var) = (tvar))
-
 #endif	/* _MEVENT_H_ */

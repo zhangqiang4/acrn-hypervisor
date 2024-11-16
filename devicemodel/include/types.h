@@ -28,6 +28,11 @@ typedef uint64_t cap_ioctl_t;
 #define ALIGN_UP(x, align)	(((x) + ((align)-1)) & ~((align)-1))
 #define ALIGN_DOWN(x, align)	((x) & ~((align)-1))
 
+#define list_foreach_safe(var, head, field, tvar)	\
+for ((var) = LIST_FIRST((head));			\
+	(var) && ((tvar) = LIST_NEXT((var), field), 1);\
+	(var) = (tvar))
+
 #define container_of(ptr, type, member) ({                   \
 	const typeof(((type *)0)->member) * __mptr = (ptr);  \
 	(type *)((char *)__mptr - (offsetof(type, member))); \
