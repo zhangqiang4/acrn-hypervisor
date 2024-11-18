@@ -803,6 +803,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/delay.c \
                           ../hypervisor/common/ticks.c \
                           ../hypervisor/common/sbuf.c \
+                          ../hypervisor/common/timer.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/lib/stack_protector.c \
                           ../hypervisor/arch/x86/lib/retpoline-thunk.S \
@@ -840,6 +841,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/timer.h \
                           ../hypervisor/include/common/ptdev.h \
                           ../hypervisor/include/common/sbuf.h \
+                          ../hypervisor/include/hw/hw_timer.h \
                           ../hypervisor/include/public/acrn_common.h \
                           ../hypervisor/include/public/acrn_hv_defs.h \
                           ../devicemodel/include/virtio.h \
@@ -865,6 +867,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/arch/x86/irq.c \
                           ../hypervisor/arch/x86/exception.c \
+                          ../hypervisor/arch/x86/tsc_deadline_timer.c \
                           ../hypervisor/arch/x86/nmi.c \
                           ../hypervisor/arch/x86/idt.S \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
