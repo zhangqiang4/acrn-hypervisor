@@ -853,6 +853,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/dm/vpci/ivshmem.c \
                           ../hypervisor/dm/vpci/vhostbridge.c \
                           ../hypervisor/include/dm/vuart.h \
+                          ../hypervisor/dm/vpci/vdev.c \
 
 
 # This tag can be used to specify the character encoding of the source files

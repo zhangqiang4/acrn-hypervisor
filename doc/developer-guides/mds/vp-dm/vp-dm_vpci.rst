@@ -5,7 +5,9 @@ Design of Module `vp-dm.vpci`
 
 This section contains the documentation of the module `vp-dm.vpci`.
 
-
+.. doxygengroup:: vp-dm_vpci
+   :project: Project ACRN
+   :desc-only:
 
 .. contents::
    :local:
@@ -15,6 +17,8 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/vdev.c
 ======================================================================
+.. doxygenfile:: vdev.c
+   :project: Project ACRN
 
 [File] dm/vpci/pci_pt.c
 ======================================================================
