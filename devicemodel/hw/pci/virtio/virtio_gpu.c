@@ -255,6 +255,7 @@ struct virtio_gpu_resource_create_2d {
 struct dma_buf_info {
 	int32_t ref_count;
 	int dmabuf_fd;
+	uint64_t size;
 };
 
 struct virtio_gpu_resource_2d {
@@ -1654,7 +1655,7 @@ virtio_gpu_create_dmabuf_deviceptr(struct virtio_gpu *gpu,
 
 	deviceptr = malloc(sizeof(*deviceptr));
 	items = malloc(nr_entries * sizeof(*items));
-	info = malloc(sizeof(*info));
+	info = calloc(1, sizeof(*info));
 	fd = i915_fd();
 	if (!deviceptr || !items || !info || fd < 0) {
 		fprintf(stderr, "failed to allocate memory\n");
@@ -1669,6 +1670,7 @@ virtio_gpu_create_dmabuf_deviceptr(struct virtio_gpu *gpu,
 	for (i = 0; i < nr_entries; ++i) {
 		items[i].offset = entries[i].addr;
 		items[i].size = entries[i].length;
+		info->size += entries[i].length;
 	}
 	ret = drmIoctl(fd, DRM_IOCTL_I915_GEM_DEVICEPTR, deviceptr);
 	if (ret) {
@@ -1716,7 +1718,7 @@ virtio_gpu_create_dmabuf_udmabuf(struct virtio_gpu *gpu,
 
 	fail_flag = false;
 	list = malloc(sizeof(*list) + sizeof(struct udmabuf_create_item) * nr_entries);
-	info = malloc(sizeof(*info));
+	info = calloc(1, sizeof(*info));
 	if ((info == NULL) || (list == NULL)) {
 		free(list);
 		free(info);
@@ -1725,6 +1727,7 @@ virtio_gpu_create_dmabuf_udmabuf(struct virtio_gpu *gpu,
 	for (i = 0; i < nr_entries; i++) {
 		addr = entries[i].addr;
 		len = entries[i].length;
+		info->size += len;
 		while (len > 0) {
 			if (vm_find_memfd_region(gpu->base.dev->vmctx,
 						addr,
