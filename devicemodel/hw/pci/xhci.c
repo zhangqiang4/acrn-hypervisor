@@ -870,6 +870,7 @@ pci_xhci_native_usb_dev_disconn_cb(void *hci_data, void *dev_data)
 				usb_dev_path(&di->path), vport);
 		pci_xhci_disconnect_port(xdev, vport, 0);
 		xdev->native_ports[index].state = VPORT_ASSIGNED;
+		xdev->native_ports[index].vport = 0;
 		return 0;
 	}
 
