@@ -169,7 +169,7 @@ static inline int _get_vmname(const char *src, char *vmname, int max_len_vmname)
 	return 0;
 }
 
-#define MAX_FILE_SIZE   (4096 * 5)
+#define MAX_FILE_SIZE   (4096 * 10)
 
 #define TMP_FILE_SUFFIX		".acrnctl"
 
