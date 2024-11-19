@@ -1809,7 +1809,6 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 	struct virtio_gpu_ctrl_hdr resp;
 	int i;
 	uint8_t *pbuf;
-	struct iovec *iov;
 
 	memcpy(&req, cmd->iov[0].iov_base, sizeof(req));
 	cmd->iolen = sizeof(resp);
@@ -1880,61 +1879,30 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 			memcpy(pbuf, cmd->iov[i].iov_base, cmd->iov[i].iov_len);
 			pbuf += cmd->iov[i].iov_len;
 		}
-		if (req.size > CURSOR_BLOB_SIZE) {
-			/* Try to create the dma buf */
-			if ((cmd->gpu->vdpy_if.vfid > 0) && (req.blob_flags & VIRTGPU_BLOB_FLAG_USE_DEVICE_MEM)) {
-				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
-									entries,
-									req.nr_entries,
-									MEMORY_TYPE_I915_DEVICE);
-			}
-			if (r2d->dma_info == NULL) {
-				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
-									entries,
-									req.nr_entries,
-									MEMORY_TYPE_MEMFD);
-			}
-			if (r2d->dma_info == NULL) {
-				free(entries);
-				resp.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
-				memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
-				pr_err("%s :failed to create dmabuf out of scatter list\n", __func__);
-				return;
-			}
-
-			vdpy_create_res(r2d->dma_info->dmabuf_fd);
-			r2d->blob = true;
-		} else {
-			/* Cursor resource with 64x64 and PIXMAN_a8r8g8b8 format.
-			 * Or when it fails to create dmabuf
-			 */
-			r2d->width = 64;
-			r2d->height = 64;
-			r2d->format = PIXMAN_a8r8g8b8;
-			r2d->image = pixman_image_create_bits(
-					r2d->format, r2d->width, r2d->height, NULL, 0);
-
-			iov = malloc(req.nr_entries * sizeof(struct iovec));
-			if (!iov) {
-				pr_err("%s : memory allocation for iov failed.\n", __func__);
-				free(entries);
-				free(r2d);
-				resp.type = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
-				memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
-				return;
-			}
-			r2d->iov = iov;
-
-			r2d->iovcnt = req.nr_entries;
-			for (i = 0; i < req.nr_entries; i++) {
-				r2d->iov[i].iov_base = paddr_guest2host(
-						cmd->gpu->base.dev->vmctx,
-						entries[i].addr,
-						entries[i].length);
-				r2d->iov[i].iov_len = entries[i].length;
-			}
+		/* Try to create the dma buf */
+		if ((cmd->gpu->vdpy_if.vfid > 0) && (req.blob_flags & VIRTGPU_BLOB_FLAG_USE_DEVICE_MEM)) {
+			r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
+								entries,
+								req.nr_entries,
+								MEMORY_TYPE_I915_DEVICE);
+		}
+		if (r2d->dma_info == NULL) {
+			r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
+								entries,
+								req.nr_entries,
+								MEMORY_TYPE_MEMFD);
+		}
+		if (r2d->dma_info == NULL) {
+			free(entries);
+			resp.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
+			memcpy(cmd->iov[cmd->iovcnt - 1].iov_base, &resp, sizeof(resp));
+			pr_err("%s :failed to create dmabuf out of scatter list\n", __func__);
+			return;
 		}
 
+		vdpy_create_res(r2d->dma_info->dmabuf_fd);
+		r2d->blob = true;
+		r2d->dma_info->size = req.size;
 		free(entries);
 	}
 	resp.type = VIRTIO_GPU_RESP_OK_NODATA;
