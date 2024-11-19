@@ -109,13 +109,20 @@ struct cursor {
 	enum surface_type surf_type;
 	/* use pixman_format as the intermediate-format */
 	pixman_format_code_t surf_format;
+
 	uint32_t x;
 	uint32_t y;
 	uint32_t hot_x;
 	uint32_t hot_y;
 	uint32_t width;
 	uint32_t height;
-	void *data;
+
+	union {
+		/* Used by pixman buffer */
+		void *data;
+		/* Used by DMA-BUF buffer */
+		int fd;
+	};
 };
 
 struct vdpy_if {
