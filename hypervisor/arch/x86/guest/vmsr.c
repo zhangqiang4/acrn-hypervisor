@@ -814,6 +814,11 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		v = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
 		/* As CPUID.01H:ECX[7] is removed from guests, guests should not see EIST enable bit. */
 		v &= ~MSR_IA32_MISC_ENABLE_EIST;
+		/*
+		 * If guest try to read bit 22, return 0.
+		 * Guest needs CPUID.15H/16H to get TSC frequency, this bit shall be 0 to make them active.
+		 */
+		v &= ~MSR_IA32_MISC_ENABLE_LIMIT_CPUID;
 		break;
 	}
 	case MSR_IA32_SGXLEPUBKEYHASH0:
@@ -1074,6 +1079,9 @@ static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 			update_vmsr = false;
 		}
 	}
+
+	/* Ignore the write of IA32_MISC_ENABLE[bit 22] */
+	effective_guest_msr &= ~MSR_IA32_MISC_ENABLE_LIMIT_CPUID;
 
 	if (update_vmsr) {
 		vcpu_set_guest_msr(vcpu, MSR_IA32_MISC_ENABLE, effective_guest_msr);

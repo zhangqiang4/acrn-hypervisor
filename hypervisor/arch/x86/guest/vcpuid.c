@@ -714,26 +714,6 @@ static void guest_cpuid_80000001h(const struct acrn_vcpu *vcpu,
 	}
 }
 
-static void guest_limit_cpuid(const struct acrn_vcpu *vcpu, uint32_t leaf,
-	uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
-{
-	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
-
-	if ((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_LIMIT_CPUID) != 0UL) {
-		/* limit the leaf number to 2 */
-		if (leaf == 0U) {
-			*eax = 2U;
-		} else if (leaf > 2U) {
-			*eax = 0U;
-			*ebx = 0U;
-			*ecx = 0U;
-			*edx = 0U;
-		} else {
-			/* In this case, leaf is 1U, return the cpuid value get above */
-		}
-	}
-}
-
 void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	uint32_t leaf = *eax;
@@ -810,5 +790,4 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 		}
 	}
 
-	guest_limit_cpuid(vcpu, leaf, eax, ebx, ecx, edx);
 }
