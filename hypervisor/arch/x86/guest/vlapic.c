@@ -978,7 +978,14 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 {
 	get_vm_lock(target_vcpu->vm);
 	if (mode == APIC_DELMODE_INIT) {
-		if ((icr_low & APIC_LEVEL_MASK) != APIC_LEVEL_DEASSERT) {
+		/*
+		 * vBSP will ignore INIT IPI.
+		 *
+		 * The default Intel CPU behavior is "execute the BIOS boot-strap code (if it's the BSP)"
+		 * from Intel SDM Chapter 9.4.2, Vol. 3, version 325462-078. However it's not feasible for
+		 * the vBSP to go to reset vector in this case in all ACRN VM environment.
+		 */
+		if (((icr_low & APIC_LEVEL_MASK) != APIC_LEVEL_DEASSERT) && !is_vcpu_bsp(target_vcpu)) {
 
 			dev_dbg(DBG_LEVEL_VLAPIC,
 				"Sending INIT to %hu",
@@ -997,6 +1004,9 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 			 * wait-for-SIPI state.
 			*/
 			target_vcpu->arch.nr_sipi = 1U;
+		} else {
+			pr_err("Ignore INIT IPI to VCPU%hu for VM[%d]",
+				target_vcpu->vcpu_id, target_vcpu->vm->vm_id);
 		}
 	} else if (mode == APIC_DELMODE_STARTUP) {
 		/* Ignore SIPIs in any state other than wait-for-SIPI */
