@@ -111,9 +111,13 @@ static const struct timing_entry {
 	{ .hpixel = 1600, .vpixel = 1200, .hz = 60,  .is_std = true },
 	{ .hpixel = 1600, .vpixel =  900, .hz = 60,  .is_std = true },
 	{ .hpixel = 1440, .vpixel =  900, .hz = 60,  .is_std = true },
+};
 
+static const struct timing_entry timings_cea[] = {
 	/* CEA-861 Timings */
 	{ .hpixel = 3840, .vpixel = 2160, .hz = 60,  .is_cea861 = true, .vic = 97 },
+	{ .hpixel = 3840, .vpixel = 2160, .hz = 100,  .is_cea861 = true, .vic = 117 },
+	{ .hpixel = 3840, .vpixel = 2160, .hz = 120,  .is_cea861 = true, .vic = 118 },
 };
 
 typedef struct frame_param{
@@ -134,6 +138,7 @@ typedef struct frame_param{
 	uint64_t pixel_clock;   // Hz
 	uint32_t width;         // mm
 	uint32_t height;        // mm
+	bool high_resolution;
 }frame_param;
 
 typedef struct base_param{
@@ -152,11 +157,13 @@ typedef struct base_param{
 }base_param;
 
 static void
-vdpy_edid_set_baseparam(base_param *b_param, uint32_t width, uint32_t height)
+vdpy_edid_set_baseparam(base_param *b_param, uint32_t width, uint32_t height, uint32_t refresh_rate)
 {
 	b_param->h_pixel = width;
 	b_param->v_pixel = height;
-	b_param->rate = 60;
+	b_param->rate = refresh_rate;
+	if (b_param->rate <= 0)
+		b_param->rate = 60;
 	b_param->width = width;
 	b_param->height = height;
 
@@ -186,6 +193,11 @@ vdpy_edid_set_frame(frame_param *frame, const base_param *b_param)
 			(frame->vav_line + frame->vb_line + frame->tvb_line * 2);
 	frame->width = b_param->width;
 	frame->height = b_param->height;
+	frame->high_resolution = false;
+	if (frame->hav_pixel >= 4096 || frame->vav_line >= 4096 ||
+				(frame->pixel_clock / 10000) > 65535) {
+		frame->high_resolution = true;
+	}
 }
 
 static void
@@ -226,10 +238,9 @@ vdpy_edid_set_color(uint8_t *edid, float red_x, float red_y,
 }
 
 static uint8_t
-vdpy_edid_set_timing(uint8_t *addr, TIMING_MODE mode)
+vdpy_edid_set_timing(const struct timing_entry *timings, int size, uint8_t *addr, TIMING_MODE mode)
 {
 	static uint16_t idx;
-	static uint16_t size;
 	const struct timing_entry *timing;
 	uint8_t stdcnt;
 	uint16_t hpixel;
@@ -244,7 +255,6 @@ vdpy_edid_set_timing(uint8_t *addr, TIMING_MODE mode)
 	}
 
 	idx = 0;
-	size = sizeof(timings) / sizeof(timings[0]);
 	for(; idx < size; idx++){
 		timing = timings + idx;
 
@@ -328,16 +338,6 @@ vdpy_edid_set_dtd(uint8_t *dtd, const frame_param *frame)
 {
 	uint16_t pixel_clk;
 
-	if ((frame->pixel_clock / 10000) > 65535) {
-		/*
-		 * Large screen. The pixel_clock won't fit in two bytes.
-		 * We fill in a dummy DTD here and OS will pick up PTM
-		 * from extension block.
-		 */
-		dtd[3] = 0x10; /* Tag 0x10: Dummy descriptor */
-		return;
-	}
-
 	// Range: 10 kHz to 655.35 MHz in 10 kHz steps
 	pixel_clk = frame->pixel_clock / 10000;
 	memcpy(dtd, &pixel_clk, sizeof(pixel_clk));
@@ -367,17 +367,23 @@ vdpy_edid_set_dtd(uint8_t *dtd, const frame_param *frame)
 }
 
 static void
-vdpy_edid_set_descripter(uint8_t *desc, uint8_t is_dtd,
-		uint8_t tag, const base_param *b_param)
+vdpy_edid_set_descripter(uint8_t *desc, uint8_t is_dtd, uint8_t tag,
+			const base_param *b_param, const frame_param *frame)
 {
-	frame_param frame;
 	const char* text;
 	uint16_t len;
 
-
 	if (is_dtd) {
-		vdpy_edid_set_frame(&frame, b_param);
-		vdpy_edid_set_dtd(desc, &frame);
+		if (frame->high_resolution) {
+			/*
+			 * Large screen. The pixel_clock won't fit in two bytes.
+			 * We fill in a dummy DTD here and OS will pick up PTM
+			 * from extension block.
+			 */
+			desc[3] = 0x10; /* Tag 0x10: Dummy descriptor */
+		} else {
+			vdpy_edid_set_dtd(desc, frame);
+		}
 		return;
 	}
 	desc[3] = tag;
@@ -386,7 +392,7 @@ vdpy_edid_set_descripter(uint8_t *desc, uint8_t is_dtd,
 	// Established Timings III Descriptor (tag #F7h)
 	case 0xf7:
 		desc[5] = 0x0a; // Revision Number
-		vdpy_edid_set_timing(desc, ESTT3);
+		vdpy_edid_set_timing(timings, sizeof(timings)/sizeof(timings[0]), desc, ESTT3);
 		break;
 	// Display Range Limits & Additional Timing Descriptor (tag #FDh)
 	case 0xfd:
@@ -438,12 +444,17 @@ vdpy_edid_generate(uint8_t *edid, size_t size, struct edid_info *info)
 {
 	uint16_t id_manuf;
 	uint16_t id_product;
+	uint16_t did_value;
 	uint32_t serial;
 	uint8_t *desc;
+	uint8_t *edid_did;
+	int index;
 	base_param b_param;
-	uint8_t num_cea_timings;
+	uint8_t num_cea_timings = 0;
+	frame_param frame;
 
-	vdpy_edid_set_baseparam(&b_param, info->prefx, info->prefy);
+	vdpy_edid_set_baseparam(&b_param, info->prefx, info->prefy, info->refresh_rate);
+	vdpy_edid_set_frame(&frame, &b_param);
 
 	memset(edid, 0, size);
 	/* edid[7:0], fixed header information, (00 FF FF FF FF FF FF 00)h */
@@ -499,24 +510,24 @@ vdpy_edid_generate(uint8_t *edid, size_t size, struct edid_info *info)
 				  0.3127, 0.3290);
 
 	/* edid[37:35], Established Timings */
-	vdpy_edid_set_timing(edid, ESTT);
+	vdpy_edid_set_timing(timings, sizeof(timings)/sizeof(timings[0]), edid, ESTT);
 
 	/* edid[53:38], Standard Timings: Identification 1 -> 8 */
-	vdpy_edid_set_timing(edid, STDT);
+	vdpy_edid_set_timing(timings, sizeof(timings)/sizeof(timings[0]), edid, STDT);
 
 	/* edid[125:54], Detailed Timing Descriptor - 18 bytes x 4 */
 	// Preferred Timing Mode
 	desc = edid + 54;
-	vdpy_edid_set_descripter(desc, 0x1, 0, &b_param);
+	vdpy_edid_set_descripter(desc, 0x1, 0, &b_param, &frame);
 	// Display Range Limits & Additional Timing Descriptor (tag #FDh)
 	desc += 18;
-	vdpy_edid_set_descripter(desc, 0, 0xfd, &b_param);
+	vdpy_edid_set_descripter(desc, 0, 0xfd, &b_param, &frame);
 	// Display Product Name (ASCII) String Descriptor (tag #FCh)
 	desc += 18;
-	vdpy_edid_set_descripter(desc, 0, 0xfc, &b_param);
+	vdpy_edid_set_descripter(desc, 0, 0xfc, &b_param, &frame);
 	// Display Product Serial Number Descriptor (tag #FFh)
 	desc += 18;
-	vdpy_edid_set_descripter(desc, 0, 0xff, &b_param);
+	vdpy_edid_set_descripter(desc, 0, 0xff, &b_param, &frame);
 
 	/* EDID[126], Extension Block Count */
 	edid[126] = 0;  // no Extension Block
@@ -535,12 +546,65 @@ vdpy_edid_generate(uint8_t *edid, size_t size, struct edid_info *info)
 		// SVDs
 		edid[EDID_BASIC_BLOCK_SIZE + 4] |= 0x02 << 5;
 		desc = edid + EDID_BASIC_BLOCK_SIZE + 5;
-		num_cea_timings = vdpy_edid_set_timing(desc, CEA861);
+
+		for (index = 0; index < sizeof(timings_cea)/sizeof(timings_cea[0]); index++) {
+			if (b_param.h_pixel == timings_cea[index].hpixel &&
+					b_param.v_pixel == timings_cea[index].vpixel &&
+					b_param.rate == timings_cea[index].hz) {
+				break;
+			}
+
+		}
+		if (index < sizeof(timings_cea)/sizeof(timings_cea[0]))
+			num_cea_timings += vdpy_edid_set_timing(&timings_cea[index], 1, desc, CEA861);
+
 		edid[EDID_BASIC_BLOCK_SIZE + 4] |= num_cea_timings;
 		edid[EDID_BASIC_BLOCK_SIZE + 2] |= 5 + num_cea_timings;
 
 		desc = edid + EDID_BASIC_BLOCK_SIZE;
 		edid[EDID_BASIC_BLOCK_SIZE + 127] = vdpy_edid_get_checksum(desc);
+	}
+
+	if (frame.high_resolution && size >= 384) {
+		edid[126]++;
+		edid[127] = vdpy_edid_get_checksum(edid);
+		edid_did = edid + 256;
+		// DISPLAY ID Extension
+		edid_did[0] = 0x70;
+		// Version
+		edid_did[1] = 0x13;
+		// len
+		edid_did[2] = 23;
+		// product type
+		edid_did[3] = 0x03;
+		// DTD
+		edid_did[5] = 0x03;
+		// Revision
+		edid_did[6] = 0x00;
+		// Block len
+		edid_did[7] = 0x14;
+		edid_did[8]  = (frame.pixel_clock / 10000) & 0xff;
+		edid_did[9]  = ((frame.pixel_clock / 10000) & 0xff00) >> 8;
+		edid_did[10] = ((frame.pixel_clock /10000) & 0xff0000) >> 16;
+		edid_did[11] = 0x88;
+		did_value = (frame.hav_pixel - 1) & 0xffff;
+		memcpy(&edid_did[12],  &did_value, 2);
+		did_value = (frame.hb_pixel - 1) & 0xffff;
+		memcpy(&edid_did[14],  &did_value, 2);
+		did_value = (frame.hfp_pixel - 1) & 0xffff;
+		memcpy(&edid_did[16],  &did_value, 2);
+		did_value = (frame.hsp_pixel - 1) & 0xffff;
+		memcpy(&edid_did[18],  &did_value, 2);
+		did_value = (frame.vav_line - 1) & 0xffff;
+		memcpy(&edid_did[20],  &did_value, 2);
+		did_value = (frame.vb_line - 1) & 0xffff;
+		memcpy(&edid_did[22],  &did_value, 2);
+		did_value = (frame.vfp_line - 1) & 0xffff;
+		memcpy(&edid_did[24],  &did_value, 2);
+		did_value = (frame.vsp_line - 1) & 0xffff;
+		memcpy(&edid_did[26],  &did_value, 2);
+		edid_did[28] = vdpy_edid_get_checksum(edid_did + 1);
+		edid_did[127] = vdpy_edid_get_checksum(edid_did);
 	}
 }
 
@@ -562,13 +626,14 @@ vdpy_get_edid(int handle, int scanout_id, uint8_t *edid, size_t size)
 		edid_info.prefy = display.height;
 		edid_info.maxx = VDPY_MAX_WIDTH;
 		edid_info.maxy = VDPY_MAX_HEIGHT;
+		edid_info.refresh_rate = display.vrefresh;
 	} else {
 		edid_info.prefx = VDPY_DEFAULT_WIDTH;
 		edid_info.prefy = VDPY_DEFAULT_HEIGHT;
 		edid_info.maxx = VDPY_MAX_WIDTH;
 		edid_info.maxy = VDPY_MAX_HEIGHT;
+		edid_info.refresh_rate = VDPY_DEFAULT_VREFRESH;
 	}
-	edid_info.refresh_rate = 0;
 	edid_info.vendor = NULL;
 	edid_info.name = NULL;
 	edid_info.sn = NULL;

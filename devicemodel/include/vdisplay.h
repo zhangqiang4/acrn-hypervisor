@@ -25,10 +25,11 @@ typedef void (*bh_task_func)(void *data);
 /* free vdpy_display_bh after executing bh_cb */
 #define ACRN_BH_FREE    (1 << 2)
 
-#define VDPY_MAX_WIDTH 3840
-#define VDPY_MAX_HEIGHT 2160
+#define VDPY_MAX_WIDTH 7680
+#define VDPY_MAX_HEIGHT 7680
 #define VDPY_DEFAULT_WIDTH 1024
 #define VDPY_DEFAULT_HEIGHT 768
+#define VDPY_DEFAULT_VREFRESH 60
 #define VDPY_MIN_WIDTH 640
 #define VDPY_MIN_HEIGHT 480
 #define VSCREEN_MAX_NUM VDPY_MAX_NUM
@@ -57,6 +58,7 @@ struct display_info {
 	int yoff;
 	uint32_t width;
 	uint32_t height;
+	uint32_t vrefresh;
 };
 
 enum surface_type {

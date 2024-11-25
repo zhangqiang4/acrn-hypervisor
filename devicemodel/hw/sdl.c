@@ -627,6 +627,7 @@ static void sdl_display_info(void *backend, struct display_info *display)
 	display->yoff = vscr->info.yoff;
 	display->width = vscr->info.width;
 	display->height = vscr->info.height;
+	display->vrefresh = vscr->info.vrefresh;
 }
 
 static void sdl_set_modifier(void *backend, int64_t modifier)
@@ -737,6 +738,7 @@ static int sdl_init_thread()
 		vscr->info.yoff = vscr->org_y;
 		vscr->info.width = vscr->guest_width;
 		vscr->info.height = vscr->guest_height;
+		vscr->info.vrefresh = VDPY_DEFAULT_VREFRESH;
 	}
 	sdl_gl_display_init();
 	return 0;
