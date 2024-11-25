@@ -407,7 +407,7 @@ void vcpu_set_rip(struct acrn_vcpu *vcpu, uint64_t val);
  *
  * @return the value of RSP.
  */
-uint64_t vcpu_get_rsp(const struct acrn_vcpu *vcpu);
+uint64_t vcpu_get_rsp(struct acrn_vcpu *vcpu);
 
 /**
  * @brief set vcpu RSP value

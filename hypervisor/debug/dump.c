@@ -78,7 +78,7 @@ static void dump_guest_reg(struct acrn_vcpu *vcpu)
 			vcpu->vm->vm_id, vcpu->vcpu_id, pcpu_id);
 	pr_acrnlog("=	RIP=0x%016lx  RSP=0x%016lx RFLAGS=0x%016lx\r\n",
 			vcpu_get_rip(vcpu),
-			vcpu_get_gpreg(vcpu, CPU_REG_RSP),
+			vcpu_get_rsp(vcpu),
 			vcpu_get_rflags(vcpu));
 	pr_acrnlog("=	CR0=0x%016lx  CR2=0x%016lx  CR3=0x%016lx\r\n",
 			vcpu_get_cr0(vcpu),
@@ -113,7 +113,7 @@ static void dump_guest_stack(struct acrn_vcpu *vcpu)
 	uint64_t tmp[DUMP_STACK_SIZE], fault_addr;
 	uint32_t err_code = 0U;
 
-	if (copy_from_gva(vcpu, tmp, vcpu_get_gpreg(vcpu, CPU_REG_RSP),
+	if (copy_from_gva(vcpu, tmp, vcpu_get_rsp(vcpu),
 		DUMP_STACK_SIZE, &err_code, &fault_addr) < 0) {
 		pr_acrnlog("\r\nUnabled to Copy Guest Stack:\r\n");
 		return;
@@ -121,10 +121,10 @@ static void dump_guest_stack(struct acrn_vcpu *vcpu)
 
 	pr_acrnlog("\r\nGuest Stack:\r\n");
 	pr_acrnlog("Dump stack for vcpu %hu, from gva 0x%016lx\r\n",
-			vcpu->vcpu_id, vcpu_get_gpreg(vcpu, CPU_REG_RSP));
+			vcpu->vcpu_id, vcpu_get_rsp(vcpu));
 	for (i = 0U; i < (DUMP_STACK_SIZE >> 5U); i++) {
 		pr_acrnlog("guest_rsp(0x%lx):  0x%016lx  0x%016lx 0x%016lx  0x%016lx\r\n",
-				(vcpu_get_gpreg(vcpu, CPU_REG_RSP)+(i*32U)),
+				(vcpu_get_rsp(vcpu)+(i*32U)),
 				tmp[i*4], tmp[(i*4)+1],
 				tmp[(i*4)+2], tmp[(i*4)+3]);
 	}

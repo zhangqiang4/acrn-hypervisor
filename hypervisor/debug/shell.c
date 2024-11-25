@@ -881,7 +881,7 @@ static void dump_vcpu_reg(void *data)
 		"=  R13=0x%016lx  R14=0x%016lx  R15=0x%016lx\r\n",
 		vcpu->vm->vm_id, vcpu->vcpu_id,
 		vcpu_get_rip(vcpu),
-		vcpu_get_gpreg(vcpu, CPU_REG_RSP),
+		vcpu_get_rsp(vcpu),
 		vcpu_get_rflags(vcpu),
 		vcpu_get_cr0(vcpu), vcpu_get_cr2(vcpu),
 		exec_vmread(VMX_GUEST_CR3), vcpu_get_cr4(vcpu),

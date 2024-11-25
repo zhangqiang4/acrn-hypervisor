@@ -69,10 +69,14 @@ void vcpu_set_rip(struct acrn_vcpu *vcpu, uint64_t val)
 	bitmap_set_nolock(CPU_REG_RIP, &vcpu->reg_updated);
 }
 
-uint64_t vcpu_get_rsp(const struct acrn_vcpu *vcpu)
+uint64_t vcpu_get_rsp(struct acrn_vcpu *vcpu)
 {
-	const struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
+	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
 
+	if (!bitmap_test(CPU_REG_RSP, &vcpu->reg_updated) &&
+		!bitmap_test_and_set_nolock(CPU_REG_RSP, &vcpu->reg_cached)) {
+		ctx->cpu_regs.regs.rsp = exec_vmread(VMX_GUEST_RSP);
+	}
 	return ctx->cpu_regs.regs.rsp;
 }
 
