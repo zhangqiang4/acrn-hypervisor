@@ -50,6 +50,7 @@ class GenerateJson:
     def write_configuration_json(self):
         self.add_defaults()
         self.add_phy_cameras()
+        self.add_service_vm()
         self.add_vms()
         self.flush()
         self.close_file()
@@ -148,6 +149,20 @@ class GenerateJson:
 
     def get_vm_node_list(self):
         return self.scenario_etree.xpath("/acrn-config/vm")
+
+    def add_service_vm(self):
+        configs = {"SERVICE_VM": []}
+        cam_tmp = {"camera": {}}
+        phy_camera_list = self.get_phy_camera_node_list()
+        for id_, cam_node in enumerate(phy_camera_list):
+            phy_id_ = cam_node.find("id").text
+            phy_id = int(phy_id_) if phy_id_ else ""
+            cam_tmp['camera'].update({
+                'id': id_,
+                'phy_id': phy_id
+            })
+            configs["SERVICE_VM"].append(deepcopy(cam_tmp))
+        self.doc.content(configs)
 
     def add_vms(self):
         vm_node_list = self.get_vm_node_list()
