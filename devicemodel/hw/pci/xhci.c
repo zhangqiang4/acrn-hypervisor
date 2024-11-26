@@ -200,7 +200,6 @@ struct pci_xhci_dev_ep {
 		struct xhci_trb		*_epu_tr;
 		struct xhci_stream_ctx	*_epu_sctx;
 	} _ep_trbsctx;
-#define	ep_tr		_ep_trbsctx._epu_tr
 #define	ep_sctx		_ep_trbsctx._epu_sctx
 
 	union {
@@ -1750,7 +1749,6 @@ pci_xhci_init_ep(struct pci_xhci_dev_emu *dev, int epid, uint32_t slot)
 		devep->ep_ringaddr = ep_ctx->qwEpCtx2 &
 				     XHCI_EPCTX_2_TR_DQ_PTR_MASK;
 		devep->ep_ccs = XHCI_EPCTX_2_DCS_GET(ep_ctx->qwEpCtx2);
-		devep->ep_tr = XHCI_GADDR(dev->xdev, devep->ep_ringaddr);
 		UPRINTF(LDBG, "init_ep tr DCS %x\r\n", devep->ep_ccs);
 	}
 
@@ -2552,6 +2550,9 @@ pci_xhci_cmd_set_tr(struct pci_xhci_vdev *xdev,
 			    trb->qwTrb0 & ~0xF;
 			devep->ep_sctx_trbs[streamid].ccs =
 			    XHCI_EPCTX_2_DCS_GET(trb->qwTrb0);
+			struct xhci_trb *next = XHCI_GADDR(xdev, devep->ep_sctx_trbs[streamid].ringaddr);
+			UPRINTF(LDBG, "set_tr first TRB:\r\n");
+			pci_xhci_dump_trb(next);
 		}
 	} else {
 		if (streamid != 0) {
@@ -2561,10 +2562,10 @@ pci_xhci_cmd_set_tr(struct pci_xhci_vdev *xdev,
 		ep_ctx->qwEpCtx2 = trb->qwTrb0 & ~0xFUL;
 		devep->ep_ringaddr = ep_ctx->qwEpCtx2 & ~0xFUL;
 		devep->ep_ccs = trb->qwTrb0 & 0x1;
-		devep->ep_tr = XHCI_GADDR(xdev, devep->ep_ringaddr);
+		struct xhci_trb *next = XHCI_GADDR(xdev, devep->ep_ringaddr);
 
 		UPRINTF(LDBG, "set_tr first TRB:\r\n");
-		pci_xhci_dump_trb(devep->ep_tr);
+		pci_xhci_dump_trb(next);
 	}
 	ep_ctx->dwEpCtx0 = (ep_ctx->dwEpCtx0 & ~0x7) | XHCI_ST_EPCTX_STOPPED;
 
@@ -3019,7 +3020,6 @@ pci_xhci_update_ep_ring(struct pci_xhci_vdev *xdev,
 	} else {
 		devep->ep_ringaddr = ringaddr & ~0xFUL;
 		devep->ep_ccs = ccs & 0x1;
-		devep->ep_tr = XHCI_GADDR(xdev, ringaddr & ~0xFUL);
 		ep_ctx->qwEpCtx2 = (ringaddr & ~0xFUL) | (ccs & 0x1);
 
 		UPRINTF(LDBG, "update ep-ring, addr %lx\r\n",
@@ -3425,7 +3425,7 @@ pci_xhci_device_doorbell(struct pci_xhci_vdev *xdev,
 	} else {
 		ringaddr = devep->ep_ringaddr;
 		ccs = devep->ep_ccs;
-		trb = devep->ep_tr;
+		trb = XHCI_GADDR(xdev, ringaddr & ~0xFUL);
 		UPRINTF(LDBG, "doorbell, ccs %lx, trb ccs %x\r\n",
 			ep_ctx->qwEpCtx2 & XHCI_TRB_3_CYCLE_BIT,
 			trb->dwTrb3 & XHCI_TRB_3_CYCLE_BIT);
