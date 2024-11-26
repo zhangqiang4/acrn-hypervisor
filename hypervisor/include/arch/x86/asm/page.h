@@ -32,17 +32,11 @@
  * This file defines macros, structures and function declarations for managing memory pages.
  */
 
-#define PAGE_SHIFT	12U
-#define PAGE_SIZE	(1U << PAGE_SHIFT)
-#define PAGE_MASK	0xFFFFFFFFFFFFF000UL
+#define PAGE_SHIFT	12U                     /**< Page address shift */
+#define PAGE_SIZE	(1U << PAGE_SHIFT)      /**< Page size */
+#define PAGE_MASK	0xFFFFFFFFFFFFF000UL    /**< Page address mask */
 
-#define MAX_PHY_ADDRESS_SPACE	(1UL << MAXIMUM_PA_WIDTH)
-
-/* size of the low MMIO address space: 2GB */
-#define PLATFORM_LO_MMIO_SIZE	0x80000000UL
-
-/* size of the high MMIO address space: 1GB */
-#define PLATFORM_HI_MMIO_SIZE	0x40000000UL
+#define MAX_PHY_ADDRESS_SPACE	(1UL << MAXIMUM_PA_WIDTH)       /**< Max supported physical address size */
 
 /**
  * @brief Calculate the number of page map level-4(PML4) that is requested to control the memory region with the
@@ -51,6 +45,8 @@
  * Page map level-4(PML4) table is the top-level table in the x86-64 paging hierarchy. Each entry in the PML4 table can
  * potentially map a 512 GiB region, with the entire PML4 table capable of addressing up to 256 TiB. So 1 PML4 table is
  * enough to control the entire physical address space.
+ *
+ * @param[in] size Memory size in bytes
  */
 #define PML4_PAGE_NUM(size)	1UL
 /**
@@ -60,6 +56,8 @@
  * A page directory pointer table(PDPT) can be referenced by a PML4E and each PML4E controls access to a 512-GByte
  * region. It is supposed to be called when hypervisor allocates the page-directory-pointer tables for hypervisor and
  * all VMs.
+ *
+ * @param[in] size Memory size in bytes
  */
 #define PDPT_PAGE_NUM(size)	(((size) + PML4E_SIZE - 1UL) >> PML4E_SHIFT)
 /**
@@ -68,6 +66,8 @@
  *
  * A page directory(PD) can be referenced by a PDPTE and each PDPTE controls access to a 1-GByte region. It is supposed
  * to be called when hypervisor allocates the page directories for hypervisor and all VMs.
+ *
+ * @param[in] size Memory size in bytes
  */
 #define PD_PAGE_NUM(size)	(((size) + PDPTE_SIZE - 1UL) >> PDPTE_SHIFT)
 /**
@@ -76,6 +76,8 @@
  *
  * A page table(PT) can be referenced by a PDE and each PDE controls access to a 2-MByte region. It is supposed to be
  * called when hypervisor allocates the page tables for hypervisor and all VMs.
+ *
+ * @param[in] size Memory size in bytes
  */
 #define PT_PAGE_NUM(size)	(((size) + PDE_SIZE - 1UL) >> PDE_SHIFT)
 

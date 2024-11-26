@@ -26,7 +26,7 @@
  *
  */
 
-#define DBG_LEVEL_MMU	6U
+#define DBG_LEVEL_MMU	6U	/**< MMU-related log level */
 
 /**
  * @brief Host physical address of the sanitized page.
@@ -36,11 +36,41 @@
  */
 static uint64_t sanitized_page_hpa;
 
+/**
+ * @brief Sanitize a page table entry (PTE)
+ *
+ * This function invalidates a page table entry (PTE) by clearing its present bit, and sets is address to the
+ * host physical address of "sanitized page" with no secret data to mitigate L1TF.
+ *
+ * @param[inout] ptep  Pointer to the page table entry (PTE) to be invalidated.
+ * @param[in]    table Pointer to the page table struct which ptep belongs to.
+ *
+ * @return None
+ *
+ * @pre (ptep != NULL) && (table != NULL)
+ *
+ * @post N/A
+ */
 static void sanitize_pte_entry(uint64_t *ptep, const struct pgtable *table)
 {
 	set_pgentry(ptep, sanitized_page_hpa, table);
 }
 
+/**
+ * @brief Sanitize a page table page with invalid entries
+ *
+ * This function sanitizes a page table page by calling sanitize_pte_entry for each page table entry in it
+ * to mitigate L1TF.
+ *
+ * @param[inout] pt_page Pointer to the page table page to be initialized.
+ * @param[in]    table   Pointer to the page table struct which pt_page belongs to.
+ *
+ * @return None
+ *
+ * @pre (ptep != NULL) && (table != NULL)
+ *
+ * @post N/A
+ */
 static void sanitize_pte(uint64_t *pt_page, const struct pgtable *table)
 {
 	uint64_t i;
@@ -52,8 +82,8 @@ static void sanitize_pte(uint64_t *pt_page, const struct pgtable *table)
 /**
  * @brief Initializes a sanitized page.
  *
- * This function is responsible for initializing a sanitized page. It sets the page table entries in this sanitized page
- * to point to the host physical address of the sanitized page itself.
+ * This function is responsible for initializing a sanitized page. It sets the page table entries in this sanitized
+ * page to point to the host physical address of the sanitized page itself.
  *
  * The static variable 'sanitized_page_hpa' will be set and the `sanitized_page` will be initialized.
  *
@@ -80,6 +110,26 @@ void init_sanitized_page(uint64_t *sanitized_page, uint64_t hpa)
 	}
 }
 
+/**
+ * @brief Free a page table page if all of its entries are not present
+ *
+ * When unmapping a page (type is MR_DEL), this function would check whether all the page table entries in this
+ * page is not present, if so, it will free this page and clear its page directory entry by sanitize_pte_entry.
+ * Otherwise it does nothing.
+ *
+ * Caller must ensure the given page is a page table page and the given PDE is points to that page.
+ *
+ * @param[in]    table   Pointer to the page table struct which pt_page belongs to.
+ * @param[inout] pde     Pointer to the page directory entry (PDE) referring to pt_page.
+ * @param[in]    pt_page Pointer to the page table page to be freed.
+ * @param[in]    type    Type of operation to perform.
+ *
+ * @return None
+ *
+ * @pre (table != NULL) && (pde != NULL) && (pt_page != NULL)
+ *
+ * @post N/A
+ */
 static void try_to_free_pgtable_page(const struct pgtable *table,
 			uint64_t *pde, uint64_t *pt_page, uint32_t type)
 {
@@ -100,10 +150,25 @@ static void try_to_free_pgtable_page(const struct pgtable *table,
 	}
 }
 
-/*
- * Split a large page table into next level page table.
+/**
+ * @brief Split a large page table into next level page table
  *
- * @pre: level could only IA32E_PDPT or IA32E_PD
+ * This function splits a large page table into next level page table with same properties. Only PDPTE
+ * and PDE support large page.
+ *
+ * @param[inout] pte     Pointer to the page table entry (PDPTE or PDE) to split.
+ * @param[in]    level   Level of pte, either IA32E_PDPT or IA32E_PD.
+ * @param[in]    vaddr   Unused variable.
+ * @param[in]    table   Pointer to the page table struct which pte belongs to.
+ *
+ * @return None
+ *
+ * @pre (pte != NULL) && (pgtable != NULL)
+ * @pre (level == IA32E_PDPT) || (level == IA32E_PD)
+ * @pre pgentry_present(table, (*pte)) == 1
+ * @pre (*pte & PTE_SIZE) == 1
+ *
+ * @post N/A
  */
 static void split_large_page(uint64_t *pte, enum _page_table_level level,
 		__unused uint64_t vaddr, const struct pgtable *table)
@@ -142,6 +207,28 @@ static void split_large_page(uint64_t *pte, enum _page_table_level level,
 	/* TODO: flush the TLB */
 }
 
+/**
+ * @brief Modify or unmap a page table entry
+ *
+ * When modifying a page table entry (type is MR_MODIFY), this function clears then sets the given properties
+ * on given page table entry.
+ *
+ * When unmapping a page table entry (type is MR_DEL), this function clears the given page table entry.
+ *
+ * @param[inout] pte      Pointer to the page table entry to operate on.
+ * @param[in]    prot_set Properties to be set. (MR_MODIFY only)
+ * @param[in]    prot_clr Properties to be cleared. (MR_MODIFY only)
+ * @param[in]    type     Type of operation to perform.
+ * @param[in]    table    Pointer to the page table struct which pte belongs to.
+ *
+ * @return None
+ *
+ * @pre (type == MR_MODIFY) || (type == MR_DELETE)
+ * @pre (pte != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pte)) == 1
+ *
+ * @post N/A
+ */
 static inline void local_modify_or_del_pte(uint64_t *pte,
 		uint64_t prot_set, uint64_t prot_clr, uint32_t type, const struct pgtable *table)
 {
@@ -155,8 +242,23 @@ static inline void local_modify_or_del_pte(uint64_t *pte,
 	}
 }
 
-/*
- * pgentry may means pml4e/pdpte/pde
+/**
+ * @brief Construct page directory entry with given page table page.
+ *
+ * This function sanitizes the given page table page and constructs page directory entry pointing to the given page
+ * table page with given properties
+ *
+ * @param[inout] pde     Pointer to the page directory entry to operate on.
+ * @param[in]    pt_page Pointer to the page whic pde is going to point to.
+ * @param[in]    prot    Properties of pde.
+ * @param[in]    table   Pointer to the page table struct which pde belongs to.
+ *
+ * @return None
+ *
+ * @pre (pte != NULL) && (pt_page != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pde)) == 0
+ *
+ * @post N/A
  */
 static inline void construct_pgentry(uint64_t *pde, void *pt_page, uint64_t prot, const struct pgtable *table)
 {
@@ -165,12 +267,34 @@ static inline void construct_pgentry(uint64_t *pde, void *pt_page, uint64_t prot
 	set_pgentry(pde, hva2hpa(pt_page) | prot, table);
 }
 
-/*
- * In PT level,
- * type: MR_MODIFY
- * modify [vaddr_start, vaddr_end) memory type or page access right.
- * type: MR_DEL
- * delete [vaddr_start, vaddr_end) MT PT mapping
+/**
+ * @brief Walk page table page in a given page directory entry, modify or unmap page table entries (PTEs) for specified
+ * virtual address range
+ *
+ * When modifying a page table entry (type is MR_MODIFY), this function modifies the properties of page table entries
+ * (PTEs) for specified virtual address range in given page table.
+ *
+ * When unmapping a page table entry (type is MR_DEL), this function clears page table entries (PTEs) for specified
+ * virtual address range in given page table and frees the page directory entry and the page it refers to if possible.
+ *
+ * The virtual address range is [vaddr_start, vaddr_end), both vaddr_start and vaddr_end must align to page boundary.
+ *
+ * @param[inout] pde         Pointer to page directory entry (PDE) referring to page table page.
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot_set    Properties to be set. (MR_MODIFY only)
+ * @param[in]    prot_clr    Properties to be cleared. (MR_MODIFY only)
+ * @param[in]    table       Pointer to the page table struct which pde belongs to.
+ * @param[in]    type        Type of operation to perform.
+ *
+ * @return None
+ *
+ * @pre (type == MR_MODIFY) || (type == MR_DELETE)
+ * @pre (pde != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pde)) == 1
+ * @pre ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void modify_or_del_pte(uint64_t *pde, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot_set, uint64_t prot_clr, const struct pgtable *table, uint32_t type)
@@ -204,12 +328,34 @@ static void modify_or_del_pte(uint64_t *pde, uint64_t vaddr_start, uint64_t vadd
 	try_to_free_pgtable_page(table, pde, pt_page, type);
 }
 
-/*
- * In PD level,
- * type: MR_MODIFY
- * modify [vaddr_start, vaddr_end) memory type or page access right.
- * type: MR_DEL
- * delete [vaddr_start, vaddr_end) MT PT mapping
+/**
+ * @brief Walk page directory page in a given page directory pointer table entry, modify or unmap page table entries
+ * (PDEs or PTEs) for specified virtual address range in given page directory
+ *
+ * If the virtual address range covered a whole page directory entry (PDE), modify or unmap this PDE; otherwise,
+ * modify or unmap the PTE for thoese virtual addresses range. In this case, the large directory page for this PDE
+ * would split into small table page.
+ *
+ * This function also try to free the given page directory pointer table entry.
+ *
+ * The virtual address range is [vaddr_start, vaddr_end), both vaddr_start and vaddr_end must align to page boundary,
+ *
+ * @param[inout] pdpte       Pointer to page directory pointer table entry (PDPTE) referring to page directory.
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot_set    Properties to be set. (MR_MODIFY only)
+ * @param[in]    prot_clr    Properties to be cleared. (MR_MODIFY only)
+ * @param[in]    table       Pointer to the page table struct which pdpte belongs to.
+ * @param[in]    type        Type of operation to perform.
+ *
+ * @return None
+ *
+ * @pre (type == MR_MODIFY) || (type == MR_DELETE)
+ * @pre (pdpte != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pdpte)) == 1
+ * @pre ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void modify_or_del_pde(uint64_t *pdpte, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot_set, uint64_t prot_clr, const struct pgtable *table, uint32_t type)
@@ -251,12 +397,35 @@ static void modify_or_del_pde(uint64_t *pdpte, uint64_t vaddr_start, uint64_t va
 	try_to_free_pgtable_page(table, pdpte, pd_page, type);
 }
 
-/*
- * In PDPT level,
- * type: MR_MODIFY
- * modify [vaddr_start, vaddr_end) memory type or page access right.
- * type: MR_DEL
- * delete [vaddr_start, vaddr_end) MT PT mapping
+/**
+ * @brief Walk page directory pointer table page in a given page PML4 table entry, modify or unmap page table
+ * entries (PDPTEs or PDEs or PTEs) for specified virtual address range in given page directory pointer table
+ *
+ * If the virtual address range covered a whole page directory pointer table entry (PDPTE), modify or unmap this PDPTE;
+ * otherwise, modify or unmap the PDPTE for thoese virtual addresses range. In this case, the large directory page for
+ * this PDPTE would split into small table page. If the address range is also not convered a whole page directory entry
+ * (PDE), PDE would also be splited into next level page table.
+ *
+ * This function also try to free the given page directory pointer table entry.
+ *
+ * The virtual address range is [vaddr_start, vaddr_end), both vaddr_start and vaddr_end must align to page boundary,
+ *
+ * @param[inout] pml4e       Pointer to page PML4 table entry referring to page directory pointer table.
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot_set    Properties to be set. (MR_MODIFY only)
+ * @param[in]    prot_clr    Properties to be cleared. (MR_MODIFY only)
+ * @param[in]    table       Pointer to the page table struct which pml4e belongs to.
+ * @param[in]    type        Type of operation to perform.
+ *
+ * @return None
+ *
+ * @pre (type == MR_MODIFY) || (type == MR_DELETE)
+ * @pre (pml4e != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pml4e)) == 1
+ * @pre ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void modify_or_del_pdpte(const uint64_t *pml4e, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot_set, uint64_t prot_clr, const struct pgtable *table, uint32_t type)
@@ -377,9 +546,28 @@ void pgtable_modify_or_del_map(uint64_t *pml4_page, uint64_t vaddr_base, uint64_
 	}
 }
 
-/*
- * In PT level,
- * add [vaddr_start, vaddr_end) to [paddr_base, ...) MT PT mapping
+/**
+ * @brief Add page table entries (PTEs) in given page table to map specified address range
+ *
+ * This function adds page table entries (PTEs) in given page table to map virtual address [vaddr_start, vaddr_end)
+ * to physical address [paddr_start, ...). The size of virtual address range and physical address range are the same.
+ *
+ * Caller must ensure vaddr_start, vaddr_end, paddr_start are all aligned to 4K page boundary and the virtual address
+ * range is not mapped before.
+ *
+ * @param[inout] pde         Pointer to page directory entry (PDE) referring to page table page.
+ * @param[in]    paddr_start Starting physical address of the range (including itself).
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot        Properties of the new mapping.
+ * @param[in]    table       Pointer to the page table struct which pde belongs to.
+ *
+ * @return None
+ *
+ * @pre pgentry_present(table, (*pde)) == 1
+ * @pre ((paddr_start & PTE_MASK) == 0) && ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void add_pte(const uint64_t *pde, uint64_t paddr_start, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot, const struct pgtable *table)
@@ -408,9 +596,28 @@ static void add_pte(const uint64_t *pde, uint64_t paddr_start, uint64_t vaddr_st
 	}
 }
 
-/*
- * In PD level,
- * add [vaddr_start, vaddr_end) to [paddr_base, ...) MT PT mapping
+/**
+ * @brief Add page directory entries (PDEs) in given page directory to map specified address range
+ *
+ * This function adds page directory entries (PDEs) in given page directory to map virtual address [vaddr_start, vaddr_end)
+ * to physical address [paddr_start, ...). The size of virtual address range and physical address range are the same.
+ *
+ * Caller must ensure vaddr_start, vaddr_end, paddr_start are all aligned to 4K page boundary and the virtual address
+ * range is not mapped before. If the range is not aligned to 2M large page boundary, a new page table will be created
+ * automatically.
+ *
+ * @param[inout] pdpte       Pointer to page directory pointer table entry (PDPTE) referring to page directory.
+ * @param[in]    paddr_start Starting physical address of the range (including itself).
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot        Properties of the new mapping.
+ * @param[in]    table       Pointer to the page table struct which pdpte belongs to.
+ *
+ * @pre (pdpte != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pdpte)) == 1
+ * @pre ((paddr_start & PTE_MASK) == 0) && ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void add_pde(const uint64_t *pdpte, uint64_t paddr_start, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot, const struct pgtable *table)
@@ -458,9 +665,30 @@ static void add_pde(const uint64_t *pdpte, uint64_t paddr_start, uint64_t vaddr_
 	}
 }
 
-/*
- * In PDPT level,
- * add [vaddr_start, vaddr_end) to [paddr_base, ...) MT PT mapping
+/**
+ * @brief Add page directory pointer table entries (PDPTEs) in given page directory pointer table to map specified
+ * address range
+ *
+ * This function adds page directory pointer table entries (PDPTEs) in given page directory pointer table to map
+ * virtual address [vaddr_start, vaddr_end) to physical address [paddr_start, ...). The size of virtual address range
+ * and physical address range are the same.
+ *
+ * Caller must ensure vaddr_start, vaddr_end, paddr_start are all aligned to 4K page boundary and the virtual address
+ * range is not mapped before. If the range is not aligned to 1G large page boundary, lower level page tables(PD or PT)
+ * will be created automatically.
+ *
+ * @param[inout] pml4e       Pointer to page PML4 table entry referring to page directory pointer table.
+ * @param[in]    paddr_start Starting physical address of the range (including itself).
+ * @param[in]    vaddr_start Starting virtual address of the range (including itself).
+ * @param[in]    vaddr_end   Ending virtual address of the range (not including itself).
+ * @param[in]    prot        Properties of the new mapping.
+ * @param[in]    table       Pointer to the page table struct which pdpte belongs to.
+ *
+ * @pre (pml4e != NULL) && (pgtable != NULL)
+ * @pre pgentry_present(table, (*pml4e)) == 1
+ * @pre ((paddr_start & PTE_MASK) == 0) && ((vaddr_start & PTE_MASK) == 0) && ((vaddr_end & PTE_MASK) == 0)
+ *
+ * @post N/A
  */
 static void add_pdpte(const uint64_t *pml4e, uint64_t paddr_start, uint64_t vaddr_start, uint64_t vaddr_end,
 		uint64_t prot, const struct pgtable *table)

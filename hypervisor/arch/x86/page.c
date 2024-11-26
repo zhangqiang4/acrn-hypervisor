@@ -22,6 +22,21 @@
  * support to manage memory resources.
  */
 
+/**
+ * @brief Allocate one page from specified pool
+ *
+ * This function allocates one page from specified pool and clears the page content.
+ * If these is no page available, the dummy page of the pool will be returned.
+ * If dummy page is also not available, it panics hypervisor.
+ *
+ * @param[in] pool The page pool to allocate page in.
+ *
+ * @return Pointer to the page allocated.
+ *
+ * @pre pool != NULL
+ *
+ * @post return != NULL
+ */
 struct page *alloc_page(struct page_pool *pool)
 {
 	struct page *page = NULL;
@@ -57,8 +72,22 @@ struct page *alloc_page(struct page_pool *pool)
 	return page;
 }
 
-/*
- *@pre: ((page - pool->start_page) >> 6U) < pool->bitmap_size
+/**
+ * @brief Free one page from specified pool
+ *
+ * This function frees one page in specified pool by marking it as unallocated.
+ * Caller must ensure the page was allocated by alloc_page() before and belongs
+ * to the specified pool.
+ *
+ * @param[in] pool The page pool to allocate page in.
+ * @param[in] page Pointer to the page to be freed.
+ *
+ * @return None
+ *
+ * @pre (pool != NULL) && (page != NULL) &&
+ *      ((page - pool->start_page) >> 6U) < pool->bitmap_size
+ *
+ * @post N/A
  */
 void free_page(struct page_pool *pool, struct page *page)
 {

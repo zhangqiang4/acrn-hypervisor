@@ -22,25 +22,25 @@
  *
  */
 
-#define PAGE_PRESENT		(1UL << 0U)
-#define PAGE_RW			(1UL << 1U)
-#define PAGE_USER		(1UL << 2U)
-#define PAGE_PWT		(1UL << 3U)
-#define PAGE_PCD		(1UL << 4U)
-#define PAGE_ACCESSED		(1UL << 5U)
-#define PAGE_DIRTY		(1UL << 6U)
-#define PAGE_PSE		(1UL << 7U)
-#define PAGE_GLOBAL		(1UL << 8U)
-#define PAGE_PAT_LARGE		(1UL << 12U)
-#define PAGE_NX			(1UL << 63U)
+#define PAGE_PRESENT		(1UL << 0U)	/**< Present bit */
+#define PAGE_RW			(1UL << 1U)     /**< Read/write bit */
+#define PAGE_USER		(1UL << 2U)	/**< User/supervisor bit */
+#define PAGE_PWT		(1UL << 3U)	/**< Write-through bit */
+#define PAGE_PCD		(1UL << 4U)	/**< Cache disable bit */
+#define PAGE_ACCESSED		(1UL << 5U)	/**< Accessed bit */
+#define PAGE_DIRTY		(1UL << 6U)	/**< Dirty bit */
+#define PAGE_PSE		(1UL << 7U)	/**< Page size bit */
+#define PAGE_GLOBAL		(1UL << 8U)	/**< Global bit */
+#define PAGE_PAT_LARGE		(1UL << 12U)	/**< Page attribute table bit */
+#define PAGE_NX			(1UL << 63U)	/**< Execute-disable bit */
 
-#define PAGE_CACHE_MASK		(PAGE_PCD | PAGE_PWT)
-#define PAGE_CACHE_WB		0UL
-#define PAGE_CACHE_WT		PAGE_PWT
-#define PAGE_CACHE_UC_MINUS	PAGE_PCD
-#define PAGE_CACHE_UC		(PAGE_PCD | PAGE_PWT)
+#define PAGE_CACHE_MASK		(PAGE_PCD | PAGE_PWT)	/**< Page cache properties mask */
+#define PAGE_CACHE_WB		0UL			/**< Properties for write-back page */
+#define PAGE_CACHE_WT		PAGE_PWT		/**< Properties for write-through page */
+#define PAGE_CACHE_UC_MINUS	PAGE_PCD		/**< Properties for uncached minus page */
+#define PAGE_CACHE_UC		(PAGE_PCD | PAGE_PWT)	/**< Properties for uncached page */
 
-#define PAGE_ATTR_USER		(PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_NX)
+#define PAGE_ATTR_USER		(PAGE_PRESENT | PAGE_RW | PAGE_USER | PAGE_NX)	/**< Properties for user page */
 
 /**
  * @defgroup ept_mem_access_right EPT Memory Access Right
@@ -123,37 +123,42 @@
  */
 /* End of ept_mem_type */
 
-#define EPT_MT_MASK		(7UL << EPT_MT_SHIFT)
-#define EPT_VE			(1UL << 63U)
-/* EPT leaf entry bits (bit 52 - bit 63) should be maksed  when calculate PFN */
+#define EPT_MT_MASK		(7UL << EPT_MT_SHIFT)	/**< EPT Memory type mask */
+#define EPT_VE			(1UL << 63U)		/**< EPT suppress VE bit */
+
+/**
+ * @brief EPT page frame number higher bit mask
+ *
+ * EPT leaf entry bits (bit 52 - bit 63) should be maksed when calculate PFN
+ */
 #define EPT_PFN_HIGH_MASK	0xFFF0000000000000UL
 
-#define PML4E_SHIFT		39U
-#define PTRS_PER_PML4E		512UL
-#define PML4E_SIZE		(1UL << PML4E_SHIFT)
-#define PML4E_MASK		(~(PML4E_SIZE - 1UL))
+#define PML4E_SHIFT		39U			/**< PML4E address shift */
+#define PTRS_PER_PML4E		512UL			/**< Number of entries a PML4 contains */
+#define PML4E_SIZE		(1UL << PML4E_SHIFT)	/**< Memory size a PML4E controls */
+#define PML4E_MASK		(~(PML4E_SIZE - 1UL))	/**< PML4E address mask */
 
-#define PDPTE_SHIFT		30U
-#define PTRS_PER_PDPTE		512UL
-#define PDPTE_SIZE		(1UL << PDPTE_SHIFT)
-#define PDPTE_MASK		(~(PDPTE_SIZE - 1UL))
+#define PDPTE_SHIFT		30U			/**< PDPTE address shift */
+#define PTRS_PER_PDPTE		512UL			/**< Number of entries a PDPT contains */
+#define PDPTE_SIZE		(1UL << PDPTE_SHIFT)	/**< Memory size a PDPTE controls */
+#define PDPTE_MASK		(~(PDPTE_SIZE - 1UL))	/**< PDPTE address mask */
 
-#define PDE_SHIFT		21U
-#define PTRS_PER_PDE		512UL
-#define PDE_SIZE		(1UL << PDE_SHIFT)
-#define PDE_MASK		(~(PDE_SIZE - 1UL))
+#define PDE_SHIFT		21U			/**< PDE address shift */
+#define PTRS_PER_PDE		512UL			/**< Number of entries a PD contains */
+#define PDE_SIZE		(1UL << PDE_SHIFT)	/**< Memory size a PDE controls */
+#define PDE_MASK		(~(PDE_SIZE - 1UL))	/**< PDE address mask */
 
-#define PTE_SHIFT		12U
-#define PTRS_PER_PTE		512UL
-#define PTE_SIZE		(1UL << PTE_SHIFT)
-#define PTE_MASK		(~(PTE_SIZE - 1UL))
+#define PTE_SHIFT		12U			/**< PTE address shift */
+#define PTRS_PER_PTE		512UL			/**< Number of entries a PT contains */
+#define PTE_SIZE		(1UL << PTE_SHIFT)	/**< Memory size a PTE controls */
+#define PTE_MASK		(~(PTE_SIZE - 1UL))	/**< PTE address mask */
 
 /* TODO: PAGE_MASK & PHYSICAL_MASK */
-#define PML4E_PFN_MASK		0x0000FFFFFFFFF000UL
-#define PDPTE_PFN_MASK		0x0000FFFFFFFFF000UL
-#define PDE_PFN_MASK		0x0000FFFFFFFFF000UL
+#define PML4E_PFN_MASK		0x0000FFFFFFFFF000UL	/**< Page frame number mask for PML4E */
+#define PDPTE_PFN_MASK		0x0000FFFFFFFFF000UL	/**< Page frame number mask for PDPTE */
+#define PDE_PFN_MASK		0x0000FFFFFFFFF000UL	/**< Page frame number mask for PDE */
 
-#define EPT_ENTRY_PFN_MASK	((~EPT_PFN_HIGH_MASK) & PAGE_MASK)
+#define EPT_ENTRY_PFN_MASK	((~EPT_PFN_HIGH_MASK) & PAGE_MASK)	/**< Page frame number mask for EPT entries */
 
 /**
  * @brief Page tables level in IA32 paging mode
@@ -334,52 +339,150 @@ static inline uint64_t hva2hpa(const void *x)
 	return (uint64_t)x;
 }
 
+/**
+ * @brief Calculate PML4E index for a specified address.
+ *
+ * Page map level-4 table entry(PML4E) page can be thought of an array like pml4e[512].
+ * This function calculates the index of entry in the PML4E page which would control the given address.
+ *
+ * @param[in] address Virtual Address or Guest Physical Address for EPT
+ *
+ * @return Index of entry in the PML4E page which would control the given address.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t pml4e_index(uint64_t address)
 {
 	return (address >> PML4E_SHIFT) & (PTRS_PER_PML4E - 1UL);
 }
 
+/**
+ * @brief Calculate PDPTE index for a specified address.
+ *
+ * Page directory pointer table entry(PDPTE) page can be thought of an array like pdpte[512],
+ * This function calculates the index of entry in the PDPTE page which would control the given address.
+ *
+ * @param[in] address Virtual Address or Guest Physical Address for EPT
+ *
+ * @return Index of entry in the PDPTE page which would control the given address.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t pdpte_index(uint64_t address)
 {
 	return (address >> PDPTE_SHIFT) & (PTRS_PER_PDPTE - 1UL);
 }
 
+/**
+ * @brief Calculate PDE index for a specified address.
+ *
+ * Page directory entry(PDE) page can be thought of an array like pde[512],
+ * This function calculates the index of entry in the PDE page which would control the given address.
+ *
+ * @param[in] address Virtual Address or Guest Physical Address for EPT
+ *
+ * @return Index of entry in the PDE page which would control the given address.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t pde_index(uint64_t address)
 {
 	return (address >> PDE_SHIFT) & (PTRS_PER_PDE - 1UL);
 }
 
+/**
+ * @brief Calculate PTE index for a specified address.
+ *
+ * Page table entry(PTE) page can be thought of an array like pte[512],
+ * This function calculates the index of entry in the PTE page which would control the given address.
+ *
+ * @param[in] address Virtual Address or Guest Physical Address for EPT
+ *
+ * @return Index of entry in the PTE page which would control the given address.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t pte_index(uint64_t address)
 {
 	return (address >> PTE_SHIFT) & (PTRS_PER_PTE - 1UL);
 }
 
+/**
+ * @brief Calculate virtual address of the page which PML4E refers to.
+ *
+ * This function calculates the virtual address of the page which page PML4 table entry refers to,
+ * based on the physical address stored in PML4E.
+ *
+ * @param[in] pml4e Content of a valid PML4E
+ *
+ * @return Virtual address of the page which PML4E refers to
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t *pml4e_page_vaddr(uint64_t pml4e)
 {
 	return hpa2hva(pml4e & PML4E_PFN_MASK);
 }
 
+/**
+ * @brief Calculate virtual address of the page which PDPTE refers to.
+ *
+ * This function calculates the virtual address of the page which page directory pointer table entry(PDPTE)
+ * refers to, based on the physical address stored in PDPTE.
+ *
+ * @param[in] pdpte Content of a valid PDPTE
+ *
+ * @return Virtual address of the page which PDPTE refers to
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t *pdpte_page_vaddr(uint64_t pdpte)
 {
 	return hpa2hva(pdpte & PDPTE_PFN_MASK);
 }
 
+/**
+ * @brief Calculate virtual address of the page which PDE refers to.
+ *
+ * This function calculates the virtual address of the page which page directory entry(PDE)
+ * refers to, based on the physical address stored in PDE.
+ *
+ * @param[in] pde Content of a valid PDE
+ *
+ * @return Virtual address of the page which PDE refers to
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint64_t *pde_page_vaddr(uint64_t pde)
 {
 	return hpa2hva(pde & PDE_PFN_MASK);
 }
 
 /**
- * @brief Calculate the page map level-4 table entry(PML4E) for a specified input address.
+ * @brief Calculate the page PML4 table entry for a specified input address.
  *
  * The page map level-4 table(PML4T) contains 512 entries, each of which points to a page directory pointer table(PDPT).
  * Address has the index to the PML4E in PML4T. This function is used to calculate the address of PML4E. It is typically
  * used during the page translation process.
  *
- * It will return a pointer to the page map level-4 table entry(PML4E).
+ * It will return a pointer to the page PML4 table entry.
  *
  * @param[in] pml4_page A pointer to a page map level-4 table(PML4T) page.
- * @param[in] addr The address value for which the page map level-4 table entry(PML4E) address is to be calculated.
+ * @param[in] addr The address value for which the page PML4 table entry address is to be calculated.
  *                 For hypervisor's MMU, it is the host virtual address.
  *                 For each VM's EPT, it is the guest physical address.
  *
@@ -397,13 +500,13 @@ static inline uint64_t *pml4e_offset(uint64_t *pml4_page, uint64_t addr)
 /**
  * @brief Calculate the page directory pointer table entry(PDPTE) for a specified input address.
  *
- * The page directory pointer table(PDPT) is referenced by a page map level-4 table entry(PML4E) and echo entry(PDPTE)
- * in PDPT points to a page directory table(PDT). Address has the index to the PDPTE in PDPT. This function is used to
- * calculate the address of PDPTE. It is typically used during the page translation process.
+ * The page directory pointer table(PDPT) is referenced by a page PML4 table entry and echo entry(PDPTE) in PDPT points
+ * to a page directory table(PDT). Address has the index to the PDPTE in PDPT. This function is used to calculate the
+ * address of PDPTE. It is typically used during the page translation process.
  *
  * It will return a pointer to the page directory pointer table entry(PDPTE).
  *
- * @param[in] pml4e A pointer to a page map level-4 table entry(PML4E).
+ * @param[in] pml4e A pointer to a page PML4 table entry.
  * @param[in] addr The address for which the page directory pointer table entry(PDPTE) address is to be calculated.
  *                 For hypervisor's MMU, it is the host virtual address.
  *                 For each VM's EPT, it is the guest physical address.
@@ -469,16 +572,39 @@ static inline uint64_t *pte_offset(const uint64_t *pde, uint64_t addr)
 	return pde_page_vaddr(*pde) + pte_index(addr);
 }
 
-/*
- * pgentry may means pml4e/pdpte/pde/pte
+/**
+ * @brief Get the value of page table entry (PML4E/PDPTE/PDE/PTE)
+ *
+ * This function gets the value of page table entry (PML4E/PDPTE/PDE/PTE) by pointer.
+ *
+ * @param[in] pte Pointer to page table entry
+ *
+ * @return Value of page table entry
+ *
+ * @pre pte != NULL
+ *
+ * @post N/A
  */
 static inline uint64_t get_pgentry(const uint64_t *pte)
 {
 	return *pte;
 }
 
-/*
- * pgentry may means pml4e/pdpte/pde/pte
+/**
+ * @brief Set the value of page table entry (PML4E/PDPTE/PDE/PTE)
+ *
+ * This function sets the value of page table entry (PML4E/PDPTE/PDE/PTE) by pointer,
+ * and flushes the cache of the pointer.
+ *
+ * @param[inout] ptep  Pointer to page table entry to be modified
+ * @param[in]    pte   Value of page table entry to be set to
+ * @param[in]    table Pointer to the page table which ptep belongs to
+ *
+ * @return None
+ *
+ * @pre (pte != NULL) && (table != NULL)
+ *
+ * @post N/A
  */
 static inline void set_pgentry(uint64_t *ptep, uint64_t pte, const struct pgtable *table)
 {
@@ -539,9 +665,7 @@ static inline uint64_t pdpte_large(uint64_t pdpte)
 void init_sanitized_page(uint64_t *sanitized_page, uint64_t hpa);
 
 void *pgtable_create_root(const struct pgtable *table);
-/**
- *@pre (pml4_page != NULL) && (pg_size != NULL)
- */
+
 const uint64_t *pgtable_lookup_entry(uint64_t *pml4_page, uint64_t addr,
 		uint64_t *pg_size, const struct pgtable *table);
 
