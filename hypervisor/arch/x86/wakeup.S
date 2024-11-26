@@ -1,6 +1,12 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2024 Intel Corporation.
  * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/**
+ * @addtogroup hwmgmt_pm
+ *
+ * @{
  */
 
 /* NOTE:
@@ -12,8 +18,8 @@
  * with a comment tracking the original expression from which the magic
  * number is calculated. As an example:
  *
- *    /* 0x00000668 =
- *     *    (CR4_DE | CR4_PAE | CR4_MCE | CR4_OSFXSR | CR4_OSXMMEXCPT) *\/
+ *     * 0x00000668 =
+ *     *    (CR4_DE | CR4_PAE | CR4_MCE | CR4_OSFXSR | CR4_OSXMMEXCPT)
  *    movl    $0x00000668, %eax
  *
  * Make sure that these numbers are updated accordingly if the definition of
@@ -26,7 +32,6 @@
    .extern    cpu_ctx
    .extern    load_gdtr_and_tr
    .extern    do_acpi_sx
-
    .global    asm_enter_s3
 asm_enter_s3:
 	/*
@@ -165,3 +170,7 @@ restore_s3_context:
 	movq 0x78 + cpu_ctx(%rip), %r15
 
 	retq
+
+/**
+ * @}
+ */

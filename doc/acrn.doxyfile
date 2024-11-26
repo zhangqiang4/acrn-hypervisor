@@ -967,6 +967,9 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/ioapic.h \
                           ../hypervisor/common/event.c \
                           ../hypervisor/include/common/event.h \
+                          ../hypervisor/arch/x86/pm.c \
+                          ../hypervisor/arch/x86/wakeup.S \
+                          ../hypervisor/include/arch/x86/asm/host_pm.h \
                           ../hypervisor/arch/x86/guest/pm.c \
                           ../hypervisor/arch/x86/guest/vm_reset.c \
                           ../hypervisor/include/arch/x86/asm/guest/guest_pm.h \
