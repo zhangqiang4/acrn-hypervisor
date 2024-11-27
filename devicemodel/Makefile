@@ -224,6 +224,9 @@ SRCS += log/log.c
 SRCS += log/kmsg_logger.c
 SRCS += log/disk_logger.c
 
+# profiling
+SRCS += profiling/time_profiling.c
+
 OBJS := $(patsubst %.c,$(DM_OBJDIR)/%.o,$(SRCS))
 
 VERSION_H := $(DM_OBJDIR)/include/version.h
