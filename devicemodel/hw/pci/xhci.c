@@ -114,7 +114,7 @@
 #define	XHCI_HCCPRAMS2		0x1C	/* offset of HCCPARAMS2 register */
 #define	XHCI_PORTREGS_START	0x400
 #define	XHCI_DOORBELL_MAX	256
-#define	XHCI_STREAMS_MAX	1	/* 4-15 in XHCI spec */
+#define	XHCI_STREAMS_MAX	15	/* 4-15 in XHCI spec */
 
 /* caplength and hci-version registers */
 #define	XHCI_SET_CAPLEN(x)		((x) & 0xFF)
@@ -183,6 +183,7 @@
 					(((b) & ((m) << (s)))))
 
 struct pci_xhci_trb_ring {
+	struct usb_xfer *xfer;		/* transfer chain */
 	uint64_t ringaddr;		/* current dequeue guest address */
 	uint32_t ccs;			/* consumer cycle state */
 };
@@ -206,11 +207,11 @@ struct pci_xhci_dev_ep {
 		struct pci_xhci_trb_ring _epu_trb;
 		struct pci_xhci_trb_ring *_epu_sctx_trbs;
 	} _ep_trb_rings;
+#define ep_xfer		_ep_trb_rings._epu_trb.xfer
 #define	ep_ringaddr	_ep_trb_rings._epu_trb.ringaddr
 #define	ep_ccs		_ep_trb_rings._epu_trb.ccs
 #define	ep_sctx_trbs	_ep_trb_rings._epu_sctx_trbs
 
-	struct usb_xfer *ep_xfer;	/* transfer chain */
 	struct acrn_timer isoc_timer;
 	struct xhci_ep_timer_data timer_data;
 	pthread_mutex_t mtx;
@@ -461,6 +462,12 @@ struct pci_xhci_option_elem {
 	char *parse_opt;
 	int (*parse_fn)(struct pci_xhci_vdev *, char *);
 };
+
+/* xhci ep index: 1: ctrl ep, 2: ep1 out (0x1), 3: ep1 in (0x81), ... */
+static inline uint8_t xhci_ep_idx_to_epnum(uint8_t epidx)
+{
+	return ((epidx & 1) << 7) + epidx / 2;
+}
 
 static int xhci_in_use;
 static int pci_xhci_insert_event(struct pci_xhci_vdev *xdev,
@@ -1024,6 +1031,8 @@ pci_xhci_dev_create(struct pci_xhci_vdev *xdev, void *dev_data)
 	ue->ue_init        = usb_dev_init;
 	ue->ue_request     = usb_dev_request;
 	ue->ue_data        = usb_dev_data;
+	ue->ue_alloc_streams = usb_dev_alloc_streams;
+	ue->ue_free_streams = usb_dev_free_streams;
 	ue->ue_info	   = usb_dev_info;
 	ue->ue_reset       = usb_dev_reset;
 	ue->ue_remove      = NULL;
@@ -1090,11 +1099,28 @@ pci_xhci_dev_destroy(struct pci_xhci_dev_emu *de)
 			return;
 
 
+		struct xhci_dev_ctx *dev_ctx = de->dev_ctx;
 		for (i = 1; i < XHCI_MAX_ENDPOINTS; i++) {
 			vdep = &de->eps[i];
-			if (vdep->ep_xfer) {
-				pci_xhci_free_usb_xfer(de, vdep->ep_xfer);
-				vdep->ep_xfer = NULL;
+			struct xhci_endp_ctx *ep_ctx = &dev_ctx->ctx_ep[i];
+			uint32_t pstreams = XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0);
+			if (pstreams > 0) {
+				uint32_t streams = 1 << (pstreams + 1);
+				if (vdep->ep_sctx_trbs) {
+					for (int i = 1; i < streams; i++) {
+						if (!vdep->ep_sctx_trbs[i].xfer)
+							continue;
+						pci_xhci_free_usb_xfer(de, vdep->ep_sctx_trbs[i].xfer);
+						vdep->ep_sctx_trbs[i].xfer = NULL;
+					}
+					free(vdep->ep_sctx_trbs);
+				}
+				// call de->dev_ue->ue_free_streams? Is de->dev_ue still valid?
+			} else {
+				if (vdep->ep_xfer) {
+					pci_xhci_free_usb_xfer(de, vdep->ep_xfer);
+					vdep->ep_xfer = NULL;
+				}
 			}
 			acrn_timer_deinit(&de->eps[i].isoc_timer);
 		}
@@ -1730,32 +1756,52 @@ pci_xhci_init_ep(struct pci_xhci_dev_emu *dev, int epid, uint32_t slot)
 
 	pstreams = XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0);
 	if (pstreams > 0) {
-		UPRINTF(LDBG, "init_ep %d with pstreams %d\r\n",
+		pr_dbg("init_ep %d with pstreams %d\r\n",
 				epid, pstreams);
+		uint32_t streams = 1 << (pstreams + 1);
 
 		devep->ep_sctx = XHCI_GADDR(dev->xdev, ep_ctx->qwEpCtx2 &
 					    XHCI_EPCTX_2_TR_DQ_PTR_MASK);
-		devep->ep_sctx_trbs = calloc(pstreams,
+		devep->ep_sctx_trbs = calloc(streams,
 				      sizeof(struct pci_xhci_trb_ring));
-		for (i = 0; i < pstreams; i++) {
+		for (i = 1; i < streams; i++) {
 			devep->ep_sctx_trbs[i].ringaddr =
 						 devep->ep_sctx[i].qwSctx0 &
 						 XHCI_SCTX_0_TR_DQ_PTR_MASK;
 			devep->ep_sctx_trbs[i].ccs =
 			     XHCI_SCTX_0_DCS_GET(devep->ep_sctx[i].qwSctx0);
+			devep->ep_sctx_trbs[i].xfer =
+					pci_xhci_alloc_usb_xfer(dev, epid);
+			if (!devep->ep_sctx_trbs[i].xfer)
+				goto errout;
 		}
+
+		uint8_t epnum = xhci_ep_idx_to_epnum(epid);
+		/*
+		 * stream id 0 is reserved. Thus e.g. when device support 32 streams (1~32), driver
+		 * would allocate a stream context table with 2^(5+1) entries to cover stream id
+		 * 1~32. Here we try to allocate 63 streams and save the actual enabled streams to
+		 * check doorbells.
+		 */
+		int streams_en = dev->dev_ue->ue_alloc_streams(
+				dev->dev_instance, streams - 1, &epnum, 1);
+		if (streams_en < 0) {
+			pr_err("ep(dci) %d failed to allocate %d streams\r\n", epid, streams);
+			goto errout;
+		}
+		pr_info("ep(dci) %d actually enabled %d streams\r\n", epid, streams_en);
 	} else {
 		UPRINTF(LDBG, "init_ep %d with no pstreams\r\n", epid);
 		devep->ep_ringaddr = ep_ctx->qwEpCtx2 &
 				     XHCI_EPCTX_2_TR_DQ_PTR_MASK;
 		devep->ep_ccs = XHCI_EPCTX_2_DCS_GET(ep_ctx->qwEpCtx2);
 		UPRINTF(LDBG, "init_ep tr DCS %x\r\n", devep->ep_ccs);
-	}
 
-	if (devep->ep_xfer == NULL) {
-		devep->ep_xfer = pci_xhci_alloc_usb_xfer(dev, epid);
-		if (!devep->ep_xfer)
-			goto errout;
+		if (devep->ep_xfer == NULL) {
+			devep->ep_xfer = pci_xhci_alloc_usb_xfer(dev, epid);
+			if (!devep->ep_xfer)
+				goto errout;
+		}
 	}
 
 	devep->timer_data.dev = dev;
@@ -1775,8 +1821,20 @@ pci_xhci_init_ep(struct pci_xhci_dev_emu *dev, int epid, uint32_t slot)
 	return 0;
 
 errout:
-	pci_xhci_free_usb_xfer(dev, devep->ep_xfer);
-	devep->ep_xfer = NULL;
+	if (pstreams > 0) {
+		uint32_t streams = 1 << (pstreams + 1);
+		for (int i = 1; i < streams; i++) {
+			if (devep->ep_sctx_trbs[i].xfer != NULL) {
+				pci_xhci_free_usb_xfer(dev, devep->ep_sctx_trbs[i].xfer);
+				devep->ep_sctx_trbs[i].xfer = NULL;
+			}
+		}
+		free(devep->ep_sctx_trbs);
+		devep->ep_sctx_trbs = NULL;
+	} else {
+		pci_xhci_free_usb_xfer(dev, devep->ep_xfer);
+		devep->ep_xfer = NULL;
+	}
 	devep->timer_data.dev = NULL;
 	devep->timer_data.slot = 0;
 	devep->timer_data.epnum = 0;
@@ -1799,13 +1857,26 @@ pci_xhci_disable_ep(struct pci_xhci_dev_emu *dev, int epid)
 	devep = &dev->eps[epid];
 	pthread_mutex_lock(&devep->mtx);
 
-	if (XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0) > 0 &&
-		devep->ep_sctx_trbs != NULL)
+	uint32_t pstreams = XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0);
+	if (pstreams > 0 && devep->ep_sctx_trbs != NULL) {
+		uint32_t streams = 1 << (pstreams + 1);
+		for (int i = 1; i < streams; i++) {
+			if (devep->ep_sctx_trbs[i].xfer != NULL) {
+				pci_xhci_free_usb_xfer(dev, devep->ep_sctx_trbs[i].xfer);
+				devep->ep_sctx_trbs[i].xfer = NULL;
+			}
+		}
 		free(devep->ep_sctx_trbs);
+		devep->ep_sctx_trbs = NULL;
 
-	if (devep->ep_xfer != NULL) {
-		pci_xhci_free_usb_xfer(dev, devep->ep_xfer);
-		devep->ep_xfer = NULL;
+		uint8_t epnum = xhci_ep_idx_to_epnum(epid);
+		if (dev->dev_ue)
+			dev->dev_ue->ue_free_streams(dev->dev_instance, &epnum, 1);
+	} else {
+		if (devep->ep_xfer != NULL) {
+			pci_xhci_free_usb_xfer(dev, devep->ep_xfer);
+			devep->ep_xfer = NULL;
+		}
 	}
 
 	acrn_timer_deinit(&devep->isoc_timer);
@@ -2421,23 +2492,40 @@ pci_xhci_cmd_reset_ep(struct pci_xhci_vdev *xdev,
 	pthread_mutex_lock(&devep->mtx);
 	pthread_mutex_unlock(&xdev->mtx);
 
-	xfer = devep->ep_xfer;
-	for (i = 0; i < xfer->max_blk_cnt; ++i) {
-		r = xfer->reqs[i];
-		if (r && r->trn)
-			/* let usb_dev_comp_req to free the memory */
-			if (dev->dev_ue->ue_cancel_req != NULL)
-				dev->dev_ue->ue_cancel_req(r->trn);
+	uint32_t pstreams = XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0);
+	if (pstreams > 0) {
+		uint32_t streams = 1 << (pstreams + 1);
+		for (int s = 1; s < streams; s++) {
+			xfer = devep->ep_sctx_trbs[s].xfer;
+			for (i = 0; i < xfer->max_blk_cnt; ++i) {
+				r = xfer->reqs[i];
+				if (r && r->trn)
+					/* let usb_dev_comp_req to free the memory */
+					if (dev->dev_ue->ue_cancel_req != NULL)
+						dev->dev_ue->ue_cancel_req(r->trn);
+			}
+			xfer->ndata = 0;
+			xfer->head = 0;
+			xfer->tail = 0;
+			devep->ep_sctx[s].qwSctx0 =
+				devep->ep_sctx_trbs[s].ringaddr | devep->ep_sctx_trbs[s].ccs;
+		}
+	} else {
+		xfer = devep->ep_xfer;
+		for (i = 0; i < xfer->max_blk_cnt; ++i) {
+			r = xfer->reqs[i];
+			if (r && r->trn)
+				/* let usb_dev_comp_req to free the memory */
+				if (dev->dev_ue->ue_cancel_req != NULL)
+					dev->dev_ue->ue_cancel_req(r->trn);
+		}
+		xfer->ndata = 0;
+		xfer->head = 0;
+		xfer->tail = 0;
+		ep_ctx->qwEpCtx2 = devep->ep_ringaddr | devep->ep_ccs;
 	}
 
-	xfer->ndata = 0;
-	xfer->head = 0;
-	xfer->tail = 0;
-
 	ep_ctx->dwEpCtx0 = (ep_ctx->dwEpCtx0 & ~0x7) | XHCI_ST_EPCTX_STOPPED;
-
-	if (XHCI_EPCTX_0_MAXP_STREAMS_GET(ep_ctx->dwEpCtx0) == 0)
-		ep_ctx->qwEpCtx2 = devep->ep_ringaddr | devep->ep_ccs;
 
 	UPRINTF(LDBG, "reset ep[%u] %08x %08x %016lx %08x\r\n",
 		epid, ep_ctx->dwEpCtx0, ep_ctx->dwEpCtx1, ep_ctx->qwEpCtx2,
@@ -2471,7 +2559,7 @@ pci_xhci_find_stream(struct pci_xhci_vdev *xdev,
 	}
 
 	/* only support primary stream */
-	if (streamid > maxpstreams)
+	if (streamid > (1 << (maxpstreams + 1)))
 		return XHCI_TRB_ERROR_STREAM_TYPE;
 
 	sctx = XHCI_GADDR(xdev, ep->qwEpCtx2 & ~0xFUL) + streamid;
@@ -3037,7 +3125,8 @@ pci_xhci_try_usb_xfer(struct pci_xhci_vdev *xdev,
 		      struct pci_xhci_dev_ep *devep,
 		      struct xhci_endp_ctx *ep_ctx,
 		      uint32_t slot,
-		      uint32_t epid)
+		      uint32_t epid,
+		      uint32_t stream)
 {
 	struct usb_xfer *xfer;
 	int		err;
@@ -3049,14 +3138,18 @@ pci_xhci_try_usb_xfer(struct pci_xhci_vdev *xdev,
 	err = 0;
 	do_intr = 0;
 
-	xfer = devep->ep_xfer;
+	if (stream > 0)
+		xfer = devep->ep_sctx_trbs[stream].xfer;
+	else
+		xfer = devep->ep_xfer;
+
 	pthread_mutex_lock(&devep->mtx);
 
 	/* outstanding requests queued up */
 	if (dev->dev_ue->ue_data != NULL) {
 		pthread_mutex_unlock(&xdev->mtx);
 		err = dev->dev_ue->ue_data(dev->dev_instance, xfer, epid & 0x1 ?
-					   USB_XFER_IN : USB_XFER_OUT, epid/2);
+					   USB_XFER_IN : USB_XFER_OUT, epid/2, stream);
 		pthread_mutex_lock(&xdev->mtx);
 		if (err == USB_ERR_CANCELLED) {
 			if (USB_DATA_GET_ERRCODE(&xfer->data[xfer->head]) ==
@@ -3108,7 +3201,10 @@ pci_xhci_handle_transfer(struct pci_xhci_vdev *xdev,
 	ep_ctx->dwEpCtx0 = FIELD_REPLACE(ep_ctx->dwEpCtx0,
 					 XHCI_ST_EPCTX_RUNNING, 0x7, 0);
 
-	xfer = devep->ep_xfer;
+	if (streamid > 0)
+		xfer = devep->ep_sctx_trbs[streamid].xfer;
+	else
+		xfer = devep->ep_xfer;
 	pthread_mutex_lock(&devep->mtx);
 
 	UPRINTF(LDBG, "handle_transfer slot %u\r\n", slot);
@@ -3328,7 +3424,7 @@ retry:
 		setup_trb = NULL;
 	} else {
 		/* handle data transfer */
-		pci_xhci_try_usb_xfer(xdev, dev, devep, ep_ctx, slot, epid);
+		pci_xhci_try_usb_xfer(xdev, dev, devep, ep_ctx, slot, epid, streamid);
 		err = XHCI_TRB_ERROR_SUCCESS;
 		goto errout;
 	}
@@ -3404,7 +3500,7 @@ pci_xhci_device_doorbell(struct pci_xhci_vdev *xdev,
 	/* handle pending transfers */
 	if (dev->dev_ue && dev->dev_ue->ue_devtype == USB_DEV_STATIC &&
 			devep->ep_xfer->ndata > 0) {
-		pci_xhci_try_usb_xfer(xdev, dev, devep, ep_ctx, slot, epid);
+		pci_xhci_try_usb_xfer(xdev, dev, devep, ep_ctx, slot, epid, 0);
 		return;
 	}
 

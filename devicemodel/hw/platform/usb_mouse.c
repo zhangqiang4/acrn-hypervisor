@@ -691,7 +691,7 @@ done:
 
 static int
 umouse_data_handler(void *scarg, struct usb_xfer *xfer, int dir,
-		    int epctx)
+		    int epctx, uint32_t stream)
 {
 	struct umouse_vdev *dev;
 	struct usb_block *data;

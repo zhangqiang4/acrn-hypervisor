@@ -128,7 +128,9 @@ void usb_dev_deinit(void *pdata);
 int usb_dev_info(void *pdata, int type, void *value, int size);
 int usb_dev_request(void *pdata, struct usb_xfer *xfer);
 int usb_dev_reset(void *pdata);
-int usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx);
+int usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx, uint32_t stream);
+int usb_dev_alloc_streams(void *pdata, int num_streams, uint8_t *eps, uint8_t num_eps);
+void usb_dev_free_streams(void *pdata, uint8_t *eps, uint8_t num_eps);
 void usb_dev_cancel_request(void *pdata);
 void usb_dev_free_request(void *pdata);
 #endif

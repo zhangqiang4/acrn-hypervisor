@@ -110,7 +110,9 @@ struct usb_devemu {
 	/* handlers */
 	int	(*ue_request)(void *sc, struct usb_xfer *xfer);
 	int	(*ue_data)(void *sc, struct usb_xfer *xfer, int dir,
-			   int epctx);
+			   int epctx, uint32_t stream);
+	int	(*ue_alloc_streams)(void *sc, int num_streams, uint8_t *eps, uint8_t num_eps);
+	void	(*ue_free_streams)(void *sc, uint8_t *eps, uint8_t num_eps);
 	int	(*ue_info)(void *sc, int type, void *value, int size);
 	int	(*ue_reset)(void *sc);
 	int	(*ue_remove)(void *sc);

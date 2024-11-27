@@ -6,6 +6,7 @@
  */
 
 
+#include <libusb-1.0/libusb.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -747,7 +748,7 @@ usb_dev_reset(void *pdata)
 }
 
 int
-usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
+usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx, uint32_t stream)
 {
 	struct usb_dev *udev;
 	struct usb_dev_req *r;
@@ -863,7 +864,12 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 	}
 
 	if (type == USB_ENDPOINT_BULK) {
-		libusb_fill_bulk_transfer(r->trn, udev->handle, epid,
+		if (stream > 0)
+			libusb_fill_bulk_stream_transfer(r->trn, udev->handle,
+				epid, stream, r->buffer, size,
+				usb_dev_comp_cb, r, 0);
+		else
+			libusb_fill_bulk_transfer(r->trn, udev->handle, epid,
 				r->buffer, size, usb_dev_comp_cb, r, 0);
 
 	} else if (type == USB_ENDPOINT_INT) {
@@ -892,6 +898,20 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 	}
 done:
 	return xfer->status;
+}
+
+int usb_dev_alloc_streams(void *pdata, int num_streams, uint8_t *eps, uint8_t num_eps)
+{
+	struct usb_dev *udev = pdata;
+	int ret = libusb_alloc_streams(udev->handle, num_streams, eps, num_eps);
+	pr_info("tried to allocate %d streams, ret %d\n", num_streams, ret);
+	return ret;
+}
+
+void usb_dev_free_streams(void *pdata, uint8_t *eps, uint8_t num_eps)
+{
+	struct usb_dev *udev = pdata;
+	libusb_free_streams(udev->handle, eps, num_eps);
 }
 
 static void
