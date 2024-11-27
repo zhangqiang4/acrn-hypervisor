@@ -914,36 +914,6 @@ void usb_dev_free_streams(void *pdata, uint8_t *eps, uint8_t num_eps)
 	libusb_free_streams(udev->handle, eps, num_eps);
 }
 
-static void
-clear_uas_desc(struct usb_dev *udev, uint8_t *data, int len)
-{
-	struct usb_devpath *path;
-	int32_t i;
-
-	/* only process configuration descriptor */
-	if (len < 2 || data[1] != 0x2)
-		return;
-
-	i = 0;
-	path = &udev->info.path;
-	while (i < len) {
-		/* When UAS protocol is found in interface descriptor, set it
-		 * to invalid value.
-		 *
-		 * According to USB3 spec 9.6.5, Standard Interface Descriptor,
-		 * data[i+0] => bLength
-		 * data[i+1] => bDescriptorType
-		 * data[i+7] => bInterfaceProtocol
-		 */
-		if (data[i] == 9 && data[i+1] == 0x4 && data[i+7] == 0x62) {
-			UPRINTF(LFTL, "%d-%s: clear uas protocol\r\n",
-					path->bus, usb_dev_path(path));
-			data[i+7] = 0;
-		}
-		i = i + data[i];
-	}
-}
-
 int
 usb_dev_request(void *pdata, struct usb_xfer *xfer)
 {
@@ -956,7 +926,6 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	struct usb_block *blk;
 	uint8_t *data;
 	int rc;
-	bool need_chk_uas = false;
 
 	udev = pdata;
 	xfer->status = USB_ERR_NORMAL_COMPLETION;
@@ -1003,10 +972,6 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 		UPRINTF(LDBG, "UR_SET_INTERFACE\n");
 		usb_dev_set_if(udev, index, value, xfer);
 		goto out;
-	case UREQ(UR_GET_DESCRIPTOR, UT_READ):
-		if (value == 0x0200)
-			need_chk_uas = true;
-		break;
 	case UREQ(UR_CLEAR_FEATURE, UT_WRITE_ENDPOINT):
 		if (value) {
 			/* according to usb spec (ch9), this is impossible */
@@ -1043,12 +1008,6 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 		xfer->status = usb_dev_err_convert(rc);
 		goto out;
 	}
-	/* TODO: Currently, the USB Attached SCSI (UAS) protocol is not
-	 * supported and the following code is used as a workaround now.
-	 * UAS will be implemented in future.
-	 */
-	if (need_chk_uas && data)
-		clear_uas_desc(udev, data, rc);
 
 	if (blk) {
 		blk->blen = len - rc;
