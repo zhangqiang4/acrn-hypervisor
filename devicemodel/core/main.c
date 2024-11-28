@@ -73,6 +73,8 @@
 #include "iothread.h"
 #include "vm_event.h"
 #include "virtio_be.h"
+#include "time_profiling.h"
+
 
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
 
@@ -841,6 +843,7 @@ vm_loop(struct vmctx *ctx)
 		return;
 	}
 
+	time_profiling_add(NULL, BOOT_TIME, RECORD_END);
 	while (1) {
 		int vcpu_id;
 		struct acrn_io_request *io_req;
@@ -1005,6 +1008,8 @@ main(int argc, char *argv[])
 	progname = basename(argv[0]);
 	memsize = 256 * MB;
 	mptgen = 1;
+
+	time_profiling_add("Main Start", BOOT_TIME, RECORD_NODE);
 
 	if (signal(SIGHUP, sig_handler_term) == SIG_ERR)
 		fprintf(stderr, "cannot register handler for SIGHUP\n");
@@ -1269,6 +1274,7 @@ main(int argc, char *argv[])
 			pr_warn("ASYNIO capability is not supported by kernel or hyperviosr!\n");
 		}
 
+		time_profiling_add("Setup Memory", BOOT_TIME, RECORD_NODE);
 		pr_notice("vm_setup_memory: size=0x%lx\n", memsize);
 		error = vm_setup_memory(ctx, memsize);
 		if (error) {
@@ -1282,6 +1288,7 @@ main(int argc, char *argv[])
 			goto mevent_fail;
 		}
 
+		time_profiling_add("Virtual Devices INIT", BOOT_TIME, RECORD_NODE);
 		pr_notice("vm_init_vdevs\n");
 		if (vm_init_vdevs(ctx) < 0) {
 			pr_err("Unable to init vdev (%d)\n", errno);
@@ -1304,6 +1311,7 @@ main(int argc, char *argv[])
 			}
 		}
 
+		time_profiling_add("Guest ACPI Build", BOOT_TIME, RECORD_NODE);
 		error = acpi_build(ctx, guest_ncpus);
 		if (error) {
 			pr_err("acpi_build failed, error=%d\n", error);
@@ -1316,6 +1324,7 @@ main(int argc, char *argv[])
 			goto vm_fail;
 		}
 
+		time_profiling_add("Load Guest Image", BOOT_TIME, RECORD_NODE);
 		pr_notice("acrn_sw_load\n");
 		error = acrn_sw_load(ctx);
 		if (error) {
