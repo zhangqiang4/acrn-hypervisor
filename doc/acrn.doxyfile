@@ -937,6 +937,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/vcpuid.c \
                           ../hypervisor/arch/x86/guest/vmsr.c \
                           ../hypervisor/arch/x86/guest/ucode.c \
+                          ../hypervisor/arch/x86/guest/vcpu.c \
+                          ../hypervisor/arch/x86/guest/vmx_asm.S \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \
                           ../hypervisor/include/arch/x86/asm/msr.h \

@@ -155,14 +155,13 @@ the major states are:
 The following functions are used to drive the state machine of the vCPU
 lifecycle:
 
-.. doxygenfunction:: zombie_vcpu
-   :project: Project ACRN
+:c:func:`create_vcpu`
 
-.. doxygenfunction:: reset_vcpu
-   :project: Project ACRN
+:c:func:`zombie_vcpu`
 
-.. doxygenfunction:: offline_vcpu
-   :project: Project ACRN
+:c:func:`reset_vcpu`
+
+:c:func:`offline_vcpu`
 
 
 vCPU Scheduling Under Static CPU Partitioning
@@ -291,55 +290,40 @@ categories:
    -  No definition in *vcpu->run_context*
    -  Get/Set them through VMCS API
 
-For the first two categories above, ACRN provides these get/set APIs:
+For the first two categories above, ACRN provides these get/set APIs.
+Refer to the module design specification for more details.
 
-.. doxygenfunction:: vcpu_get_gpreg
-   :project: Project ACRN
+:c:func:`vcpu_get_gpreg`
 
-.. doxygenfunction:: vcpu_set_gpreg
-   :project: Project ACRN
+:c:func:`vcpu_set_gpreg`
 
-.. doxygenfunction:: vcpu_get_rip
-   :project: Project ACRN
+:c:func:`vcpu_get_rip`
 
-.. doxygenfunction:: vcpu_set_rip
-   :project: Project ACRN
+:c:func:`vcpu_set_rip`
 
-.. doxygenfunction:: vcpu_get_rsp
-   :project: Project ACRN
+:c:func:`vcpu_get_rsp`
 
-.. doxygenfunction:: vcpu_set_rsp
-   :project: Project ACRN
+:c:func:`vcpu_set_rsp`
 
-.. doxygenfunction:: vcpu_get_efer
-   :project: Project ACRN
+:c:func:`vcpu_get_efer`
 
-.. doxygenfunction:: vcpu_set_efer
-   :project: Project ACRN
+:c:func:`vcpu_set_efer`
 
-.. doxygenfunction:: vcpu_get_rflags
-   :project: Project ACRN
+:c:func:`vcpu_get_rflags`
 
-.. doxygenfunction:: vcpu_set_rflags
-   :project: Project ACRN
+:c:func:`vcpu_set_rflags`
 
-.. doxygenfunction:: vcpu_get_cr0
-   :project: Project ACRN
+:c:func:`vcpu_get_cr0`
 
-.. doxygenfunction:: vcpu_set_cr0
-   :project: Project ACRN
+:c:func:`vcpu_set_cr0`
 
-.. doxygenfunction:: vcpu_get_cr2
-   :project: Project ACRN
+:c:func:`vcpu_get_cr2`
 
-.. doxygenfunction:: vcpu_set_cr2
-   :project: Project ACRN
+:c:func:`vcpu_set_cr2`
 
-.. doxygenfunction:: vcpu_get_cr4
-   :project: Project ACRN
+:c:func:`vcpu_get_cr4`
 
-.. doxygenfunction:: vcpu_set_cr4
-   :project: Project ACRN
+:c:func:`vcpu_set_cr4`
 
 
 VM Exit Handlers
@@ -438,18 +422,16 @@ ACRN uses the function *acrn_handle_pending_request* to handle
 requests before VM entry in *vcpu_thread*.
 
 A bitmap in the vCPU structure lists the different requests:
-
 .. code-block:: c
 
-   #define ACRN_REQUEST_EXCP 0U
-   #define ACRN_REQUEST_EVENT 1U
-   #define ACRN_REQUEST_EXTINT 2U
-   #define ACRN_REQUEST_NMI 3U
-   #define ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE 4U
-   #define ACRN_REQUEST_EPT_FLUSH 5U
-   #define ACRN_REQUEST_TRP_FAULT 6U
-   #define ACRN_REQUEST_VPID_FLUSH 7U /* flush vpid tlb */
-
+:c:macro:`ACRN_REQUEST_EXCP`
+:c:macro:`ACRN_REQUEST_EVENT`
+:c:macro:`ACRN_REQUEST_EXTINT`
+:c:macro:`ACRN_REQUEST_NMI`
+:c:macro:`ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE`
+:c:macro:`ACRN_REQUEST_EPT_FLUSH`
+:c:macro:`ACRN_REQUEST_TRP_FAULT`
+:c:macro:`ACRN_REQUEST_VPID_FLUSH`
 
 ACRN provides the function *vcpu_make_request* to make different
 requests, set the bitmap of the corresponding request, and notify the target

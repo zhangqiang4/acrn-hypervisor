@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -17,8 +17,8 @@
  * with a comment tracking the original expression from which the magic
  * number is calculated. As an example:
  *
- *    /* 0x00000668 =
- *     *    (CR4_DE | CR4_PAE | CR4_MCE | CR4_OSFXSR | CR4_OSXMMEXCPT) *\/
+ *    0x00000668 =
+ *        (CR4_DE | CR4_PAE | CR4_MCE | CR4_OSFXSR | CR4_OSXMMEXCPT)
  *    movl    $0x00000668, %eax
  *
  * Make sure that these numbers are updated accordingly if the definition of
@@ -180,7 +180,7 @@ vm_exit:
     mov         0(%rsp),%rdx
 
     /* Save guest RDI to guest state area
-    /*56U=0x38=CPU_CONTEXT_OFFSET_RDI*/
+     56U=0x38=CPU_CONTEXT_OFFSET_RDI*/
     mov         %rdx,0x38(%rdi)
 
     /* Save RDI to RSI for later SPEC_CTRL save*/

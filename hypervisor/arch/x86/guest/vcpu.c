@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -25,20 +25,79 @@
 #include <console.h>
 #include <hv_main.h>
 
-/* stack_frame is linked with the sequence of stack operation in arch_switch_to() */
+/**
+ * @addtogroup vp-base_vcpu
+ *
+ * @{
+ */
+
+/*
+ * @file
+ * @brief Implement vCPU related functions
+ *
+ * This file implements functions on vCPU operations such as prepare, create and run etc., also implement
+ * vCPU register operations such as read/write general purpose registers and control registers etc.
+ *
+ */
+
+/**
+ * @file arch/x86/guest/vmx_asm.S
+ * @brief Define the entry to run guest code in non-root mode
+ *
+ * The file defines an execution entry for hypervisor to start guest code. After hypervisor configures
+ * the vCPU states for the guest, it transfers execution flow here to swap host/guest GPRs and gets
+ * into non-root mode by executing vmlaunch or vmresume instruction. The guest vCPU execution context
+ * is built or resumed from guest VMCS fields with a successful execution of the instruction, then guest
+ * starts or continues execution from the last trapped/interrupted point. Root mode execution flow resumes
+ * if a normal VM-Exit or a VM-Entry failure happens. A VM-Exit is followed by swapping host/guest
+ * GPRs and mitigation work depending on mitigation type, but in VM-Entry failure case, skip mitigation
+ * work because guest code hasn't started yet. And finally the execution flow returns to hypervisor to
+ * continue handling normal VM-Exit case or VM-Entry failure case.
+ */
+
+/*
+ * @brief Data struct to store vCPU GPRs that should be swapped during vCPU scheduling
+ *
+ * This struct is used in arch_switch_to() to store previous vCPU registers and restore next vCPU's registers.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ */
 struct stack_frame {
-	uint64_t rdi;
-	uint64_t r15;
-	uint64_t r14;
-	uint64_t r13;
-	uint64_t r12;
-	uint64_t rbp;
-	uint64_t rbx;
-	uint64_t rflag;
-	uint64_t rip;
-	uint64_t magic;
+	uint64_t rdi;	/**< vCPU rdi register */
+	uint64_t r15;	/**< vCPU r15 register */
+	uint64_t r14;	/**< vCPU r14 register */
+	uint64_t r13;	/**< vCPU r13 register */
+	uint64_t r12;	/**< vCPU r12 register */
+	uint64_t rbp;	/**< vCPU rbp register */
+	uint64_t rbx;	/**< vCPU rbx register */
+	uint64_t rflag;	/**< vCPU rflags register */
+	uint64_t rip;	/**< vCPU rip register */
+	uint64_t magic;	/**< magic number for stack */
 };
 
+/**
+ * @brief Get vCPU general purpose register
+ *
+ * This function is used to read general purpose register value from vCPU run_context.
+ *
+ * Normal case behaviors:
+ * - Return the cached data for specific register
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU of the GP register
+ * @param[in] reg The cache index of the GP register
+ *
+ * @return The GP register value
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark reg is defined in enum cpu_reg_name.
+ */
 uint64_t vcpu_get_gpreg(const struct acrn_vcpu *vcpu, uint32_t reg)
 {
 	const struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -46,6 +105,29 @@ uint64_t vcpu_get_gpreg(const struct acrn_vcpu *vcpu, uint32_t reg)
 	return ctx->cpu_regs.longs[reg];
 }
 
+/**
+ * @brief Store vCPU general purpose register
+ *
+ * This function is used to write general purpose register value to vCPU run_context.
+ *
+ * Normal case behaviors:
+ * - Store the register value to memory cache indexed by reg
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to save register
+ * @param[in] reg The register index
+ * @param[in] val The register value to store
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark reg is defined in enum cpu_reg_name.
+ */
 void vcpu_set_gpreg(struct acrn_vcpu *vcpu, uint32_t reg, uint64_t val)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -53,6 +135,26 @@ void vcpu_set_gpreg(struct acrn_vcpu *vcpu, uint32_t reg, uint64_t val)
 	ctx->cpu_regs.longs[reg] = val;
 }
 
+/**
+ * @brief Get vCPU RIP
+ *
+ * This function is used to get vCPU RIP. VM-Exit doesn't cache vCPU RIP, if HV doesn't update vCPU RIP,
+ * this function needs to read RIP from VMX_GUEST_RIP.
+ *
+ * Normal case behaviors:
+ * - Return RIP of the target vCPU
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the RIP
+ *
+ * @return The RIP of the vCPU
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_rip(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -64,12 +166,53 @@ uint64_t vcpu_get_rip(struct acrn_vcpu *vcpu)
 	return ctx->rip;
 }
 
+/**
+ * @brief Set vCPU RIP
+ *
+ * The RIP value is written to memory cache directly and set the RIP bit in bitmap reg_updated to indicate
+ * the VMX_GUEST_RIP needs update.
+ *
+ * Normal case behaviors:
+ * - Store RIP value to memory cache.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to store the RIP
+ * @param[in] val The RIP value to store
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_rip(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	vcpu->arch.contexts.run_ctx.rip = val;
 	bitmap_set_nolock(CPU_REG_RIP, &vcpu->reg_updated);
 }
 
+/**
+ * @brief Get vCPU RSP
+ *
+ * This function is used to get vCPU RSP. VM-Exit doesn't cache vCPU RSP, if HV doesn't update vCPU RSP,
+ * this function needs to read RSP from VMX_GUEST_RSP.
+ *
+ * Normal case behaviors:
+ * - Return RSP of the target vCPU
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the RIP
+ *
+ * @return The RSP of the vCPU
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_rsp(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -81,6 +224,27 @@ uint64_t vcpu_get_rsp(struct acrn_vcpu *vcpu)
 	return ctx->cpu_regs.regs.rsp;
 }
 
+/**
+ * @brief Set vCPU RSP
+ *
+ * This function is used to store RSP to memory cache. The RSP value is written to cache directly and
+ * RSP bit is set in bitmap reg_updated to indicate the CPU_REG_RSP needs update.
+ *
+ * Normal case behaviors:
+ * - Store RSP value to memory cache.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu The target vCPU to store the RSP.
+ * @param[in] val The RSP value to store.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_rsp(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -89,6 +253,25 @@ void vcpu_set_rsp(struct acrn_vcpu *vcpu, uint64_t val)
 	bitmap_set_nolock(CPU_REG_RSP, &vcpu->reg_updated);
 }
 
+/**
+ * @brief Get vCPU IA32_EFER MSR
+ *
+ * The function is used to get EFER MSR data from memory cache.
+ *
+ * Normal case behaviors:
+ * - Return the cached EFER MSR data of the vCPU
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the MSR
+ *
+ * @return EFER MSR data of the vCPU
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_efer(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -96,6 +279,31 @@ uint64_t vcpu_get_efer(struct acrn_vcpu *vcpu)
 	return ctx->ia32_efer;
 }
 
+/**
+ * @brief Set vCPU IA32_EFER MSR
+ *
+ * The MSR value is written to cache directly and toggle the EFER bit in bitmap reg_updated to indicate
+ * IA32_EFER MSR needs update. When the MSR value is equal to the data in current HW, no need to
+ * overwrite the MSR thus clear LOAD_EFER bit in VMX_{ENTRY,EXIT}_CTLS, otherwise set the bit in VMX_
+ * {ENTRY,EXIT}_CTLS so that EFER MSR will be loaded from {guest, host} VMCS field on VM-{ENTRY,EXIT}.
+ *
+ * Normal case behaviors:
+ * - Store EFER MSR value to memory cache
+ * - Clear or set the EFER bit in VMX_{ENTRY,EXIT}_CTLS
+ * - Set EFER bit in vcpu->reg_updated
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to store the EFER MSR value
+ * @param[in] val EFER value to store
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_efer(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	vcpu->arch.contexts.run_ctx.ia32_efer = val;
@@ -112,6 +320,26 @@ void vcpu_set_efer(struct acrn_vcpu *vcpu, uint64_t val)
 	bitmap_set_nolock(CPU_REG_EFER, &vcpu->reg_updated);
 }
 
+/**
+ * @brief Get vCPU RFLAGS
+ *
+ * This function is used to get vCPU RFLAGS register value. VM-Exit doesn't cache vCPU RFLAGS,
+ * if HV doesn't update vCPU RFLAGS, this function needs to read RSP from VMX_GUEST_RFLAGS.
+ *
+ * Normal case behaviors:
+ * - Return RFLAGS of target vCPU
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the RFLAGS
+ *
+ * @return RFLAGS of the vCPU
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_rflags(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -123,12 +351,56 @@ uint64_t vcpu_get_rflags(struct acrn_vcpu *vcpu)
 	return ctx->rflags;
 }
 
+/**
+ * @brief Store vCPU RFLAGS
+ *
+ * This function is used to store RFLAGS register to memory cache. The RSP value is written to cache
+ * directly and toggle the RFLAGS bit in bitmap vcpu->reg_updated to indicate the cached data is
+ * up-to-date.
+ *
+ * Normal case behaviors:
+ * - Store RFLAGS value to memory cache
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to store RFLAGS
+ * @param[in] val RFLAGS value to store
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_rflags(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	vcpu->arch.contexts.run_ctx.rflags = val;
 	bitmap_set_nolock(CPU_REG_RFLAGS, &vcpu->reg_updated);
 }
 
+/**
+ * @brief Get MSR listed in emulated_guest_msrs
+ *
+ * These MSRs are retrieved from cached MSR array with the index mapped from MSR encoding. If the given
+ * MSR is not found in the emulated MSR array (refer to vmsr_get_guest_msr_index() for details), the
+ * default return value is 0.
+ *
+ * Normal case behaviors:
+ * - Get MSR value from guest_msrs array
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the MSR
+ * @param[in] msr MSR encoding
+ *
+ * @return MSR value indicated by msr
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_guest_msr(const struct acrn_vcpu *vcpu, uint32_t msr)
 {
 	uint32_t index = vmsr_get_guest_msr_index(msr);
@@ -141,6 +413,28 @@ uint64_t vcpu_get_guest_msr(const struct acrn_vcpu *vcpu, uint32_t msr)
 	return val;
 }
 
+/**
+ * @brief Set emulated MSR value to memory cache
+ *
+ * The function is used to store emulated MSR value, i.e., found in vmsr_get_guest_msr_index(),
+ * to MSR cache array. The array index is mapped from MSR encoding.
+ *
+ * Normal case behaviors:
+ * - Set MSR value to guest_msrs array
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to get the MSR
+ * @param[in] msr MSR encoding
+ * @param[in] val The MSR value to store
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL.
+ *
+ * @post N/A
+ */
 void vcpu_set_guest_msr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 {
 	uint32_t index = vmsr_get_guest_msr_index(msr);
@@ -150,8 +444,24 @@ void vcpu_set_guest_msr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 	}
 }
 
-/*
- * Write the eoi_exit_bitmaps to VMCS fields
+/**
+ * @brief Update eoi_exit_bitmaps to VMCS fields.
+ *
+ * This function is used to update VMCS VMX_EOI_EXITx_FULL fields with cached eoi_exit_bitmaps.
+ *
+ * Normal case behaviors:
+ * - Write vCPU eoi_exit_bitmaps to corresponding VMCS fields.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to update the eoi_exit_bitmaps.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void vcpu_set_vmcs_eoi_exit(const struct acrn_vcpu *vcpu)
 {
@@ -161,9 +471,27 @@ void vcpu_set_vmcs_eoi_exit(const struct acrn_vcpu *vcpu)
 	exec_vmwrite64(VMX_EOI_EXIT3_FULL, vcpu->arch.eoi_exit_bitmap[3]);
 }
 
-/*
- * Set the eoi_exit_bitmap bit for specific vector
+/**
+ * @brief Set bit in vCPU EOI bitmaps
+ *
+ * This function sets vector relevant bit in vCPU eoi_exit_bitmap. If the bit was clear,
+ * send vCPU ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE request to update the VMCS EOI bitmap fields.
+ *
+ * Normal case behaviors:
+ * - Set vector relevant bit in vCPU eoi_exit_bitmap.
+ * - Send vCPU request to update VMCS EOI bitmap fields if the bit was clear.
+ *
+ * Error case behaviors:
+ *  - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set the eoi_exit_bitmaps
+ * @param[in] vector The interrupt vector for which to set the bit
+ *
+ * @return None
+ *
  * @pre vcpu != NULL && vector <= 255U
+ *
+ * @post N/A
  */
 void vcpu_set_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector)
 {
@@ -175,6 +503,28 @@ void vcpu_set_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector)
 	}
 }
 
+/**
+ * @brief Clear bit in vCPU EOI bitmap
+ *
+ * This function clears vector relevant bit in vCPU eoi_exit_bitmap. If the bit was set,
+ * send vCPU ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE request to update the VMCS EOI bitmap fields.
+ *
+ * Normal case behaviors:
+ * - Clear vector relevant bit in vCPU eoi_exit_bitmap.
+ * - Send vCPU request to update VMCS EOI bitmap fields if the bit was set.
+ *
+ * Error case behaviors:
+ *  - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set the eoi_exit_bitmaps
+ * @param[in] vector The interrupt vector for which to clear the bit
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL && vector <= 255U
+ *
+ * @post N/A
+ */
 void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector)
 {
 	pr_dbg("%s", __func__);
@@ -185,8 +535,26 @@ void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector)
 	}
 }
 
-/*
- * Reset all eoi_exit_bitmaps
+/**
+ * @brief Reset all eoi_exit_bitmaps
+ *
+ * This function is used to reset all bits in eoi_exit_bitmaps when vLAPIC is being reset. It sends
+ * vCPU ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE request after resets eoi_exit_bitmaps. HV checks the request
+ * and updates VMX_EOI_EXIT_FULL VMCS fields with reset bitmap values at next VM-Entry.
+ *
+ * Normal case behaviors:
+ * - Reset all bits of vCPU eoi_exit_bitmaps.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to reset the eoi_exit_bitmaps
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void vcpu_reset_eoi_exit_bitmaps(struct acrn_vcpu *vcpu)
 {
@@ -196,9 +564,29 @@ void vcpu_reset_eoi_exit_bitmaps(struct acrn_vcpu *vcpu)
 	vcpu_make_request(vcpu, ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE);
 }
 
+/**
+ * @brief Initialize IWKeys with random values
+ *
+ * This function uses random value to initialize IWKeys while vCPU is being reset. Guest can overwrite the initial
+ * IWKeys by executing LOADIWKEY instruction.
+ *
+ * Normal case behaviors:
+ * - The IWKeys are filled with random key values.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to initialize the IWKeys.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_iwkey(struct acrn_vcpu *vcpu)
 {
-	/* Initial a random iwkey */
+	/* Initialize a random iwkey */
 	if (pcpu_has_cap(X86_FEATURE_KEYLOCKER)) {
 		vcpu->arch.IWKey.integrity_key[0] = get_random_value();
 		vcpu->arch.IWKey.integrity_key[1] = get_random_value();
@@ -211,6 +599,35 @@ static void init_iwkey(struct acrn_vcpu *vcpu)
 	}
 }
 
+/**
+ * @brief Load Key Locker IWKey
+ *
+ * This function is used to load Internal Wrapping Key(IWKey) when below conditions are met:
+ * - Physical CPU supports KeyLocker feature.
+ * - vcpu->arch.cr4_kl_enabled is true.
+ * - IWKey current owner is not the target vCPU.
+ *
+ * The load-IWKey process includes below steps:
+ * - Saves XMM0, XMM1, and XMM2 registers to local variables.
+ * - Writes these registers with IWKey's integrity_key and encryption_key.
+ * - Load the IWKey.
+ * - Restore local values to XMM0, XMM1, and XMM2 registers.
+ * - Set the target vCPU as IWKey current owner.
+ *
+ * Normal case behaviors:
+ * - The IWKey is loaded and the target vCPU is set as current owner of the key.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to load the IWKey.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void load_iwkey(struct acrn_vcpu *vcpu)
 {
 	uint64_t xmm_save[6];
@@ -231,7 +648,40 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu);
-/* As a vcpu reset internal API, DO NOT touch any vcpu state transition in this function. */
+
+/**
+ * @brief Reset vCPU to initial states
+ *
+ * This function performs below set up to reset/initialize vCPU states:
+ * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
+ * - Call clear_va_vmcs to Clear VMCS data structure
+ * - Initillize interrupt mode to kill vCPU out of non-root mode
+ * - Call vlapic_reset to performs a reset of the virtual LAPIC
+ * - Call set_vcpu_regs to Reset vCPU to initial states
+ * - Rebuild vCPU thread stack if pCPU state is offline.
+ * - Call reset_event to Reset all the vCPU schedule event
+ * - Initialize IWKeys with random values
+ *
+ * Normal case behaviors:
+ * - Reset and initialize vCPU to initial states.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] pcpu_id The physical CPU ID that runs the vCPU reset.
+ * @param[inout] vcpu The vCPU to be reset.
+ * @param[in] mode The reset type for this vCPU.
+ *
+ * @return None
+ *
+ * @pre 0 <= pcpu_id && pcpu_id <= MAX_PCPU_NUM - 1
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark 1)DO NOT touch any vcpu transient states in this function as they're not finalized.
+ * 2) mode is the pre-defined value in vcpu_reset_mode.
+ */
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	int32_t i;
@@ -293,6 +743,26 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vcpu->arch.iwkey_copy_status = 0UL;
 }
 
+/**
+ * @brief Get running vCPU from thread_object data
+ *
+ * This function is used to get the running vCPU according to thread_object of the target physical CPU.
+ * If an idle thread is running on the physical CPU, then return NULL to caller.
+ *
+ * Normal case behaviors:
+ * - Return the running vCPU pointer.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] pcpu_id The physical CPU ID to get running vCPU.
+ *
+ * @return The running vCPU pointer
+ *
+ * @pre 0 <= pcpu_id && pcpu_id <= MAX_PCPU_NUM - 1
+ *
+ * @post N/A
+ */
 struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id)
 {
 	struct thread_object *curr = sched_get_current(pcpu_id);
@@ -305,11 +775,49 @@ struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id)
 	return vcpu;
 }
 
+/**
+ * @brief Get running vCPU from per-CPU ever_run_vcpu data
+ *
+ * This function is used to get the running vCPU from per-CPU ever_run_vcpu data of the target physical CPU.
+ *
+ * Normal case behaviors:
+ * - Return the active vCPU on the physical CPU.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] pcpu_id The physical CPU ID to get active vCPU
+ *
+ * @return pointer to the active vCPU
+ *
+ * @pre @pre 0 <= pcpu_id && pcpu_id <= MAX_PCPU_NUM - 1
+ *
+ * @post N/A
+ */
 struct acrn_vcpu *get_ever_run_vcpu(uint16_t pcpu_id)
 {
 	return per_cpu(ever_run_vcpu, pcpu_id);
 }
 
+/**
+ * @brief Set the vCPU in specific mode
+ *
+ * This function is used to set vCPU in one of the mode listed in vm_cpu_mode, i.e., Real-Address mode,
+ * Protected mode, IA32-e compatibility mode and 64-bit mode. The mode is set according to EFER MSR, CS
+ * segment attributes and CR0 settings. Refer to 2.2 Modes of Operation, SDM Vol.3 SDM 325462-078US
+ * for details.
+ *
+ * @param[inout] vcpu Target vCPU to set CPU mode
+ * @param[in] cs_attr CS segment attributes
+ * @param[in] ia32_efer vCPU EFER MSR value
+ * @param[in] cr0 vCPU CR0 value
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void set_vcpu_mode(struct acrn_vcpu *vcpu, uint32_t cs_attr, uint64_t ia32_efer,
 		uint64_t cr0)
 {
@@ -327,6 +835,23 @@ static void set_vcpu_mode(struct acrn_vcpu *vcpu, uint32_t cs_attr, uint64_t ia3
 	}
 }
 
+/**
+ * @brief Initialize XSAVE relevant settings
+ *
+ * This function is used to initialize XSAVE related settings after vCPU is created.
+ * It performs below initialization if physical CPU supports XSAVE feature:
+ * - Set vCPU ext_context's XCR0 with XSAVE_FPU;
+ * - Reset xsave_area.
+ * - Set xsave_header's XCOMP_BV[63] to indicate the compacted format is used for XSAVE data storage.
+ *
+ * @param[inout] vcpu Target vCPU to do XSAVE initialization
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_xsave(struct acrn_vcpu *vcpu)
 {
 	struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
@@ -346,6 +871,40 @@ static void init_xsave(struct acrn_vcpu *vcpu)
 	}
 }
 
+/**
+ * @brief Set vCPU to target mode states
+ *
+ * This function performs below setup for the vCPU:
+ * - Set up initial segment attr/limit fields according to CR0.PE state.
+ * - Initialize base/attr/limit/selector fields for {CS, SS, DS, ES, FS, GS} segments.
+ * - Override ext_context CS segment attr/base/limit with the data in vcpu_regs.
+ * - Set GDTR and IDTR base/limit fields with the data in vcpu_regs.
+ * - Set LDTR and TR selector field with the data in vcpu_regs.
+ * - Set LDTR and TR base/limit/attr fields with default values.
+ * - Initialize general purpose registers with corresponding data in vcpu_regs.
+ * - Set RIP/RSP with the data in vcpu_regs.
+ * - Set/Clear VMX_{ENTRY,EXIT}_CTLS_LOAD_EFER in VMX_{ENTRY,EXIT}_CONTROLS fields according to vcpu_regs->ia32_efer.
+ * - If vcpu_regs->rflags == 0UL, set RFLAGs to 0x02UL, otherwise set it to vcpu_regs->rflags & ~(0x8d5UL).
+ * - Set CR0/CR3/CR4 to the values in vcpu_regs.
+ * - Set vCPU mode according to vcpu_regs {cs_ar, ia32_efer, cr0}.
+ *
+ * Normal case behaviors:
+ * - Update vCPU GP registers, CS/SS/DS/ES/FS/GS/GDTR/LDTR/TR registers, RIP/RSP/RFLAGS registers, CR0/CR3/CR4 registers.
+ * - Update VMX_{ENTRY, EXIT}_CTLS_LOAD_EFER bits in VMCS VMX_ENTRY_CTLS/VMX_EXIT_CTLS VMCS fields;
+ * - Update vCPU mode to the target mode.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to update the states
+ * @param[in] vcpu_regs Target register states to set
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL && vcpu_regs != NULL
+ *
+ * @post N/A
+ */
 void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs)
 {
 	struct ext_context *ectx;
@@ -429,6 +988,11 @@ void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs)
 			vcpu_regs->cr0);
 }
 
+/**
+ * @brief Variable to hold initial real-mode CPU register values
+ *
+ * This struct variable holds initial values for real-mode GDT/IDT, CS segment, RIP and CR0/CR3/CR4 registers.
+ */
 static struct acrn_regs realmode_init_vregs = {
 	.gdt = {
 		.limit = 0xFFFFU,
@@ -448,6 +1012,11 @@ static struct acrn_regs realmode_init_vregs = {
 	.cr4 = 0UL,
 };
 
+/**
+ * @brief Variable to hold guest protected-mode GDT
+ *
+ * This struct variable holds guest protected-mode GDT contents after vCPU is configured to protected-mode.
+ */
 static uint64_t init_vgdt[] = {
 	0x0UL,
 	0x0UL,
@@ -455,6 +1024,11 @@ static uint64_t init_vgdt[] = {
 	0x00CF93000000FFFFUL,   /* Linear Data */
 };
 
+/**
+ * @brief Variable to hold initial protected-mode CPU register values
+ *
+ * This struct variable holds initial values for protected-mode GDT/IDT, CS/DS/SS/ES segments and CR0.
+ */
 static struct acrn_regs protect_mode_init_vregs = {
 	.gdt = {
 		.limit = 0xFFFFU,
@@ -473,6 +1047,26 @@ static struct acrn_regs protect_mode_init_vregs = {
 	.es_sel = 0x18U,
 };
 
+/**
+ * @brief Check VM real and protected mode CR0/CR4 values
+ *
+ * This function calls is_valid_cr0_cr4() to check validity of VM initial CR0/CR4 values.
+ * If it fails to pass check, print error message together with original CR0/CR4 values.
+ *
+ * Normal case behaviors:
+ * - Return true to indicate valid CR0/CR4 values, otherwise false.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vm Target VM to check CR0/CR4 register
+ *
+ * @return A boolean value
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 bool sanitize_cr0_cr4_pattern(struct acrn_vm *vm)
 {
 	bool ret = false;
@@ -487,6 +1081,23 @@ bool sanitize_cr0_cr4_pattern(struct acrn_vm *vm)
 	return ret;
 }
 
+/**
+ * @brief Reset vCPU registers to real-mode state
+ *
+ * This function calls set_vcpu_regs() to reset vCPU registers to real-mode default CPU state.
+ * Reset tsc_aux flag if the target reset mode is not INIT_RESET.
+ *
+ * @param[inout] vcpu Target vCPU to reset
+ * @param[in] mode The reset type
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark mode is a pre-defined value in vcpu_reset_mode.
+ */
 static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	set_vcpu_regs(vcpu, &realmode_init_vregs);
@@ -509,6 +1120,30 @@ static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 	}
 }
 
+/**
+ * @brief Initialize protected-mode vCPU registers
+ *
+ * This function copies default vCPU register values from protect_mode_init_vregs and override
+ * virtual gdt base/limit with the data passed by caller, then calls set_vcpu_regs() to initialize
+ * vCPU protected mode registers and flags.
+ *
+ * Normal case behaviors:
+ * - Initialize the vCPU states to protected-mode settings.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to initialize
+ * @param[in] vgdt_base_gpa Guest gdt table base address
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark vgdt_base_gpa is valid GPA.
+ */
 void init_vcpu_protect_mode_regs(struct acrn_vcpu *vcpu, uint64_t vgdt_base_gpa)
 {
 	struct acrn_regs vcpu_regs;
@@ -523,6 +1158,31 @@ void init_vcpu_protect_mode_regs(struct acrn_vcpu *vcpu, uint64_t vgdt_base_gpa)
 	set_vcpu_regs(vcpu, &vcpu_regs);
 }
 
+/**
+ * @brief Set vCPU startup entry
+ *
+ * This function is used to set up guest code entry. It sets the entry as below:
+ * - vCPU CS.selector = (entry >> 4U) & 0xFFFFU
+ * - vCPU CS.base = CS.selector << 4U
+ * - vCPU RIP = 0UL
+ *
+ * Normal case behaviors:
+ * - Set guest code execution entry.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set up entry
+ * @param[in] entry The code entry for vCPU to run
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark The entry should contain valid CS selector and base.
+ */
 void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 {
 	struct ext_context *ectx;
@@ -536,6 +1196,20 @@ void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 
 static void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
 
+/**
+ * @brief Reset vCPU's IA32_MTRR_DEF_TYPE MSR value
+ *
+ * This function resets vCPU's IA32_MTRR_DEF_TYPE MSR to VM settings for the MSR. When vCPU is in reset process,
+ * this function is called to reset vCPU's IA32_MTRR_DEF_TYPE settings.
+ *
+ * @param[inout] vcpu Target vCPU to reset the MSR value
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu)
 {
 	union mtrr_def_type_reg *def_type = &vcpu->arch.mtrr_def_type;
@@ -543,8 +1217,41 @@ static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu)
 	def_type->value = vcpu->vm->arch_vm.vmtrr.def_type.value;
 }
 
-/*
+/**
+ * @brief Create a virtual CPU for a VM
+ *
+ * This function is used to create a vCPU on specific physical CPU for a VM.
+ * It performs below vCPU setup if new vCPU ID is less than MAX_VCPUS_PER_VM:
+ * - Allocate a vCPU slot from VM's static memory with new vCPU ID and reset the vCPU slot memory.
+ * - Initialize vCPU flags such as vCPU ID, VPID, Posted-Interrupt notification vector and destination pCPU ID etc.
+ * - Call vlapic_create() to create vLAPIC for the vCPU.
+ * - Reset XSAVE memory and initialize XSAVE flags.
+ * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
+ * - Call clear_va_vmcs to Clear VMCS data structure
+ * - Initillize interrupt mode to kill vCPU out of non-root mode
+ * - Call vlapic_reset to performs a reset of the virtual LAPIC
+ * - Call set_vcpu_regs to Reset vCPU to initial states
+ * - Rebuild vCPU thread stack if pCPU state is offline.
+ * - Call reset_event to Reset all the vCPU schedule event
+ * - Initialize IWKeys with random values
+ * - Set vCPU state to VCPU_INIT.
+ * - Reset io_request for the vCPU.
+ * - Increase created_vcpus for virtual machine the vCPU belongs to.
+ *
+ * Otherwise print error message and return an error.
+ *
+ * @param[in] pcpu_id Physical CPU ID on which the vCPU is created.
+ * @param[inout] vm The virtual machine the vCPU belongs to.
+ * @param[inout] rtn_vcpu_handle Pointer to caller supplied local vCPU pointer variable.
+ *
+ * @return A integer value indicates creating result.
+ *
+ * @retval 0 The vCPU is created successfully.
+ * @retval -EINVAL The created vCPU number per VM exceeds MAX_VCPUS_PER_VM.
+ *
  * @pre vm != NULL && rtn_vcpu_handle != NULL
+ *
+ * @post N/A
  */
 static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
 {
@@ -573,9 +1280,9 @@ static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcp
 
 		/* Initialize the virtual ID for this VCPU */
 		/* FIXME:
-		 * We have assumption that we always destroys vcpus in one
+		 * We assume that we always destroys vcpus in one
 		 * shot (like when vm is destroyed). If we need to support
-		 * specific vcpu destroy on fly, this vcpu_id assignment
+		 * specific vcpu destroy on the fly, this vcpu_id assignment
 		 * needs revise.
 		 */
 
@@ -607,8 +1314,8 @@ static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcp
 		 * Allocate unique Activation Notification Vectors (ANV) for each vCPU that
 		 * belongs to the same pCPU, the ANVs need only be unique within each pCPU,
 		 * not across all vCPUs. The max numbers of vCPUs may be running on top of
-		 * a pCPU is CONFIG_MAX_VM_NUM, since ACRN does not support 2 vCPUs of same
-		 * VM running on top of same pCPU. This reduces # of pre-allocated ANVs for
+		 * a pCPU is CONFIG_MAX_VM_NUM, since ACRN does not support 2 vCPUs of the same
+		 * VM running on top of the same pCPU. This reduces # of pre-allocated ANVs for
 		 * posted interrupts to CONFIG_MAX_VM_NUM, and enables ACRN to avoid switching
 		 * between active and wake-up vector values in the posted interrupt descriptor
 		 * on vCPU scheduling state changes.
@@ -654,7 +1361,21 @@ static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcp
 }
 
 /**
+ * @brief Start to execute guest code in non-root mode
+ *
+ * This function first flushes L1 data cache if hypervisor enabled L1D flush on VM-Entry. Then it calls
+ * cpu_internal_buffers_clear() to mitigate CPU vulnerability. Finally it prepares guest registers
+ * and tries to execute guest code in non-root mode.
+ *
+ * @param[inout] ctx The vCPU context state
+ * @param[in] launch_type vCPU entry type, launch or resume
+ * @param[in] ibrs_type Type of speculation control
+ *
+ * @return A value to indicate VM-Entry status
+ *
  * @pre ctx != NULL
+ *
+ * @post N/A
  */
 static inline int32_t exec_vmentry(struct run_context *ctx, int32_t launch_type, int32_t ibrs_type)
 {
@@ -668,8 +1389,20 @@ static inline int32_t exec_vmentry(struct run_context *ctx, int32_t launch_type,
 	return vmx_vmrun(ctx, launch_type, ibrs_type);
 }
 
-/*
+/**
+ * @brief Write VMCS fields with cached values
+ *
+ * This function is used to update RIP/RSP/EFER/RFLAGS/CR0/CR4 VMCS fields. If the register relevant bit
+ * is set in vCPU reg_updated, clear the bit and write corresponding VMCS field with the cached register
+ * value.
+ *
+ * @param[inout] vcpu Target vCPU to write the register VMCS fields
+ *
+ * @return N/A
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void write_cached_registers(struct acrn_vcpu *vcpu)
 {
@@ -690,7 +1423,7 @@ static void write_cached_registers(struct acrn_vcpu *vcpu)
 
 	/*
 	 * Currently, updating CR0/CR4 here is only designed for world
-	 * switching. There should no other module request updating
+	 * switching. There should be no other module requesting updates.
 	 * CR0/CR4 here.
 	 */
 	if (bitmap_test_and_clear_nolock(CPU_REG_CR0, &vcpu->reg_updated)) {
@@ -702,8 +1435,44 @@ static void write_cached_registers(struct acrn_vcpu *vcpu)
 	}
 }
 
-/*
+/**
+ * @brief Set up VMCS and run guest code
+ *
+ * This function performs below operations to run guest code:
+ * - Check whether cached guest RIP/RSP/EFER/RFLAGS/CR0/CR4 is updated, if it is, write the new data to VMCS field.
+ * - If it's the first time to launch vCPU then:
+ *   - Write vCPU VPID to corresponding VMCS filed if it's valid.
+ *   - Call flush_vpid_global() to flush caches.
+ *   - Set vCPU state to launched.
+ *   - If IBRS type is IBRS_RAW, set PRED_SET_IBPB in MSR_IA32_PRED_CMD MSR.
+ *
+ * Otherwise skip the last emulated instruction.
+ * Then do following things:
+ *   - If Hypervisor is configured to flush L1 data cached at VM-Entry, do it before run guest code.
+ *   - Overwrite CPU internal buffers to mitigate MDS vulnerability if it's required to do so.
+ *   - Launch or resume vCPU execution according to launch status.
+ *
+ * After vCPU VM-Exit or VM-Entry failure, the function does following clean-up work:
+ * - Set vCPU mode according to guest CS attribute, EFER MSR and CR0.
+ * - Read VMCS VMX_EXIT_INSTR_LEN and VMX_EXIT_REASON fields to cache the data for later HV handling.
+ * - If VM-Entry failed, it prints error message and related information.
+ *
+ * Normal case behaviors:
+ * - Prepare guest execution environment and run guest code.
+ *
+ * Error case behaviors:
+ * - Fail to run guest code.
+ *
+ * @param[inout] vcpu Target vCPU to run guest code
+ *
+ * @return A integer to indicate VM-Entry result
+ *
+ * @retval 0 Succeeded in running guest code
+ * @retval non-zero Failed to run guest code
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 int32_t run_vcpu(struct acrn_vcpu *vcpu)
 {
@@ -793,9 +1562,28 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 	return status;
 }
 
-/*
- *  @pre vcpu != NULL
- *  @pre vcpu->state == VCPU_ZOMBIE
+/**
+ * @brief Put vCPU to offline status and do cleanup
+ *
+ * This function is used to put vCPU into offline status. It does following clean-up work:
+ * - Call vlapic_free() to release active timer.
+ * - Reset per-CPU variable ever_run_vcpu to NULL.
+ * - Reset vCPU slot in per-CPU variable vcpu_array to NULL.
+ * - Set vCPU state to VCPU_OFFLINE.
+ *
+ * Normal case behaviors:
+ * - Clean up vCPU states before make it offline.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to put into offline state
+ *
+ * @return N/A
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void offline_vcpu(struct acrn_vcpu *vcpu)
 {
@@ -808,6 +1596,27 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 	vcpu_set_state(vcpu, VCPU_OFFLINE);
 }
 
+/**
+ * @brief Kick vCPU out of non-root mode
+ *
+ * This function calls kick_pcpu() to kick the target vCPU out of non-root mode when below conditions are met:
+ * - Current physical CPU is not the one running the vCPU.
+ * - Current VMCS region on target physical CPU matches the vCPU's VMCS region.
+ *
+ * Normal case behaviors:
+ * - Kick target vCPU out of non-root mode.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to be kicked off.
+ *
+ * @return N/A
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void kick_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
@@ -817,8 +1626,21 @@ void kick_vcpu(struct acrn_vcpu *vcpu)
 	}
 }
 
-/*
+/**
+ * @brief Create a stack frame for target vCPU's stack states
+ *
+ * This function is to create a stack frame to hold the vCPU GPRs, the stack frame is used when vCPU is
+ * scheduled in and out. The previous vCPU GPRs are stored in it's frame, and the next vCPU's GPRs are
+ * loaded from it's stack frame.
+ *
+ * @param[inout] vcpu Target vCPU to build stack frame for
+ *
+ * @return Start address of the stack frame
+ *
+ * @pre vcpu != NULL
  * @pre (&vcpu->stack[CONFIG_STACK_SIZE] & (CPU_STACK_ALIGN - 1UL)) == 0
+ *
+ * @post N/A
  */
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
 {
@@ -845,10 +1667,36 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
 	return (uint64_t) ret;
 }
 
-/* NOTE:
- * vcpu should be paused before call this function.
+/**
+ * @brief Reset vCPU states per reset mode
+ *
+ * This function performs following operations to reset vCPU states:
+ * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
+ * - Call clear_va_vmcs to Clear VMCS data structure
+ * - Initillize interrupt mode to kill vCPU out of non-root mode
+ * - Call vlapic_reset to performs a reset of the virtual LAPIC
+ * - Call set_vcpu_regs to Reset vCPU to initial states
+ * - Rebuild vCPU thread stack if pCPU state is offline.
+ * - Call reset_event to Reset all the vCPU schedule event
+ * - Initialize IWKeys with random values
+ * - Set vCPU state to VCPU_INIT.
+ *
+ * Normal case behaviors:
+ * - Reset vCPU internal states according to reset mode.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to reset
+ * @param[in] mode Target reset mode
+ *
+ * @return N/A
+ *
  * @pre vcpu != NULL
- * @pre vcpu->state == VCPU_ZOMBIE
+ *
+ * @post N/A
+ *
+ * @remark a)The VM this vCPU belongs to should be paused before call this function. b) mode is a valid defined value.
  */
 void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
@@ -858,6 +1706,28 @@ void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 	vcpu_set_state(vcpu, VCPU_INIT);
 }
 
+/**
+ * @brief Set vCPU state to VCPU_ZOMBIE
+ *
+ * If current vCPU state is VCPU_RUNNING or VCPU_INIT, this function sets vCPU state to VCPU_ZOMBIE.
+ * Then it does below clean-up work if the vCPU was in VCPU_RUNNING state:
+ * - If the vCPU is running on current pCPU, call sleep_thread() to make the vCPU thread in blocked status.
+ * - Otherwise call sleep_thread_sync() to wait for the target vCPU thread until it's in blocked status.
+ *
+ * Normal case behaviors:
+ * - The target vCPU is set to VCPU_ZOMBIE state and is blocked.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set VCPU_ZOMBIE state
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post The target vCPU state is VCPU_ZOMBIE and vCPU thread is blocked.
+ */
 void zombie_vcpu(struct acrn_vcpu *vcpu)
 {
 	enum vcpu_state prev_state;
@@ -879,6 +1749,22 @@ void zombie_vcpu(struct acrn_vcpu *vcpu)
 	}
 }
 
+/**
+ * @brief Save XSAVE-managed feature components to XSAVE area
+ *
+ * This function performs below things if physical CPU supports XSAVES feature:
+ * - Read current XCR(0) from physical CPU, write it back with XSAVE_SSE set.
+ * - Execute XSAVES instruction to save the features corresponding bits set in (XCR0 | IA32_XSS) to XSAVE area.
+ *
+ * @param[inout] vcpu Target vCPU to store the feature components
+ * @param[in] ectx vCPU's extended context
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL && ectx != NULL
+ *
+ * @post N/A
+ */
 static void save_xsave_area(__unused struct acrn_vcpu *vcpu, struct ext_context *ectx)
 {
 	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
@@ -888,6 +1774,24 @@ static void save_xsave_area(__unused struct acrn_vcpu *vcpu, struct ext_context 
 	}
 }
 
+/**
+ * @brief Restore XSAVE-managed feature components from XSAVE area to registers
+ *
+ * This function performs below things if physical CPU supports XSAVES feature:
+ * - Write physical XCR(0) with cached XCR0 and XSAVE_SSE bit.
+ * - Write physical IA32_XSS MSR with guest IA32_XSS MSR value.
+ * - Execute XRSTORS to restore registers for features corresponding to bits set in (XCR0 | IA32_XSS) from XSAVE area.
+ * - Write physical XCR(0) with cached guest XCR0.
+ *
+ * @param[in] vcpu Target vCPU to restore the feature components
+ * @param[in] ectx vCPU's extended context
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL && ectx != NULL
+ *
+ * @post N/A
+ */
 static void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_context *ectx)
 {
 	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
@@ -911,8 +1815,30 @@ static void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_con
 
 /* TODO:
  * Now we have switch_out and switch_in callbacks for each thread_object, and schedule
- * will call them every thread switch. We can implement lazy context swtich , which
- * only do context swtich when really need.
+ * will call them every thread switch. We can implement lazy context switch , which
+ * only does context switch when really need.
+ */
+
+/**
+ * @brief Save vCPU relevant registers to extended context to prepare switch out the context
+ *
+ * This function saves current vCPU passthrough MSRs, i.e., MSR_IA32_STAR, MSR_IA32_CSTAR, MSR_IA32_LSTAR,
+ * MSR_IA32_FMASK, MSR_IA32_KERNEL_GS_BASE, MSR_IA32_TSC_AUX and XSAVE-managed components to vCPU extended
+ * context.
+ *
+ * Normal case behaviors:
+ * - Save current vCPU passthrough MSRs and XSAVE-managed components to extended context.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] prev Thread object to be scheduled out
+ *
+ * @return None
+ *
+ * @pre prev != NULL
+ *
+ * @post N/A
  */
 static void context_switch_out(struct thread_object *prev)
 {
@@ -930,6 +1856,32 @@ static void context_switch_out(struct thread_object *prev)
 	save_xsave_area(vcpu, ectx);
 }
 
+/**
+ * @brief Load vCPU relevant registers from extended context to prepare switch in the context
+ *
+ * This function performs below things:
+ * - Call load_vmcs() to load vCPU VMCS memory region as current VMCS memory region.
+ * - Load vCPU passthrough MSRs, i.e., MSR_IA32_STAR, MSR_IA32_CSTAR, MSR_IA32_LSTAR, MSR_IA32_FMASK,
+ *   MSR_IA32_KERNEL_GS_BASE and MSR_IA32_TSC_AUX from extended context.
+ * - If physical CPU supports WAITPKG feature and guest/host MSR_IA32_UMWAIT_CONTROL MSR values are different,
+ *   update MSR_IA32_UMWAIT_CONTROL MSR with guest value.
+ * - Load IWKey to registers for the target vCPU.
+ * - Restore XSAVE-managed components from extended context to feature registers.
+ *
+ * Normal case behaviors:
+ * - Load passthrough MSRs, XSAVE-managed components, VMCS memory region and IWKey for the vCPU.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] next Thread object to be scheduled in
+ *
+ * @return None
+ *
+ * @pre next != NULL
+ *
+ * @post N/A
+ */
 static void context_switch_in(struct thread_object *next)
 {
 	struct acrn_vcpu *vcpu = container_of(next, struct acrn_vcpu, thread_obj);
@@ -959,8 +1911,26 @@ static void context_switch_in(struct thread_object *next)
 
 
 /**
+ * @brief Launch a vCPU
+ *
+ * This function is used to launch a vCPU thread to be scheduled as a running vCPU object.
+ * It first sets the vCPU state to VCPU_RUNNING then calls wake_thread() to make the vCPU thread
+ * ready for scheduling.
+ *
+ * Normal case behaviors:
+ * - Launch a vCPU thread to be running thread.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to launch
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
  * @pre vcpu->state == VCPU_INIT
+ *
+ * @post N/A
  */
 void launch_vcpu(struct acrn_vcpu *vcpu)
 {
@@ -972,7 +1942,45 @@ void launch_vcpu(struct acrn_vcpu *vcpu)
 
 }
 
-/* help function for vcpu create */
+/**
+ * @brief Create a vCPU and initialize vCPU thread object
+ *
+ * This function is used to create a vCPU for a VM before launch the VM. It first creates a vCPU then initializes the
+ * schedule thread object and calls init_event() to initialize all schedule events for this vCPU.
+ * The function creates a vCPU as below if new vCPU ID is less than MAX_VCPUS_PER_VM:
+ * - Allocate a vCPU slot from VM's static memory with new vCPU ID and reset the vCPU slot memory.
+ * - Initialize vCPU flags such as vCPU ID, VPID, Posted-Interrupt notification vector and destination pCPU ID etc.
+ * - Call vlapic_create() to create vLAPIC for the vCPU.
+ * - Reset XSAVE memory and initialize XSAVE flags.
+ * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
+ * - Call clear_va_vmcs to Clear VMCS data structure
+ * - Initillize interrupt mode to kill vCPU out of non-root mode
+ * - Call vlapic_reset to performs a reset of the virtual LAPIC
+ * - Call set_vcpu_regs to Reset vCPU to initial states
+ * - Rebuild vCPU thread stack if pCPU state is offline.
+ * - Call reset_event to Reset all the vCPU schedule event
+ * - Initialize IWKeys with random values
+ * - Set vCPU state to VCPU_INIT.
+ *
+ * Normal case behaviors:
+ * - Create a vCPU and set up its thread object attributes
+ *
+ * Error case behaviors:
+ * - Don't set up vCPU thread object and return error code.
+ *
+ * @param[inout] vm The owner VM of this vCPU
+ * @param[in] pcpu_id The physical CPU ID of the affinited vCPU
+ *
+ * @return A integer indicating creation result
+ *
+ * @retval 0 Succeeded in creating a vCPU.
+ * @retval non-zero Failed to created a vCPU.
+ *
+ * @pre vm != NULL
+ * @pre 0 <= pcpu_id && pcpu_id <= MAX_PCPU_NUM - 1
+ *
+ * @post N/A
+ */
 int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 {
 	int32_t ret, i;
@@ -999,13 +2007,52 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 }
 
 /**
+ * @brief Get physical CPU ID from vCPU object
+ *
+ * This function is used to get affinited physical CPU ID from vCPU thread object's cache.
+ *
+ * Normal case behaviors:
+ * - Return affinited physical CPU ID
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get pCPU ID from
+ *
+ * @return pCPU ID of the vCPU thread
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu)
 {
 	return sched_get_pcpuid(&vcpu->thread_obj);
 }
 
+/**
+ * @brief Fetch vCPU mask from corresponding pCPU mask
+ *
+ * This function is used to get pCPU mask from a VM's vCPU mask. The pCPU mask is calculated from vCPU/pCPU
+ *  mapping in vCPU thread object.
+ *
+ * Normal case behaviors:
+ * - Return pCPU mask of the input vCPU mask
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vm Target VM from which it gets pCPU mask
+ * @param[in] vdmask vCPU mask to search for
+ *
+ * @return pCPU mask corresponding to the vCPU mask
+ *
+ * @pre vm!= NULL
+ *
+ * @post N/A
+ *
+ * @remark Input vdmask contains valid vCPU mask of the VM.
+ */
 uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask)
 {
 	uint16_t vcpu_id;
@@ -1022,16 +2069,36 @@ uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask)
 	return dmask;
 }
 
-/*
- * @brief handle posted interrupts
+/**
+ * @brief Handle Posted-Interrupt
  *
- * VT-d PI handler, find the corresponding vCPU for this IRQ,
- * if the associated PID's bit ON is set, wake it up.
+ * This function is the interrupt handler for Posted-Interrupt request(PIR). If the vCPU of the owner VM
+ * is scheduled out before a PIR is received on physical CPU, HV needs to post the request to the target
+ * vCPU through this handler. The target vCPU is firstly waken up by scheduler, then HV triggers a virtual
+ * self-IPI with the PIR notification vector, thus the pending interrupts in Posted-Interrupt descriptor
+ * (PID) are synced to vIRR at the VM-Entry.
  *
- * shutdown_vm would unregister the devices before offline_vcpu is called,
- * so spinlock is not needed to protect access to vcpu_array and vcpu.
+ * The function performs below steps if target vCPU ID is existing:
+ * - Test Posted-Interrupt Descriptor's POSTED_INTR_ON bit, if it set, send vCPU ACRN_REQUEST_EVENT request,
+ *   then call signal_event() to signal VCPU_EVENT_VIRTUAL_INTERRUPT event for the target thread.
  *
- * @pre (vcpu_index < CONFIG_MAX_VM_NUM) && (get_pi_desc(get_cpu_var(vcpu_array)[vcpu_index]) != NULL)
+ * shutdown_vm() would unregister the devices before offline_vcpu is called, so spinlock is not needed to protect
+ * access to vcpu_array and vCPU.
+ *
+ * Normal case behaviors:
+ * - Send ACRN_REQUEST_EVENT request to target vCPU
+ * - Signal VCPU_EVENT_VIRTUAL_INTERRUPT event to wake up target vCPU thread
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu_index VM ID for this PIR to get the vCPU slot
+ *
+ * @return None
+ *
+ * @pre vcpu_index >= 0 && vcpu_index <= CONFIG_MAX_VM_NUM - 1
+ *
+ * @post N/A
  */
 void vcpu_handle_pi_notification(uint32_t vcpu_index)
 {
@@ -1057,15 +2124,28 @@ void vcpu_handle_pi_notification(uint32_t vcpu_index)
 	}
 }
 
-/*
- * @brief Update the state of vCPU and state of vlapic
+/**
+ * @brief Set vCPU state
  *
- * The vlapic state of VM shall be updated for some vCPU
- * state update cases, such as from VCPU_INIT to VCPU_RUNNING.
-
- * @pre (vcpu != NULL)
+ * This function is used to set target vCPU state to new_state. HV can transition vCPU state between
+ * VCPU_OFFLINE, VCPU_INIT, VCPU_RUNNING, VCPU_OFFLINE and VCPU_ZOMBIE per vCPU running condition.
+ *
+ * @param[inout] vcpu Target vCPU to set state
+ * @param[in] new_state The new state vCPU to transition to
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark Input new_state is in vcpu_state.
  */
 static void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 {
 	vcpu->state = new_state;
 }
+
+/**
+ * @}
+ */

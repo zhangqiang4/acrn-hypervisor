@@ -41,10 +41,14 @@ virtual interrupt injection or other requests such as flush EPT.
 
 The eventid supported for virtual interrupt injection includes:
 
-.. doxygengroup:: virt_int_injection
-   :project: Project ACRN
-   :content-only:
-
+:c:macro:`ACRN_REQUEST_EXCP`
+:c:macro:`ACRN_REQUEST_EVENT`
+:c:macro:`ACRN_REQUEST_EXTINT`
+:c:macro:`ACRN_REQUEST_NMI`
+:c:macro:`ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE`
+:c:macro:`ACRN_REQUEST_EPT_FLUSH`
+:c:macro:`ACRN_REQUEST_TRP_FAULT`
+:c:macro:`ACRN_REQUEST_VPID_FLUSH`
 
 The *vcpu_make_request* is necessary for a virtual interrupt
 injection. If the target vCPU is running under VMX non-root mode, it
