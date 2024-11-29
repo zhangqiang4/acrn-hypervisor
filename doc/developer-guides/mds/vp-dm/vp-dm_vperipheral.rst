@@ -56,7 +56,8 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 [File] include/dm/mc146818rtc.h
 ======================================================================
 
-
+.. doxygenfile:: mc146818rtc.h
+   :project: Project ACRN
 
 [File] include/dm/vrtc.h
 ======================================================================

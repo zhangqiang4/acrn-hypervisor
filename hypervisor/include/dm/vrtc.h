@@ -26,26 +26,35 @@
  * This file defines types and data structure for the virtual RTC device.
  */
 
+/**
+ * @brief Represent an 32 bit integer type for time.
+ */
 typedef int32_t time_t;
 
-/* Register layout of the RTC */
+/**
+ * @brief Register layout of the RTC
+ *
+ * Data structure to present RTC register layout, includes time, status, control register.
+ *
+ * @remark N/A
+ */
 struct rtcdev {
-	uint8_t	sec;
-	uint8_t	alarm_sec;
-	uint8_t	min;
-	uint8_t	alarm_min;
-	uint8_t	hour;
-	uint8_t	alarm_hour;
-	uint8_t	day_of_week;
-	uint8_t	day_of_month;
-	uint8_t	month;
-	uint8_t	year;
-	uint8_t	reg_a;
-	uint8_t	reg_b;
-	uint8_t	reg_c;
-	uint8_t	reg_d;
-	uint8_t	res[36];
-	uint8_t	century;
+	uint8_t	sec; /**< Seconds. */
+	uint8_t	alarm_sec; /**< Seconds alarm. */
+	uint8_t	min; /**< Minutes. */
+	uint8_t	alarm_min; /**< Minutes alarm. */
+	uint8_t	hour; /**< Hour. */
+	uint8_t	alarm_hour; /**< Hour alarm. */
+	uint8_t	day_of_week; /**< Day of week. */
+	uint8_t	day_of_month; /**< Day of month. */
+	uint8_t	month; /**< Month. */
+	uint8_t	year; /**< Year. */
+	uint8_t	reg_a; /**< Status register A, . */
+	uint8_t	reg_b; /**< Status register B, . */
+	uint8_t	reg_c; /**< Status register C, . */
+	uint8_t	reg_d; /**< Status register D, . */
+	uint8_t	res[36]; /**< Reserve. */
+	uint8_t	century; /**< Century. */
 };
 
 /**

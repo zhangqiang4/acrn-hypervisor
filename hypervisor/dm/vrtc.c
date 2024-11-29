@@ -48,7 +48,13 @@
  * service to the guest VMs. It is a part of the virtual peripheral devices.
  */
 
-/* #define DEBUG_RTC */
+/**
+ * @brief Debugging macros for vrtc.
+ *
+ * If macro DEBUG_RTC is not defined, RTC_DEBUG is printing nothing, if macro DEBUG_RTC is defined, RTC_DEBUG is using
+ * pr_info to print log.
+ *
+ */
 #ifdef DEBUG_RTC
 # define RTC_DEBUG  pr_info
 #else
@@ -58,36 +64,64 @@
 static time_t vrtc_get_physical_rtc_time(struct acrn_vrtc *vrtc);
 static void vrtc_update_basetime(time_t physical_time, time_t offset);
 
+/**
+ * @brief Data structure to represent clock time.
+ *
+ * This structure holds the components of date and time, including the year, month, day, hour, minute, second, and day
+ * of the week.
+ */
 struct clktime {
-	uint32_t	year;	/* year (4 digit year) */
-	uint32_t	mon;	/* month (1 - 12) */
-	uint32_t	day;	/* day (1 - 31) */
-	uint32_t	hour;	/* hour (0 - 23) */
-	uint32_t	min;	/* minute (0 - 59) */
-	uint32_t	sec;	/* second (0 - 59) */
-	uint32_t	dow;	/* day of week (0 - 6; 0 = Sunday) */
+	uint32_t	year;	/**< Year (4 digit year) */
+	uint32_t	mon;	/**< Month (1 - 12) */
+	uint32_t	day;	/**< Day (1 - 31) */
+	uint32_t	hour;	/**< Hour (0 - 23) */
+	uint32_t	min;	/**< Minute (0 - 59) */
+	uint32_t	sec;	/**< Second (0 - 59) */
+	uint32_t	dow;	/**< Day of week (0 - 6; 0 = Sunday) */
 };
 
+/**
+ * @brief Local spinlock_t variable used to avoid vrtc access race.
+ *
+ * Spinlock to avoid race for accessing vrtc base_rtctime, offset_rtctime, last_rtctime, base_tsc.
+ */
 static spinlock_t vrtc_rebase_lock = { .head = 0U, .tail = 0U };
 
-#define POSIX_BASE_YEAR	1970
-#define SECDAY		(24 * 60 * 60)
-#define SECYR		(SECDAY * 365)
-#define VRTC_BROKEN_TIME	((time_t)-1)
+#define POSIX_BASE_YEAR	1970 /**< Base year is from 1970 UTC. */
+#define SECDAY		(24 * 60 * 60) /**< Total seconds in one day. */
+#define SECYR		(SECDAY * 365) /**< Total seconds in one year. */
+#define VRTC_BROKEN_TIME	((time_t)-1) /**< Broken time for time initialization. */
 
-#define FEBRUARY	2U
+#define FEBRUARY	2U /**< February is 2nd month in a year. */
 
+/**
+ * @brief Number of days in each month for a non-leap year.
+ *
+ * This array holds the number of days in each month, starting from January (index 0) to December (index 11). The
+ * values are based on a non-leap year, where February has 28 days.
+ */
 static const uint32_t month_days[12] = {
 	31U, 28U, 31U, 30U, 31U, 30U, 31U, 31U, 30U, 31U, 30U, 31U
 };
 
-/*
- * This inline avoids some unnecessary modulo operations
- * as compared with the usual macro:
- *   ( ((year % 4) == 0 &&
- *      (year % 100) != 0) ||
- *     ((year % 400) == 0) )
- * It is otherwise equivalent.
+/**
+ * @brief Compute leap year.
+ *
+ * This function is to compute leap year. If a year is divisible by 4, it is a leap year, however, if the year is also
+ * divisible by 100, it is not a leap year unless year is also divisible by 400.
+ *
+ * @param[in] year Year to be computed.
+ *
+ * @return A uint32_t value to indicate whether year is leapyear.
+ *
+ * @retval 1 Year is leapyear
+ * @retval 0 Year is not leapyear
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static inline uint32_t leapyear(uint32_t year)
 {
@@ -105,24 +139,78 @@ static inline uint32_t leapyear(uint32_t year)
 	return rv;
 }
 
+/**
+ * @brief Calculate the number of days in a given year.
+ *
+ * If the year is leapyear, days in year is 366U, if the year is not leapyear, days in year is 365U.
+ *
+ * @param[in] year Year to be calculated.
+ *
+ * @return The number of days in the specified year.
+ *
+ * @retval 366U Year is leapyear.
+ * @retval 365U Year is not leapyear.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static inline uint32_t days_in_year(uint32_t year)
 {
         return leapyear(year) ? 366U : 365U;
 }
 
+/**
+ * @brief Calculate total days in a month.
+ *
+ * Calculate total days for the month through array month_days, it stores days in a month, FEBRUARY is special, total
+ * days of FEBRUARY is 29 when the year is leapyear, total days of FEBRUARY is 28 when the year is not leapyear.
+ *
+ * @param[in] year Year to be calculated.
+ * @param[in] month Month to be calculated.
+ *
+ * @return Days of month.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static inline uint32_t days_in_month(uint32_t year, uint32_t month)
 {
         return month_days[(month) - 1U] + ((month == FEBRUARY) ? leapyear(year) : 0U);
 }
 
-/*
- * Day of week. Days are counted from 1/1/1970, which was a Thursday.
+/**
+ * @brief Calculate day of week.
+ *
+ * This function calculates the day of the week given a number of days since a reference point. The reference point is
+ * January 1, 1970 (which was a Thursday). This function uses the formula`((days) + 4) % 7` to determine the day of the
+ * week.
+ *
+ * @param[in] days The days counted from 1/1/1970.
+ *
+ * @return Day of week.
+ *
+ * @pre N/A
+ *
+ * @post retval < 7 && retval >= 0
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static inline uint32_t day_of_week(uint32_t days)
 {
         return ((days) + 4U) % 7U;
 }
 
+/**
+ * @brief Lookup table for binary format value to BCD (Binary-Coded Decimal)  format value.
+ *
+ * This array provides a lookup table for converting binary values (0-99) to their corresponding BCD format value.
+ */
 uint8_t const bin2bcd_data[] = {
 	0x00U, 0x01U, 0x02U, 0x03U, 0x04U, 0x05U, 0x06U, 0x07U, 0x08U, 0x09U,
 	0x10U, 0x11U, 0x12U, 0x13U, 0x14U, 0x15U, 0x16U, 0x17U, 0x18U, 0x19U,
@@ -136,17 +224,52 @@ uint8_t const bin2bcd_data[] = {
 	0x90U, 0x91U, 0x92U, 0x93U, 0x94U, 0x95U, 0x96U, 0x97U, 0x98U, 0x99U
 };
 
-/*
+/**
+ * @brief  Convert binary format value to the vrtc device required format.
+ *
+ * This function converts binary format value to the vrtc device required format according to BCD mode of vrtc device,
+ * it checks the status register B of the vrtc device to get BCD mode, if BCD data mode is enabled, translate binary
+ * format to BCD format, if BCD data mode is not enabled, directly return binary format value.
+ *
+ * @param[in] rtc The pointer to the `rtcdev` struct that representing RTC device.
+ * @param[in] val The value to be set.
+ *
+ * @return value of rtc required format.
+ *
+ * @pre rtc != NULL
  * @pre val < 100
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static inline uint8_t rtcset(struct rtcdev *rtc, uint32_t val)
 {
 	return ((rtc->reg_b & RTCSB_BCD) ? val : bin2bcd_data[val]);
 }
 
-/*
- * Get rtc time register binary value.
- * If BCD data mode is enabled, translate BCD to binary.
+/**
+ * @brief Convert value in the vrtc device required format to binary format.
+ *
+ * This function converts value in the vrtc device required format to binary format according to BCD mode of vrtc
+ * device, it checks the status register B of the vrtc device to get BCD mode, if BCD mode is enabled, translate value
+ * from BCD format to binary format, if BCD mode is not enabled, directly use value from the vrtc device.
+ *
+ * @param[in] rtc The pointer to the `rtcdev` struct representing RTC device.
+ * @param[in] val The value to be get.
+ * @param[out] retval The pointer to a uint32_t value where the retrieved value will be stored.
+ *
+ * @return A 32bit value to indicate whether it is successful to retrieve.
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Parameter val is invalid
+ *
+ * @pre rtc != NULL
+ * @pre retval != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static int32_t rtcget(const struct rtcdev *rtc, uint8_t val, uint32_t *retval)
 {
@@ -168,8 +291,26 @@ static int32_t rtcget(const struct rtcdev *rtc, uint8_t val, uint32_t *retval)
 	return errno;
 }
 
-/*
- * Translate clktime (such as year, month, day) to time_t.
+/**
+ * @brief Convert a clktime struct value to seconds.
+ *
+ * This function converts a given clktime structure to seconds, it performs sanity checks on the input values and
+ * calculates the total number of seconds since the POSIX base year (1970).
+ *
+ * @param[in] ct The pointer to the `clktime` structure representing the date and time to be converted.
+ * @param[out] sec The pointer to the `time_t` structure where the resulting seconds will be stored.
+ *
+ * @return A 32bit value to indicate whether it is successful.
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Input parameter check failure
+ *
+ * @pre ct != NULL
+ * @pre sec != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static int32_t clk_ct_to_ts(struct clktime *ct, time_t *sec)
 {
@@ -206,8 +347,27 @@ static int32_t clk_ct_to_ts(struct clktime *ct, time_t *sec)
 	return err;
 }
 
-/*
- * Translate time_t to clktime (such as year, month, day)
+/**
+ * @brief Convert seconds to a clktime struct value.
+ *
+ * This function converts a given timestamp (seconds since the base year) to a clktime structure. It calculates the
+ * corresponding year, month, day, hour, minute, second, and day of the week. Finally check the results, if month is
+ * larger than 12, or year is larger than 2037(time_t is defined as int32_t, so year should not be more than 2037), or
+ * day is larger than days in month, it will return -EINVAL.
+ *
+ * @param[in] secs Value to be converted.
+ * @param[out] ct The pointer to the `clktime` structure where the resulting date and time will be stored.
+ *
+ * @return A 32bit value to indicate whether it is successful.
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Input parameter secs is invalid
+ *
+ * @pre ct != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static int32_t clk_ts_to_ct(time_t secs, struct clktime *ct)
 {
@@ -250,8 +410,22 @@ static int32_t clk_ts_to_ct(time_t secs, struct clktime *ct)
 	return err;
 }
 
-/*
- * Calculate second value from rtcdev register info which save in vrtc.
+/**
+ * @brief Convert vrtc device time and date to second.
+ *
+ * This function converts the current time from the RTC device to seconds. It retrieves the date and time components
+ * from the RTC device, performs necessary conversions, and calculates the total number of seconds since the POSIX
+ * base year (typically 1970) through calling function `clk_ct_to_ts`.
+ *
+ * @param[in] vrtc The pointer to the `acrn_vrtc` struct representing virtual RTC device.
+ *
+ * @return A time_t type value to indicate the converted time in second.
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static time_t rtc_to_secs(const struct acrn_vrtc *vrtc)
 {
@@ -339,8 +513,22 @@ static time_t rtc_to_secs(const struct acrn_vrtc *vrtc)
 	return second;
 }
 
-/*
- * Translate second value to rtcdev register info and save it in vrtc.
+/**
+ * @brief Convert seconds to RTC time and date.
+ *
+ * This function converts a given POSIX timestamp (seconds since the base year) to the RTC time format and updates the
+ * RTC device with the corresponding date and time component, it handles both 24-hour and 12-hour formats.
+ *
+ * @param[in] rtctime The seconds to be converted.
+ * @param[inout] vrtc The pointer to the `acrn_vrtc` struct representing the virtual rtc device.
+ *
+ * @return None
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static void secs_to_rtc(time_t rtctime, struct acrn_vrtc *vrtc)
 {
@@ -389,8 +577,22 @@ static void secs_to_rtc(time_t rtctime, struct acrn_vrtc *vrtc)
 	}
 }
 
-/*
- * If the base_rtctime is valid, calculate current time by add tsc offset and offset_rtctime.
+/**
+ * @brief Get the current time from the virtual RTC device.
+ *
+ * This function retrieves the current time from the virtual RTC device associated with the given acrn_vrtc structure.
+ * It calculates the current time based on the base RTC time, the offset RTC time, and the elapsed CPU ticks since the
+ * last base time was set. If the base RTC time is not set, it returns `VRTC_BROKEN_TIME`.
+ *
+ * @param[in] vrtc The pointer to the `acrn_vrtc` struct representing the virtual rtc device.
+ *
+ * @return A `time_t` type value, indicate current time and date in second.
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
  */
 static time_t vrtc_get_current_time(struct acrn_vrtc *vrtc)
 {
@@ -411,28 +613,95 @@ static time_t vrtc_get_current_time(struct acrn_vrtc *vrtc)
 	return second;
 }
 
-#define CMOS_ADDR_PORT		0x70U
-#define CMOS_DATA_PORT		0x71U
+#define CMOS_ADDR_PORT		0x70U /**< Pre-defined port IO to access RTC register address. */
+#define CMOS_DATA_PORT		0x71U /**< Pre-defined port IO to access RTC register data. */
 
+/**
+* @brief Local spinlock_t variable used to avoid the physical RTC is accessed by different guest VMs in parallel.
+*/
 static spinlock_t cmos_lock = { .head = 0U, .tail = 0U };
 
+/**
+ * @brief Read a byte from RTC register with the given register address
+ *
+ * This function reads a byte of data from a given register address. It writes the address to the CMOS address port and
+ * reads the data from the CMOS data port.
+ *
+ * @param[in] addr The address of the RTC register to read from.
+ *
+ * @return The byte of data read from the give register address.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static uint8_t cmos_read(uint8_t addr)
 {
 	pio_write8(addr, CMOS_ADDR_PORT);
 	return pio_read8(CMOS_DATA_PORT);
 }
 
+/**
+ * @brief Write a byte to RTC register with the given register address
+ *
+ * This function writes a byte of data to a given register address. It writes the address to the CMOS address port
+ * and writes the a byte of data to the CMOS data port.
+ *
+ * @param[in] addr The address of the RTC register to write to.
+ * @param[in] value The byte of data to write to the given CMOS register.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static void cmos_write(uint8_t addr, uint8_t value)
 {
 	pio_write8(addr, CMOS_ADDR_PORT);
 	pio_write8(value, CMOS_DATA_PORT);
 }
 
+/**
+ * @brief Check whether the RTC register is in updating status
+ *
+ * This function is called to check whether the RTC register is in updating status, read value from the status register
+ * A, and check bit RTCSA_TUP.
+ *
+ * @return A boolean value to indicate whether the RTC register is in updating status
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static bool cmos_update_in_progress(void)
 {
 	return (cmos_read(RTC_STATUSA) & RTCSA_TUP) ? 1 : 0;
 }
 
+/**
+ * @brief Get a physical RTC register's value
+ *
+ * This function is called to read a physical RTC register's value. It will check whether the physical RTC is updating
+ * firstly, if it's in updating progress, then retry it, maximum retry times is 2000, if it's not in updating progress,
+ * then read it. A spin lock is used to avoid that the physical RTC is accessed by different guest VMs in parallel.
+ *
+ * @param[in] addr The address of the RTC register to read from.
+ *
+ * @return The byte of data read from the register.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called within vRTC.
+ */
 static uint8_t cmos_get_reg_val(uint8_t addr)
 {
 	uint8_t reg;
@@ -451,6 +720,24 @@ static uint8_t cmos_get_reg_val(uint8_t addr)
 	return reg;
 }
 
+/**
+ * @brief Set a physical RTC register's value.
+ *
+ * This function is called to set a physical RTC register's value. It will check Whether the physical RTC is updating
+ * firstly, if it's in updating progress, then retry it, maximum retry times is 2000, if it's not in updating progress,
+ * then write it. A spin lock is used to avoid that the physical RTC is accessed by different guest VMs in parallel.
+ *
+ * @param[in] addr The address of the RTC register to write to.
+ * @param[in] value The byte of data to write to the register.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void cmos_set_reg_val(uint8_t addr, uint8_t value)
 {
 	int32_t tries = 2000;
@@ -467,9 +754,26 @@ static void cmos_set_reg_val(uint8_t addr, uint8_t value)
 	spinlock_release(&cmos_lock);
 }
 
-#define TRIGGER_ALARM	(RTCIR_ALARM | RTCIR_INT)
-#define RTC_DELTA	1	/* For RTC and system time may out of sync for no more than 1s */
+#define TRIGGER_ALARM	(RTCIR_ALARM | RTCIR_INT) /**< Register value for triggerring alarm. */
+#define RTC_DELTA	1	/**< For RTC and system time may out of sync for no more than 1s. */
 
+/**
+ * @brief Get status register C value from virtual RTC device.
+ *
+ * This function is called to return status register C value from virtual RTC device, if alarm interrupt is enabled and
+ * rtc time is in alarm time scale, it sets the alarm interrupt flag in the returned value, and the status register C
+ * of the vrtc device is reset to zero.
+ *
+ * @param[in] vrtc The pointer to the `acrn_vrtc` struct representing the virtual RTC device.
+ *
+ * @return The value of the RTC register C.
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static uint8_t vrtc_get_reg_c(struct acrn_vrtc *vrtc)
 {
 	uint8_t	ret = vrtc->rtcdev.reg_c;
@@ -497,6 +801,22 @@ static uint8_t vrtc_get_reg_c(struct acrn_vrtc *vrtc)
 	return ret;
 }
 
+/**
+ * @brief Set status register B value to the virtual RTC device.
+ *
+ * This function is called to set status register B value to the virtual RTC device.
+ *
+ * @param[out] vrtc The pointer to the acrn_vrtc structure representing the virtual RTC.
+ * @param[in] newval The new value of status register B to be set.
+ *
+ * @return None
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void vrtc_set_reg_b(struct acrn_vrtc *vrtc, uint8_t newval)
 {
 	vrtc->rtcdev.reg_b = newval;
@@ -569,6 +889,25 @@ static bool vrtc_read(struct acrn_vcpu *vcpu, uint16_t addr, __unused size_t wid
 	return ret;
 }
 
+/**
+ * @brief Check whether given offset is correspondsing to time register.
+ *
+ * This function checks if the given offset corresponds to one of the time related registers in the RTC. The time
+ * related registers include seconds, minutes, hours, day, month, year, and century.
+ *
+ * @param[in] offset The offset to be checked.
+ *
+ * @return A boolean value whether offset is correspondsing to time register.
+ *
+ * @retval 1 Offset is correspondsing to time register.
+ * @retval 0 Offset is not correspondsing to time register.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static inline bool vrtc_is_time_register(uint32_t offset)
 {
 	return ((offset == RTC_SEC) || (offset == RTC_MIN) || (offset == RTC_HRS) || (offset == RTC_DAY)
@@ -679,9 +1018,25 @@ static bool vrtc_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width,
 	return true;
 }
 
-#define CALIBRATE_PERIOD	(3 * 3600 * 1000)	/* By ms, totally 3 hours. */
-static struct hv_timer calibrate_timer;
+#define CALIBRATE_PERIOD	(3 * 3600 * 1000)	/**< By ms, totally 3 hours. */
+static struct hv_timer calibrate_timer; /**<  timer used to calibrate. */
 
+/**
+ * @brief Get rtc time and date from physical register.
+ *
+ * This function retrieves the current time from the physical RTC and updates the virtual RTC structure with the
+ * retrieved values. It reads the time related registers from the CMOS and converts the time to seconds.
+ *
+ * @param[inout] vrtc The pointer to the `acrn_vrtc` struct representing the virtual RTC device.
+ *
+ * @return The current physical RTC time as a `time_t` value.
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static time_t vrtc_get_physical_rtc_time(struct acrn_vrtc *vrtc)
 {
 	struct rtcdev *vrtcdev = &vrtc->rtcdev;
@@ -698,6 +1053,23 @@ static time_t vrtc_get_physical_rtc_time(struct acrn_vrtc *vrtc)
 	return rtc_to_secs(vrtc);
 }
 
+/**
+ * @brief Update the base time of the virtual RTC for RT and Prelaunch VMs.
+ *
+ * This function updates the base time of the virtual RTC for all real-time (RT) and pre-launched VMs.
+ * It sets the base TSC, base RTC time, and adjusts the offset RTC time.
+ *
+ * @param[in] physical_time The [hysical time to be updated to virtual RTC.
+ * @param[in] offset The offset to be added to the physical time to calculate the new base time.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void vrtc_update_basetime(time_t physical_time, time_t offset)
 {
 	struct acrn_vm *vm;
@@ -715,6 +1087,23 @@ static void vrtc_update_basetime(time_t physical_time, time_t offset)
 	}
 }
 
+/**
+ * @brief Callback of calibrate timer.
+ *
+ * This function is a timer callback that calibrates the virtual RTC by updating its base time with the current
+ * physical RTC time. It retrieves the current physical RTC time and updates base TSC, base RTC time of virtual RTC
+ * device.
+ *
+ * @param[in] data Unused parameter.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void calibrate_timer_callback(__unused void *data)
 {
 	struct acrn_vrtc temp_vrtc;
@@ -723,6 +1112,20 @@ static void calibrate_timer_callback(__unused void *data)
 	vrtc_update_basetime(physical_time, 0);
 }
 
+/**
+ * @brief Set up and calibrate timer.
+ *
+ * This function sets up and starts a periodic calibration timer. It calculates the period and the fire time for the
+ * timer, initializes the timer with the `calibrate_timer_callback` function, and adds the timer to the system.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void calibrate_setup_timer(void)
 {
 	uint64_t period_in_cycle, fire_tsc;
@@ -739,6 +1142,22 @@ static void calibrate_setup_timer(void)
 	}
 }
 
+/**
+ * @brief Set the base time of the virtual RTC.
+ *
+ * This function sets the base time of the virtual RTC by reading the current time from the physical RTC and updating
+ * the virtual RTC structure with the retrieved values. It also updates the base and last RTC time.
+ *
+ * @param[out] vrtc The pointer to the `acrn_vrtc` struct representing the virtual rtc device.
+ *
+ * @return None
+ *
+ * @pre vrtc != NULL
+ *
+ * @post N/A
+ *
+ * @remark It is an internal function called by within vRTC.
+ */
 static void vrtc_set_basetime(struct acrn_vrtc *vrtc)
 {
 	struct rtcdev *vrtcdev = &vrtc->rtcdev;
@@ -766,12 +1185,38 @@ static void vrtc_set_basetime(struct acrn_vrtc *vrtc)
 	spinlock_release(&vrtc_rebase_lock);
 }
 
+/**
+ * @brief Suspend virtual RTC.
+ *
+ * This function is to delete calibrate timer in system suspend routine, which is only allowed for service vm.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 void suspend_vrtc(void)
 {
 	/* For service vm */
 	del_timer(&calibrate_timer);
 }
 
+/**
+ * @brief Resume virtual RTC.
+ *
+ * This function is to set up calibrate timer in system resume routine, which is only allowed for service vm.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 void resume_vrtc(void)
 {
 	/* For service vm */

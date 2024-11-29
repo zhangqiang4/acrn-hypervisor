@@ -2,7 +2,7 @@
  * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
  *
- * Copyright (C) 2022 Intel Corporation.
+ * Copyright (C) 2022-2024 Intel Corporation.
  *
  * This code is derived from software contributed to Berkeley by
  * William Jolitz.
@@ -41,32 +41,47 @@
 /*
  * MC146818 RTC Register locations
  */
+/**
+ * @addtogroup vp-dm_vperipheral
+ *
+ * @{
+ */
 
-#define RTC_SEC	0x00	/* seconds */
-#define RTC_SECALRM	0x01	/* seconds alarm */
-#define RTC_MIN	0x02	/* minutes */
-#define RTC_MINALRM	0x03	/* minutes alarm */
-#define RTC_HRS	0x04	/* hours */
-#define RTC_HRSALRM	0x05	/* hours alarm */
-#define RTC_WDAY	0x06	/* week day */
-#define RTC_DAY	0x07	/* day of month */
-#define RTC_MONTH	0x08	/* month of year */
-#define RTC_YEAR	0x09	/* year in century*/
-#define RTC_CENTURY	0x32	/* century */
+/**
+ * @file
+ * @brief Definition for rtc register location.
+ *
+ * This file provides the macro definition fro rtc register location and offset, details refer to.MC146818 datasheet.
+ */
+#define RTC_SEC	0x00	/**< Seconds register address location */
+#define RTC_SECALRM	0x01	/**< Seconds alarm register address location */
+#define RTC_MIN	0x02	/**< Minutes register address location */
+#define RTC_MINALRM	0x03	/**< Minutes alarm register address location */
+#define RTC_HRS	0x04	/**< Hours register address location */
+#define RTC_HRSALRM	0x05	/**< Hours alarm register address location */
+#define RTC_WDAY	0x06	/**< Week day register address location */
+#define RTC_DAY	0x07	/**< Day of month register address location */
+#define RTC_MONTH	0x08	/**< Month of year register address location */
+#define RTC_YEAR	0x09	/**< Year register address location*/
+#define RTC_CENTURY	0x32	/**< Century register address location*/
 
-#define RTC_STATUSA	0x0a	/* status register A */
-#define RTCSA_TUP	0x80U	/* time update, don't look now */
+#define RTC_STATUSA	0x0a	/**< Status register A address location */
+#define RTCSA_TUP	0x80U	/**< Bit 7 of Status A register, 1 = update in progress, 0 = update complete */
 
-#define RTC_STATUSB	0x0b	/* status register B */
-#define RTCSB_24HR	0x02U	/* 0 = 12 hours, 1 = 24	hours */
-#define RTCSB_BCD	0x04U	/* 0 = BCD, 1 =	Binary coded time */
-#define RTCSB_AINTR	0x20U	/* 1 = enable alarm interrupt */
-#define RTCSB_HALT	0x80U	/* stop clock updates */
+#define RTC_STATUSB	0x0b	/**< Status register B address location */
+#define RTCSB_24HR	0x02U	/**< Bit 1 of Status B register, 0 = 12 hours, 1 = 24 hours */
+#define RTCSB_BCD	0x04U	/**< Bit 2 of Status B register, 0 = BCD, 1 = Binary coded time */
+#define RTCSB_AINTR	0x20U	/**< Bit 5 of Status B register, 1 = enable alarm interrupt, 0 = disable alarm interrupt */
+#define RTCSB_HALT	0x80U	/**< Bit 7 of Status B register, 1 = stop clock updates, 0 = allow update */
 
-#define RTC_INTR	0x0c	/* status register C (R) interrupt source */
-#define RTCIR_ALARM	0x20U	/* alarm intr */
-#define RTCIR_INT	0x80U	/* interrupt output signal */
+#define RTC_INTR	0x0c	/**< Status register C address location */
+#define RTCIR_ALARM	0x20U	/**< Bit 5 of Status C register, alarm interrupt flag */
+#define RTCIR_INT	0x80U	/**< Bit 7 of Status C register, Interrupt request flag */
 
-#define RTC_STATUSD	0x0d	/* status register D (R) Lost Power */
+#define RTC_STATUSD	0x0d	/**< Status register D address location */
 
 #endif /* _MC146818_RTC_H_ */
+
+/**
+ * @}
+ */

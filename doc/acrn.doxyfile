@@ -839,6 +839,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \
+                          ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
