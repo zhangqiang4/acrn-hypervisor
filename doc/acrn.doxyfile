@@ -814,6 +814,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/guest/vcpu.h \
                           ../hypervisor/include/arch/x86/asm/guest/virtual_cr.h \
                           ../hypervisor/include/arch/x86/asm/lib/bits.h \
+                          ../hypervisor/include/arch/x86/asm/lib/atomic.h \
+                          ../hypervisor/include/arch/x86/asm/lib/spinlock.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/ioapic.h \
                           ../hypervisor/include/arch/x86/asm/lapic.h \
@@ -2173,6 +2175,54 @@ static inline void name(uint16_t nr_arg, volatile op_type *addr) \
  : \"+m\" (*addr) \
  : \"r\" ((op_type)(~(1UL<<(nr)))) \
  : \"cc\", \"memory\"); \
+}"
+
+# Macros in module libs.lock
+PREDEFINED             += "build_atomic_inc(name, size, type)= \
+static inline void name(type *ptr) \
+{ \
+ asm volatile(BUS_LOCK \"inc\" size \" %0\" \
+ : \"=m\" (*ptr) \
+ : \"m\" (*ptr)); \
+}"
+
+PREDEFINED             += "build_atomic_dec(name, size, type)= \
+static inline void name(type *ptr) \
+{ \
+ asm volatile(BUS_LOCK \"dec\" size \" %0\" \
+ : \"=m\" (*ptr) \
+ : \"m\" (*ptr)); \
+}"
+
+PREDEFINED             += "build_atomic_swap(name, size, type)= \
+static inline type name(type *ptr, type v) \
+{ \
+ asm volatile(BUS_LOCK \"xchg\" size \" %1,%0\" \
+ : \"+m\" (*ptr), \"+r\" (v) \
+ : \
+ : \"cc\", \"memory\"); \
+ return v; \
+}"
+
+PREDEFINED             += "build_atomic_cmpxchg(name, size, type)= \
+static inline type name(volatile type *ptr, type old, type new) \
+{ \
+ type ret; \
+ asm volatile(BUS_LOCK \"cmpxchg\" size \" %2,%1\" \
+ : \"=a\" (ret), \"+m\" (*ptr) \
+ : \"r\" (new), \"0\" (old) \
+ : \"memory\"); \
+ return ret; \
+}"
+
+PREDEFINED             += "build_atomic_xadd(name, size, type)= \
+static inline type name(type *ptr, type v) \
+{ \
+ asm volatile(BUS_LOCK \"xadd\" size \" %0,%1\" \
+ : \"+r\" (v), \"+m\" (*ptr) \
+ : \
+ : \"cc\", \"memory\"); \
+ return v; \
 }"
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
