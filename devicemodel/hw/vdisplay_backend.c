@@ -39,7 +39,7 @@ struct timer_vblank{
        void (*vblank_inject)(void *data,unsigned int frame,int i);
        struct acrn_timer vblank_timer;
        int vblank_id;
-
+       int refresh_rate;
 };
 
 struct screen {
@@ -49,6 +49,7 @@ struct screen {
 	struct timespec last_time;
 	bool is_timer_vblank;
 	struct timer_vblank sw_vblank;
+	int vrefresh;
 };
 
 static struct display {
@@ -163,7 +164,7 @@ vdpy_edid_set_baseparam(base_param *b_param, uint32_t width, uint32_t height, ui
 	b_param->v_pixel = height;
 	b_param->rate = refresh_rate;
 	if (b_param->rate <= 0)
-		b_param->rate = 60;
+		b_param->rate = VDPY_DEFAULT_VREFRESH;
 	b_param->width = width;
 	b_param->height = height;
 
@@ -608,18 +609,31 @@ vdpy_edid_generate(uint8_t *edid, size_t size, struct edid_info *info)
 	}
 }
 
+static void
+query_display_info(int scanout_id, struct display_info *info)
+{
+	struct screen *vscr;
+	if (!info || scanout_id >= vdpy.scrs_num)
+		return;
+	vscr = vdpy.scrs + scanout_id;
+	vscr->vscreen_ops->vdpy_display_info(vscr->backend, info);
+	/* override by user parameter */
+	if (vscr->vrefresh > 0)
+		info->vrefresh = vscr->vrefresh;
+	if (info->vrefresh <= 0)
+		info->vrefresh = VDPY_DEFAULT_VREFRESH;
+}
+
 void
 vdpy_get_edid(int handle, int scanout_id, uint8_t *edid, size_t size)
 {
 	struct edid_info edid_info;
-	struct screen *vscr;
 	struct display_info display;
 
 	if (scanout_id >= vdpy.scrs_num)
 		return;
 
-	vscr = vdpy.scrs + scanout_id;
-	vscr->vscreen_ops->vdpy_display_info(vscr->backend, &display);
+	query_display_info(scanout_id, &display);
 
 	if (handle == vdpy.s.n_connect) {
 		edid_info.prefx = display.width;
@@ -644,13 +658,11 @@ vdpy_get_edid(int handle, int scanout_id, uint8_t *edid, size_t size)
 void
 vdpy_get_display_info(int handle, int scanout_id, struct display_info *info)
 {
-	struct screen *vscr;
 	struct display_info display;
 	if (scanout_id >= vdpy.scrs_num)
 		return;
 
-	vscr = vdpy.scrs + scanout_id;
-	vscr->vscreen_ops->vdpy_display_info(vscr->backend, &display);
+	query_display_info(scanout_id, &display);
 
 	if (handle == vdpy.s.n_connect) {
 		info->xoff = display.xoff;
@@ -976,7 +988,7 @@ static void timer_vblank_enable(struct timer_vblank *tvbl)
 	struct itimerspec ts;
 	/* setting the interval time */
 	ts.it_interval.tv_sec = 0;
-	ts.it_interval.tv_nsec = 16600000;
+	ts.it_interval.tv_nsec = 1000000000 / tvbl->refresh_rate;
 	/* set the delay time it will be started when timer_setting */
 	ts.it_value.tv_sec = 0;
 	ts.it_value.tv_nsec = 1;
@@ -991,8 +1003,11 @@ vdpy_vblank_init(int scanout_id, void (*func)
 		(void *data,unsigned int frame,int i), void *data)
 {
 	struct screen *vscr;
+	struct display_info display;
 	vscr = vdpy.scrs + scanout_id;
 	if(vscr->is_timer_vblank) {
+		query_display_info(scanout_id, &display);
+		vscr->sw_vblank.refresh_rate = display.vrefresh;
 		timer_vblank_init(&vscr->sw_vblank, func, data);
 		return;
 	}
@@ -1348,6 +1363,7 @@ int vdpy_parse_cmd_option(const char *opts)
 {
 	char *str, *stropts, *tmp, *subtmp;
 	int error, snum, vfid = 0;
+	int hz = -1;
 	struct screen *scr;
 
 	error = 0;
@@ -1374,9 +1390,18 @@ int vdpy_parse_cmd_option(const char *opts)
 					vdpy.backlight_num++;
 				}
 			}
-
 			continue;
 		}
+		if (strcasestr(str, "dgpu-vfid=")) {
+			snum = sscanf(str, "dgpu-vfid=%d", &vfid);
+			if (snum == 1)
+				vdpy.vfid = vfid;
+			else
+				pr_err("invalid value for vfid: %s\n", str);
+			continue;
+		}
+
+		/* pipe paramter */
 		scr = vdpy.scrs + vdpy.scrs_num;
 		subtmp = strcasestr(str, "timer-vblank");
 		if (subtmp) {
@@ -1384,6 +1409,16 @@ int vdpy_parse_cmd_option(const char *opts)
 			scr->sw_vblank.vblank_id = 2 + vdpy.pipe_num;
 			vdpy.pipe_num++;
 		}
+		scr->vrefresh = 0;
+		subtmp = strcasestr(str, "hz=");
+		if (subtmp) {
+			snum = sscanf(subtmp, "hz=%d", &hz);
+			if (snum != 1) {
+				pr_err("incorrect hz option");
+			}
+			scr->vrefresh = hz;
+		}
+
 		tmp = strcasestr(str, "=");
 		if (tmp && strcasestr(str, "geometry=")) {
 
@@ -1399,14 +1434,6 @@ int vdpy_parse_cmd_option(const char *opts)
 		} else if (tmp && strcasestr(str, "projection=")) {
 			scr->name = "projection";
 			vdpy.scrs_num++;
-		}
-
-		if (strcasestr(str, "dgpu-vfid=")) {
-			snum = sscanf(str, "dgpu-vfid=%d", &vfid);
-			if (snum == 1)
-				vdpy.vfid = vfid;
-			else
-				pr_err("invalid value for vfid: %s\n", str);
 		}
 
 		if(scr->name)
