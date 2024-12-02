@@ -243,6 +243,7 @@ endif
 ifeq ($(CONFIG_SCHED_PRIO),y)
 HW_C_SRCS += common/sched_prio.c
 endif
+HW_C_SRCS += common/trace.c
 HW_C_SRCS += hw/pci.c
 HW_C_SRCS += arch/x86/configs/vm_config.c
 HW_C_SRCS += boot/acpi_base.c

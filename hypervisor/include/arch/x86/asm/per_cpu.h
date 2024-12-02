@@ -24,8 +24,8 @@ struct per_cpu_region {
 	/* vmxon_region MUST be 4KB-aligned */
 	uint8_t vmxon_region[PAGE_SIZE];
 	void *vmcs_run;
-#ifdef HV_DEBUG
 	struct shared_buf *sbuf[ACRN_SBUF_PER_PCPU_ID_MAX];
+#ifdef HV_DEBUG
 	char logbuf[LOG_MESSAGE_MAX_SIZE];
 	uint32_t npk_log_ref;
 #endif
