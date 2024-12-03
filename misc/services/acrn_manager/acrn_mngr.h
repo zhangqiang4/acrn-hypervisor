@@ -20,7 +20,14 @@ header file.
 #define MNGR_MSG_MAGIC	0x67736d206d6d76	/* that is char[8] "mngr msg", on X86 */
 #define PATH_LEN		128
 
-#define ACRN_CONF_PATH			"/usr/share/acrn/conf"
+/*
+ * Since acrnctl is going to modify content under ACRN_CONF_PATH, the path
+ * should be put under /var per GNU directory variable convention (localstatedir).
+ *
+ * TODO: This path should not be hardcoded. The ACRN_CONF_PATH should be defined
+ * based on `localstatedir` passed from a header file auto-generated from build tool.
+ */
+#define ACRN_CONF_PATH			"/var/acrn/conf"
 #define ACRN_CONF_PATH_ADD		ACRN_CONF_PATH "/add"
 #define ACRN_CONF_TIMER_LIST	ACRN_CONF_PATH "/timer_list"
 
