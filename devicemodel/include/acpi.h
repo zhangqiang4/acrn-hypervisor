@@ -135,7 +135,7 @@ int lapic_to_pcpu(int lapic);
 int parse_madt(void);
 int acrn_parse_iasl(char *arg);
 int get_iasl_compiler(void);
-int check_iasl_version(void);
+int check_iasl_version(const char *str);
 
 void osc_write_ospm_dsdt(struct vmctx *ctx, int ncpu);
 

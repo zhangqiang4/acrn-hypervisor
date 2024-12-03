@@ -138,7 +138,7 @@ hvapplydiffconfig:
 	@$(MAKE) applydiffconfig $(HV_MAKEOPTS) PATCH=$(abspath $(PATCH))
 
 devicemodel: tools
-	$(MAKE) -C $(T)/devicemodel DM_OBJDIR=$(DM_OUT) DM_BUILD_VERSION=$(BUILD_VERSION) DM_BUILD_TAG=$(BUILD_TAG) TOOLS_OUT=$(TOOLS_OUT) RELEASE=$(RELEASE) IASL_MIN_VER=$(IASL_MIN_VER)
+	$(MAKE) -C $(T)/devicemodel DM_OBJDIR=$(DM_OUT) DM_BUILD_VERSION=$(BUILD_VERSION) DM_BUILD_TAG=$(BUILD_TAG) TOOLS_OUT=$(TOOLS_OUT) RELEASE=$(RELEASE)
 
 tools:
 	mkdir -p $(TOOLS_OUT)

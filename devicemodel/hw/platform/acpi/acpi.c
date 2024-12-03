@@ -1203,7 +1203,7 @@ acrn_parse_iasl(char *arg)
 }
 
 int
-check_iasl_version(void)
+check_iasl_version(const char *str)
 {
 	int ret = -1;
 	static char cmd_iasl_ver[MAXPATHLEN + 10];
@@ -1223,7 +1223,7 @@ check_iasl_version(void)
 				pr_info("iasl detected: %s, version: %s", asl_compiler, ver_str);
 
 				if ((!dm_strtoui(ver_str, &cp, 10, &ver)) &&
-					(!dm_strtoui(IASL_MIN_VER, &cp, 10, &min_ver)) &&
+					(!dm_strtoui(str, &cp, 10, &min_ver)) &&
 					(ver >= min_ver)) {
 					ret = 0;
 				}
