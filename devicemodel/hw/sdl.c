@@ -10,10 +10,10 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
 #include <drm_fourcc.h>
-#include <egl.h>
-#include <eglext.h>
-#include <gl2.h>
-#include <gl2ext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include <pixman.h>
 #include "vdisplay.h"
 #include "log.h"

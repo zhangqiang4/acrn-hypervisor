@@ -44,8 +44,6 @@ CFLAGS += -I$(SYSROOT)/usr/include/drm
 CFLAGS += -I$(SYSROOT)/usr/include/pixman-1
 CFLAGS += -I$(SYSROOT)/usr/include/glib-2.0
 CFLAGS += -I$(SYSROOT)/usr/include/SDL2
-CFLAGS += -I$(SYSROOT)/usr/include/EGL
-CFLAGS += -I$(SYSROOT)/usr/include/GLES2
 
 GCC_MAJOR=$(shell echo __GNUC__ | $(CC) -E -x c - | tail -n 1)
 GCC_MINOR=$(shell echo __GNUC_MINOR__ | $(CC) -E -x c - | tail -n 1)
