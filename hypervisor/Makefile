@@ -12,7 +12,6 @@ GCC_MINOR=$(shell echo __GNUC_MINOR__ | $(CC) -E -x c - | tail -n 1)
 STACK_PROTECTOR := 1
 
 ASL_COMPILER ?= $(shell which iasl)
-IASL_MIN_VER ?= "20190703"
 BASEDIR := $(shell pwd)
 HV_OBJDIR ?= $(CURDIR)/build
 HV_MODDIR ?= $(HV_OBJDIR)/modules
@@ -427,7 +426,7 @@ $(PRE_BUILD_CHECKER): $(HV_CONFIG_H) $(HV_CONFIG_TIMESTAMP)
 
 $(HV_ACPI_TABLE_TIMESTAMP): $(HV_CONFIG_TIMESTAMP)
 	@echo "generate the binary of ACPI tables for pre-launched VMs ..."
-	python3 ../misc/config_tools/acpi_gen/bin_gen.py --board $(HV_BOARD_XML) --scenario $(HV_SCENARIO_XML) --asl $(HV_CONFIG_DIR) --out $(HV_OBJDIR) --iasl_path $(ASL_COMPILER) --iasl_min_ver $(IASL_MIN_VER)
+	python3 ../misc/config_tools/acpi_gen/bin_gen.py --board $(HV_BOARD_XML) --scenario $(HV_SCENARIO_XML) --asl $(HV_CONFIG_DIR) --out $(HV_OBJDIR) --iasl_path $(ASL_COMPILER)
 	@touch $(HV_ACPI_TABLE_TIMESTAMP)
 
 $(SERIAL_CONF): $(HV_CONFIG_TIMESTAMP) $(HV_ALLOCATION_XML)

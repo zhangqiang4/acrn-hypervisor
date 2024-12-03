@@ -222,9 +222,10 @@ def main(args):
     if os.path.isdir(DEST_ACPI_BIN_PATH):
         shutil.rmtree(DEST_ACPI_BIN_PATH)
 
-    if not check_iasl(args.iasl_path, args.iasl_min_ver):
+    iasl_min_ver = '20190703'
+    if not check_iasl(args.iasl_path, iasl_min_ver):
         print('Please install iasl tool with version >= {} from https://www.acpica.org/downloads '
-              'before ACPI generation.'.format(args.iasl_min_ver))
+              'before ACPI generation.'.format(iasl_min_ver))
         return 1
 
     for config in os.listdir(DEST_ACPI_PATH):
@@ -249,7 +250,6 @@ if __name__ == '__main__':
     parser.add_argument("--scenario", required=True, help="the XML file specifying the scenario to be set up")
     parser.add_argument("--asl", default=None, help="the input folder to store the ACPI ASL code. ")
     parser.add_argument("--iasl_path", default=None, help="the path to the iasl compiler.")
-    parser.add_argument("--iasl_min_ver", default=None, help="the minimum iasl version.")
     parser.add_argument("--out", default=None, help="the output folder to store the ACPI binary code. "
                                                     "If not specified, the path for the binary code is"
                                                     "build/hypervisor/acpi/")
