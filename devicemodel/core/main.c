@@ -55,7 +55,7 @@
 #include "rtc.h"
 #include "pit.h"
 #include "hpet.h"
-#include "version.h"
+#include "acrn_config.h"
 #include "sw_load.h"
 #include "monitor.h"
 #include "ioc.h"
