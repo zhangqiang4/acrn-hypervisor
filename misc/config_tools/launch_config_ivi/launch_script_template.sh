@@ -267,35 +267,41 @@ function enable_vf() {
 	if [ ! -f $totalvfs_file ]; then
 		log2stderr "iGPU SR-IOV not supported, skipping."
 	else
+		if [ "$numvfs" == "0" ]; then
+			log2stderr "Invalid numvfs parameter."
+			exit 0
+		fi
 		local reserved_ggtt_size=268435456
 		schedexecq=25
 		schedtimeout=500000
 		if [ -f /sys/class/drm/card0/iov/pf/gt/ggtt_spare ]; then
-			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/iov/pf/gt/ggtt_spare"
-			echo $schedexecq | tee -a /sys/class/drm/card0/iov/pf/gt/exec_quantum_ms
-			echo $schedtimeout | tee -a /sys/class/drm/card0/iov/pf/gt/preempt_timeout_us
+			echo $reserved_ggtt_size > /sys/class/drm/card0/iov/pf/gt/ggtt_spare
+			echo $schedexecq > /sys/class/drm/card0/iov/pf/gt/exec_quantum_ms
+			echo $schedtimeout > /sys/class/drm/card0/iov/pf/gt/preempt_timeout_us
 		else
-			echo "$reserved_ggtt_size" > "/sys/class/drm/card0/prelim_iov/pf/gt0/ggtt_spare"
-			echo $schedexecq | tee -a /sys/class/drm/card0/prelim_iov/pf/gt0/exec_quantum_ms
-			echo $schedtimeout | tee -a /sys/class/drm/card0/prelim_iov/pf/gt0/preempt_timeout_us
+			echo $reserved_ggtt_size > /sys/class/drm/card0/prelim_iov/pf/gt0/ggtt_spare
+			echo $schedexecq > /sys/class/drm/card0/prelim_iov/pf/gt0/exec_quantum_ms
+			echo $schedtimeout > /sys/class/drm/card0/prelim_iov/pf/gt0/preempt_timeout_us
 		fi
 
 		#change auto provision to manual provision(ggtt contexts doorbell)
-		#alloc fixed 1.5G ggtt size for each VF, it works for 1VF and 2VF sceneria.
+		local ggtt_quota=$((3221225472/numvfs))
+		local contexts_quota=$((57344/numvfs))
+		local doorbells_quota=$((256/numvfs))
 		for (( i = 1; i <= $numvfs; i++ ))
 		do
 			if [ -f /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms ]; then
 				echo $schedexecq > /sys/class/drm/card0/iov/vf$i/gt/exec_quantum_ms
 				echo $schedtimeout > /sys/class/drm/card0/iov/vf$i/gt/preempt_timeout_us
-				echo 1610612736 > /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
-				echo 28672 > /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
-				echo 128 > /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
+				echo $ggtt_quota > /sys/class/drm/card0/iov/vf$i/gt/ggtt_quota
+				echo $contexts_quota > /sys/class/drm/card0/iov/vf$i/gt/contexts_quota
+				echo $doorbells_quota > /sys/class/drm/card0/iov/vf$i/gt/doorbells_quota
 			else
 				echo $schedexecq > /sys/class/drm/card0/prelim_iov/vf$i/gt0/exec_quantum_ms
 				echo $schedtimeout > /sys/class/drm/card0/prelim_iov/vf$i/gt0/preempt_timeout_us
-				echo 1610612736 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
-				echo 28672 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
-				echo 128 > /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
+				echo $ggtt_quota > /sys/class/drm/card0/prelim_iov/vf$i/gt0/ggtt_quota
+				echo $contexts_quota > /sys/class/drm/card0/prelim_iov/vf$i/gt0/contexts_quota
+				echo $doorbells_quota > /sys/class/drm/card0/prelim_iov/vf$i/gt0/doorbells_quota
 			fi
 		done
 
