@@ -224,6 +224,7 @@ static int virtio_sound_xfer(struct virtio_sound_pcm *stream);
 static int virtio_sound_process_ctrl_cmds(struct virtio_sound_pcm *stream, int *timeout);
 static int virtio_sound_create_poll_fds(struct virtio_sound_pcm *stream);
 static int virtio_sound_send_pending_msg(struct virtio_sound_pcm *stream);
+static void virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts);
 
 static LIST_HEAD(listhead, vbs_jack_elem) jack_list_head;
 
@@ -2701,18 +2702,6 @@ virtio_sound_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	else
 		pci_set_cfgdata16(dev, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
-	if (virtio_interrupt_init(&virt_snd->base, virtio_uses_msix())) {
-		pthread_mutex_destroy(&virt_snd->mtx);
-		free(virt_snd);
-		return -1;
-	}
-	err = virtio_set_modern_bar(&virt_snd->base, false);
-	if (err != 0) {
-		pthread_mutex_destroy(&virt_snd->mtx);
-		free(virt_snd);
-		return err;
-	}
-
 	virt_snd->stream_cnt = 0;
 	virt_snd->chmap_cnt = 0;
 	virt_snd->ctl_cnt = 0;
@@ -2720,23 +2709,33 @@ virtio_sound_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	virt_snd->card_cnt = 0;
 	err = virtio_sound_parse_opts(virt_snd, opts);
 	if (err != 0) {
-		pthread_mutex_destroy(&virt_snd->mtx);
-		free(virt_snd);
-		return err;
+		goto error;
 	}
 
 	err = virtio_sound_event_init(virt_snd, opts);
 	if (err != 0) {
-		free(virt_snd);
-		return err;
+		goto error;
 	}
 	virtio_sound_cfg_init(virt_snd);
+
+	if (virtio_interrupt_init(&virt_snd->base, virtio_uses_msix())) {
+		goto error;
+	}
+	err = virtio_set_modern_bar(&virt_snd->base, false);
+	if (err != 0) {
+		goto error;
+	}
+
 	virt_snd->status = VIRTIO_SND_BE_INITED;
 	if (getenv("VIRTIO_SOUND_WRITE2FILE") != NULL)
 		write2file = atoi(getenv("VIRTIO_SOUND_WRITE2FILE"));
 	if (getenv("VIRTIO_SOUND_PRINT_CTRL_MSG") != NULL)
 		print_ctrl_msg = atoi(getenv("VIRTIO_SOUND_PRINT_CTRL_MSG"));
     return 0;
+error:
+	virtio_sound_deinit(ctx, dev, NULL);
+	return err;
+
 }
 
 static void
@@ -2746,9 +2745,11 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	int s, i;
 	virt_snd->status = VIRTIO_SND_BE_DEINITED;
 	for (s = 0; s < virt_snd->stream_cnt; s++)
-		pthread_kill(virt_snd->streams[s]->tid, SIGCONT);
+		if (virt_snd->streams[s]->tid > 0)
+			pthread_kill(virt_snd->streams[s]->tid, SIGCONT);
 	for (s = 0; s < virt_snd->stream_cnt; s++) {
-		pthread_join(virt_snd->streams[s]->tid, NULL);
+		if (virt_snd->streams[s]->tid > 0)
+			pthread_join(virt_snd->streams[s]->tid, NULL);
 		if (virt_snd->streams[s]->handle && snd_pcm_close(virt_snd->streams[s]->handle) < 0) {
 			pr_err("%s: stream %s close error!\n", __func__, virt_snd->streams[s]->dev_name);
 		}
@@ -2769,10 +2770,13 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			free(virt_snd->jacks[i]->identifier);
 		free(virt_snd->jacks[i]);
 	}
-	pthread_kill(virt_snd->ctl_tid, SIGCONT);
-	pthread_join(virt_snd->ctl_tid, NULL);
+	if (virt_snd->ctl_tid > 0) {
+		pthread_kill(virt_snd->ctl_tid, SIGCONT);
+		pthread_join(virt_snd->ctl_tid, NULL);
+	}
 	for (i = 0; i < virt_snd->card_cnt; i++) {
-		snd_hctl_close(virt_snd->cards[i]->handle);
+		if (virt_snd->cards[i]->handle > 0)
+			snd_hctl_close(virt_snd->cards[i]->handle);
 		free(virt_snd->cards[i]);
 	}
 	free(virt_snd);
