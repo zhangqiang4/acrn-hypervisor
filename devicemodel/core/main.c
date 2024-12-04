@@ -824,6 +824,7 @@ vm_suspend_resume(struct vmctx *ctx)
 	}
 	/* set the BSP init state */
 	vm_set_vcpu_regs(ctx, &bsp_regs);
+	time_profiling_add(NULL, RESUME_TIME, RECORD_END);
 	vm_run(ctx);
 }
 

@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include "vmmapi.h"
 #include "log.h"
+#include "time_profiling.h"
 
 static pthread_cond_t suspend_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t suspend_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -30,6 +31,7 @@ vm_resume(struct vmctx *ctx)
 	pthread_mutex_lock(&suspend_mutex);
 	pr_info("%s: setting VM state to %s\n", __func__, vm_state_to_str(VM_SUSPEND_NONE));
 	vm_set_suspend_mode(VM_SUSPEND_NONE);
+	time_profiling_add("Fire Resume Signal", RESUME_TIME, RECORD_NODE);
 	pthread_cond_signal(&suspend_cond);
 	pthread_mutex_unlock(&suspend_mutex);
 

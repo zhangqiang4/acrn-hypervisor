@@ -27,6 +27,7 @@
 #include "pci_core.h"
 #include "virtio_be.h"
 #include "gpio_dm.h"
+#include "time_profiling.h"
 
 #define INTR_STORM_MONITOR_PERIOD	10 /* 10 seconds */
 #define INTR_STORM_THRESHOLD	100000 /* 10K times per second */
@@ -381,6 +382,8 @@ static void handle_resume(struct mngr_msg *msg, int client_fd, void *param)
 	struct vm_ops *ops;
 	int ret = 0;
 	int count = 0;
+
+	time_profiling_add("S3 Resume Request Received", RESUME_TIME, RECORD_NODE);
 
 	ack.magic = MNGR_MSG_MAGIC;
 	ack.msgid = msg->msgid;
