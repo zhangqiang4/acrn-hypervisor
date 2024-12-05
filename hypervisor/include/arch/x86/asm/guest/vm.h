@@ -266,6 +266,7 @@ bool vm_hide_mtrr(const struct acrn_vm *vm);
 bool is_vhwp_configured(const struct acrn_vm *vm);
 bool is_mc_pt_configured(const struct acrn_vm *vm);
 bool is_vtm_configured(const struct acrn_vm *vm);
+bool is_vptm_configured(const struct acrn_vm *vm);
 /*
  * @pre vm != NULL
  */

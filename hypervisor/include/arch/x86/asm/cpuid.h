@@ -72,8 +72,14 @@
 #define CPUID_EDX_TM1           (1U<<29U)
 #define CPUID_EDX_IA64          (1U<<30U)
 #define CPUID_EDX_PBE           (1U<<31U)
+/* CPUID.06H:EAX.Digital_temperature_sensor */
+#define CPUID_EAX_DTS           (1U<<0U)
+/* CPUID.06H:EAX.PLN */
+#define CPUID_EAX_PLN           (1U<<4U)
 /* CPUID.06H:EAX.ECMD */
 #define CPUID_EAX_ECMD          (1U<<5U)
+/* CPUID.06H:EAX.PTM */
+#define CPUID_EAX_PTM           (1U<<6U)
 /* CPUID.06H:EAX.HWP */
 #define CPUID_EAX_HWP           (1U<<7U)
 /* CPUID.06H:EAX.HWP_Notification */
@@ -90,6 +96,8 @@
 #define CPUID_EAX_HWP_CTL       (1U<<22U)
 /* CPUID.06H:EAX.Intel_Thread_Director */
 #define CPUID_EAX_ITD           (1U<<23U)
+/* CPUID.06H:EAX.Hardware_Feedback_Notification  */
+#define CPUID_EAX_HFN           (1U<<24U)
 /* CPUID.06H:ECX.Hardware_Coordination_Feedback_Capability */
 #define CPUID_ECX_HCFC          (1U<<0U)
 /* CPUID.07H:EBX.FSGSBASE*/

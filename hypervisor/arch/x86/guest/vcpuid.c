@@ -350,6 +350,12 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 		*eax &= ~(CPUID_EAX_HWP | CPUID_EAX_HWP_AW | CPUID_EAX_HWP_EPP);
 		*ecx &= ~CPUID_ECX_HCFC;
 	}
+	if (!is_vtm_configured(vm)) {
+		*eax &= ~(CPUID_EAX_ECMD | CPUID_EAX_HFN | CPUID_EAX_DTS | CPUID_EAX_PLN);
+	}
+	if (!is_vptm_configured(vm)) {
+		*eax &= ~CPUID_EAX_PTM;
+	}
 }
 
 static int32_t set_vcpuid_thermal_power(struct acrn_vm *vm)
@@ -618,6 +624,10 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 
 		/* mask Debug Store feature */
 		*edx &= ~CPUID_EDX_DTES;
+	}
+	if (!is_vtm_configured(vcpu->vm)) {
+		*ecx &= ~CPUID_ECX_TM2;
+		*edx &= ~(CPUID_EDX_TM1 | CPUID_EDX_ACPI);
 	}
 }
 
