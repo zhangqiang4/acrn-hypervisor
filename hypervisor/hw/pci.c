@@ -326,6 +326,7 @@ void enable_disable_pci_intx(union pci_bdf bdf, bool enable)
 	}
 }
 
+#if (MAX_HIDDEN_PDEVS_NUM > 0)
 bool is_plat_hidden_pdev(union pci_bdf bdf)
 {
 	static uint32_t hidden_pdevs_num = MAX_HIDDEN_PDEVS_NUM;
@@ -341,6 +342,12 @@ bool is_plat_hidden_pdev(union pci_bdf bdf)
 
 	return hidden;
 }
+#else
+bool is_plat_hidden_pdev(__unused union pci_bdf bdf)
+{
+	return false;
+}
+#endif
 
 bool is_hv_owned_pdev(union pci_bdf pbdf)
 {
