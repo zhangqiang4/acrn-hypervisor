@@ -181,10 +181,9 @@ enum function_key {
 /* version information */
 extern const char version_info[];
 
-/* The initial log level*/
-uint16_t console_loglevel = CONFIG_CONSOLE_LOGLEVEL_DEFAULT;
-uint16_t mem_loglevel = CONFIG_MEM_LOGLEVEL_DEFAULT;
-uint16_t npk_loglevel = CONFIG_NPK_LOGLEVEL_DEFAULT;
+extern uint16_t mem_loglevel;
+extern uint16_t console_loglevel;
+extern uint16_t npk_loglevel;
 
 static struct shell hv_shell;
 static struct shell *p_shell = &hv_shell;

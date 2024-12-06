@@ -10,7 +10,7 @@
 #include <asm/pgtable.h>
 #include <asm/guest/vm.h>
 #include <asm/guest/ept.h>
-#include <debug/logmsg.h>
+#include <logmsg.h>
 
 /**
  * @addtogroup vp-dm_mmio-dev
