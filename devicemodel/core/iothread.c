@@ -73,13 +73,19 @@ iothread_start(struct iothread_ctx *ioctx_x)
 		return 0;
 	}
 
+	/* started flag should be set to true before creating and running the thread,
+	 * otherwise we may have race condition where the io_thread runs but the flag
+	 * was still false.
+	 * pthread_create also implies memory barrier so we don't need explicit memory fence here.
+	 */
+	ioctx_x->started = true;
 	if (pthread_create(&ioctx_x->tid, NULL, io_thread, ioctx_x) != 0) {
+		ioctx_x->started = false;
 		pthread_mutex_unlock(&ioctx_x->mtx);
 		pr_err("%s", "iothread create failed\r\n");
 		return -1;
 	}
 
-	ioctx_x->started = true;
 	pthread_setname_np(ioctx_x->tid, ioctx_x->name);
 
 	if (CPU_COUNT(&(ioctx_x->cpuset)) != 0) {
