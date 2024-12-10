@@ -32,8 +32,6 @@
  * initialization routines for the High Precision Event Timer (HPET).
  */
 
-#define TSC_PER_MS	((uint64_t)get_tsc_khz())  /**< TSC ticks per millisecond. */
-
 /**
  * @brief Read Time Stamp Counter (TSC).
  *

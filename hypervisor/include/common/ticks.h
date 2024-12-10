@@ -40,8 +40,6 @@ uint64_t us_to_ticks(uint32_t us);
 
 uint64_t ticks_to_us(uint64_t ticks);
 
-uint64_t ticks_to_ms(uint64_t ticks);
-
 #endif	/* COMMON_TICKS_H */
 
 /**

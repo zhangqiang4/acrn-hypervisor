@@ -399,7 +399,12 @@ void calibrate_tsc(void)
 		tsc_hz = pit_hpet_calibrate_tsc(CAL_MS, native_calculate_tsc_cpuid_0x16());
 	}
 	tsc_khz = (uint32_t)(tsc_hz / 1000UL);
+	if (tsc_khz == 0UL) {
+		panic("tsc_khz is zero, failed to calibrate TSC frequency.");
+	}
+
 	pr_acrnlog("%s: tsc_khz = %ld", __func__, tsc_khz);
+
 }
 
 /**
