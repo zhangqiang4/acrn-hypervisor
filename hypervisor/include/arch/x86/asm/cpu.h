@@ -688,18 +688,6 @@ static inline void msr_write(uint32_t reg_num, uint64_t value64)
 	cpu_msr_write(reg_num, value64);
 }
 
-static inline int32_t msr_write_safe(uint32_t reg_num, uint64_t value64, uint64_t rsvd)
-{
-	int32_t err = 0;
-
-	if ((value64 & rsvd) == 0) {
-		msr_write(reg_num, value64);
-	} else {
-		err = -EACCES;
-	}
-	return err;
-}
-
 /* wrmsr/rdmsr smp call data */
 struct msr_data_struct {
 	uint32_t msr_index;
