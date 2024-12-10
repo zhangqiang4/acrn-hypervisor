@@ -36,6 +36,7 @@
 #include <asm/per_cpu.h>
 #include <logmsg.h>
 #include <asm/guest/virq.h>
+#include <lib/sprintf.h>
 
 #define CPU_REG_FIRST			CPU_REG_RAX
 #define CPU_REG_LAST			CPU_REG_GDTR
@@ -2364,8 +2365,14 @@ int32_t decode_instruction(struct acrn_vcpu *vcpu, bool full_decode)
 		retval = local_decode_instruction(cpu_mode, seg_desc_def32(csar), &emul_ctxt->vie);
 
 		if (retval != 0) {
+			char inst_buf[64] = {0};
+			int len = 0;
+			unsigned int i;
+			for (i = 0; i < emul_ctxt->vie.num_valid; i++) {
+				len += snprintf(inst_buf + len, 64 - len, "%02x ", emul_ctxt->vie.inst[i]);
+			}
+			pr_err("decode instruction failed @ 0x%016lx: %s", vcpu_get_rip(vcpu), inst_buf);
 			if (full_decode) {
-				pr_err("decode instruction failed @ 0x%016lx:", vcpu_get_rip(vcpu));
 				vcpu_inject_ud(vcpu);
 				retval = -EFAULT;
 			}
