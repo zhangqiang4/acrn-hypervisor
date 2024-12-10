@@ -99,10 +99,14 @@ int32_t emulate_lock_instr(struct acrn_vcpu *vcpu, uint32_t exception_vector, bo
 				}
 			} else {
 				/*
-				 * If #AC/#GP is caused by instruction with LOCK prefix or xchg, then emulate it,
-				 * otherwise, inject it back.
+				 * If #AC/#GP is caused by bus-lock instructions (refer to SDM Vol3.
+				 * Chapter 10.1.2 Bus Locking), then emulate it, otherwise, inject
+				 * it back.
+				 * LOCK prefix may not be the first byte if multiple groups of
+				 * prefixes exist.
 				 */
 				if (inst[0] == 0xf0U) {  /* This is LOCK prefix */
+					pr_dbg("bus lock caused by lock instruction prefix");
 					/*
 					 * Kick other vcpus of the guest to stop execution
 					 * until the split-lock/uc-lock emulation being completed.
@@ -110,7 +114,8 @@ int32_t emulate_lock_instr(struct acrn_vcpu *vcpu, uint32_t exception_vector, bo
 					vcpu_kick_lock_instr_emulation(vcpu);
 
 					/*
-					 * Skip the LOCK prefix and re-execute the instruction.
+					 * Skip the LOCK prefix and re-execute the instruction so
+					 * that we don't bother emulating the instruction.
 					 */
 					vcpu->arch.inst_len = 1U;
 					if (vcpu->vm->hw.created_vcpus > 1U) {

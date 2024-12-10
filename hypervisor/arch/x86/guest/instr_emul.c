@@ -84,6 +84,7 @@
 #define VIE_OP_TYPE_BITTEST	14U
 #define VIE_OP_TYPE_TEST	15U
 #define VIE_OP_TYPE_XCHG	16U
+#define VIE_OP_TYPE_CMPXCHG	17U
 
 /* struct vie_op.op_flags */
 #define VIE_OP_F_IMM		(1U << 0U)  /* 16/32-bit immediate operand */
@@ -101,6 +102,12 @@
 #define VIE_OP_F_WORD_OP	(1U << 6U)  /* 16-bit operands. */
 
 static const struct instr_emul_vie_op two_byte_opcodes[256] = {
+	[0xB0] = {
+		.op_type = VIE_OP_TYPE_CMPXCHG,
+	},
+	[0xB1] = {
+		.op_type = VIE_OP_TYPE_CMPXCHG,
+	},
 	[0xB6] = {
 		.op_type = VIE_OP_TYPE_MOVZX,
 		.op_flags = VIE_OP_F_BYTE_OP,
@@ -1676,6 +1683,45 @@ static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_
 	return ret;
 }
 
+static int32_t emulate_cmpxchg_for_uc_lock(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
+{
+	enum cpu_reg_name reg;
+	uint64_t reg_val, rax_val, data = 0UL;
+	uint64_t rflags;
+	uint8_t opsize = vie->opsize;
+	int32_t ret = 0;
+	uint32_t err_code = 0U;
+	uint64_t fault_addr;
+
+	reg = (enum cpu_reg_name)(vie->reg);
+	reg_val = vm_get_register(vcpu, reg);
+	rax_val = vm_get_register(vcpu, CPU_REG_RAX);
+
+	ret = copy_from_gva(vcpu, &data, vie->gva, opsize, &err_code, &fault_addr);
+	if (ret == 0) {
+		rflags = vm_get_register(vcpu, CPU_REG_RFLAGS);
+		if (((rax_val ^ data) & ((1ULL << (opsize * 8)) - 1)) != 0) {
+			vie_update_register(vcpu, CPU_REG_RAX, data, opsize);
+			rflags &= ~PSL_Z;
+		} else {
+			rflags |= PSL_Z;
+			err_code = PAGE_FAULT_WR_FLAG;
+			ret = copy_to_gva(vcpu, &reg_val, vie->gva, opsize, &err_code, &fault_addr);
+		}
+		vie_update_register(vcpu, CPU_REG_RFLAGS, rflags, 8);
+	}
+
+	if (ret < 0) {
+		pr_err("Error copy cmpxchg data!");
+		if (ret == -EFAULT) {
+			vcpu_inject_pf(vcpu, fault_addr, err_code);
+		}
+	}
+
+	return ret;
+}
+
+
 static int32_t vie_init(struct instr_emul_vie *vie, struct acrn_vcpu *vcpu)
 {
 	uint32_t inst_len = vcpu->arch.inst_len;
@@ -1809,6 +1855,8 @@ static int32_t decode_prefixes(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_
 				vie->opsize_override = 1U;
 			} else if (x == 0x67U) {
 				vie->addrsize_override = 1U;
+			} else if (x == 0xF0U) {
+				vie->lock_present = 1U;
 			} else if (x == 0xF3U) {
 				vie->repz_present = 1U;
 			} else if (x == 0xF2U) {
@@ -2458,6 +2506,13 @@ int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 				error = -EINVAL;
 			}
 			break;
+		case VIE_OP_TYPE_CMPXCHG:
+			if (vcpu->arch.emulating_lock) {
+				error = emulate_cmpxchg_for_uc_lock(vcpu, vie);
+			} else {
+				error = -EINVAL;
+			}
+			break;
 		default:
 			error = -EINVAL;
 			break;
@@ -2469,7 +2524,12 @@ int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 	return error;
 }
 
+/*
+ * TODO change this to is_current_opcode_lock_bus if VIE module supports emulating all possible
+ * bus-lock instructions.
+ */
 bool is_current_opcode_xchg(struct acrn_vcpu *vcpu)
 {
-	return (vcpu->inst_ctxt.vie.op.op_type == VIE_OP_TYPE_XCHG);
+	return ((vcpu->inst_ctxt.vie.op.op_type == VIE_OP_TYPE_XCHG) ||
+			(vcpu->inst_ctxt.vie.op.op_type == VIE_OP_TYPE_CMPXCHG));
 }

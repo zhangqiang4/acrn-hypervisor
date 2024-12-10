@@ -52,6 +52,7 @@ struct instr_emul_vie {
 			rex_x:1,
 			rex_b:1,
 			rex_present:1,
+			lock_present:1,		/* LOCK prefix */
 			repz_present:1,		/* REP/REPE/REPZ prefix */
 			repnz_present:1,	/* REPNE/REPNZ prefix */
 			opsize_override:1,	/* Operand size override */
