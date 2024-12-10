@@ -158,11 +158,11 @@ static inline void local_modify_or_del_pte(uint64_t *pte,
 /*
  * pgentry may means pml4e/pdpte/pde
  */
-static inline void construct_pgentry(uint64_t *pde, void *pd_page, uint64_t prot, const struct pgtable *table)
+static inline void construct_pgentry(uint64_t *pde, void *pt_page, uint64_t prot, const struct pgtable *table)
 {
-	sanitize_pte((uint64_t *)pd_page, table);
+	sanitize_pte((uint64_t *)pt_page, table);
 
-	set_pgentry(pde, hva2hpa(pd_page) | prot, table);
+	set_pgentry(pde, hva2hpa(pt_page) | prot, table);
 }
 
 /*
