@@ -120,6 +120,13 @@ static const struct instr_emul_vie_op two_byte_opcodes[256] = {
 };
 
 static const struct instr_emul_vie_op one_byte_opcodes[256] = {
+	[0x08] = {
+		.op_type = VIE_OP_TYPE_OR,
+		.op_flags = VIE_OP_F_BYTE_OP,
+	},
+	[0x09] = {
+		.op_type = VIE_OP_TYPE_OR,
+	},
 	[0x0F] = {
 		.op_type = VIE_OP_TYPE_TWO_BYTE
 	},
@@ -131,6 +138,37 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
 	},
 	[0x3B] = {
 		.op_type = VIE_OP_TYPE_CMP,
+	},
+	[0x23] = {
+		.op_type = VIE_OP_TYPE_AND,
+	},
+	[0x80] = {
+		/* Group 1 extended opcode */
+		.op_type = VIE_OP_TYPE_GROUP1,
+		.op_flags = VIE_OP_F_IMM8,
+	},
+	[0x81] = {
+		/* Group 1 extended opcode */
+		.op_type = VIE_OP_TYPE_GROUP1,
+		.op_flags = VIE_OP_F_IMM,
+	},
+	[0x83] = {
+		/* Group 1 extended opcode */
+		.op_type = VIE_OP_TYPE_GROUP1,
+		.op_flags = VIE_OP_F_IMM8,
+	},
+	[0x84] = {
+		.op_type = VIE_OP_TYPE_TEST,
+		.op_flags = VIE_OP_F_BYTE_OP,
+	},
+	[0x85] = {
+		.op_type = VIE_OP_TYPE_TEST,
+	},
+	[0x86] = {
+		.op_type = VIE_OP_TYPE_XCHG,
+	},
+	[0x87] = {
+		.op_type = VIE_OP_TYPE_XCHG,
 	},
 	[0x88] = {
 		.op_type = VIE_OP_TYPE_MOV,
@@ -178,44 +216,6 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
 	[0xC7] = {
 		.op_type = VIE_OP_TYPE_MOV,
 		.op_flags = VIE_OP_F_IMM,
-	},
-	[0x23] = {
-		.op_type = VIE_OP_TYPE_AND,
-	},
-	[0x80] = {
-		/* Group 1 extended opcode */
-		.op_type = VIE_OP_TYPE_GROUP1,
-		.op_flags = VIE_OP_F_IMM8,
-	},
-	[0x81] = {
-		/* Group 1 extended opcode */
-		.op_type = VIE_OP_TYPE_GROUP1,
-		.op_flags = VIE_OP_F_IMM,
-	},
-	[0x83] = {
-		/* Group 1 extended opcode */
-		.op_type = VIE_OP_TYPE_GROUP1,
-		.op_flags = VIE_OP_F_IMM8,
-	},
-	[0x84] = {
-		.op_type = VIE_OP_TYPE_TEST,
-		.op_flags = VIE_OP_F_BYTE_OP,
-	},
-	[0x85] = {
-		.op_type = VIE_OP_TYPE_TEST,
-	},
-	[0x86] = {
-		.op_type = VIE_OP_TYPE_XCHG,
-	},
-	[0x87] = {
-		.op_type = VIE_OP_TYPE_XCHG,
-	},
-	[0x08] = {
-		.op_type = VIE_OP_TYPE_OR,
-		.op_flags = VIE_OP_F_BYTE_OP,
-	},
-	[0x09] = {
-		.op_type = VIE_OP_TYPE_OR,
 	},
 };
 
