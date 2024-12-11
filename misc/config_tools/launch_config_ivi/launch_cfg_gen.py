@@ -122,15 +122,8 @@ class LaunchScript:
         s = ""
 
         with open(self.script_template_path, "r") as f:
-            s += f.read(99)
-
-        s += "# Launch script for VM name: "
-        s += f"{self._vm_name}\n"
-        s += "\n"
-
-        with open(self.script_template_path, "r") as f:
-            f.seek(99,0)
             s += f.read()
+        s = s.replace("@@__VM_NAME__@@", f"{self._vm_name}");
         s = s.replace("@@__USE_DGPU_SRIOV__@@", "1" if self._use_dgpu_sriov else "0");
         s += """
 ###
@@ -185,6 +178,9 @@ class LaunchScript:
             s += f"    {param}\n"
         s += ")\n\n"
 
+        s += "end_time=$(date +%s%N)\n"
+        s += "elapsed_time=$((((end_time - start_time) + 1000000 / 2) / 1000000))\n"
+        s += "log2stderr \"$(printf \"%-55s[%dms]\" \"Total time\" ${elapsed_time})\"\n\n"
         s += "log2stderr \"Launching device model with parameters: ${dm_params[@]}\"\n"
         s += "acrn-dm \"${dm_params[@]}\"\n\n"
 

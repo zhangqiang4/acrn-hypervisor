@@ -5,11 +5,35 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
+# Launch script for VM name: @@__VM_NAME__@@
+
 # Helper functions
+vm_name="@@__VM_NAME__@@"
+start_time=$(date +%s%N)    # End time in nanoseconds
 
 function log2stderr() {
-    echo "launchscript: $@" >&2
+    echo "[${vm_name}]launchscript: $@" >&2
 }
+
+function measure_time() {
+    local start_time=$(date +%s%N)
+    "$@"
+    local end_time=$(date +%s%N)
+    local elapsed_time=$((((end_time - start_time) + 1000000 / 2) / 1000000))
+
+    local params="$*"
+    local max_length=50
+    if [[ ${#params} -gt $max_length ]]; then
+        params="${params:0:$max_length}..."
+    fi
+
+    log2stderr "$(printf "%-55s[%dms]" "${params}" ${elapsed_time})"
+}
+
+shopt -s expand_aliases
+for func in "enable_vf" "enable_dgpu_vf" "add_cpus" "add_virtual_device" "add_passthrough_device"; do
+    alias $func="measure_time $func"
+done
 
 function probe_modules() {
     modprobe pci_stub
