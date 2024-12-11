@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -45,13 +45,67 @@
 #include <asm/boot/ld_sym.h>
 #include <asm/guest/optee.h>
 
+/**
+ * @defgroup vp-base_vm vp-base.vm
+ * @ingroup vp-base
+ * @brief VM lifecycle management module
+ *
+ * This module contains VM lifecycle management APIs, including preparation, creation,
+ * resume, start or shutdown of VMs.
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief VM lifecycle management functions
+ *
+ * This file contains implementation to manage the lifecycle of VMs, including preparation, creation,
+ * resume, start and shutdown of VMs.
+ */
+
 /* Local variables */
 
+/**
+ * @brief ACRN Virtual Machine structure array
+ *
+ * An array holding ACRN Virtual Machine structure. At most CONFIG_MAX_VM_NUM entries.
+ *
+ * @alignment PAGE_SIZE
+ */
 static struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
+
+/**
+ * @brief PID (posted-interrupt descriptor) pointer table pages array
+ *
+ * An array holding PID table pointer page for all VMs. At most CONFIG_MAX_VM_NUM entries.
+ * This is referenced by hardware (APICv) IPI virtualization feature.
+ *
+ * @alignment PAGE_SIZE
+ */
 static struct page pid_pointer_tables[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 
+/**
+ * @brief Service VM pointer
+ *
+ * A pointer to ACRN Virtual Machine structure of Service VM.
+ */
 static struct acrn_vm *service_vm_ptr = NULL;
 
+/**
+ * @brief Get first unused VM ID.
+ *
+ * This function returns the first unused VM ID. A VM is unused if it does not have a VM name, and
+ * it does not set GUEST_FLAG_STATIC_VM bit of its guest flags in its vm_config.
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @return First unused VM ID. ACRN_INVALID_VMID if no such ID was found.
+ *
+ * @retval vm_id if there is at least one unused VM
+ * @retval ACRN_INVALID_VMID no unused VM left
+ */
 uint16_t get_unused_vmid(void)
 {
 	uint16_t vm_id;
@@ -66,6 +120,18 @@ uint16_t get_unused_vmid(void)
 	return (vm_id < CONFIG_MAX_VM_NUM) ? (vm_id) : (ACRN_INVALID_VMID);
 }
 
+/**
+ * @brief Get VM ID from VM name.
+ *
+ * This function returns the ID of a VM from a given name.
+ *
+ * @pre name != NULL
+ * @post N/A
+ *
+ * @param[in] name The name to be searched.
+ *
+ * @return The ID of a VM matching the name \p name.
+ */
 uint16_t get_vmid_by_name(const char *name)
 {
 	uint16_t vm_id;
@@ -79,7 +145,16 @@ uint16_t get_vmid_by_name(const char *name)
 }
 
 /**
+ * @brief Checks if a VM is in VM_POWERED_OFF state.
+ *
+ * This function checks if a VM is in VM_POWERED_OFF state.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is in VM_POWERED_OFF state, false otherwise.
  */
 bool is_poweroff_vm(const struct acrn_vm *vm)
 {
@@ -87,7 +162,16 @@ bool is_poweroff_vm(const struct acrn_vm *vm)
 }
 
 /**
+ * @brief Checks if a VM is in VM_CREATED state.
+ *
+ * This function checks if a VM is in VM_CREATED state.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is in VM_CREATED state, false otherwise.
  */
 bool is_created_vm(const struct acrn_vm *vm)
 {
@@ -95,21 +179,56 @@ bool is_created_vm(const struct acrn_vm *vm)
 }
 
 /**
+ * @brief Checks if a VM is in VM_PAUSED state.
+ *
+ * This function checks if a VM is in VM_PAUSED state.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return True if VM is in VM_PAUSED state, false otherwise.
  */
 bool is_paused_vm(const struct acrn_vm *vm)
 {
 	return (vm->state == VM_PAUSED);
 }
 
+/**
+ * @brief Checks if a VM is Service VM.
+ *
+ * This function checks if a VM is Service VM. A VM is Service VM if
+ * its load order is set to SERVICE_VM.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is Service VM, false otherwise.
+ */
 bool is_service_vm(const struct acrn_vm *vm)
 {
 	return (get_vm_config(vm->vm_id)->load_order == SERVICE_VM);
 }
 
 /**
+ * @brief Checks if a VM is Post-launched VM.
+ *
+ * This function checks if a VM is Post-launched VM. A VM is Post-launched VM if
+ * its load order is set to POST_LAUNCHED_VM.
+ *
  * @pre vm != NULL
- * @pre vm->vmid < CONFIG_MAX_VM_NUM
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is Post-launched VM, false otherwise.
  */
 bool is_postlaunched_vm(const struct acrn_vm *vm)
 {
@@ -118,8 +237,19 @@ bool is_postlaunched_vm(const struct acrn_vm *vm)
 
 
 /**
+ * @brief Checks if a VM is Pre-launched VM.
+ *
+ * This function checks if a VM is Pre-launched VM. A VM is Pre-launched VM if
+ * its load order is set to PRE_LAUNCHED_VM.
+ *
  * @pre vm != NULL
- * @pre vm->vmid < CONFIG_MAX_VM_NUM
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is Pre-launched VM, false otherwise.
  */
 bool is_prelaunched_vm(const struct acrn_vm *vm)
 {
@@ -130,7 +260,20 @@ bool is_prelaunched_vm(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured Local APIC passthrough.
+ *
+ * This function checks if a VM has configured Local APIC passthrough.
+ * A VM has configured Local APIC passthrough if GUEST_FLAG_LAPIC_PASSTHROUGH
+ * is set in VM's guest flag.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured Local APIC passthrough, false otherwise.
  */
 bool is_lapic_pt_configured(const struct acrn_vm *vm)
 {
@@ -140,7 +283,20 @@ bool is_lapic_pt_configured(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured PMU passthrough.
+ *
+ * This function checks if a VM has configured PMU passthrough.
+ * A VM has configured PMU passthrough if GUEST_FLAG_PMU_PASSTHROUGH
+ * is set in VM's guest flags.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured PMU passthrough, false otherwise.
  */
 bool is_pmu_pt_configured(const struct acrn_vm *vm)
 {
@@ -151,7 +307,20 @@ bool is_pmu_pt_configured(const struct acrn_vm *vm)
 
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured Real-Time usage.
+ *
+ * This function checks if a VM has configured Real-Time usage.
+ * A VM has configured Real-Time usage if GUEST_FLAG_RT
+ * is set in VM's guest flags.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured Real-Time usage, false otherwise.
  */
 bool is_rt_vm(const struct acrn_vm *vm)
 {
@@ -161,7 +330,20 @@ bool is_rt_vm(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM is Statically-configured.
+ *
+ * This function checks if a VM is Statically-configured.
+ * A VM is Statically-configured if GUEST_FLAG_STATIC_VM
+ * is set in guest flags.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is Statically-configured VM, false otherwise.
  */
 bool is_static_configured_vm(const struct acrn_vm *vm)
 {
@@ -171,7 +353,20 @@ bool is_static_configured_vm(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured virtual HWP.
+ *
+ * This function checks if a VM has configured virtual HWP.
+ * A VM has configured virtual HWP if GUEST_FLAG_VHWP
+ * is set in VM's guest flags.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured virtual HWP, false otherwise.
  */
 bool is_vhwp_configured(const struct acrn_vm *vm)
 {
@@ -181,7 +376,20 @@ bool is_vhwp_configured(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured Machine Check capability passthrough.
+ *
+ * This function checks if a VM has configured Machine Check capability passthrough.
+ * A VM has configured Machine Check capability passthrough if mcbanks_bitmask
+ * in vm_config is not zero.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured Machine Check capability passthrough, false otherwise.
  */
 bool is_mc_pt_configured(const struct acrn_vm *vm)
 {
@@ -191,7 +399,21 @@ bool is_mc_pt_configured(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured Per-Core Thermal capability passthrough.
+ *
+ * This function checks if a VM has configured Per-Core Thermal capability passthrough.
+ * A VM has configured Thermal capability passthrough if GUEST_FLAG_VTM
+ * is set in VM's guest flags in its vm_config.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured Per-Core Thermal capability passthrough,
+ *         false otherwise.
  */
 bool is_tm_pt_configured(const struct acrn_vm *vm)
 {
@@ -201,7 +423,20 @@ bool is_tm_pt_configured(const struct acrn_vm *vm)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured PTM (Package Thermal Management) passthrough.
+ *
+ * This function checks if a VM has configured Package Thermal Management passthrough.
+ * A VM has configured Package Thermal Management passthrough if GUEST_FLAG_VPTM is set
+ * in VM's guest flags in its vm_config.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured PTM passthrough, false otherwise.
  */
 bool is_ptm_pt_configured(const struct acrn_vm *vm)
 {
@@ -211,19 +446,42 @@ bool is_ptm_pt_configured(const struct acrn_vm *vm)
 }
 
 /**
- * @brief VT-d PI posted mode can possibly be used for PTDEVs assigned
- * to this VM if platform supports VT-d PI AND lapic passthru is not configured
- * for this VM.
- * However, as we can only post single destination IRQ, so meeting these 2 conditions
- * does not necessarily mean posted mode will be used for all PTDEVs belonging
- * to the VM, unless the IRQ is single-destination for the specific PTDEV
+ * @brief Checks if a VM is capable of enabling VT-d posted interrupt.
+ *
+ * This function checks if a VM is capable of enabling VT-d posted interrupt
+ * for passthrough devices.
+ * A VM is capable of enabling VT-d posted interrupt if all the hardware DMARs support
+ * it, and the VM has NOT configured Local APIC passthrough.
+ * If this function returns true, the VT-d posted interrupt can be enabled for all
+ * passthrough devices of this VM whose interrupt type is not INTx.
+ *
  * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM is capable of enabling VT-d posted interrupt, false otherwise.
  */
 bool is_pi_capable(const struct acrn_vm *vm)
 {
 	return (platform_caps.pi && (!is_lapic_pt_configured(vm)));
 }
 
+/**
+ * @brief Get the VM with highest severity.
+ *
+ * This function returns the pointer to the VM with highest severity.
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @param[in] runtime If true, check only the VMs that are not powered off. This includes VMs that
+ *                    are either running, created, or paused.
+ *
+ * @return The pointer to VM with highest severity.
+ */
 struct acrn_vm *get_highest_severity_vm(bool runtime)
 {
 	uint16_t vm_id, highest_vm_id = 0U;
@@ -243,7 +501,20 @@ struct acrn_vm *get_highest_severity_vm(bool runtime)
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
+ * @brief Checks if a VM has configured to hide MTRR capability.
+ *
+ * This function checks if a VM has configured to hide MTRR capability.
+ * A VM has configured to hide MTRR capability if GUEST_FLAG_MTRR
+ * is set in VM's guest flags.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if VM has configured to hide MTRR capability, false otherwise.
  */
 bool vm_hide_mtrr(const struct acrn_vm *vm)
 {
@@ -255,7 +526,15 @@ bool vm_hide_mtrr(const struct acrn_vm *vm)
 /**
  * @brief Initialize the I/O bitmap for \p vm
  *
- * @param vm The VM whose I/O bitmap is to be initialized
+ * Initialize IO bitmap. If the vm is service vm, allow all IO requests
+ * by default. Block all IO port accesses from other type of VMs by default.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose I/O bitmap is to be initialized
+ *
+ * @return None
  */
 static void setup_io_bitmap(struct acrn_vm *vm)
 {
@@ -268,17 +547,34 @@ static void setup_io_bitmap(struct acrn_vm *vm)
 }
 
 /**
- * return a pointer to the virtual machine structure associated with
- * this VM ID
+ * @brief Get ACRN Virtual Machine data structure associated with given VM ID.
+ *
+ * This function returns ACRN Virtual Machine data structure pointer associated
+ * with given VM ID.
  *
  * @pre vm_id < CONFIG_MAX_VM_NUM
+ * @post N/A
+ *
+ * @param[in] vm_id The VM ID to be searched.
+ *
+ * @return ACRN Virtual Machine structure pointer associated with \p vm_id
  */
 struct acrn_vm *get_vm_from_vmid(uint16_t vm_id)
 {
 	return &vm_array[vm_id];
 }
 
-/* return a pointer to the virtual machine structure of Service VM */
+/**
+ * @brief Get ACRN Virtual Machine data structure associated with Service VM.
+ *
+ * This function returns ACRN Virtual Machine data structure pointer associated
+ * with Service VM.
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @return ACRN Virtual Machine structure pointer associated with Service VM.
+ */
 struct acrn_vm *get_service_vm(void)
 {
 	ASSERT(service_vm_ptr != NULL, "service_vm_ptr is NULL");
@@ -287,7 +583,15 @@ struct acrn_vm *get_service_vm(void)
 }
 
 /**
+ * @brief Get pCPU ID of a VM's BSP vCPU
+ *
+ * Returns the pCPU ID of a VM's BSP vCPU
+ *
  * @pre vm_config != NULL
+ *
+ * @param[in] vm_config VM configuration to be checked
+ *
+ * @return pCPU ID of VM's BSP vCPU
  */
 static inline uint16_t get_configured_bsp_pcpu_id(const struct acrn_vm_config *vm_config)
 {
@@ -299,7 +603,32 @@ static inline uint16_t get_configured_bsp_pcpu_id(const struct acrn_vm_config *v
 }
 
 /**
- * @pre vm != NULL && vm_config != NULL
+ * @brief Prepare memory mapping for Pre-launched VM.
+ *
+ * This function prepares the memory and MMIO device EPT mapping of Pre-launched VM.
+ *
+ * For memory regions, each of the entry from VM's virtual E820 table is processed
+ * and potentially mapped to physical region described in vm_config following below rules:
+ * - Zero length entries are ignored.
+ * - Addresses below 1MB are always mapped as UNCACHED, with access permission RWX.
+ * - Reserved regions above 1MB are NOT mapped.
+ * - The physical region to which the virtual addresses map are defined by hpa_region from
+ *   vm_config, and the regions are processed following the order as they appear in vm_config.
+ *   These regions will be mapped as WB (Write Back) with access permission RWX.
+ *
+ * For MMIO device mappings, for each MMIO device defined in vm_config, `deassign_mmio_dev`
+ * is called to unmap potential mapping from previous boot. Then `assign_mmio_dev` to map
+ * all MMIO device regions to VM's address space.
+ *
+ * @pre vm != NULL
+ * @pre is_prelaunched_vm(vm) == true
+ * @pre vm_config != NULL
+ * @pre get_vm_config(vm->vm_id) == vm_config
+ *
+ * @param[inout] vm VM whose memory map to be setup.
+ * @param[in] vm_config The vm_config structure associated with \p vm.
+ *
+ * @return None
  */
 static void prepare_prelaunched_vm_memmap(struct acrn_vm *vm, const struct acrn_vm_config *vm_config)
 {
@@ -374,6 +703,20 @@ static void prepare_prelaunched_vm_memmap(struct acrn_vm *vm, const struct acrn_
 	}
 }
 
+/**
+ * @brief Remove BAR access of a PCI device from Service VM.
+ *
+ * Removes the BAR access of PCI device `pdev` from VM `service_vm`.
+ * If the BAR is IO BAR, call API `deny_guest_pio_access`.
+ * If the BAR is MMIO BAR, remove its EPT mapping by calling API `ept_del_mr`.
+ *
+ * @pre is_service_vm(service_vm) == true
+ *
+ * @param[inout] service_vm The VM to which access to PCI device is to be denied
+ * @param[in] pdev The physical device
+ *
+ * @return None
+ */
 static void deny_pci_bar_access(struct acrn_vm *service_vm, const struct pci_pdev *pdev)
 {
 	uint32_t idx;
@@ -404,8 +747,10 @@ static void deny_pci_bar_access(struct acrn_vm *service_vm, const struct pci_pde
 					base &= 0xffffU;
 					deny_guest_pio_access(service_vm, base, size);
 				} else {
-					/*for passthru device MMIO BAR base must be 4K aligned. This is the requirement of passthru devices.*/
-					ASSERT((base & PAGE_MASK) != 0U, "%02x:%02x.%d bar[%d] 0x%lx, is not 4K aligned!",
+					/*for passthru device MMIO BAR base must be 4K aligned.
+					 * This is the requirement of passthru devices.*/
+					ASSERT((base & PAGE_MASK) != 0U,
+						"%02x:%02x.%d bar[%d] 0x%lx, is not 4K aligned!",
 						pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f, idx, base);
 					size =  round_page_up(size);
 					ept_del_mr(service_vm, pml4_page, base, size);
@@ -415,6 +760,22 @@ static void deny_pci_bar_access(struct acrn_vm *service_vm, const struct pci_pde
 	}
 }
 
+/**
+ * @brief Remove PCI BAR access to a list of PCI devices from Service VM.
+ *
+ * Removes access to PCI BAR of a list of PCI devices from Service VM by calling
+ * `deny_pci_bar_access` for each of the device in the list.
+ *
+ * @pre is_service_vm(service_vm) == true
+ * @pre pci_devs != NULL
+ * @post N/A
+ *
+ * @param[inout] service_vm The VM to which access to PCI device list \p pci_devs is to be denied
+ * @param[in] pci_devs A list of physical PCI devices
+ * @param[in] pci_dev_num The number of PCI devices
+ *
+ * @return None
+ */
 static void deny_pdevs(struct acrn_vm *service_vm, struct acrn_vm_pci_dev_config *pci_devs, uint16_t pci_dev_num)
 {
 	uint16_t i;
@@ -426,6 +787,18 @@ static void deny_pdevs(struct acrn_vm *service_vm, struct acrn_vm_pci_dev_config
 	}
 }
 
+/**
+ * @brief Remove PCI BAR access to devices owned by hypervisor from Service VM.
+ *
+ * Removes PCI BAR access to devices owned by hypervisor from Service VM.
+ *
+ * @pre is_service_vm(service_vm) == true
+ * @post N/A
+ *
+ * @param[inout] service_vm The VM to which access to HV owned devices is to be denied
+ *
+ * @return None
+ */
 static void deny_hv_owned_devices(struct acrn_vm *service_vm)
 {
 	uint16_t pio_address;
@@ -443,12 +816,27 @@ static void deny_hv_owned_devices(struct acrn_vm *service_vm)
 }
 
 /**
- * @param[inout] vm pointer to a vm descriptor
+ * @brief Prepares memory mapping of Service VM.
  *
- * @retval 0 on success
+ * This function sets up memory mapping of Service VM by first mapping
+ * all available memory-backed region [0, memory_top) as UNCACHED, and
+ * then modify or remove below items:
+ * - For all regions marked as E820 RAM type, change the mapping to writeback (WB)
+ * - Remove platform EPC memory region
+ * - Remove hypervisor memory region
+ * - Remove Pre-launched VM owned memory regions, and remove access to any device
+ *   resources owned by Pre-launched VM.
+ * - Remove Application Processor (AP) trampoline code.
+ * - Remove PCIe MMCONFIG region.
+ * - Remove Intel IOMMU memory resources, which is owned by hypervisor.
  *
  * @pre vm != NULL
  * @pre is_service_vm(vm) == true
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose memory map to be setup
+ *
+ * @return None
  */
 static void prepare_service_vm_memmap(struct acrn_vm *vm)
 {
@@ -504,7 +892,8 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 		vm_config = get_vm_config(vm_id);
 		if (vm_config->load_order == PRE_LAUNCHED_VM) {
 			for (i = 0; i < vm_config->memory.region_num; i++){
-				ept_del_mr(vm, pml4_page, vm_config->memory.host_regions[i].start_hpa, vm_config->memory.host_regions[i].size_hpa);
+				ept_del_mr(vm, pml4_page, vm_config->memory.host_regions[i].start_hpa,
+						vm_config->memory.host_regions[i].size_hpa);
 			}
 			/* Remove MMIO/IO bars of pre-launched VM's ptdev */
 			deny_pdevs(vm, vm_config->pci_devs, vm_config->pci_dev_num);
@@ -534,7 +923,19 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 
 }
 
-/* Add EPT mapping of EPC reource for the VM */
+/**
+ * @brief Prepare EPC resource memory mapping for a VM.
+ *
+ * If virtual SGX is supported, this function adds EPT mapping for EPC resources to a VM's
+ * address space. Do nothing otherwise.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose EPC memory mapping to be setup
+ *
+ * @return None
+ */
 static void prepare_epc_vm_memmap(struct acrn_vm *vm)
 {
 	struct epc_map* vm_epc_maps;
@@ -550,12 +951,16 @@ static void prepare_epc_vm_memmap(struct acrn_vm *vm)
 }
 
 /**
- * @brief get bitmap of pCPUs whose vCPUs have LAPIC PT enabled
+ * @brief Get bitmap of pCPUs whose VM has Local APIC passthrough enabled
  *
- * @param[in] vm pointer to vm data structure
+ * Get bitmap of pCPUs whose VM has Local APIC passthrough enabled
+ *
  * @pre vm != NULL
+ * @post N/A
  *
- * @return pCPU bitmap
+ * @param[in] vm The VM to be checked
+ *
+ * @return Physical CPU bitmap of VM \p vm.
  */
 static uint64_t lapic_pt_enabled_pcpu_bitmap(struct acrn_vm *vm)
 {
@@ -573,8 +978,43 @@ static uint64_t lapic_pt_enabled_pcpu_bitmap(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Creates a VM.
+ *
+ * This function creates a VM by doing the following:
+ * - Initialize ACRN Virtual Machine structure
+ * - Create VM address space EPT mapping
+ * - For Service VM, initialize boot images (Kernel bzImage, ramdisk)
+ * - For Pre-launch VM, initialize boot images (Kernel bzImage, ramdisk, pre-built ACPI table)
+ * - Initialize VMExit IO bitmap
+ * - Initialize VM's power management
+ * - Hide PIC from VM
+ * - For Pre-launch VM or RTVM, Create Virtual RTC
+ * - For Service VM, remove access to hypervisor owned devices
+ * - Initialize virtual PCI bus
+ * - Initialize legacy VUART
+ * - Initialize virtual IOAPIC
+ * - Register reset port handler
+ * - Initialize CPUID entries
+ * - If physical platform support IPI Virtualization capability, initialize
+ *   vCPU PID table.
+ * - Prepare vCPUs
+ * - Create legacy INTx mapping
+ *
  * @pre vm_id < CONFIG_MAX_VM_NUM && vm_config != NULL && rtn_vm != NULL
  * @pre vm->state == VM_POWERED_OFF
+ *
+ * @param[in] vm_id VM ID to be created
+ * @param[in] pcpu_bitmap The pCPU bitmap for this VM
+ * @param[in] vm_config VM configuration structure associated with \p vm_id
+ * @param[out] rtn_vm The created ACRN Virtual Machine structure, if the return value is 0.
+ *
+ * @return Status of VM creation.
+ *
+ * @retval 0 Success
+ * @retval -EINVAL Invalid VM boot info, or invalid vCPU ID
+ * @retval -ENODEV No such device on physical platform, or no device associated with INTx mapping
+ * @retval -EIO PCI IO BAR is not identical mapping
+ * @retval -ENOMEM Not enough memory to setup vcpu ID entries
  */
 int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *vm_config, struct acrn_vm **rtn_vm)
 {
@@ -729,6 +1169,17 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 	return status;
 }
 
+/**
+ * @brief Check if ACRN is ready for system shutdown
+ *
+ * This function checks if ACRN is ready for system shutdown.
+ * The system is ready for system shutdown, if all non-TEE VMs are in powered off state.
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @return true if system is ready for shutdown, false otherwise.
+ */
 static bool is_ready_for_system_shutdown(void)
 {
 	bool ret = true;
@@ -747,6 +1198,25 @@ static bool is_ready_for_system_shutdown(void)
 	return ret;
 }
 
+/**
+ * @brief Offline pCPUs of VM that enables Local APIC Passthrough
+ *
+ * Offlines the pCPUs of VM that configures Local APIC passthrough.
+ * The pCPUs are specified by \p pcpu_mask. The function does NOT guarantee
+ * successful offline.
+ *
+ * @pre ls_lapic_pt_configured(vm) == true
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose pCPUs to offline
+ * @param[in] pcpu_mask A bitmask representing the pCPUs
+ *
+ * @return Status of offlining operation.
+ *
+ * @retval 0 Successful
+ * @retval -EINVAL pcpu_mask contains current pCPU
+ * @retval -ETIMEDOUT Timeout waiting for pCPU to offline
+ */
 static int32_t offline_lapic_pt_pcpus(const struct acrn_vm *vm, uint64_t pcpu_mask)
 {
 	int32_t ret = 0;
@@ -790,6 +1260,23 @@ static int32_t offline_lapic_pt_pcpus(const struct acrn_vm *vm, uint64_t pcpu_ma
 	return ret;
 }
 
+/**
+ * @brief Online all pCPUs on which vCPUs configure Local APIC Passthrough
+ *
+ * Onlines all the pCPUs on which vCPUs configure Local APIC passthrough.
+ * The pCPUs are specified by \p pcpu_mask.
+ *
+ * @pre pcpu_mask & ALL_CPUS_MASK == pcpu_mask
+ * @post N/A
+ *
+ * @param[in] pcpu_mask A bitmask representing the pCPUs
+ *
+ * @return Status of offlining operation.
+ *
+ * @retval 0 Successful
+ * @retval -EINVAL pcpu_mask contains current pCPU
+ * @retval -ETIMEDOUT Operation timed out
+ */
 static int32_t online_lapic_pt_pcpus(uint64_t pcpu_mask)
 {
 	int32_t ret = 0;
@@ -802,9 +1289,34 @@ static int32_t online_lapic_pt_pcpus(uint64_t pcpu_mask)
 	return ret;
 }
 
-/*
+/**
+ * @brief Shutdown a VM.
+ *
+ * Shutdown a VM and release the following resources:
+ * - Remove INTx mapping
+ * - De-initialize legacy VUART
+ * - De-initialize virtual PCI subsystem
+ * - De-initialize emulated MMIO/PIO handler
+ * - De-initialize EPT mapping
+ * - Offline all vCPUs associated with this VM. If the vCPUs
+ *   are Local APIC passthrough-ed, offline and re-online pCPUs
+ *   on which the Local APIC passthrough vCPUs run.
+ * - Clear VM name for \p vm
+ * - If the system is ready for platform shutdown, the function
+ *   does the platform shutdown and never returns.
+ *
  * @pre vm != NULL
  * @pre vm->state == VM_PAUSED
+ *
+ * @post vm->state == VM_POWERED_OFF
+ *
+ * @param[inout] vm The VM to be shutdown
+ *
+ * @return Status of shutdown operation
+ *
+ * @retval 0 Successful shutdown
+ * @retval -EINVAL Refer to API `offline_lapic_pt_pcpus`
+ * @retval -ETIMEDOUT Refer to API `online_lapic_pt_pcpus`
  */
 int32_t shutdown_vm(struct acrn_vm *vm)
 {
@@ -862,8 +1374,19 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Start a VM.
+ *
+ * Start a VM by launching VM's BSP vCPU. To start BSP vCPU,
+ * an ACRN_REQUEST_INIT_VMCS vcpu request is sent to the target pCPU,
+ * and the BSP vcpu thread is waked up.
+ *
  * @pre vm != NULL
  * @pre vm->state == VM_CREATED
+ * @post VM->state == VM_RUNNING
+ *
+ * @param[inout] vm The VM to be started
+ *
+ * @return None
  */
 void start_vm(struct acrn_vm *vm)
 {
@@ -878,8 +1401,27 @@ void start_vm(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Reset a VM.
+ *
+ * Reset a VM by resetting vCPUs, clearing IO request slots and
+ * resetting virtual IO APIC.
+ * If the VM configures Local APIC passthrough, additionally
+ * offline and re-online pCPUs for a proper reset.
+ * If the VM is service VM and the mode is VM_POWERON_RESET,
+ * additionally prepare OS images for this VM.
+ *
  * @pre vm != NULL
  * @pre vm->state == VM_PAUSED
+ * @post vm->state = VM_CREATED
+ *
+ * @param[inout] vm The VM to be reset
+ * @param[in] mode The VM reset mode
+ *
+ * @return status of resetting the VM
+ *
+ * @retval 0 Success
+ * @retval -EINVAL Refer to API `offline_lapic_pt_pcpus`
+ * @retval -ETIMEDOUT Refer to API `online_lapic_pt_pcpus`
  */
 int32_t reset_vm(struct acrn_vm *vm, enum vm_reset_mode mode)
 {
@@ -914,7 +1456,18 @@ int32_t reset_vm(struct acrn_vm *vm, enum vm_reset_mode mode)
 }
 
 /**
+ * @brief Set the state of an RTVM to VM_READY_TO_POWEROFF.
+ *
+ * Set the state of an RTVM to VM_READY_TO_POWER_OFF. If the VM
+ * is not RTVM, or is paused or already poweredoff, the function
+ * has no effect.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM to be checked
+ *
+ * @return None
  */
 void poweroff_if_rt_vm(struct acrn_vm *vm)
 {
@@ -924,7 +1477,21 @@ void poweroff_if_rt_vm(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Pause a VM.
+ *
+ * Zombie all vCPUs of a VM, and set a VM's state to VM_PAUSED.
+ * The VM has to satisfy below requirement:
+ * - The VM is in state VM_RUNNING and it has lower severity than Service VM, or
+ * - The VM is ready to poweroff (VM_READY_TO_POWEROFF state), or
+ * - The VM is in VM_CREATED state
+ * Otherwise the function has no effect.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM to be paused
+ *
+ * @return None
  */
 void pause_vm(struct acrn_vm *vm)
 {
@@ -950,11 +1517,14 @@ void pause_vm(struct acrn_vm *vm)
  * - init_vmcs BSP. We could call init_vmcs here because we know current
  *   pcpu is mapped to BSP of vm.
  *
- * @vm[in]		vm pointer to vm data structure
- * @wakeup_vec[in]	The resume address of vm
- *
  * @pre vm != NULL
  * @pre is_service_vm(vm) && vm->state == VM_PAUSED
+ * @post vm->state == VM_RUNNING
+ *
+ * @param[inout] vm The VM to be resumed
+ * @param[in] wakeup_vec Wakeup vector
+ *
+ * @return None
  */
 void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 {
@@ -971,9 +1541,26 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 }
 
 /**
- * Prepare to create vm/vcpu for vm
+ * @brief Prepare VM for launching.
+ *
+ * Check pCPU bitmap against actual physical CPUs and call create_vm.
+ * For Pre-launched VM, additionally build virtual ACPI RSDP and copy to VM's
+ * address space.
+ * Prepares and copy OS images to VM's address space.
  *
  * @pre vm_id < CONFIG_MAX_VM_NUM && vm_config != NULL
+ * @post N/A
+ *
+ * @param[in] vm_id VM ID of VM to be prepared
+ * @param[in] vm_config ACRN VM configuration structure associated with \p vm_id
+ *
+ * @return Status of prepare_vm execution
+ *
+ * @retval 0 Success.
+ * @retval -EINVAL Invalid VM boot info, or invalid vCPU ID
+ * @retval -ENODEV No such device on physical platform, or no device associated with INTx mapping
+ * @retval -EIO PCI IO BAR is not identical mapping
+ * @retval -ENOMEM Not enough memory to setup vcpu ID entries
  */
 int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 {
@@ -1011,8 +1598,19 @@ int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 }
 
 /**
- * @pre vm_config != NULL
- * @Application constraint: The validity of vm_config->cpu_affinity should be guaranteed before run-time.
+ * @brief Launch Service VM and Pre-launched VMs.
+ *
+ * This function checks if pcpu_id is the BSP of any of Service VM or Pre-launched VM.
+ * If it is, prepare and start all VMs that has pcpu_id as BSP.
+ *
+ * @pre get_vm_config(vm->vm_id) != NULL
+ * @post N/A
+ *
+ * @param[in] pcpu_id pCPU ID on which the launch operation is to be executed
+ *
+ * @remark The validity of vm_config->cpu_affinity should be guaranteed before run-time.
+ *
+ * @return None
  */
 void launch_vms(uint16_t pcpu_id)
 {
@@ -1048,7 +1646,14 @@ void launch_vms(uint16_t pcpu_id)
 }
 
 /**
- * if there is RT VM return true otherwise return false.
+ * @brief Check if there's any RTVM.
+ *
+ * Return true if one of the VM is RT VM. False otherwise.
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @return true if one of the VM is RT VM. False otherwise.
  */
 bool has_rt_vm(void)
 {
@@ -1063,6 +1668,19 @@ bool has_rt_vm(void)
 	return (vm_id != CONFIG_MAX_VM_NUM);
 }
 
+/**
+ * @brief Send a shutdown request to target pCPU
+ *
+ * Atomically queue a shutdown request to target pCPU. Send interrupt to notify
+ * target pCPU of the incoming request if \p pcpu_id is not the current pCPU.
+ *
+ * @pre pcpu_id < ACRN_PLATFORM_LAPIC_IDS_MAX
+ * @post bitmap_test_lock(NEED_SHUTDOWN_VM, &per_cpu(pcpu_flag, pcpu_id)) == true
+ *
+ * @param[in] pcpu_id Target pCPU ID to check.
+ *
+ * @return None
+ */
 void make_shutdown_vm_request(uint16_t pcpu_id)
 {
 	bitmap_set_lock(NEED_SHUTDOWN_VM, &per_cpu(pcpu_flag, pcpu_id));
@@ -1071,22 +1689,57 @@ void make_shutdown_vm_request(uint16_t pcpu_id)
 	}
 }
 
+/**
+ * @brief Check if VM needs to be shut down.
+ *
+ * Atomically check (and dequeue if there is such request) the shutdown request.
+ *
+ * @pre pcpu_id < ACRN_PLATFORM_LAPIC_IDS_MAX
+ * @post bitmap_test_lock(NEED_SHUTDOWN_VM, &per_cpu(pcpu_flag, pcpu_id)) == false
+ *
+ * @param[in] pcpu_id Target pCPU ID to check.
+ *
+ * @return true if A VM has received a shutdown request. False otherwise.
+ */
 bool need_shutdown_vm(uint16_t pcpu_id)
 {
 	return bitmap_test_and_clear_lock(NEED_SHUTDOWN_VM, &per_cpu(pcpu_flag, pcpu_id));
 }
 
-/*
+/**
+ * @brief Obtain VM lock.
+ *
+ * Obtain VM lock.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose state lock to be obtained
+ *
+ * @return None
  */
 void get_vm_lock(struct acrn_vm *vm)
 {
 	spinlock_obtain(&vm->vm_state_lock);
 }
-/*
+
+/**
+ * @brief Release VM lock.
+ *
+ * Release VM lock.
+ *
  * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose state lock to be released
+ *
+ * @return None
  */
 void put_vm_lock(struct acrn_vm *vm)
 {
 	spinlock_release(&vm->vm_state_lock);
 }
+
+/**
+ * @}
+ */

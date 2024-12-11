@@ -844,6 +844,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/cpu_caps.c \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
+                          ../hypervisor/arch/x86/guest/vm.c \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
