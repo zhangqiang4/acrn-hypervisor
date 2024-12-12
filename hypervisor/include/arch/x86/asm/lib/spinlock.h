@@ -35,7 +35,7 @@
  * This structure contains a head and a tail to manage the queue of processors waiting to acquire a lock. The head
  * will increase 1 when the spinlock is obtained. The tail will increase 1 when the spinlock is released.
  */
-typedef struct _spinlock {
+typedef struct struct_spinlock {
 	uint32_t head;  /**< Head of the queue for the spinlock */
 	uint32_t tail;  /**< Tail of the queue for the spinlock */
 
