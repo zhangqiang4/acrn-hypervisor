@@ -146,6 +146,9 @@ Here are descriptions for each of these ``acrn-dm`` command-line parameters:
 
    For more information about emulated device types, see :ref:`emul_config`.
 
+``-S``, ``--pci_slot <slot_config>``
+   Same as -s, except that devices with this option will abort acrn-dm on initialization failure.
+
 ----
 
 ``-v``, ``--version``
@@ -284,7 +287,7 @@ Here are descriptions for each of these ``acrn-dm`` command-line parameters:
 
 ----
 
-``--logger_setting <console,level=4;disk,level=4;kmsg,level=3>``
+``--logger_setting <console,level=4;disk,level=4;kmsg,level=3;debug_domains=all>``
    Set the level of logging that is used for each log channel.
    The general format of this option is ``<log channel>,level=<log level>``.
    Different log channels are separated by a semi-colon (``;``). The various
@@ -292,6 +295,11 @@ Here are descriptions for each of these ``acrn-dm`` command-line parameters:
    level ranges from 1 (``error``) up to 5 (``debug``).
 
    By default, the log severity level is set to 4 (``info``).
+
+   When setting the log level to 5(``debug``), you also need to specify domain name.
+   e.g. open virtio-gpio debug info ``debug_domains=virtio-gpio``,
+   or virtio-gpio and virtio-spi ``debug_domains=virtio-gpio,virtio-spi``,
+   or to open all domains ``debug_domains=all``.
 
 ----
 
@@ -512,6 +520,23 @@ arguments:
        For example: ``geometry=1280x720+100+50`` specifies a window 1280 pixels
        wide by 720 high, with the top left corner 100 pixels right and 50 pixels
        down from the top left corner of the screen.
+
+   * - ``virtio-fs``
+     - Virtio FS device. Parameters format is:
+       ``virtio-fs,socket=<socket_path>,tag=<tag_name>``
+
+       * ``socket_path`` specifies the path of socket file,
+         This socket file is used to communicate with virtiofsd.
+       * ``tag_name`` specifies the name of the virtio-fs device.
+         It will be used in VM.
+
+   * - ``vhost-vsock``
+     - Virtio vsock device. Parameters format is:
+       ``vhost-vsock,cid=<id_value>``
+
+       * ``id_value`` specifies the ID for this device. It should be unique and
+         different with other vhost-vsock devices.
+         The value range of id_value is [0x3, 0xFFFF FFFF].
 
    * - ``passthru``
      - Indicates a passthrough device. Use the parameter with the format

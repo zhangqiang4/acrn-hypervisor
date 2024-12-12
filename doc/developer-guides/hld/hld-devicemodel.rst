@@ -54,7 +54,7 @@ options:
    acrn-dm [-hYv] [-B bootargs] [-E elf_image_path]
                [-k kernel_image_path]
                [-l lpc] [-m mem] [-r ramdisk_image_path]
-               [-s pci] [--ovmf ovmf_file_path]
+               [-s pci] [-S pci] [--ovmf ovmf_file_path]
                [--intr_monitor param_setting]
                [--acpidev_pt HID[,UID]] [--mmiodev_pt MMIO_regions]
                [--vtpm2 sock_path] [--virtio_poll interval] [--mac_seed seed_string]
@@ -68,7 +68,8 @@ options:
        -l: LPC device configuration
        -m: memory size in MB
        -r: ramdisk image path
-       -s: <slot,driver,configinfo> PCI slot config
+       -s: <slot,driver,configinfo> PCI slot config. Device will be skipped on initialization failure
+       -S: same as -s, except that devices with this option will abort acrn-dm on initialization failure
        -v: version
        -Y: disable MPtable generation
        --mac_seed: set a platform unique string as a seed for generate mac address
@@ -85,7 +86,7 @@ options:
        --vtpm2: Virtual TPM2 args: sock_path=$PATH_OF_SWTPM_SOCKET
        --lapic_pt: enable local apic passthrough
        --rtvm: indicate that the guest is rtvm
-       --logger_setting: params like console,level=4;kmsg,level=3
+       --logger_setting: params like console,level=5;kmsg,level=3;disk,level=5;debug_domains=all
        --windows: support Oracle virtio-blk, virtio-net, and virtio-input devices
             for windows guest with secure boot
        --virtio_msi: force virtio to use single-vector MSI
