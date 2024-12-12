@@ -115,6 +115,30 @@
           <TYPE>Unified</TYPE>
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>1</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>2</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>3</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
       </CACHE_ALLOCATION>
     </CACHE_REGION>
     <BUILD_TYPE>debug</BUILD_TYPE>
