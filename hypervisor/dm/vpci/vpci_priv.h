@@ -31,6 +31,7 @@
 
 #include <list.h>
 #include <pci.h>
+#include <vpci.h>
 
 /*
  * For hypervisor emulated PCI devices, vMSIX Table contains 128 entries
@@ -40,16 +41,6 @@
 #define VMSIX_MAX_TABLE_ENTRY_NUM  128U
 #define VMSIX_MAX_ENTRY_TABLE_SIZE 2048U
 #define VMSIX_ENTRY_TABLE_PBA_BAR_SIZE 4096U
-
-static inline struct acrn_vm *vpci2vm(const struct acrn_vpci *vpci)
-{
-	return container_of(vpci, struct acrn_vm, vpci);
-}
-
-static inline bool is_quirk_ptdev(const struct pci_vdev *vdev)
-{
-	return ((vdev->flags & ACRN_PTDEV_QUIRK_ASSIGN) != 0U);
-}
 
 static inline bool in_range(uint32_t value, uint32_t lower, uint32_t len)
 {

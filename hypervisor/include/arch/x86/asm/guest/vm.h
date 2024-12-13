@@ -217,6 +217,11 @@ static inline bool can_ipiv_enabled(struct acrn_vm *vm)
 	return (vm->arch_vm.pid_table != NULL);
 }
 
+static inline struct acrn_vm *vpci2vm(const struct acrn_vpci *vpci)
+{
+	return container_of(vpci, struct acrn_vm, vpci);
+}
+
 void make_shutdown_vm_request(uint16_t pcpu_id);
 bool need_shutdown_vm(uint16_t pcpu_id);
 int32_t shutdown_vm(struct acrn_vm *vm);

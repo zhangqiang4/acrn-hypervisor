@@ -45,6 +45,11 @@ static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf, uint32_t
 static int32_t vpci_write_cfg(struct acrn_vpci *vpci, union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val);
 static struct pci_vdev *find_available_vdev(struct acrn_vpci *vpci, union pci_bdf bdf);
 
+static inline bool is_quirk_ptdev(const struct pci_vdev *vdev)
+{
+	return ((vdev->flags & ACRN_PTDEV_QUIRK_ASSIGN) != 0U);
+}
+
 /**
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
