@@ -12,6 +12,7 @@
 #include <asm/board.h>
 #include "vpci_priv.h"
 
+#if (MAX_VMSIX_ON_MSI_PDEVS_NUM > 0)
 #define PER_VECTOR_MASK_CAP 0x0100U
 
 /* Pre-assumptions for vMSI-x on MSI emulation:
@@ -25,7 +26,6 @@
 static bool need_vmsix_on_msi_emulation(__unused struct pci_pdev *pdev, __unused uint16_t *vector_count)
 {
 	bool ret = false;
-#if (MAX_VMSIX_ON_MSI_PDEVS_NUM > 0)
 	uint16_t msgctrl;
 	uint32_t i;
 
@@ -41,7 +41,6 @@ static bool need_vmsix_on_msi_emulation(__unused struct pci_pdev *pdev, __unused
 			break;
 		}
 	}
-#endif
 
 	return ret;
 }
@@ -201,3 +200,9 @@ void remap_one_vmsix_entry_on_msi(struct pci_vdev *vdev, uint32_t index)
 	}
 	pci_pdev_write_cfg(pbdf, get_mask_bits_offset(vdev), 4U, mask_bits);
 }
+#else
+void reserve_vmsix_on_msi_irtes(__unused struct pci_pdev *pdev) {}
+void init_vmsix_on_msi(__unused struct pci_vdev *vdev) {}
+void write_vmsix_cap_reg_on_msi(__unused struct pci_vdev *vdev, __unused uint32_t offset, __unused uint32_t bytes, __unused uint32_t val) {}
+void remap_one_vmsix_entry_on_msi(__unused struct pci_vdev *vdev, __unused uint32_t index) {}
+#endif
