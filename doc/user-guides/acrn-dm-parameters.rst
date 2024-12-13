@@ -425,6 +425,30 @@ arguments:
            size>`` meaning the virtio-blk will only access part of the file,
            from the ``<start lba in file>`` to ``<start lba in file>`` + ``<sub
            file size>``.
+         * ``nocache``: open the file/block with O_DIRECT flag in BE to bypass
+           Service VM's page cache.
+           By default, this option is not configured.
+         * ``discard``: support DISCARD operation in Post-launched User VM.
+           By default, this option is not configured.
+         * ``mq=x``: support multiple queues in Post-launched User VM.
+           By default, only 1 queue is configured.
+           To configure multiple queues, specify ``mq=x``, x is the number of queues.
+         * ``iothread``: create dedicated threads to handle IO requests in BE.
+           By default, only one iothread instance is created.
+           To configure multiple iothread instances, specify ``iothread=x``, x is the number of
+           iothread instances.
+         * ``aio=xxx``: configure the mechanism that is used by BE to process the IO request,
+           support either ``aio=threads`` or ``aio=io_uring``.
+
+           * ``aio=threads`` represents the thread pool mechanism.
+           * ``aio=io_uring`` represents the io_uring mechanism. ``aio=io_uring`` option has the
+             dependency on ``iothread`` option.
+
+           By default, the thread pool mechanism is configured.
+
+       * An example in the launch script to configure virtio-blk:
+
+         ``add_virtual_device 3 virtio-blk iothread=2,mq=2,/dev/nvme0n1p11,writeback,discard,aio=io_uring``
 
    * - ``virtio-input``
      - Virtio type device to emulate input device. ``evdev`` char device node
