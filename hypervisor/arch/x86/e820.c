@@ -276,7 +276,7 @@ static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 			}
 		} else {
 			panic("%s: region 0x%016x-0x%016x crosses multiple e820 entries, check your bootloader!",
-					   __func__, entry_start, entry_end);
+					   __func__, start_hpa, end_hpa);
 		}
 	}
 }
