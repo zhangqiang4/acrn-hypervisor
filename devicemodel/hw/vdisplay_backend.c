@@ -33,13 +33,13 @@ struct state {
 	int n_connect;
 };
 
-struct timer_vblank{
-
-       void *virtio_data;
-       void (*vblank_inject)(void *data,unsigned int frame,int i);
-       struct acrn_timer vblank_timer;
-       int vblank_id;
-       int refresh_rate;
+struct timer_vblank {
+	void *virtio_data;
+	void (*vblank_inject)(void *data, unsigned int frame, int i);
+	struct acrn_timer vblank_timer;
+	int vblank_id;
+	int refresh_rate;
+	uint32_t flip_sequence;
 };
 
 struct screen {
@@ -965,7 +965,7 @@ bool vdpy_submit_bh(int handle, struct vdpy_display_bh *bh_task)
 void vblank_timer_handler(void *arg, uint64_t n)
 {
 	struct timer_vblank *tvbl = (struct timer_vblank *)arg;
-	tvbl->vblank_inject(tvbl->virtio_data, 0, tvbl->vblank_id);
+	tvbl->vblank_inject(tvbl->virtio_data, ++tvbl->flip_sequence, tvbl->vblank_id);
 }
 
 static void timer_vblank_init(struct timer_vblank *tvbl, void (*func)
