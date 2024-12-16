@@ -40,6 +40,11 @@
       "chokidar": {
         "braces": "3.0.3"
       }
+    },
+    "vue": {
+      "postcss": {
+        "nanoid": "3.3.8"
+      }
     }
   },
   "devDependencies": {
