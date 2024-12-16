@@ -11,6 +11,8 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #include <libgen.h>
+#include <pthread.h>
+#include <errno.h>
 #include "uart.h"
 #include "uart_channel.h"
 #include "command.h"
@@ -20,6 +22,8 @@
 #include "config.h"
 #include "acrn_mngr.h"
 #include "acrnctl.h"
+
+static pthread_mutex_t suspend_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 bool system_shutdown_flag;
 bool get_system_shutdown_flag(void)
@@ -179,12 +183,11 @@ static void start_system_reboot(void)
 	}
 }
 
-static void start_system_suspend(void)
-{
+void* suspend_thread_func(void* arg) {
 	int ret;
 
 	if (notify_post_vms_msg_id(ACRND_SUSPEND) < 0) {
-		return;
+		goto exit;
 	}
 
 	if (wait_post_vms_enter_state(VM_SUSPENDED)) {
@@ -197,6 +200,47 @@ static void start_system_suspend(void)
 	} else {
 		LOG_WRITE("Some User VMs failed to suspend, cancelled the platform suspend process.\n");
 	}
+
+exit:
+	pthread_mutex_unlock(&suspend_mutex);
+	return NULL;
+}
+
+static void start_system_suspend(void) {
+	pthread_t suspend_thread;
+	pthread_attr_t attr;
+	int ret;
+
+	ret = pthread_mutex_trylock(&suspend_mutex);
+	if (ret == 0) {
+		// Successfully locked the mutex, meaning no other suspend thread is running
+		// Create the suspend thread
+		ret = pthread_attr_init(&attr);
+		if (ret < 0)
+			goto fail_init;
+		ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+		if (ret < 0)
+			goto fail;
+		ret = pthread_create(&suspend_thread, &attr, suspend_thread_func, NULL);
+		if (ret < 0)
+			goto fail;
+
+		pthread_attr_destroy(&attr);
+	} else if (ret == EBUSY) {
+		// Failed to lock the mutex, meaning a suspend thread is already running
+		LOG_WRITE("S3 suspend is ongoing\n");
+	} else {
+		// Failed to lock the mutex for other reasons
+		LOG_WRITE("pthread_mutex_trylock() failed\n");
+	}
+	return;
+
+fail:
+	pthread_attr_destroy(&attr);
+
+fail_init:
+	pthread_mutex_unlock(&suspend_mutex);
+	LOG_WRITE("Failed to invoke start_system_suspend\n");
 }
 
 static int send_socket_ack(void *arg, int fd, char *ack)
@@ -250,7 +294,6 @@ int socket_req_suspend_service_vm_handler(void *arg, int fd)
 {
 	int ret;
 
-	usleep(LISTEN_INTERVAL + SECOND_TO_US);
 	ret = send_socket_ack(arg, fd, ACK_REQ_SYS_SUSPEND);
 	if (ret < 0)
 		return 0;
