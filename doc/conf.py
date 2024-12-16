@@ -234,6 +234,8 @@ html_static_path = ['static']
 def setup(app):
    import sphinx
    try:
+       from breathe_renderer import setup
+       setup()
        mod_name = 'breathe_renderer'
        import_module(mod_name)  # override SphinxRenderer
    except Exception as e:

@@ -1,19 +1,34 @@
 import os
 import sys
 
-from typing import Any, Callable, cast, Dict, List, Optional, Type, Union
+from sphinx.domains.c import (
+    ASTIdentifier,
+    ASTNestedName,
+    Symbol,
+    SymbolLookupResult,
+    CDomain,
+    DefinitionParser,
+    LookupKey,
+    logger
+)
 
-from docutils import nodes
-from docutils.nodes import Node, TextElement
-
-from sphinx import addnodes
 from breathe.renderer import RenderContext
 from breathe.renderer.sphinxrenderer import SphinxRenderer, \
-    intersperse, DomainDirectiveFactory, BaseObject, NodeFinder, \
-    WithContext, InlineText, get_param_decl, \
-    get_definition_without_template_args
+    intersperse, NodeFinder
 
-from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS,TAB, TAB_SIZE
+from typing import (Callable, Dict, List, Optional, Tuple, Union, cast)
+
+from docutils import nodes
+from docutils.nodes import Element, Node, TextElement
+
+from sphinx import addnodes
+from sphinx.addnodes import pending_xref
+from sphinx.builders import Builder
+from sphinx.environment import BuildEnvironment
+
+from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
+
+from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
@@ -21,20 +36,238 @@ need_inserted_path = os.path.dirname(os.path.abspath(__file__))
 # if need_inserted_path not in sys.path
 sys.path.insert(0, need_inserted_path)
 
-BaseRender = SphinxRenderer
+from hookit import HookManager
 
 
-class BreatheRenderer(BaseRender):
-    sections = BaseRender.sections
+class BreatheASTIdentifier:
+    def followed_by_anon(self, identifiers):
+        for i, ident in enumerate(identifiers):
+            if (ident.identifier == self.identifier) and i + 2 <= len(identifiers):
+                followed = identifiers[i + 1]
+                return followed.is_anon()
+
+    meth = {
+        'followed_by_anon': followed_by_anon,
+    }
+
+
+class BreatheASTNestedName:
+    def describe_signature(self, signode: TextElement, mode: str,
+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
+        verify_description_mode(mode)
+        # just print the name part, with template args, not template params
+        if mode == 'noneIsName':
+            if self.rooted:
+                raise AssertionError("Can this happen?")  # TODO
+                signode += nodes.Text('.')
+            for i in range(len(self.names)):
+                if i != 0:
+                    raise AssertionError("Can this happen?")  # TODO
+                    signode += nodes.Text('.')
+                n = self.names[i]
+                n.describe_signature(signode, mode, env, '', symbol)
+        elif mode == 'param':
+            assert not self.rooted, str(self)
+            assert len(self.names) == 1
+            self.names[0].describe_signature(signode, 'noneIsName', env, '', symbol)
+        elif mode in ('markType', 'lastIsName', 'markName'):
+            # Each element should be a pending xref targeting the complete
+            # prefix.
+            prefix = ''
+            first = True
+            names = self.names[:-1] if mode == 'lastIsName' else self.names
+            # If lastIsName, then wrap all of the prefix in a desc_addname,
+            # else append directly to signode.
+            # TODO: also for C?
+            #  NOTE: Breathe previously relied on the prefix being in the desc_addname node,
+            #       so it can remove it in inner declarations.
+            dest = signode
+            if mode == 'lastIsName':
+                dest = addnodes.desc_addname()
+            if self.rooted:
+                prefix += '.'
+                if mode == 'lastIsName' and len(names) == 0:
+                    # signode += addnodes.desc_sig_punctuation('.', '.')
+                    signode += addnodes.desc_sig_punctuation('.', '')
+                else:
+                    # dest += addnodes.desc_sig_punctuation('.', '.')
+                    dest += addnodes.desc_sig_punctuation('.', '')
+
+            for i in range(len(names)):
+                ident = names[i]
+                if ident.followed_by_anon(names):
+                    continue
+                elif not ident.is_anon():
+                    txt_ident = str(ident)
+                    if txt_ident != '':
+                        ident.describe_signature(dest, 'markType', env, prefix, symbol)
+                    prefix += txt_ident
+                if ident.is_anon() and first:
+                    txt_ident = str(ident)
+                    if txt_ident != '':
+                        dest += addnodes.desc_sig_space()
+                        ident.describe_signature(dest, 'markType', env, prefix, symbol)
+                    prefix += txt_ident
+                    first = False
+
+            if mode == 'lastIsName':
+                if len(self.names) > 1:
+                    dest += addnodes.desc_sig_punctuation('.', '.')
+                    dest += addnodes.desc_sig_punctuation('.', '')
+                    signode += dest
+                self.names[-1].describe_signature(signode, mode, env, '', symbol)
+        else:
+            raise Exception('Unknown description mode: %s' % mode)
+
+    meth = {
+        'describe_signature': describe_signature,
+    }
+
+
+class BreatheSymbol:
+    def _symbol_lookup(self, nestedName: ASTNestedName,
+                       onMissingQualifiedSymbol: Callable[["Symbol", ASTIdentifier], "Symbol"],  # NOQA
+                       ancestorLookupType: str, matchSelf: bool,
+                       recurseInAnon: bool, searchInSiblings: bool) -> SymbolLookupResult:
+        # TODO: further simplification from C++ to C
+        # ancestorLookupType: if not None, specifies the target type of the lookup
+        if Symbol.debug_lookup:
+            Symbol.debug_indent += 1
+            Symbol.debug_print("_symbol_lookup:")
+            Symbol.debug_indent += 1
+            Symbol.debug_print("self:")
+            print(self.to_string(Symbol.debug_indent + 1), end="")
+            Symbol.debug_print("nestedName:        ", nestedName)
+            Symbol.debug_print("ancestorLookupType:", ancestorLookupType)
+            Symbol.debug_print("matchSelf:         ", matchSelf)
+            Symbol.debug_print("recurseInAnon:     ", recurseInAnon)
+            Symbol.debug_print("searchInSiblings:  ", searchInSiblings)
+
+        names = nestedName.names
+        # print('lookup:', [n.identifier for n in names])
+
+        # find the right starting point for lookup
+        parentSymbol = self
+        if len(names) > 1:
+            ...
+            # symbols, ident=[Symbol(None,None,None,None,None)],names[-1]
+            # return SymbolLookupResult(symbols, parentSymbol, ident)
+
+        if nestedName.rooted:  # find starting point
+            while parentSymbol.parent:
+                parentSymbol = parentSymbol.parent
+        if ancestorLookupType is not None:
+            # walk up until we find the first identifier
+            firstName = names[0]
+            while parentSymbol.parent:
+                if parentSymbol.find_identifier(firstName,
+                                                matchSelf=matchSelf,
+                                                recurseInAnon=recurseInAnon,
+                                                searchInSiblings=searchInSiblings):
+                    break
+                parentSymbol = parentSymbol.parent
+
+        if Symbol.debug_lookup:
+            Symbol.debug_print("starting point:")
+            print(parentSymbol.to_string(Symbol.debug_indent + 1), end="")
+
+        # and now the actual lookup
+        for ident in names[:-1]:
+            symbol = parentSymbol._find_first_named_symbol(
+                ident, matchSelf=matchSelf, recurseInAnon=recurseInAnon)
+            if symbol is None:
+                symbol = onMissingQualifiedSymbol(parentSymbol, ident)
+                if symbol is None:
+                    if Symbol.debug_lookup:
+                        Symbol.debug_indent -= 2
+                    return None
+            # We have now matched part of a nested name, and need to match more
+            # so even if we should matchSelf before, we definitely shouldn't
+            # even more. (see also issue #2666)
+            matchSelf = False
+            parentSymbol = symbol
+
+        if Symbol.debug_lookup:
+            Symbol.debug_print("handle last name from:")
+            print(parentSymbol.to_string(Symbol.debug_indent + 1), end="")
+
+        # handle the last name
+        ident = names[-1]
+
+        symbols = parentSymbol._find_named_symbols(
+            ident, matchSelf=matchSelf,
+            recurseInAnon=recurseInAnon,
+            searchInSiblings=searchInSiblings)
+
+        if Symbol.debug_lookup:
+            symbols = list(symbols)  # type: ignore
+            Symbol.debug_indent -= 2
+        symbols = []  # =================================================== redefinition
+        return SymbolLookupResult(symbols, parentSymbol, ident)
+
+    meth = {
+        '_symbol_lookup': _symbol_lookup,
+    }
+
+
+class BreatheCDomain:
+    def _resolve_xref_inner(self, env: BuildEnvironment, fromdocname: str, builder: Builder,
+                            typ: str, target: str, node: pending_xref,
+                            contnode: Element) -> Tuple[Optional[Element], Optional[str]]:
+        parser = DefinitionParser(target, location=node, config=env.config)
+        try:
+            name = parser.parse_xref_object()
+        except DefinitionError as e:
+            logger.warning('Unparseable C cross-reference: %r\n%s', target, e,
+                           location=node)
+            return None, None
+        parentKey: LookupKey = node.get("c:parent_key", None)
+        rootSymbol = self.data['root_symbol']
+        if parentKey:
+            parentSymbol: Symbol = rootSymbol.direct_lookup(parentKey)
+            if not parentSymbol:
+                print("Target: ", target)
+                print("ParentKey: ", parentKey)
+                print(rootSymbol.dump(1))
+            assert parentSymbol  # should be there
+        else:
+            parentSymbol = rootSymbol
+        s = parentSymbol.find_declaration(name, typ,
+                                          matchSelf=True, recurseInAnon=True)
+        if s is None or s.declaration is None:
+            return None, None
+
+        # TODO: check role type vs. object type
+
+        declaration = s.declaration
+        displayName = name.get_display_string()
+        docname = s.docname
+        assert docname
+
+        return ['']
+
+    def resolve_xref(self, env: BuildEnvironment, fromdocname: str, builder: Builder,
+                     typ: str, target: str, node: pending_xref,
+                     contnode: Element) -> Optional[Element]:
+        return []
+
+    meth = {
+        '_resolve_xref_inner': _resolve_xref_inner,
+        'resolve_xref': resolve_xref
+    }
+
+
+class BreatheRenderer:
+    sections = SphinxRenderer.sections
 
     # update sections according settings.py
     section_titles = dict(sections)
     section_titles.update(dict(UPDATED_SECTION_NAMES))
 
     # bind section_titles to class SphinxRenderer
-    BaseRender.section_titles = section_titles
+    SphinxRenderer.section_titles = section_titles
 
-    def visit_compounddef(self, node) -> List[Node]:  # add title for structs
+    def visit_compounddef(self, node) -> List[Node]:
         self.context = cast(RenderContext, self.context)
         options = self.context.directive_args[2]
         section_order = None
@@ -108,7 +341,6 @@ class BreatheRenderer(BaseRender):
         for kind, _ in self.sections:  # predefined sections: macros, enums, functions etc
             addnode(kind, lambda: section_nodelists.get(kind, []))  # order prefined sections according natural ordering
 
-        # add class title
         def add_innerclass():
             if node.kind == 'file' and node.innerclass:
                 res_set = set()
@@ -116,6 +348,18 @@ class BreatheRenderer(BaseRender):
                     file_data = self.compound_parser.parse(cnode.refid)
                     kind_ = file_data.compounddef.kind
                     res_set.add(kind_)
+
+                top_level_node_names = set()
+                inner_level_nodes = {}
+                for cnode in node.innerclass:
+                    top_level_node_names.add(cnode.valueOf_.split('.')[0])
+                    ref_node = self.compound_parser.parse(cnode.refid)
+
+                    ref_node_kind = ref_node.compounddef.kind
+                    if ref_node_kind in ['struct', 'union']:
+                        cnode_path = cnode.valueOf_.split('.')
+                        if len(cnode_path) > 1:
+                            inner_level_nodes.update({'.'.join(cnode_path): ref_node.compounddef})
 
                 for kind in res_set:
                     # rubric should be first element of children in the container
@@ -129,20 +373,116 @@ class BreatheRenderer(BaseRender):
 
                     # retrieve children
                     child_nodes = []
-                    top_level_node_names = set()
-                    for cnode in node.innerclass:
-                        cnode_path = cnode.valueOf_.split('.')
-                        top_level_node_name = cnode_path[0]
-                        top_level_node_names.add(top_level_node_name)
-                        ref_node = self.compound_parser.parse(cnode.refid)
-                        ref_node_kind = ref_node.compounddef.kind
-                        if ref_node_kind == kind:
-                            if len(cnode_path) != 1:  # skip if not top level nodes
+
+                    inner_level_names = list(inner_level_nodes.keys())
+                    all_level_names = list(top_level_node_names) + inner_level_names
+                    path_depth = dict(map(lambda x: (x, len(x.split('.'))), all_level_names))
+
+                    total_path = list(path_depth.keys())
+
+                    # store mapping (path -> node) to path_node_map
+                    path_node_map = {}
+                    id_map = {cn.valueOf_: cn.refid for cn in node.innerclass}
+                    for cn in node.innerclass:
+                        cn_path = cn.valueOf_
+                        ref_id = id_map[cn_path.split('.', maxsplit=1)[0]]
+                        file_data_ = self.compound_parser.parse(ref_id)
+                        parent_kind = file_data_.compounddef.kind
+                        path_node_map.update({cn_path: (parent_kind, cn)})
+
+                    def fetch_node(path):
+                        file_data = path_node_map[path][1]
+                        return self.render(file_data)
+
+                    class Path:
+                        def __init__(self, p=''):
+                            self.p = p
+                            self.kind = ''
+                            self.visited = False
+
+                        @property
+                        def children(self):
+                            if not self.p:
+                                return [path_map[p] for p in total_path if len(p.split('.')) == 1]
+                            return [path_map[p] for p in total_path if
+                                    p.startswith(self.p) and len(p.split('.')) == len(self.p.split('.')) + 1]
+
+                    p_ = Path()
+                    path_map = {p: Path(p) for p in list(path_node_map.keys())}
+
+                    def render_by_path(node, path=p_):
+                        """
+                        Generally speaking, it's no need to place a recursive function
+                        if you implement DFS algorithm by stack.
+
+                        But I observed that the structs or unions will be placed line by line,
+                        it doesn't meet with the requirement: CHILDREN SHOULD BE INSERTED INTO THEIR PARENT.
+
+                        For example, one field in one struct will be rendered to HTML by one <dl> element,
+                        with type, name and value of the field respectively placed in one <dt> element,
+                        separated by several <span> elements of course.
+                        If that field is one embedded anonymous struct,
+                        it should be placed in its parent's <dd> element and
+                        otherwise the <dd> element will be empty by default.
+
+                        So I use one stack and recursive function to fulfill the requirement.
+                        """
+                        child_nodes = []
+
+                        if not path.p:
+                            path_ = p_.children
+                        else:
+                            path_ = [path]
+
+                        while len(path_) > 0:
+                            # it will run twice if there are structs and unions
+                            if path_node_map[path_[0].p][0] != kind:
+                                path_.pop(0)
                                 continue
-                            else:  # top_level_nodes
-                                top_level_node = cnode
-                                child_node = self.render(top_level_node)
-                                child_nodes.extend(child_node)
+                            p = path_.pop(0)
+                            p.visited = True
+                            child_node = fetch_node(p.p)
+
+                            # find parents(i.e. fields) which type is struct/union and
+                            # push its children into its empty <dd> elements
+                            node_ = child_node[1]
+                            finder = NodeFinder(node_.document)
+                            node_.walk(finder)
+                            contentnode = finder.content
+
+                            def branch(contentnode, branch_no):
+                                descs = contentnode.children[branch_no].children
+                                for i, dc in enumerate(descs):  # <desc>=[dt,dd]
+                                    if i % 2 == 1:
+                                        dt_id = dc.children[0].attributes['ids']
+                                        if not dt_id:
+                                            continue
+                                        desc_sig_id = dt_id[0].split('.', maxsplit=1)[1]  # drop domain
+                                        desc_content = dc.children[1]
+                                        if desc_sig_id not in inner_level_nodes:
+                                            continue
+                                        nn = inner_level_nodes[desc_sig_id]
+                                        if nn and not desc_content.children:
+                                            p = path_map[desc_sig_id]
+                                            if not p.visited:
+                                                inner_result = render_by_path(nn, path=path_map[desc_sig_id])
+                                                node_ = inner_result[1]
+                                                finder = NodeFinder(node_.document)
+                                                node_.walk(finder)
+                                                contentnode_inner = finder.content
+                                                desc_content.extend(contentnode_inner)
+
+                            # first time, you will reach the branch started by "#include xxx"
+                            # later on, you will reach the branch which omit header "#include xxx"
+                            br_no = 0 if len(contentnode.children) == 1 else 1
+                            branch(contentnode, br_no)
+
+                            child_nodes.extend(child_node)
+
+                        return child_nodes
+
+                    current_level_nodes = render_by_path(node)
+                    child_nodes.extend(current_level_nodes)
 
                     if not child_nodes:
                         continue
@@ -158,16 +498,13 @@ class BreatheRenderer(BaseRender):
                     addnode(kind, lambda: section_nodelists.get(kind, []))
 
         add_innerclass()
-
-        # Take care of innerclasses
-        # addnode("innerclass", lambda: self.render_iterable(node.innerclass))
         addnode("innernamespace", lambda: self.render_iterable(node.innernamespace))
 
         if "inner" in options:
             for node in node.innergroup:
                 file_data = self.compound_parser.parse(node.refid)  # enter inner component
                 inner = file_data.compounddef
-                addnode("innergroup", lambda: self.visit_compounddef(inner))
+                addnode("innergroup", lambda: self.visit_compounddef_(inner))
 
         nodelist = []
         for _, nodes_ in sorted(nodemap.items()):
@@ -188,7 +525,7 @@ class BreatheRenderer(BaseRender):
         # TODO: remove this once Sphinx supports definitions for macros
         def add_definition(declarator: Declarator) -> None:
             if node.initializer and self.app.config.breathe_show_define_initializer:
-                declarator.append(nodes.Text(f" {TAB*TAB_SIZE}"))  # add spaces to seperate macro name and value
+                declarator.append(nodes.Text(f" {TAB * TAB_SIZE}"))  # add spaces to seperate macro name and value
                 declarator.extend(self.render(node.initializer))
 
         return self.handle_declaration(node, declaration, declarator_callback=add_definition)
@@ -237,20 +574,21 @@ class BreatheRenderer(BaseRender):
             return res + node_list
         return []
 
-    # some methods should be modified and not be contained in methods
-    met = {
+    # some methods should be modified and not be contained in `methods`
+    meth = {
         "visit_define": visit_define
     }
 
-    for k, v in met.items():
-        if k in SphinxRenderer.__dict__:
-            setattr(BaseRender, k, v)
-
-    # some methods should be modified and be contained in methods
-    BaseRender.methods.update({
+    # some methods should be modified and be contained in `methods`
+    SphinxRenderer.methods.update({
         "compounddef": visit_compounddef,
         "sectiondef": visit_sectiondef
     })
 
 
-SphinxRenderer = BaseRender
+def setup():
+    HookManager(ASTIdentifier).hook(mapping=BreatheASTIdentifier.meth)
+    HookManager(ASTNestedName).hook(mapping=BreatheASTNestedName.meth)
+    HookManager(Symbol).hook(mapping=BreatheSymbol.meth)
+    HookManager(CDomain).hook(mapping=BreatheCDomain.meth)
+    HookManager(SphinxRenderer).hook(mapping=BreatheRenderer.meth)
