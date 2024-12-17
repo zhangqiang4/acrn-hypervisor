@@ -477,6 +477,16 @@ arguments:
          ``acpi_node_table[]`` in the source code: only ``cam1``, ``cam2``, and
          ``hdac`` are supported for APL platform and  are platform-specific.
 
+   * - ``virtio-spi``
+     - Virtio SPI controller and devices. Parameters format is:
+       ``virtio-spi,[physical:<bus>:<cs>|loopback][,...]``
+
+       * ``virtio-spi`` creates the Virtual SPI controller, each of following
+         parameters designates one SPI device attached to the controller.
+       * ``physical:<bus>:<cs>`` assigns a physical SPI device at bus ``bus``,
+         chipselect ``cs`` with device node ``/dev/spidev{bus}.{cs}`` to guest.
+       * ``loopback`` creates a loopback SPI device.
+
    * - ``virtio-gpio``
      - Virtio GPIO type device. Parameters format is:
        ``virtio-gpio,<@controller_name{offset|name[=mapping_name]:offset|name[=mapping_name]:...}@controller_name{...}...]>``
