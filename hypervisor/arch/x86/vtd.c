@@ -702,9 +702,7 @@ static void dmar_invalid_iec(struct dmar_drhd_rt *dmar_unit, uint16_t intr_index
 		invalidate_desc.lo_64 |= DMAR_IECI_INDEXED | dma_iec_index(intr_index, index_mask);
 	}
 
-	if (invalidate_desc.lo_64 != 0UL) {
-		dmar_issue_qi_request(dmar_unit, invalidate_desc);
-	}
+	dmar_issue_qi_request(dmar_unit, invalidate_desc);
 }
 
 static void dmar_invalid_iec_global(struct dmar_drhd_rt *dmar_unit)
