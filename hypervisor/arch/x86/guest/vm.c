@@ -776,13 +776,19 @@ static int32_t offline_lapic_pt_pcpus(const struct acrn_vm *vm, uint64_t pcpu_ma
 		}
 	}
 
-	foreach_vcpu(i, vm, vcpu) {
-		if (bitmap_test(pcpuid_from_vcpu(vcpu), &mask)) {
-			make_pcpu_offline(pcpuid_from_vcpu(vcpu));
+	if (ret == 0) {
+		foreach_vcpu(i, vm, vcpu) {
+			if (bitmap_test(pcpuid_from_vcpu(vcpu), &mask)) {
+				make_pcpu_offline(pcpuid_from_vcpu(vcpu));
+			}
+		}
+
+		ret = wait_pcpus_offline(mask);
+		if (ret == -ETIMEDOUT) {
+			pr_err("Offline LAPIC PT pCPUs timeout");
 		}
 	}
 
-	wait_pcpus_offline(mask);
 	return ret;
 }
 

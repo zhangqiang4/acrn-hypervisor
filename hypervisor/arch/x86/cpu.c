@@ -442,15 +442,22 @@ bool need_offline(uint16_t pcpu_id)
 	return bitmap_test_and_clear_lock(NEED_OFFLINE, &per_cpu(pcpu_flag, pcpu_id));
 }
 
-void wait_pcpus_offline(uint64_t mask)
+int32_t wait_pcpus_offline(uint64_t mask)
 {
 	uint32_t timeout;
+	int ret = 0;
 
 	timeout = CPU_DOWN_TIMEOUT * 1000U;
 	while (((pcpu_active_bitmap & mask) != 0UL) && (timeout != 0U)) {
 		udelay(10U);
 		timeout -= 10U;
 	}
+
+	if (timeout == 0) {
+		ret = -ETIMEDOUT;
+	}
+
+	return ret;
 }
 
 void stop_pcpus(void)

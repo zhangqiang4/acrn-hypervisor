@@ -450,7 +450,7 @@ void init_pcpu_pre(bool is_bsp);
  */
 void init_pcpu_post(uint16_t pcpu_id);
 bool start_pcpus(uint64_t mask);
-void wait_pcpus_offline(uint64_t mask);
+int32_t wait_pcpus_offline(uint64_t mask);
 void stop_pcpus(void);
 void wait_sync_change(volatile const uint64_t *sync, uint64_t wake_sync);
 
