@@ -636,8 +636,6 @@ static void
 query_display_info(int scanout_id, struct display_info *info)
 {
 	struct screen *vscr;
-	if (!info || scanout_id >= vdpy.scrs_num)
-		return;
 	vscr = vdpy.scrs + scanout_id;
 	vscr->vscreen_ops->vdpy_display_info(vscr->backend, info);
 	/* override by user parameter */
