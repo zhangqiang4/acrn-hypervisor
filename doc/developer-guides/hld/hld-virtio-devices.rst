@@ -654,3 +654,4 @@ supported in ACRN.
    virtio-rnd
    virtio-i2c
    virtio-gpio
+   virtio-spi
