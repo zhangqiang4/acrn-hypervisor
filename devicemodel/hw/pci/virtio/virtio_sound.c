@@ -896,7 +896,7 @@ virtio_sound_pcm_thread(void *param)
 static int
 virtio_sound_create_pcm_thread(struct virtio_sound_pcm *stream)
 {
-	char ctrl_path[VIRTIO_SOUND_CTRL_PATH];
+	char ctrl_path[VIRTIO_SOUND_CTRL_PATH], tname[MAXCOMLEN + 1];
 	struct timespec cur_time;
 	int err;
 
@@ -916,7 +916,9 @@ virtio_sound_create_pcm_thread(struct virtio_sound_pcm *stream)
 			stream->ctrl_fd[0], stream->ctrl_fd[1]);
 		return -1;
 	}
+	snprintf(tname, sizeof(tname), "virtio-snd-%d", stream->id);
 	pthread_create(&stream->tid, NULL, virtio_sound_pcm_thread, (void *)stream);
+	pthread_setname_np(stream->tid, tname);
 	return 0;
 }
 
@@ -2629,14 +2631,16 @@ static int
 virtio_sound_event_init(struct virtio_sound *virt_snd, char *opts)
 {
 	int i, start = 0;
+	char tname[MAXCOMLEN + 1];
 
 	for (i = 0; i < virt_snd->card_cnt; i++) {
 		virt_snd->cards[i]->count = snd_hctl_poll_descriptors_count(virt_snd->cards[i]->handle);
 		virt_snd->cards[i]->start = start;
 		start += virt_snd->cards[i]->count;
 	}
-
+	snprintf(tname, sizeof(tname), "virtio-snd-event");
 	pthread_create(&virt_snd->ctl_tid, NULL, virtio_sound_event_thread, (void *)virt_snd);
+	pthread_setname_np(virt_snd->ctl_tid, tname);
 	return 0;
 }
 
