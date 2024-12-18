@@ -564,6 +564,32 @@ arguments:
        * ``tag_name`` specifies the name of the virtio-fs device.
          It will be used in VM.
 
+   * - ``virtio-sound``
+     - Virtio sound type device. Parameters format is:
+       ``virtio-sound,"pcmp=<pcm name>@dev_id&pcmc=<pcm name>@dev_id&ctl=<ctl item name>@dev_name"``
+
+       * ``pcmp`` specifies the playback pcms.
+       * ``pcm name`` specifies name of pcm which can get from ``aplay -L``.
+       * ``dev_id`` specifies the device index in guest VM.
+       * ``pcmc`` specifies the capture pcms.
+       * ``pcm name`` specifies name of pcm which can get from ``arecord -L``.
+       * ``dev_id`` specifies the device index in guest VM.
+       * ``ctl`` specifies the sound card control items.
+       * ``ctl item name`` specifies control items name which can get from ``amixer controls``.
+       * ``dev_name`` specifies the control item belongs to which sound card or device.
+
+       For example: ``"pcmp=hw:0,0@1&pcmc=hw:0,0@2&ctl=numid=11,iface=MIXER,name='DAC1 Playback Volume'@0"`` Specifies
+       a playback stream has pcm name which is  ``hw:0,0``, and its device index in guest is ``1``; a capture stream
+       has pcm name which is ``hw:0,0``, and its device index in guest is ``1``; a control item which is labled as
+       ``numid=11,iface=MIXER,name='DAC1 Playback Volume'`` belongs to sound card ``0``.
+
+       If there are multi pcms or items for one virtual sound card, use ``|`` to seperate them. For example:
+       ``"pcmp=hw:0,0@1|hw:0,1@2"``.
+
+       .. note::
+        If the control item is too complex to escape, the config string could be:
+        ``"$(add_virtual_device         7 virtio-sound "pcmp=xxx&pcmc=xxx&ctl=xxx")"``
+
    * - ``vhost-vsock``
      - Virtio vsock device. Parameters format is:
        ``vhost-vsock,cid=<id_value>``
