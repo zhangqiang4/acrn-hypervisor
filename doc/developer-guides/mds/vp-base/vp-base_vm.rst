@@ -25,3 +25,6 @@ This section contains the documentation of the module `vp-base.vm`.
 [File] include/arch/x86/asm/guest/vm.h
 ======================================================================
 
+.. doxygenfile:: guest/vm.h
+   :project: Project ACRN
+

@@ -810,6 +810,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
+                          ../hypervisor/include/arch/x86/asm/guest/vm.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
                           ../hypervisor/include/arch/x86/asm/guest/vmtrr.h \
                           ../hypervisor/include/arch/x86/asm/guest/vlapic.h \
