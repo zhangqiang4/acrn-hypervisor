@@ -48,19 +48,21 @@
 /*
  * Feature bits
  */
-#define VIRTIO_GPU_F_EDID		1
-#define VIRTIO_GPU_F_RESOURCE_UUID	2
-#define VIRTIO_GPU_F_RESOURCE_BLOB	3
-#define VIRTIO_GPU_F_CONTEXT_INIT	4
-#define VIRTIO_GPU_F_MODIFIER		5
-#define VIRTIO_GPU_F_SCALING		6
-#define VIRTIO_GPU_F_VBLANK		7
-#define VIRTIO_GPU_F_BACKLIGHT		8
-#define VIRTIO_GPU_F_MULTI_PLANE	9
-#define VIRTIO_GPU_F_ROTATION		10
-#define VIRTIO_GPU_F_PIXEL_BLEND_MODE  11
-#define VIRTIO_GPU_F_MULTI_PLANAR_FORMAT 12
-#define VIRTIO_GPU_F_ALLOW_P2P		13
+#define VIRTIO_GPU_F_EDID			1
+#define VIRTIO_GPU_F_RESOURCE_UUID		2
+#define VIRTIO_GPU_F_RESOURCE_BLOB		3
+#define VIRTIO_GPU_F_CONTEXT_INIT		4
+#define VIRTIO_GPU_F_MODIFIER			5
+#define VIRTIO_GPU_F_SCALING			6
+#define VIRTIO_GPU_F_VBLANK			7
+#define VIRTIO_GPU_F_BACKLIGHT			8
+#define VIRTIO_GPU_F_MULTI_PLANE		9
+#define VIRTIO_GPU_F_ROTATION			10
+#define VIRTIO_GPU_F_PIXEL_BLEND_MODE		11
+#define VIRTIO_GPU_F_MULTI_PLANAR_FORMAT	12
+#define VIRTIO_GPU_F_ALLOW_P2P			13
+#define VIRTIO_GPU_F_FLIP_SEQUENCE		14
+
 /*
  * Host capabilities
  */
@@ -2428,6 +2430,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	gpu->base.mtx = &gpu->mtx;
 	gpu->base.device_caps = VIRTIO_GPU_S_HOSTCAPS;
 	gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_SCALING);
+	gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_FLIP_SEQUENCE);
 
 	if ((gpu->vdpy_if.scanout_num < 0) || (gpu->vdpy_if.scanout_num > VDPY_MAX_NUM)) {
 		pr_err("%s: return incorrect scanout num %d\n", gpu->vdpy_if.scanout_num);

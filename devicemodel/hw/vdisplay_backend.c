@@ -1279,6 +1279,10 @@ static void vdpy_init_screen(char *name, void **backend, struct screen_backend_o
 {
 	struct vdpy_backend *ops;
 	ops = vdpy_find_backend(name);
+	if (!ops) {
+		pr_err("failed to find backend %s", name);
+		return;
+	}
 	if (ops->init_screen)
 		ops->init_screen(backend, screen_ops);
 }
@@ -1356,7 +1360,14 @@ static int vdpy_set_para(char *name, char *tmp)
 {
 	struct vdpy_backend *ops;
 	ops = vdpy_find_backend(name);
-	return ops->parse_cmd(tmp);
+	if (!ops) {
+		pr_err("failed to find backend %s", name);
+		return -1;
+	}
+	if (ops->parse_cmd)
+		return ops->parse_cmd(tmp);
+	else
+		return 0;
 }
 
 int vdpy_parse_cmd_option(const char *opts)
@@ -1421,22 +1432,27 @@ int vdpy_parse_cmd_option(const char *opts)
 
 		tmp = strcasestr(str, "=");
 		if (tmp && strcasestr(str, "geometry=")) {
-
 			scr->name = "sdl";
 			vdpy.scrs_num++;
-
                 } else if (tmp && strcasestr(str, "lease=")) {
-
                        scr->name = "lease";
                        vdpy.scrs_num++;
                        vdpy.pipe_num++;
-
 		} else if (tmp && strcasestr(str, "projection=")) {
 			scr->name = "projection";
 			vdpy.scrs_num++;
+			vdpy.pipe_num++;
+		} else if (tmp && strcasestr(str, "plane-display=")) {
+			scr->name = "plane-display";
+			vdpy.scrs_num++;
+			vdpy.pipe_num++;
+		} else {
+			pr_err("couldn't find backend for parameter %s\n", str);
+			error = -1;
+			goto out;
 		}
 
-		if(scr->name)
+		if (scr->name)
 			error = vdpy_set_para(scr->name,str);
 
 		if (vdpy.scrs_num > VSCREEN_MAX_NUM) {
@@ -1444,6 +1460,7 @@ int vdpy_parse_cmd_option(const char *opts)
 			break;
 		}
 	}
+out:
 	free(stropts);
 
 	return error;
