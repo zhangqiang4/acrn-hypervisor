@@ -923,7 +923,7 @@ static void dmar_disable_qi(struct dmar_drhd_rt *dmar_unit)
 
 static void prepare_dmar(struct dmar_drhd_rt *dmar_unit)
 {
-	dev_dbg(DBG_LEVEL_IOMMU, "enable dmar uint [0x%x]", dmar_unit->drhd->reg_base_addr);
+	dev_dbg(DBG_LEVEL_IOMMU, "enable dmar unit [0x%lx]", dmar_unit->drhd->reg_base_addr);
 	dmar_setup_interrupt(dmar_unit);
 	dmar_set_root_table(dmar_unit);
 	dmar_enable_qi(dmar_unit);
@@ -932,7 +932,7 @@ static void prepare_dmar(struct dmar_drhd_rt *dmar_unit)
 
 static void enable_dmar(struct dmar_drhd_rt *dmar_unit)
 {
-	dev_dbg(DBG_LEVEL_IOMMU, "enable dmar uint [0x%x]", dmar_unit->drhd->reg_base_addr);
+	dev_dbg(DBG_LEVEL_IOMMU, "enable dmar unit [0x%lx]", dmar_unit->drhd->reg_base_addr);
 	dmar_invalid_context_cache_global(dmar_unit);
 	dmar_invalid_iotlb_global(dmar_unit);
 	dmar_invalid_iec_global(dmar_unit);
@@ -1053,7 +1053,7 @@ static int32_t iommu_attach_device(const struct iommu_domain *domain, uint8_t bu
 
 		if (dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_P_MASK, CTX_ENTRY_LOWER_P_POS) != 0UL) {
 			/* the context entry should not be present */
-			pr_err("%s: context entry@0x%lx (Lower:%x) ", __func__, context_entry, context_entry->lo_64);
+			pr_err("%s: context entry@0x%p, (Lower:%lx) ", __func__, context_entry, context_entry->lo_64);
 			pr_err("already present for %x:%x.%x", bus, sid.bits.d, sid.bits.f);
 			ret = -EBUSY;
 		} else {
@@ -1154,7 +1154,7 @@ static void do_action_for_iommus(void (*action)(struct dmar_drhd_rt *))
 		if (!dmar_unit->drhd->ignore) {
 			action(dmar_unit);
 		} else {
-			dev_dbg(DBG_LEVEL_IOMMU, "ignore dmar_unit @0x%x", dmar_unit->drhd->reg_base_addr);
+			dev_dbg(DBG_LEVEL_IOMMU, "ignore dmar_unit @0x%lx", dmar_unit->drhd->reg_base_addr);
 		}
 	}
 }
@@ -1181,7 +1181,7 @@ struct iommu_domain *create_iommu_domain(uint16_t vm_id, uint64_t translation_ta
 		domain->trans_table_ptr = translation_table;
 		domain->addr_width = addr_width;
 
-		dev_dbg(DBG_LEVEL_IOMMU, "create domain [%d]: vm_id = %hu, ept@0x%x",
+		dev_dbg(DBG_LEVEL_IOMMU, "create domain [%d]: vm_id = %hu, ept@0x%lx",
 			vmid_to_domainid(domain->vm_id), domain->vm_id, domain->trans_table_ptr);
 	}
 

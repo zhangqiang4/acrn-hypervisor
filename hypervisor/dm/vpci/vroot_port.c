@@ -126,7 +126,7 @@ int32_t create_vrp(struct acrn_vm *vm, struct acrn_vdev *dev)
 
 	vrp_config = (struct vrp_config*)dev->args;
 
-	pr_acrnlog("%s: virtual root port phy_bdf=0x%x, vbdf=0x%x, vendor_id=0x%x, dev_id=0x%x,\
+	pr_acrnlog("%s: virtual root port phy_bdf=0x%x, vbdf=0x%lx, vendor_id=0x%x, dev_id=0x%x,\
 			primary_bus=0x%x, secondary_bus=0x%x, sub_bus=0x%x.\n",
 			__func__, vrp_config->phy_bdf, dev->slot,
 			dev->id.fields.vendor, dev->id.fields.device,

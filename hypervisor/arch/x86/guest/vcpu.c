@@ -753,7 +753,7 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 	if (status != 0) {
 		/* refer to 64-ia32 spec section 24.9.1 volume#3 */
 		if ((vcpu->arch.exit_reason & VMX_VMENTRY_FAIL) != 0U) {
-			pr_fatal("vmentry fail reason=%lx", vcpu->arch.exit_reason);
+			pr_fatal("vmentry fail reason=%x", vcpu->arch.exit_reason);
 		} else {
 			pr_fatal("vmexit fail err_inst=%x", exec_vmread32(VMX_INSTR_ERROR));
 		}

@@ -35,12 +35,12 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	exec_vmwrite(VMX_GUEST_GDTR_BASE, ectx->gdtr.base);
 	pr_dbg("VMX_GUEST_GDTR_BASE: 0x%016lx", ectx->gdtr.base);
 	exec_vmwrite32(VMX_GUEST_GDTR_LIMIT, ectx->gdtr.limit);
-	pr_dbg("VMX_GUEST_GDTR_LIMIT: 0x%016lx", ectx->gdtr.limit);
+	pr_dbg("VMX_GUEST_GDTR_LIMIT: 0x%08x", ectx->gdtr.limit);
 
 	exec_vmwrite(VMX_GUEST_IDTR_BASE, ectx->idtr.base);
 	pr_dbg("VMX_GUEST_IDTR_BASE: 0x%016lx", ectx->idtr.base);
 	exec_vmwrite32(VMX_GUEST_IDTR_LIMIT, ectx->idtr.limit);
-	pr_dbg("VMX_GUEST_IDTR_LIMIT: 0x%016lx", ectx->idtr.limit);
+	pr_dbg("VMX_GUEST_IDTR_LIMIT: 0x%08x", ectx->idtr.limit);
 
 	/* init segment selectors: es, cs, ss, ds, fs, gs, ldtr, tr */
 	load_segment(ectx->cs, VMX_GUEST_CS);
@@ -143,7 +143,7 @@ void init_host_state(void)
 
 	/* Set up the guest and host GDTB base fields with current GDTB base */
 	exec_vmwrite(VMX_HOST_GDTR_BASE, gdt_base);
-	pr_dbg("VMX_HOST_GDTR_BASE: 0x%x ", gdt_base);
+	pr_dbg("VMX_HOST_GDTR_BASE: 0x%lx ", gdt_base);
 
 	tss_addr = hva2hpa((void *)&get_cpu_var(tss));
 	/* Set up host TR base fields */
@@ -158,7 +158,7 @@ void init_host_state(void)
 	}
 
 	exec_vmwrite(VMX_HOST_IDTR_BASE, idt_base);
-	pr_dbg("VMX_HOST_IDTR_BASE: 0x%x ", idt_base);
+	pr_dbg("VMX_HOST_IDTR_BASE: 0x%lx ", idt_base);
 
 	/**************************************************/
 	/* 64-bit fields */
@@ -251,7 +251,7 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
 	ctrl &= vmx_msr;
 
 	if ((ctrl_req & ~ctrl) != 0U) {
-		pr_info("VMX ctrl 0x%x not fully enabled: current capabilities are 0x%lx (full capabilities are 0x%lx)\n",
+		pr_info("VMX ctrl 0x%x not fully enabled: current capabilities are 0x%x (full capabilities are 0x%lx)\n",
 						msr, ctrl, ctrl_req);
 	}
 

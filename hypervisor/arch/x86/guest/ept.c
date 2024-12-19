@@ -321,7 +321,7 @@ void ept_add_mr(struct acrn_vm *vm, uint64_t *pml4_page,
 {
 	uint64_t prot = prot_orig;
 
-	dev_dbg(DBG_LEVEL_EPT, "%s, vm[%d] hpa: 0x%016lx gpa: 0x%016lx size: 0x%016lx prot: 0x%016x\n",
+	dev_dbg(DBG_LEVEL_EPT, "%s, vm[%d] hpa: 0x%016lx gpa: 0x%016lx size: 0x%016lx prot: 0x%016lx\n",
 			__func__, vm->vm_id, hpa, gpa, size, prot);
 
 	spinlock_obtain(&vm->ept_lock);

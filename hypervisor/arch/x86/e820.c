@@ -220,7 +220,7 @@ static void init_e820_from_mmap(struct acrn_boot_info *abi)
 
 	hv_e820_entries_nr = abi->mmap_entries;
 
-	dev_dbg(DBG_LEVEL_E820, "mmap addr 0x%x entries %d\n",
+	dev_dbg(DBG_LEVEL_E820, "mmap addr 0x%p entries %u\n",
 		abi->mmap_entry, hv_e820_entries_nr);
 
 	for (i = 0U; i < hv_e820_entries_nr; i++) {
@@ -275,7 +275,7 @@ static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 				insert_e820_entry(e820_index + 1, end_hpa, entry_end - end_hpa, E820_TYPE_RAM);
 			}
 		} else {
-			panic("%s: region 0x%016x-0x%016x crosses multiple e820 entries, check your bootloader!",
+			panic("%s: region 0x%016lx-0x%016lx crosses multiple e820 entries, check your bootloader!",
 					   __func__, start_hpa, end_hpa);
 		}
 	}
@@ -286,7 +286,7 @@ static void alloc_hv_memory(void)
 	uint64_t hv_start = hva2hpa((void *)(get_hv_image_base()));
 	uint64_t hv_end  = hv_start + get_hv_image_size();
 
-	pr_err("%s: hv start: 0x%016x, end: 0x%016x", __func__, hv_start, hv_end);
+	pr_err("%s: hv start: 0x%016lx, end: 0x%016lx", __func__, hv_start, hv_end);
 
 	reserve_e820_region(hv_start, hv_end);
 }
@@ -303,7 +303,7 @@ static void alloc_mods_memory(void)
 		mod_start = hva2hpa(abi->mods[mod_index].start);
 		mod_end = mod_start + abi->mods[mod_index].size;
 
-		pr_err("%s: mod %d, start: 0x%016x, end: 0x%016x", __func__, mod_index, mod_start, mod_end);
+		pr_err("%s: mod %d, start: 0x%016lx, end: 0x%016lx", __func__, mod_index, mod_start, mod_end);
 
 		reserve_e820_region(mod_start, mod_end);
 	}

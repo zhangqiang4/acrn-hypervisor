@@ -112,7 +112,7 @@ uint64_t prepare_trampoline(void)
 	trampline_size = (uint64_t)(&ld_trampoline_end - &ld_trampoline_start);
 	trampoline_pa = e820_alloc_memory(trampline_size, MEM_1M);
 
-	pr_dbg("trampoline code: %lx trampline_size %x", trampoline_pa, trampline_size);
+	pr_dbg("trampoline code: %lx trampline_size %lx", trampoline_pa, trampline_size);
 
 	/* Copy segment for AP initialization code below 1MB */
 	(void)memcpy_s(hpa2hva(trampoline_pa), (size_t)trampline_size, &ld_trampoline_load,

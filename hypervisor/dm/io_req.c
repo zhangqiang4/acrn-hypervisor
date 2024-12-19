@@ -677,7 +677,7 @@ hv_emulate_mmio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 					read_write = mmio_handler->read_write;
 					handler_private_data = mmio_handler->handler_private_data;
 				} else {
-					pr_fatal("Err MMIO, address:0x%lx, size:%x", address, size);
+					pr_fatal("Err MMIO, address:0x%lx, size:%lx", address, size);
 					status = -EIO;
 				}
 				break;

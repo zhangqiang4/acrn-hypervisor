@@ -527,7 +527,7 @@ void init_mc_msrs(struct acrn_vcpu *vcpu)
 				pr_err("MC banks will NOT be passed-through.");
 			} else {
 				if (bitmap_weight(conf_bm) > mc_bank_count()) {
-					pr_err("Warning: Invalid mcbanks_bitmask configuration 0x%x, platform supports only up to %d banks", conf_bm, mc_bank_count());
+					pr_err("Warning: Invalid mcbanks_bitmask configuration 0x%lx, platform supports only up to %u banks", conf_bm, mc_bank_count());
 					pr_err("Warning: Extraneous banks ignored");
 				}
 
@@ -908,7 +908,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (is_x2apic_msr(msr)) {
 			err = vlapic_x2apic_read(vcpu, msr, &v);
 		} else {
-			pr_warn("%s(): vm%d vcpu%d reading MSR %lx not supported",
+			pr_warn("%s(): vm%d vcpu%d reading MSR %x not supported",
 				__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
 			err = -EACCES;
 			v = 0UL;
@@ -1377,7 +1377,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (is_x2apic_msr(msr)) {
 			err = vlapic_x2apic_write(vcpu, msr, v);
 		} else {
-			pr_warn("%s(): vm%d vcpu%d writing MSR %lx not supported",
+			pr_warn("%s(): vm%d vcpu%d writing MSR %x not supported",
 				__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
 			err = -EACCES;
 		}

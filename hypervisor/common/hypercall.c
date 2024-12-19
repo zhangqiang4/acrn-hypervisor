@@ -88,7 +88,7 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 	int32_t ret = 0;
 	uint32_t lapicid = (uint32_t)param1;
 
-	pr_info("Service VM offline cpu with lapicid %ld", lapicid);
+	pr_info("Service VM offline cpu with lapicid %d", lapicid);
 
 	foreach_vcpu(i, vcpu->vm, target_vcpu) {
 		if (vlapic_get_apicid(vcpu_vlapic(target_vcpu)) == lapicid) {
@@ -491,7 +491,7 @@ int32_t hcall_set_ioreq_buffer(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm
 		uint64_t iobuf;
 
 		if (copy_from_gpa(vm, &iobuf, param2, sizeof(iobuf)) == 0) {
-			dev_dbg(DBG_LEVEL_HYCALL, "[%d] SET BUFFER=0x%p",
+			dev_dbg(DBG_LEVEL_HYCALL, "[%d] SET BUFFER=0x%lx",
 					target_vm->vm_id, iobuf);
 
 			hpa = gpa2hpa(vm, iobuf);
@@ -671,7 +671,7 @@ static int32_t set_vm_memory_region(struct acrn_vm *vm,
 	}
 
 	dev_dbg((ret == 0) ? DBG_LEVEL_HYCALL : LOG_ERROR,
-			"[vm%d] type=%d gpa=0x%x service_vm_gpa=0x%x sz=0x%x",
+			"[vm%d] type=%d gpa=0x%lx service_vm_gpa=0x%lx sz=0x%lx",
 			target_vm->vm_id, region->type, region->gpa,
 			region->service_vm_gpa, region->size);
 	return ret;
@@ -743,7 +743,7 @@ static int32_t write_protect_page(struct acrn_vm *vm,const struct wp_data *wp)
 				pr_err("%s,vm[%hu] gpa 0x%lx,GPA is unmapping.",
 						__func__, vm->vm_id, wp->gpa);
 			} else {
-				dev_dbg(DBG_LEVEL_HYCALL, "[vm%d] gpa=0x%x hpa=0x%x",
+				dev_dbg(DBG_LEVEL_HYCALL, "[vm%d] gpa=0x%lx hpa=0x%lx",
 						vm->vm_id, wp->gpa, hpa);
 
 				base_paddr = hva2hpa((void *)(get_hv_image_base()));

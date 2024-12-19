@@ -128,7 +128,7 @@ static void split_large_page(uint64_t *pte, enum _page_table_level level,
 	}
 
 	pbase = (uint64_t *)alloc_page(table->pool);
-	dev_dbg(DBG_LEVEL_MMU, "%s, paddr: 0x%lx, pbase: 0x%lx\n", __func__, ref_paddr, pbase);
+	dev_dbg(DBG_LEVEL_MMU, "%s, paddr: 0x%lx, pbase: 0x%p\n", __func__, ref_paddr, pbase);
 
 	paddr = ref_paddr;
 	for (i = 0UL; i < PTRS_PER_PTE; i++) {

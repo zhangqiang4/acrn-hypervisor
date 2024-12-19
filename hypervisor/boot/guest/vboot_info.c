@@ -32,7 +32,7 @@ static void init_vm_ramdisk_info(struct acrn_vm *vm, const struct abi_module *mo
 		vm->sw.ramdisk_info.size = mod->size;
 	}
 
-	dev_dbg(DBG_LEVEL_BOOT, "ramdisk mod start=0x%x, size=0x%x", (uint64_t)mod->start, mod->size);
+	dev_dbg(DBG_LEVEL_BOOT, "ramdisk mod start=0x%p, size=0x%x", mod->start, mod->size);
 }
 
 /**
@@ -53,8 +53,8 @@ static int32_t init_vm_kernel_info(struct acrn_vm *vm, const struct abi_module *
 	int32_t ret = -EINVAL;
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
-	dev_dbg(DBG_LEVEL_BOOT, "kernel mod start=0x%x, size=0x%x",
-			(uint64_t)mod->start, mod->size);
+	dev_dbg(DBG_LEVEL_BOOT, "kernel mod start=0x%p, size=0x%x",
+			mod->start, mod->size);
 
 	vm->sw.kernel_type = vm_config->os_config.kernel_type;
 	if ((mod->start != NULL) && (mod->size != 0U)) {

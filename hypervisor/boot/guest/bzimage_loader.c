@@ -178,7 +178,7 @@ static void *get_bzimage_kernel_load_addr(struct acrn_vm *vm)
 		pr_err("Could not get kernel load addr of VM %d .", vm->vm_id);
 	}
 
-	dev_dbg(DBG_LEVEL_VM_BZIMAGE, "VM%d kernel load_addr: 0x%lx", vm->vm_id, load_addr);
+	dev_dbg(DBG_LEVEL_VM_BZIMAGE, "VM%d kernel load_addr: 0x%p", vm->vm_id, load_addr);
 	return load_addr;
 }
 
@@ -400,7 +400,7 @@ static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 	 * in RSI
 	 */
 	vcpu_set_gpreg(vcpu, CPU_REG_RSI, create_zero_page(vm, load_params_gpa));
-	pr_info("%s, RSI pointing to zero page for VM %d at GPA %X",
+	pr_info("%s, RSI pointing to zero page for VM %d at GPA %lx",
 			__func__, vm->vm_id, vcpu_get_gpreg(vcpu, CPU_REG_RSI));
 }
 

@@ -55,7 +55,7 @@ int32_t prepare_os_image(struct acrn_vm *vm)
 		load_sw_module(vm, acpi_info);
 		/* Set VCPU entry point to kernel entry */
 		vcpu_set_rip(vcpu, (uint64_t)vm->sw.kernel_info.kernel_entry_addr);
-		pr_info("%s, VM %hu VCPU %hu Entry: 0x%016lx ", __func__, vm->vm_id, vcpu->vcpu_id,
+		pr_info("%s, VM %hu VCPU %hu Entry: 0x%p ", __func__, vm->vm_id, vcpu->vcpu_id,
 			vm->sw.kernel_info.kernel_entry_addr);
 	}
 

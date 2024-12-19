@@ -403,7 +403,7 @@ void calibrate_tsc(void)
 		panic("tsc_khz is zero, failed to calibrate TSC frequency.");
 	}
 
-	pr_acrnlog("%s: tsc_khz = %ld", __func__, tsc_khz);
+	pr_acrnlog("%s: tsc_khz = %u", __func__, tsc_khz);
 
 }
 

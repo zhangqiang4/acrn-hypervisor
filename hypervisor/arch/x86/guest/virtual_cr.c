@@ -364,7 +364,7 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 			if (((cr4 & CR4_PAE) != 0UL) && (is_paging_enabled(vcpu)) && (!is_long_mode(vcpu))) {
 				if (load_pdptrs(vcpu) != 0) {
 					err_found = true;
-					pr_dbg("Err found,cr4:0xlx,cr0:0x%lx ", cr4, vcpu_get_cr0(vcpu));
+					pr_dbg("Err found,cr4:0x%lx,cr0:0x%lx ", cr4, vcpu_get_cr0(vcpu));
 					vcpu_inject_gp(vcpu, 0U);
 				}
 			}

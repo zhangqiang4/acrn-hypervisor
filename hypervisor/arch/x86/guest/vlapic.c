@@ -140,7 +140,7 @@ static uint16_t vm_apicid2vcpu_id(struct acrn_vm *vm, uint32_t lapicid)
 	}
 
 	if (cpu_id == INVALID_CPU_ID) {
-		pr_err("%s: bad lapicid %lu", __func__, lapicid);
+		pr_err("%s: bad lapicid %u", __func__, lapicid);
 	}
 
 	return cpu_id;
@@ -187,7 +187,7 @@ vlapic_write_ldr(struct acrn_vlapic *vlapic)
 
 	lapic = &(vlapic->apic_page);
 	lapic->ldr.v &= ~APIC_LDR_RESERVED;
-	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic LDR set to %#x", lapic->ldr);
+	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic LDR set to %x", lapic->ldr.v);
 }
 
 static inline uint32_t
@@ -1783,7 +1783,7 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 				/* convert the dest from virtual apic_id to physical apic_id */
 				papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
 					dev_dbg(DBG_LEVEL_LAPICPT,
-					"%s vapic_id: 0x%08lx papic_id: 0x%08lx icr_low:0x%08lx",
+					"%s vapic_id: 0x%08x papic_id: 0x%08x icr_low:0x%08x",
 					 __func__, target_vcpu->arch.vlapic.vapic_id, papic_id, icr_low);
 				msr_write(MSR_IA32_EXT_APIC_ICR, (((uint64_t)papic_id) << 32U) | icr_low);
 			break;
