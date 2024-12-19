@@ -515,6 +515,12 @@ void do_print(const char *fmt_arg, struct print_param *param,
 						uint32_t), 4U);
 				}
 			}
+			/* pointer */
+			else if (ch == 'p') {
+				print_pow2(param,
+					   (uint64_t)__builtin_va_arg(args, void *),
+					   4U);
+			}
 			/* string argument */
 			else if (ch == 's') {
 				const char *s = __builtin_va_arg(args, char *);
