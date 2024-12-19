@@ -104,7 +104,7 @@ bool is_paused_vm(const struct acrn_vm *vm)
 
 bool is_service_vm(const struct acrn_vm *vm)
 {
-	return (vm != NULL)  && (get_vm_config(vm->vm_id)->load_order == SERVICE_VM);
+	return (get_vm_config(vm->vm_id)->load_order == SERVICE_VM);
 }
 
 /**
