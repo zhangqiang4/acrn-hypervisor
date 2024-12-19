@@ -115,6 +115,7 @@
 #define	XHCI_CONFIG		0x38
 /* RW - number of device slots enabled */
 #define	XHCI_CONFIG_SLOTS_MASK	0x000000FF
+#define	XHCI_CONFIG_U3E		0x00000100
 
 /* XHCI port status registers */
 #define	XHCI_PORTSC(n)	(0x3F0 + (0x10 * (n)))	/* XHCI port status */

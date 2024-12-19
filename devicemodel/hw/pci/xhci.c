@@ -1333,8 +1333,12 @@ pci_xhci_portregs_write(struct pci_xhci_vdev *xdev,
 	struct pci_xhci_portregs *p;
 	int port;
 	uint32_t oldpls, newpls;
+	bool usb2_port = false;
 
 	if (xdev->portregs == NULL)
+		return;
+
+	if (xdev->opregs.usbsts & XHCI_STS_HCH)
 		return;
 
 	port = (offset - XHCI_PORTREGS_PORT0) / XHCI_PORTREGS_SETSZ;
@@ -1347,6 +1351,10 @@ pci_xhci_portregs_write(struct pci_xhci_vdev *xdev,
 		UPRINTF(LWRN, "portregs_write to bad port %d\r\n", port);
 		return;
 	}
+
+	if ((port + 1) >= xdev->usb2_port_start &&
+			(port + 1) < (xdev->usb2_port_start + XHCI_MAX_DEVS/2))
+		usb2_port = true;
 
 	p = XHCI_PORTREG_PTR(xdev, port);
 	switch (offset) {
@@ -1403,21 +1411,21 @@ pci_xhci_portregs_write(struct pci_xhci_vdev *xdev,
 		UPRINTF(LDBG, "Port new PLS: %d\r\n", newpls);
 
 		switch (newpls) {
+		case UPS_PORT_LS_RESUME:
+			if (!usb2_port)
+				break;
+			/* fallthrough */
 		case UPS_PORT_LS_U0:
 		case UPS_PORT_LS_U3:
 			if (oldpls != newpls) {
 				p->portsc &= ~XHCI_PS_PLS_MASK;
 				p->portsc |= XHCI_PS_PLS_SET(newpls);
 
-				/*
-				 * TODO:
-				 * Should check if this is exactly
-				 * consistent with xHCI spec.
-				 */
-				if (newpls == 0)
+				if (newpls == UPS_PORT_LS_U0 ||
+					(newpls == UPS_PORT_LS_U3 && xdev->opregs.config & XHCI_CONFIG_U3E))
+				{
 					p->portsc |= XHCI_PS_PLC;
 
-				if (oldpls != 0 && newpls == 0) {
 					pci_xhci_set_evtrb(&evtrb, port,
 					    XHCI_TRB_ERROR_SUCCESS,
 					    XHCI_TRB_EVENT_PORT_STS_CHANGE);
@@ -1425,10 +1433,6 @@ pci_xhci_portregs_write(struct pci_xhci_vdev *xdev,
 						UPRINTF(LFTL, "Failed to inject port status change event!\r\n");
 				}
 			}
-			break;
-		case UPS_PORT_LS_RESUME:
-			p->portsc &= ~XHCI_PS_PLS_MASK;
-			p->portsc |= XHCI_PS_PLS_SET(newpls);
 			break;
 		default:
 			UPRINTF(LWRN, "Unhandled change port %d PLS %u\r\n",
