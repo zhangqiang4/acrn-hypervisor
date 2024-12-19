@@ -562,6 +562,7 @@ def cpus_assignment(cpus_per_vm, index):
             cpus_per_vm[index] = list(set(sos_extend_all_cpus) - set(pre_all_cpus))
             cpus_per_vm[index].sort()
 
+    cpu_str = ''
     for i in range(len(cpus_per_vm[index])):
         if i == 0:
             if len(cpus_per_vm[index]) == 1:
@@ -586,7 +587,7 @@ def clos_assignment(clos_per_vm, index):
     :return: clos assignment string
     """
     vm_clos_bmp = {}
-
+    clos_str = ''
     for i in range(len(clos_per_vm[index])):
         if i == 0:
             if len(clos_per_vm[index]) == 1:
@@ -947,8 +948,8 @@ def is_target_vm_available(target_vm_id, vm_visited, legacy_vuart1_visited):
     if not isinstance(vm_visited, dict):
         raise TypeError('vm_visited should be a dict: {}, {!r}'.format(type(vm_visited), vm_visited))
     if not isinstance(legacy_vuart1_visited, dict):
-        raise TypeError('legacy_vuart1_visited should be a dict: {}, {!r}' \
-                 .format(type(legacy_vuart1_visited), legacy_vuart1_visited))
+        raise TypeError('legacy_vuart1_visited should be a dict: {}, {!r}'
+                        .format(type(legacy_vuart1_visited), legacy_vuart1_visited))
 
     if target_vm_id not in acrn_config_utilities.LOAD_ORDER:
         raise TargetError("target vm {} is not present".format(target_vm_id))
@@ -957,17 +958,17 @@ def is_target_vm_available(target_vm_id, vm_visited, legacy_vuart1_visited):
     elif target_vm_id in legacy_vuart1_visited:
         pass
     else:
-        raise TargetError("target vm {} disables legacy vuart 1 and all communication vuarts"\
-                         .format(target_vm_id))
+        raise TargetError("target vm {} disables legacy vuart 1 and all communication vuarts"
+                          .format(target_vm_id))
 
 
 def check_target_connection(vm_id, target_vm_id, target_uart_id, vm_visited, legacy_vuart1_visited):
     if not isinstance(vm_visited, dict):
         raise TypeError('vm_visited should be a dict: {}, {!r}'.format(type(vm_visited), vm_visited))
     if not isinstance(legacy_vuart1_visited, dict):
-        raise TypeError('legacy_vuart1_visited should be a dict: {}, {!r}' \
-                 .format(type(legacy_vuart1_visited), legacy_vuart1_visited))
-    if not isinstance(target_vm_id, int):
+        raise TypeError('legacy_vuart1_visited should be a dict: {}, {!r}'
+                        .format(type(legacy_vuart1_visited), legacy_vuart1_visited))
+    if not isinstance(vm_id, int):
         raise TypeError('vm_id should be an int: {}, {!r}'.format(type(vm_id), vm_id))
     if not isinstance(target_vm_id, int):
         raise TypeError('target_vm_id should be an int: {}, {!r}'.format(type(target_vm_id), target_vm_id))
@@ -979,16 +980,16 @@ def check_target_connection(vm_id, target_vm_id, target_uart_id, vm_visited, leg
 
     if vm_visited.get(target_vm_id) and target_uart_id in vm_visited[target_vm_id]:
         connected_vm = vm_visited[target_vm_id][target_uart_id]
-        if  connected_vm > -1:
-            raise TargetError("target vm{} : vuart{} is connected to vm {}" \
-                             .format(target_vm_id, target_uart_id, connected_vm))
+        if connected_vm > -1:
+            raise TargetError("target vm{} : vuart{} is connected to vm {}"
+                              .format(target_vm_id, target_uart_id, connected_vm))
         else:
             vm_visited[target_vm_id][target_uart_id] = vm_id
     elif target_uart_id == 1 and target_vm_id in legacy_vuart1_visited:
         connected_vm = legacy_vuart1_visited[target_vm_id]
-        if  connected_vm > -1:
-            raise TargetError("target vm{} : vuart{} is connected to vm {}" \
-                             .format(target_vm_id, target_uart_id, connected_vm))
+        if connected_vm > -1:
+            raise TargetError("target vm{} : vuart{} is connected to vm {}"
+                              .format(target_vm_id, target_uart_id, connected_vm))
         else:
             legacy_vuart1_visited[target_vm_id] = vm_id
     else:

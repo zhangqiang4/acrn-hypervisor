@@ -480,6 +480,7 @@ def parser_pci():
 
             bar_num = line.split()[1].strip(':')
             if bar_addr >= acrn_config_utilities.SIZE_4G or bar_addr < acrn_config_utilities.SIZE_2G:
+                tmp_bar_attr = Bar_Attr()
                 if not tmp_bar_attr.remappable:
                     continue
 

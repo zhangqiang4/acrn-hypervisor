@@ -96,6 +96,7 @@ def extract_topology(processors_node):
             leaf_topo = parse_cpuid(topo_leaf, subleaf, cpu_id)
             if leaf_topo.level_type == 0:
                 highest_level = max(level_types.keys())
+                assert last_node is not None, "ERROR: last_node is None"
                 if last_node.tag != level_types[highest_level]:
                     n, _ = get_or_create_parent(processors_node, level_types[highest_level], "0x0")
                     n.append(last_node)

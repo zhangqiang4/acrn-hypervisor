@@ -39,6 +39,8 @@ def process_trace_data(ifile):
     tsc_begin = 0
     tsc_end = 0
     time_ambiguous = 0
+    vm_next = 0
+    tsc_last_sched = tsc_end
 
     fd = open(ifile, 'rb')
     while True:
