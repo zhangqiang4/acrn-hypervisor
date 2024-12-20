@@ -19,8 +19,10 @@ def sos_cpu_affinity(etree):
 
     sos_extend_all_cpus = board_cfg_lib.get_processor_info()
     pre_all_cpus = etree.xpath("//vm[load_order = 'PRE_LAUNCHED_VM']/cpu_affinity//pcpu_id/text()")
+    pre_tee_cpus = etree.xpath("//vm[load_order = 'PRE_LAUNCHED_VM' and vm_type = 'TEE_VM' "
+                               "and own_pcpu= 'n']/cpu_affinity//pcpu_id/text()")
 
-    cpus_for_sos = list(set(sos_extend_all_cpus) - set(pre_all_cpus))
+    cpus_for_sos = list((set(sos_extend_all_cpus) - set(pre_all_cpus)) | set(pre_tee_cpus))
     return sorted(cpus_for_sos)
 
 def fn(board_etree, scenario_etree, allocation_etree):
