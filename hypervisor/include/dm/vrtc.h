@@ -83,6 +83,10 @@ struct acrn_vrtc {
 	struct rtcdev	rtcdev; /**< Register layout of RTC. */
 };
 
+void suspend_vrtc(void);
+void resume_vrtc(void);
+void vrtc_init(struct acrn_vm *vm);
+
 #endif /* VRTC_H */
 
 /**
