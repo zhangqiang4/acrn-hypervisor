@@ -17,6 +17,7 @@
 #define VDPY_MAX_NUM 4
 
 typedef void (*bh_task_func)(void *data);
+typedef void (*vblank_inject_func)(void *data, unsigned int frame, int i);
 
 /* bh task is still pending */
 #define ACRN_BH_PENDING (1 << 0)
@@ -125,8 +126,7 @@ struct screen_backend_ops {
 	void (*vdpy_cursor_refresh)(void *backend);
 	void (*vdpy_display_info)(void *backend, struct display_info *display);
 	void (*vdpy_enable_vblank)(void *backend);
-	void (*vdpy_vblank_init)(void *backend, void (*func)
-		(void *data,unsigned int frame,int i), void *data);
+	void (*vdpy_vblank_init)(void *backend, vblank_inject_func, void *data);
 	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
 	void (*vdpy_cursor_define)(void *backend, struct cursor *cur);
 	void (*vdpy_get_plane_info)(void *backend, uint32_t *size, uint32_t *num, uint32_t *info);

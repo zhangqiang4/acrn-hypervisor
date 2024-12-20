@@ -1017,7 +1017,7 @@ vdpy_vblank_init(int scanout_id, void (*func)
 }
 
 int
-vdpy_init(struct vdpy_if *vdpy_if, void(*func)(void *data, unsigned int frame,int i), void *data)
+vdpy_init(struct vdpy_if *vdpy_if, vblank_inject_func func, void *data)
 {
 	int err, count;
 
