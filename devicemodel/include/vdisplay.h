@@ -126,8 +126,25 @@ struct screen_backend_ops {
 	void (*vdpy_cursor_refresh)(void *backend);
 	void (*vdpy_display_info)(void *backend, struct display_info *display);
 	void (*vdpy_enable_vblank)(void *backend);
+	/**
+	 * @brief Register vbank injecting callback in the backend.
+	 *
+	 * The backend should invoke the callback everytime a display request is
+	 * settled or hardware vblank happens. The second argument "frame" passed
+	 * to the callback will be injected to the guest and the frame value
+	 * is supposed to be incremented if and only if display update starts to
+	 * take effect.
+	 */
 	void (*vdpy_vblank_init)(void *backend, vblank_inject_func, void *data);
 	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
+	/**
+	 * Create a cursor from `cur`. The cursor could be moved and displayed
+	 * later by invoking vdpy_cursor_move.
+	 *
+	 * NOTE: Calling this doesn't transfer the ownership of the cursor
+	 * buffer to the backend. The backend should keep a copy of the cursor
+	 * buffer and shall not access the buffer passed after this call.
+	 */
 	void (*vdpy_cursor_define)(void *backend, struct cursor *cur);
 	void (*vdpy_get_plane_info)(void *backend, uint32_t *size, uint32_t *num, uint32_t *info);
 	void (*vdpy_set_rotation)(void *backend, int plane_id, uint64_t rotation);
