@@ -100,8 +100,7 @@ SECTIONS
         *(COMMON) ;
         . = ALIGN(4) ;
         ld_bss_end = . ;
+        . = ALIGN(0x200000) ;
+        ld_ram_end = . ;
     } > ram
-
-   . = ALIGN(0x200000) ;
-    ld_ram_end = . ;
 }
