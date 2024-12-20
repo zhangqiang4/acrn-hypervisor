@@ -44,7 +44,9 @@
 #include <linux/if_tun.h>
 #include <sys/socket.h>
 #include <linux/vhost.h>
+#include <linux/virtio_net.h>
 
+#define pr_prefix "virtio_net: "
 #include "dm.h"
 #include "pci_core.h"
 #include "mevent.h"
@@ -55,48 +57,22 @@
 #define VIRTIO_NET_RINGSZ	1024
 #define VIRTIO_NET_MAXSEGS	256
 
-/*
- * Host capabilities.  Note that we only offer a few of these.
- */
-#define	VIRTIO_NET_F_CSUM	(1 <<  0) /* host handles partial cksum */
-#define	VIRTIO_NET_F_GUEST_CSUM	(1 <<  1) /* guest handles partial cksum */
-#define	VIRTIO_NET_F_MAC	(1 <<  5) /* host supplies MAC */
-#define	VIRTIO_NET_F_GSO_DEPREC	(1 <<  6) /* deprecated: host handles GSO */
-#define	VIRTIO_NET_F_GUEST_TSO4	(1 <<  7) /* guest can rcv TSOv4 */
-#define	VIRTIO_NET_F_GUEST_TSO6	(1 <<  8) /* guest can rcv TSOv6 */
-#define	VIRTIO_NET_F_GUEST_ECN	(1 <<  9) /* guest can rcv TSO with ECN */
-#define	VIRTIO_NET_F_GUEST_UFO	(1 << 10) /* guest can rcv UFO */
-#define	VIRTIO_NET_F_HOST_TSO4	(1 << 11) /* host can rcv TSOv4 */
-#define	VIRTIO_NET_F_HOST_TSO6	(1 << 12) /* host can rcv TSOv6 */
-#define	VIRTIO_NET_F_HOST_ECN	(1 << 13) /* host can rcv TSO with ECN */
-#define	VIRTIO_NET_F_HOST_UFO	(1 << 14) /* host can rcv UFO */
-#define	VIRTIO_NET_F_MRG_RXBUF	(1 << 15) /* host can merge RX buffers */
-#define	VIRTIO_NET_F_STATUS	(1 << 16) /* config status field available */
-#define	VIRTIO_NET_F_CTRL_VQ	(1 << 17) /* control channel available */
-#define	VIRTIO_NET_F_CTRL_RX	(1 << 18) /* control channel RX mode support */
-#define	VIRTIO_NET_F_CTRL_VLAN	(1 << 19) /* control channel VLAN filtering */
-#define	VIRTIO_NET_F_GUEST_ANNOUNCE \
-				(1 << 21) /* guest can send gratuitous pkts */
+#define VIRTIO_NET_OFFLOADCAPS \
+	((1UL << VIRTIO_NET_F_CSUM) | (1UL << VIRTIO_NET_F_GUEST_CSUM) | (1UL << VIRTIO_NET_F_GUEST_TSO4) | \
+	(1UL << VIRTIO_NET_F_GUEST_TSO6) | (1UL << VIRTIO_NET_F_GUEST_ECN) | (1UL << VIRTIO_NET_F_GUEST_UFO) | \
+	(1UL << VIRTIO_NET_F_HOST_TSO4) | (1UL << VIRTIO_NET_F_HOST_TSO6) | ( 1UL << VIRTIO_NET_F_HOST_ECN) | \
+	(1UL << VIRTIO_NET_F_HOST_UFO))
 
 #define VIRTIO_NET_S_HOSTCAPS      \
-	(VIRTIO_NET_F_MAC | VIRTIO_NET_F_MRG_RXBUF | VIRTIO_NET_F_STATUS | \
-	(1 << VIRTIO_F_NOTIFY_ON_EMPTY) | (1 << VIRTIO_RING_F_INDIRECT_DESC))
+	((1UL << VIRTIO_NET_F_MAC) | (1UL << VIRTIO_NET_F_MRG_RXBUF) | (1UL << VIRTIO_NET_F_STATUS) | \
+	(1UL << VIRTIO_F_NOTIFY_ON_EMPTY) | (1UL << VIRTIO_RING_F_INDIRECT_DESC))
 
 #define VIRTIO_NET_S_VHOSTCAPS      \
-	((1 << VIRTIO_F_NOTIFY_ON_EMPTY) | (1 << VIRTIO_RING_F_INDIRECT_DESC) | \
-	(1 << VIRTIO_RING_F_EVENT_IDX) | VIRTIO_NET_F_MRG_RXBUF | \
-	(1UL << VIRTIO_F_VERSION_1))
+	((1UL << VIRTIO_F_NOTIFY_ON_EMPTY) | (1UL << VIRTIO_RING_F_INDIRECT_DESC) | \
+	(1UL << VIRTIO_RING_F_EVENT_IDX) | (1UL << VIRTIO_NET_F_MRG_RXBUF) | (1UL << VIRTIO_F_VERSION_1))
 
 /* is address mcast/bcast? */
 #define ETHER_IS_MULTICAST(addr) (*(addr) & 0x01)
-
-/*
- * PCI config-space "registers"
- */
-struct virtio_net_config {
-	uint8_t  mac[6];
-	uint16_t status;
-} __attribute__((packed));
 
 /*
  * Queue definitions.
@@ -119,13 +95,6 @@ struct virtio_net_rxhdr {
 	uint16_t	vrh_csum_offset;
 	uint16_t	vrh_bufs;
 } __attribute__((packed));
-
-/*
- * Debug printf
- */
-static int virtio_net_debug;
-#define DPRINTF(params) do { if (virtio_net_debug) pr_dbg params; } while (0)
-#define WPRINTF(params) (pr_err params)
 
 /*
  * vhost device struct
@@ -224,8 +193,10 @@ vhost_net_set_backend(struct vhost_dev *vdev, int backend_fd)
 	for (i = 0; i < vdev->nvqs; i++) {
 		file.index = i;
 		rc = vhost_kernel_net_set_backend(vdev, &file);
-		if (rc < 0)
+		if (rc < 0) {
+			pr_err("failed to set backend for vhost_net\n");
 			goto fail;
+		}
 	}
 
 	return 0;
@@ -305,7 +276,7 @@ virtio_net_reset(void *vdev)
 {
 	struct virtio_net *net = vdev;
 
-	DPRINTF(("vtnet: device reset requested !\n"));
+	pr_dbg("device reset requested !\n");
 
 	net->resetting = 1;
 
@@ -386,14 +357,14 @@ rx_iov_trim(struct iovec *iov, int *niov, int tlen)
 
 	/* XXX short-cut: assume first segment is >= tlen */
 	if (iov[0].iov_len < tlen) {
-		WPRINTF(("vtnet: rx_iov_trim: iov_len=%lu, tlen=%d\n", iov[0].iov_len, tlen));
+		pr_err("rx_iov_trim: iov_len=%lu, tlen=%d\n", iov[0].iov_len, tlen);
 		return NULL;
 	}
 
 	iov[0].iov_len -= tlen;
 	if (iov[0].iov_len == 0) {
 		if (*niov <= 1) {
-			WPRINTF(("vtnet: rx_iov_trim: *niov=%d\n", *niov));
+			pr_err("rx_iov_trim: *niov=%d\n", *niov);
 			return NULL;
 		}
 		*niov -= 1;
@@ -420,7 +391,7 @@ virtio_net_tap_rx(struct virtio_net *net)
 	 * Should never be called without a valid tap fd
 	 */
 	if (net->tapfd == -1) {
-		WPRINTF(("vtnet: tapfd == -1\n"));
+		pr_err("tapfd == -1\n");
 		return;
 	}
 
@@ -460,7 +431,7 @@ virtio_net_tap_rx(struct virtio_net *net)
 		 */
 		n = vq_getchain(vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
 		if (n < 1 || n > VIRTIO_NET_MAXSEGS) {
-			WPRINTF(("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n));
+			pr_err("virtio_net_tap_rx: vq_getchain = %d\n", n);
 			return;
 		}
 		/*
@@ -551,7 +522,7 @@ virtio_net_proctx(struct virtio_net *net, struct virtio_vq_info *vq)
 	 */
 	n = vq_getchain(vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
 	if (n < 1 || n > VIRTIO_NET_MAXSEGS) {
-		WPRINTF(("vtnet: virtio_net_proctx: vq_getchain = %d\n", n));
+		pr_err("virtio_net_proctx: vq_getchain = %d\n", n);
 		return;
 	}
 	plen = 0;
@@ -561,7 +532,7 @@ virtio_net_proctx(struct virtio_net *net, struct virtio_vq_info *vq)
 		iov[0].iov_base += net->rx_vhdrlen;
 		iov[0].iov_len -= net->rx_vhdrlen;
 		plen = tlen - net->rx_vhdrlen;
-		DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
+		pr_dbg("virtio: packet send, %d bytes, %d segs\n\r", plen, n);
 		net->virtio_net_tx(net, iov, n, plen);
 	} else {
 		for (i = 1; i < n; i++) {
@@ -569,7 +540,7 @@ virtio_net_proctx(struct virtio_net *net, struct virtio_vq_info *vq)
 			tlen += iov[i].iov_len;
 		}
 
-		DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
+		pr_dbg("virtio: packet send, %d bytes, %d segs\n\r", plen, n);
 		net->virtio_net_tx(net, &iov[1], n - 1, plen);
 	}
 
@@ -615,7 +586,7 @@ virtio_net_tx_thread(void *param)
 		pthread_cond_wait(&net->tx_cond, &net->tx_mtx);
 
 	if (net->closing) {
-		WPRINTF(("vtnet tx thread closing...\n"));
+		pr_err("vtnet tx thread closing...\n");
 		pthread_mutex_unlock(&net->tx_mtx);
 		return NULL;
 	}
@@ -639,7 +610,7 @@ virtio_net_tx_thread(void *param)
 			pthread_cond_wait(&net->tx_cond, &net->tx_mtx);
 
 			if (net->closing) {
-				WPRINTF(("vtnet tx thread closing...\n"));
+				pr_err("vtnet tx thread closing...\n");
 				pthread_mutex_unlock(&net->tx_mtx);
 				return NULL;
 			}
@@ -671,7 +642,7 @@ virtio_net_tx_thread(void *param)
 static void
 virtio_net_ping_ctlq(void *vdev, struct virtio_vq_info *vq)
 {
-	DPRINTF(("vtnet: control qnotify!\n\r"));
+	pr_dbg("control qnotify!\n\r");
 }
 #endif
 
@@ -709,7 +680,7 @@ virtio_net_get_ifindex(char *devname)
 
 	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (fd < 0) {
-		WPRINTF(("%s: Unable to open control socket", __func__));
+		pr_err("%s: Unable to open control socket", __func__);
 		return ifindex;
 	}
 
@@ -718,7 +689,7 @@ virtio_net_get_ifindex(char *devname)
 	ifr.ifr_name[IFNAMSIZ - 1] = '\0';
 
 	if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
-		WPRINTF(("%s: Unable to get interface index on this platform\n", __func__));
+		pr_err("%s: Unable to get interface index on this platform\n", __func__);
 	} else {
 		ifindex = ifr.ifr_ifindex;
 	}
@@ -741,7 +712,7 @@ virtio_net_is_macvtap(char *devname, int *ifindex)
 	/*check if the char device exists*/
 	rc = snprintf(tempbuf, IFNAMSIZ, "/dev/tap%d", ifidx);
 	if (rc < 0 || rc >= IFNAMSIZ) {
-		WPRINTF(("Failed to check interface name %s\n", tempbuf));
+		pr_err("Failed to check interface name %s\n", tempbuf);
 		return false;
 	}
 
@@ -753,7 +724,34 @@ virtio_net_is_macvtap(char *devname, int *ifindex)
 }
 
 static int
-virtio_net_tap_open(char *devname)
+virtio_net_tap_set_offload(int tapfd, uint64_t vnet_offload) {
+	/* below flags work with virtio-net offload caps */
+	unsigned off_flags = 0;
+
+	if(vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_CSUM)) {
+		off_flags |= TUN_F_CSUM;
+		if(vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_TSO4))
+			off_flags |= TUN_F_TSO4;
+		if(vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_TSO6))
+			off_flags |= TUN_F_TSO6;
+		if((vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_TSO4) ||
+				vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_TSO6))
+				&& (vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_ECN)))
+			off_flags |= TUN_F_TSO_ECN;
+		if(vnet_offload & (1ULL << VIRTIO_NET_F_GUEST_UFO))
+			off_flags |= TUN_F_UFO;
+	}
+
+	if (ioctl(tapfd, TUNSETOFFLOAD, off_flags) != 0) {
+		pr_err("failed to enable tap offload capability\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+virtio_net_tap_open(char *devname, bool use_vhost)
 {
 	char tbuf[IFNAMSIZ];
 	int tunfd, rc, macvtap_index;
@@ -767,18 +765,18 @@ virtio_net_tap_open(char *devname)
 	}
 
 	if (rc < 0 || rc >= IFNAMSIZ) {
-		WPRINTF(("Failed to set interface name %s\n", tbuf));
+		pr_err("Failed to set interface name %s\n", tbuf);
 		return -1;
 	}
 
 	tunfd = open(tbuf, O_RDWR);
 	if (tunfd < 0) {
-		WPRINTF(("Failed to open interface %s\n", tbuf));
+		pr_err("Failed to open interface %s\n", tbuf);
 		return -1;
 	}
 
 	memset(&ifr, 0, sizeof(ifr));
-	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
+	ifr.ifr_flags = IFF_TAP | IFF_NO_PI | (use_vhost? IFF_VNET_HDR: 0);
 
 	if (*devname) {
 		strncpy(ifr.ifr_name, devname, IFNAMSIZ);
@@ -787,8 +785,8 @@ virtio_net_tap_open(char *devname)
 
 	rc = ioctl(tunfd, TUNSETIFF, (void *)&ifr);
 	if (rc < 0) {
-		WPRINTF(("open of tap device %s failed: %d\n",
-			devname, errno));
+		pr_err("open of tap device %s failed: %d\n",
+			devname, errno);
 		close(tunfd);
 		return -1;
 	}
@@ -806,17 +804,17 @@ virtio_net_tap_setup(struct virtio_net *net, char *devname)
 
 	rc = snprintf(tbuf, IFNAMSIZ, "%s", devname);
 	if (rc < 0 || rc >= IFNAMSIZ) /* give warning if error or truncation happens */
-		WPRINTF(("Failed to set tap device name %s\n", tbuf));
+		pr_err("Failed to set tap device name %s\n", tbuf);
 
 	net->virtio_net_rx = virtio_net_tap_rx;
 	net->virtio_net_tx = virtio_net_tap_tx;
 
-	net->tapfd = virtio_net_tap_open(tbuf);
+	net->tapfd = virtio_net_tap_open(tbuf, net->use_vhost);
 	if (net->tapfd == -1) {
-		WPRINTF(("open of tap device %s failed\n", tbuf));
+		pr_err("open of tap device %s failed\n", tbuf);
 		return;
 	}
-	DPRINTF(("open of tap device %s success!\n", tbuf));
+	pr_dbg("open of tap device %s success!\n", tbuf);
 
 	/*
 	 * Set non-blocking and register for read
@@ -825,7 +823,7 @@ virtio_net_tap_setup(struct virtio_net *net, char *devname)
 	int opt = 1;
 
 	if (ioctl(net->tapfd, FIONBIO, &opt) < 0) {
-		WPRINTF(("tap device O_NONBLOCK failed\n"));
+		pr_err("tap device O_NONBLOCK failed\n");
 		close(net->tapfd);
 		net->tapfd = -1;
 	}
@@ -833,15 +831,21 @@ virtio_net_tap_setup(struct virtio_net *net, char *devname)
 	if (net->use_vhost) {
 		vhost_fd = open("/dev/vhost-net", O_RDWR);
 		if (vhost_fd < 0)
-			WPRINTF(("open of vhost-net failed\n"));
+			pr_err("open of vhost-net failed\n");
 		else {
+			/* by default, we add offload feature bits for vhost-net */
+			net->base.device_caps |= (VIRTIO_NET_OFFLOADCAPS | (1UL << VIRTIO_RING_F_EVENT_IDX));
+
 			net->vhost_net = vhost_net_init(&net->base, vhost_fd,
 				net->tapfd, 0);
 			if (!net->vhost_net) {
-				WPRINTF(("vhost_net_init failed, fallback "
-					"to userspace virtio\n"));
+				pr_err("vhost_net_init failed, fallback "
+					"to userspace virtio\n");
 				close(vhost_fd);
 				vhost_fd = -1;
+				/* if not use vhost-net, still fallback to basic feature bits */
+				net->base.device_caps &= ~(VIRTIO_NET_OFFLOADCAPS | (1UL << VIRTIO_RING_F_EVENT_IDX));
+				net->use_vhost = false;
 			}
 		}
 	}
@@ -851,7 +855,7 @@ virtio_net_tap_setup(struct virtio_net *net, char *devname)
 				       virtio_net_rx_callback, net,
 				       virtio_net_teardown, net);
 		if (net->mevp == NULL) {
-			WPRINTF(("Could not register event\n"));
+			pr_err("Could not register event\n");
 			close(net->tapfd);
 			net->tapfd = -1;
 		}
@@ -879,23 +883,23 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	net = calloc(1, sizeof(struct virtio_net));
 	if (!net) {
-		WPRINTF(("virtio_net: calloc returns NULL\n"));
+		pr_err("virtio_net: calloc returns NULL\n");
 		return -1;
 	}
 
 	/* init mutex attribute properly to avoid deadlock */
 	rc = pthread_mutexattr_init(&attr);
 	if (rc)
-		DPRINTF(("mutexattr init failed with erro %d!\n", rc));
+		pr_dbg("mutexattr init failed with erro %d!\n", rc);
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (rc)
-		DPRINTF(("virtio_net: mutexattr_settype failed with "
-			"error %d!\n", rc));
+		pr_dbg("virtio_net: mutexattr_settype failed with "
+			"error %d!\n", rc);
 
 	rc = pthread_mutex_init(&net->mtx, &attr);
 	if (rc)
-		DPRINTF(("virtio_net: pthread_mutex_init failed with "
-			"error %d!\n", rc));
+		pr_dbg("virtio_net: pthread_mutex_init failed with "
+			"error %d!\n", rc);
 
 	/*
 	 * Read the MAC address if specified
@@ -907,7 +911,7 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 		devopts = vtopts = strdup(opts);
 		if (!devopts) {
-			WPRINTF(("virtio_net: strdup returns NULL\n"));
+			pr_err("virtio_net: strdup returns NULL\n");
 			free(net);
 			return -1;
 		}
@@ -950,7 +954,7 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	net->tapfd = -1;
 
 	if (!devopts) {
-		WPRINTF(("virtio_net: invalid optional argument\n"));
+		pr_err("virtio_net: invalid optional argument\n");
 		free(net);
 		return -1;
 	}
@@ -1068,7 +1072,7 @@ virtio_net_cfgwrite(void *vdev, int offset, int size, uint32_t value)
 
 	if (offset < 6) {
 		if (offset + size > 6) {
-			DPRINTF(("vtnet: wrong params offset=%d, size=%d, ignore write mac address\n\r", offset, size));
+			pr_dbg("wrong params offset=%d, size=%d, ignore write mac address\n\r", offset, size);
 			return -1;
 		}
 		/*
@@ -1078,7 +1082,7 @@ virtio_net_cfgwrite(void *vdev, int offset, int size, uint32_t value)
 		memcpy(ptr, &value, size);
 	} else {
 		/* silently ignore other writes */
-		DPRINTF(("vtnet: write to readonly reg %d\n\r", offset));
+		pr_dbg("write to readonly reg %d\n\r", offset);
 	}
 
 	return 0;
@@ -1102,7 +1106,7 @@ virtio_net_neg_features(void *vdev, uint64_t negotiated_features)
 
 	net->features = negotiated_features;
 
-	if (!(net->features & VIRTIO_NET_F_MRG_RXBUF)) {
+	if (!(net->features & (1UL << VIRTIO_NET_F_MRG_RXBUF))) {
 		net->rx_merge = 0;
 		/* non-merge rx header is 2 bytes shorter */
 		net->rx_vhdrlen = sizeof(struct virtio_net_rxhdr) - 2;
@@ -1110,6 +1114,16 @@ virtio_net_neg_features(void *vdev, uint64_t negotiated_features)
 		net->rx_merge = 1;
 		net->rx_vhdrlen = sizeof(struct virtio_net_rxhdr);
 	}
+
+	/* Currently, we only support offload features for vhost-net */
+	if (net->use_vhost) {
+		if(ioctl(net->tapfd, TUNSETVNETHDRSZ, &net->rx_vhdrlen))
+			pr_err("failed to set the vnet hdr for tap, vhost-net may not work");
+
+		if(virtio_net_tap_set_offload(net->tapfd, negotiated_features))
+			pr_err("failed to set tap offload caps, vhost-net may not work");
+	}
+
 }
 
 static void
@@ -1128,14 +1142,14 @@ virtio_net_set_status(void *vdev, uint64_t status)
 
 		rc = vhost_net_start(net->vhost_net);
 		if (rc < 0) {
-			WPRINTF(("vhost_net_start failed\n"));
+			pr_err("vhost_net_start failed\n");
 			return;
 		}
 	} else if (net->vhost_net->vhost_started &&
 		((status & VIRTIO_CONFIG_S_DRIVER_OK) == 0)) {
 		rc = vhost_net_stop(net->vhost_net);
 		if (rc < 0)
-			WPRINTF(("vhost_net_stop failed\n"));
+			pr_err("vhost_net_stop failed\n");
 	}
 }
 
@@ -1180,7 +1194,7 @@ virtio_net_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		else
 			virtio_net_teardown(net);
 
-		DPRINTF(("%s: done\n", __func__));
+		pr_dbg("%s: done\n", __func__);
 	} else
 		pr_err("%s: NULL!\n", __func__);
 }
@@ -1190,13 +1204,13 @@ vhost_net_init(struct virtio_base *base, int vhostfd, int tapfd, int vq_idx)
 {
 	struct vhost_net *vhost_net = NULL;
 	uint64_t vhost_features = VIRTIO_NET_S_VHOSTCAPS;
-	uint64_t vhost_ext_features =  1 << VHOST_NET_F_VIRTIO_NET_HDR;
+	uint64_t vhost_ext_features = 0;
 	uint32_t busyloop_timeout = 0;
 	int rc;
 
 	vhost_net = calloc(1, sizeof(struct vhost_net));
 	if (!vhost_net) {
-		WPRINTF(("vhost init out of memory\n"));
+		pr_err("vhost init out of memory\n");
 		goto fail;
 	}
 
@@ -1208,7 +1222,7 @@ vhost_net_init(struct virtio_base *base, int vhostfd, int tapfd, int vq_idx)
 	rc = vhost_dev_init(&vhost_net->vdev, base, vhostfd, vq_idx,
 		vhost_features, vhost_ext_features, busyloop_timeout);
 	if (rc < 0) {
-		WPRINTF(("vhost_dev_init failed\n"));
+		pr_err("vhost_dev_init failed\n");
 		goto fail;
 	}
 
@@ -1231,13 +1245,13 @@ vhost_net_start(struct vhost_net *vhost_net)
 	int rc;
 
 	if (vhost_net->vhost_started) {
-		WPRINTF(("vhost net already started\n"));
+		pr_err("vhost net already started\n");
 		return 0;
 	}
 
 	rc = vhost_dev_start(&vhost_net->vdev);
 	if (rc < 0) {
-		WPRINTF(("vhost_dev_start failed\n"));
+		pr_err("vhost_dev_start failed\n");
 		goto fail;
 	}
 
@@ -1246,7 +1260,7 @@ vhost_net_start(struct vhost_net *vhost_net)
 		rc = vhost_net_set_backend(&vhost_net->vdev,
 			vhost_net->tapfd);
 		if (rc < 0) {
-			WPRINTF(("vhost_net_set_backend failed\n"));
+			pr_err("vhost_net_set_backend failed\n");
 			goto fail_set_backend;
 		}
 	}
@@ -1267,7 +1281,7 @@ vhost_net_stop(struct vhost_net *vhost_net)
 	int rc;
 
 	if (!vhost_net->vhost_started) {
-		WPRINTF(("vhost net already stopped\n"));
+		pr_err("vhost net already stopped\n");
 		return 0;
 	}
 
@@ -1277,11 +1291,11 @@ vhost_net_stop(struct vhost_net *vhost_net)
 
 	rc = vhost_dev_stop(&vhost_net->vdev);
 	if (rc < 0)
-		WPRINTF(("vhost_dev_stop failed\n"));
+		pr_err("vhost_dev_stop failed\n");
 
 	if (vhost_kernel_net_reset_owner(&vhost_net->vdev) < 0) {
-		WPRINTF(("vhost_net reset owner failed, "
-			"but vhost backend will deinit when closing /dev/vhost-net\n"));
+		pr_err("vhost_net reset owner failed, "
+			"but vhost backend will deinit when closing /dev/vhost-net\n");
 		rc = -1;
 	}
 
