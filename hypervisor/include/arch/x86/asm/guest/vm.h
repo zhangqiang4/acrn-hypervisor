@@ -247,8 +247,6 @@ void create_service_vm_e820(struct acrn_vm *vm);
 void create_prelaunched_vm_e820(struct acrn_vm *vm);
 uint64_t find_space_from_ve820(struct acrn_vm *vm, uint32_t size, uint64_t min_addr, uint64_t max_addr);
 
-int32_t prepare_os_image(struct acrn_vm *vm);
-
 bool is_lapic_pt_configured(const struct acrn_vm *vm);
 bool is_pmu_pt_configured(const struct acrn_vm *vm);
 bool is_rt_vm(const struct acrn_vm *vm);
