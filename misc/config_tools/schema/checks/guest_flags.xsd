@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Copyright (C) 2024 Intel Corporation. -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
+<xs:schema xml:id="root"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:acrn="https://projectacrn.org">
+
+  <xs:assert test="count(/acrn-config/vm//virtual_package_thermal_management[./text()='y']) &lt; 2">
+    <xs:annotation acrn:severity="error" acrn:report-on="//vm[./virtual_package_thermal_management/text()='y']">
+      <xs:documentation>{vm[./virtual_package_thermal_management/text()='y']/name} are assigned virtual_package_thermal_management (Virtual Package Thermal Management)  to 'y', which is not a supported configuration. Remove one of these choices.  </xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="every $vm in /acrn-config/vm satisfies
+                   not($vm//virtual_package_thermal_management = 'y')  or ($vm//virtual_thermal_monitor = 'y')">
+    <xs:annotation acrn:severity="error" acrn:report-on="$vm//mmio_resources">
+      <xs:documentation>{$vm/name} sets virtual_package_thermal_management (Virtual Package Thermal Management) to 'y' but virtual_thermal_monitor (Virtual Thermal Monitor) to 'n', which is not a supported configuration. virtual_thermal_monitor (Virtual Thermal Monitor) should also be set to 'y' when virtual_package_thermal_management (Virtual Package Thermal Management) was set to 'y'.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+</xs:schema>
