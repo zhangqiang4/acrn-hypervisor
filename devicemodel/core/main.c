@@ -794,6 +794,8 @@ vm_suspend_resume(struct vmctx *ctx)
 	vm_stop_watchdog(ctx);
 	wait_for_resume(ctx);
 
+	vm_reset_vpci_devs(ctx);
+
 	pm_backto_wakeup(ctx);
 	vm_reset_watchdog(ctx);
 	vm_reset(ctx);

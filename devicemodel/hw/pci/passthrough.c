@@ -388,6 +388,41 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 	return 0;
 }
 
+static void 
+reset_pdev(struct passthru_dev *ptdev, int bus,
+	int slot, int func)
+{
+	char reset_path[60];
+	int fd;
+
+	/* If Service VM kernel provides 'reset' entry in sysfs, related dev has some
+	 * reset capability, e.g. FLR, or secondary bus reset. We do 2 things:
+	 * - reset each dev before passthrough to achieve valid dev state after
+	 *   User VM reboot
+	 * - refuse to passthrough PCIe dev without any reset capability
+	 */
+	if (ptdev->need_reset) {
+		snprintf(reset_path, 40,
+			"/sys/bus/pci/devices/0000:%02x:%02x.%x/reset",
+			bus, slot, func);
+
+		fd = open(reset_path, O_WRONLY);
+		if (fd >= 0) {
+			pr_notice("reset dev %x/%x/%x \n", bus, slot, func);
+			if (write(fd, "1", 1) < 0)
+				pr_err("reset dev %x/%x/%x failed!\n",
+				      bus, slot, func);
+			close(fd);
+		}
+	}
+
+	if (ptdev->d3hot_reset) {
+		if ((passthru_set_power_state(ptdev, PCIM_PSTAT_D3) != 0) ||
+				passthru_set_power_state(ptdev, PCIM_PSTAT_D0) != 0)
+			pr_warn("ptdev %x/%x/%x do d3hot_reset failed!\n", bus, slot, func);
+	}
+}
+
 /*
  * return value:
  * -1 : fail
@@ -400,8 +435,6 @@ cfginit(struct vmctx *ctx, struct passthru_dev *ptdev, int bus,
 	int slot, int func)
 {
 	int irq_type = ACRN_PTDEV_IRQ_MSI;
-	char reset_path[60];
-	int fd;
 
 	bzero(&ptdev->sel, sizeof(struct pcisel));
 	ptdev->sel.bus = bus;
@@ -421,31 +454,7 @@ cfginit(struct vmctx *ctx, struct passthru_dev *ptdev, int bus,
 		irq_type = ACRN_PTDEV_IRQ_INTX;
 	}
 
-	/* If Service VM kernel provides 'reset' entry in sysfs, related dev has some
-	 * reset capability, e.g. FLR, or secondary bus reset. We do 2 things:
-	 * - reset each dev before passthrough to achieve valid dev state after
-	 *   User VM reboot
-	 * - refuse to passthrough PCIe dev without any reset capability
-	 */
-	if (ptdev->need_reset) {
-		snprintf(reset_path, 40,
-			"/sys/bus/pci/devices/0000:%02x:%02x.%x/reset",
-			bus, slot, func);
-
-		fd = open(reset_path, O_WRONLY);
-		if (fd >= 0) {
-			if (write(fd, "1", 1) < 0)
-				pr_err("reset dev %x/%x/%x failed!\n",
-				      bus, slot, func);
-			close(fd);
-		}
-	}
-
-	if (ptdev->d3hot_reset) {
-		if ((passthru_set_power_state(ptdev, PCIM_PSTAT_D3) != 0) ||
-				passthru_set_power_state(ptdev, PCIM_PSTAT_D0) != 0)
-			pr_warn("ptdev %x/%x/%x do d3hot_reset failed!\n", bus, slot, func);
-	}
+	reset_pdev(ptdev, bus, slot, func);
 
 	if (cfginitbar(ctx, ptdev) != 0) {
 		pr_err("failed to initialize BARs for PCI %x/%x/%x",
@@ -1900,6 +1909,17 @@ passthru_write_dsdt(struct pci_vdev *dev)
                 write_dsdt_file(dev);
 }
 
+static void 
+passthru_reset(struct vmctx *ctx, struct pci_vdev *vdev)
+{
+	struct passthru_dev *ptdev = vdev->arg;
+	uint8_t bus = (ptdev->phys_bdf >> 8) & 0xFF;
+	uint8_t dev = (ptdev->phys_bdf >> 3) & 0x1F;
+	uint8_t func = (ptdev->phys_bdf & 0x7);
+
+	reset_pdev(ptdev, bus, dev, func);
+}
+
 struct pci_vdev_ops passthru = {
 	.class_name		= "passthru",
 	.vdev_init		= passthru_init,
@@ -1910,5 +1930,6 @@ struct pci_vdev_ops passthru = {
 	.vdev_barread		= passthru_read,
 	.vdev_phys_access	= passthru_bind_irq,
 	.vdev_write_dsdt	= passthru_write_dsdt,
+	.vdev_reset		= passthru_reset,
 };
 DEFINE_PCI_DEVTYPE(passthru);

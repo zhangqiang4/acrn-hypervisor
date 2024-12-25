@@ -1813,6 +1813,37 @@ err_out:
 	return error;
 }
 
+void 
+vm_reset_vpci_devs(struct vmctx *ctx)
+{
+	int bus, slot, func;
+	struct businfo *bi;
+	struct slotinfo *si;
+	struct funcinfo *fi;
+	struct pci_vdev_ops *ops;
+
+	for (bus = 0; bus < MAXBUSES; bus++) {
+		bi = pci_businfo[bus];
+		if (bi == NULL)
+			continue;
+		for (slot = 0; slot < MAXSLOTS; slot++) {
+			si = &bi->slotinfo[slot];
+			for (func = 0; func < MAXFUNCS; func++) {
+				fi = &si->si_funcs[func];
+				if (fi->fi_name == NULL || fi->fi_devi == NULL)
+						continue;
+				ops = pci_emul_finddev(fi->fi_name);
+				if (!ops) {
+					pr_warn("No driver for device [%s]\n", fi->fi_name);
+					continue;
+				}
+				if (ops->vdev_reset) {
+					(ops->vdev_reset)(ctx, fi->fi_devi);
+				}
+			}
+		}
+	}
+}
 
 #define	BUSIO_ROUNDUP		32
 #define	BUSMEM_ROUNDUP		(1024 * 1024)

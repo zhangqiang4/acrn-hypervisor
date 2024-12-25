@@ -91,6 +91,8 @@ struct pci_vdev_ops {
 	uint64_t  (*vdev_barread)(struct vmctx *ctx, int vcpu,
 				struct pci_vdev *pi, int baridx,
 				uint64_t offset, int size);
+	/* vdev reset */
+	void	(*vdev_reset)(struct vmctx *ctx, struct pci_vdev *pi);
 };
 
 /*
@@ -416,6 +418,7 @@ void	pciaccess_cleanup(void);
 int	parse_bdf(char *s, int *bus, int *dev, int *func, int base);
 struct pci_vdev *dm_pci_get_vdev_info(int slot);
 struct pci_vdev_ops *pci_emul_finddev(char *name);
+void vm_reset_vpci_devs(struct vmctx *ctx);
 
 /**
  * @brief Set virtual PCI device's configuration space in 1 byte width
