@@ -811,6 +811,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm.h \
+                          ../hypervisor/include/arch/x86/asm/idt.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
                           ../hypervisor/include/arch/x86/asm/guest/vmtrr.h \
                           ../hypervisor/include/arch/x86/asm/guest/vlapic.h \
@@ -851,11 +852,16 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
+                          ../hypervisor/arch/x86/irq.c \
+                          ../hypervisor/arch/x86/exception.c \
+                          ../hypervisor/arch/x86/nmi.c \
+                          ../hypervisor/arch/x86/idt.S \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \
                           ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
                           ../hypervisor/include/dm/ivshmem.h \
+                          ../hypervisor/common/irq.c \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
                           ../hypervisor/dm/vpci/vpci_bridge.c \
@@ -935,7 +941,7 @@ EXCLUDE_PATTERNS       =
 # Exclude internal names (starting with an _) and doxygen-added __unnamed__
 # names given to unnamed nested unions
 
-EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops
+EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

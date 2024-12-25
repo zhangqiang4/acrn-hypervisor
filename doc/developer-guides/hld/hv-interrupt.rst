@@ -369,49 +369,4 @@ IPI vector 0xF3 upcall. The virtual interrupt injection uses IPI vector 0xF0.
    running on vCPU1) to root-hv_interrupt-data-apmode. CPU1 will inject the
    interrupt before VM Enter.
 
-.. _hv_interrupt-data-api:
-
-Data Structures and Interfaces
-******************************
-
-IOAPIC
-======
-
-The following APIs are external interfaces for IOAPIC related
-operations.
-
-.. doxygengroup:: ioapic_ext_apis
-   :project: Project ACRN
-   :content-only:
-
-
-LAPIC
-=====
-
-The following APIs are external interfaces for LAPIC related operations.
-
-.. doxygengroup:: lapic_ext_apis
-   :project: Project ACRN
-   :content-only:
-
-
-IPI
-===
-
-The following APIs are external interfaces for IPI related operations.
-
-.. doxygengroup:: ipi_ext_apis
-   :project: Project ACRN
-   :content-only:
-
-
-Physical Interrupt
-==================
-
-The following APIs are external interfaces for physical interrupt
-related operations.
-
-.. doxygengroup:: phys_int_ext_apis
-   :project: Project ACRN
-   :content-only:
 

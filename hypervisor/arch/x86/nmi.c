@@ -10,6 +10,28 @@
 #include <asm/guest/vcpu.h>
 #include <asm/guest/virq.h>
 
+/**
+ * @addtogroup hwmgmt_irq hwmgmt.irq
+ *
+ * @{
+ */
+
+/**
+ * @file arch/x86/nmi.c
+ *
+ * @brief NMI handler implementation
+ */
+
+/**
+ * @brief Handle NMI
+ *
+ * Handle an NMI interrupt happened in hypervisor (VMX root operation) by injecting a virtual NMI
+ * into current running vCPU on this pCPU.
+ *
+ * @param[in] ctx Pointer to interrupt exception context
+ *
+ * @return None
+ */
 void handle_nmi(__unused struct intr_excp_ctx *ctx)
 {
 	uint16_t pcpu_id = get_pcpu_id();
@@ -21,3 +43,7 @@ void handle_nmi(__unused struct intr_excp_ctx *ctx)
 	 */
 	vcpu_make_request(vcpu, ACRN_REQUEST_NMI);
 }
+
+/**
+ * @}
+ */

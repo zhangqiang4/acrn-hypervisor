@@ -1,57 +1,82 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2024 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <asm/idt.h>
 
+
 .altmacro
 
+/**
+ * @brief An in-memory IDTR structure
+
+ * Define an initialized 64-bit IDTR in data section.
+ */
 .global HOST_IDT
 .global HOST_IDTR
 
 .section    .data
 .align 8
-    .long   0
-    .short  0
+    .long   0			/**< padding for alignment purpose */
+    .short  0			/**< padding for alignment purpose */
 HOST_IDTR:
-    .short  HOST_IDT_SIZE - 1
-    .quad   HOST_IDT
+    .short  HOST_IDT_SIZE - 1	/**< IDT size in bytes - 1 */
+    .quad   HOST_IDT		/**< physical address of host IDT */
 
 /*
- * We'll rearrange and fix up the descriptors at runtime
+ * @brief Macro to define an Interrupt Gate IDT entry
+ *
+ * The 64-bit offset field is temporarily stored at byte 8-15 and we'll rearrange and fix up it at
+ * runtime in fixup_idt().
+ *
+ * @param[in] entry physical address of the handler. It's offset in the flat code segment.
+ * @param[in] dpl Descriptor Privilege Level, default to 0.
+ * @param[in] ist Dedicated Interrupt Stack Table entry, default value 0 means no dedicated stack.
  */
 .macro interrupt_descriptor entry, dpl=0 ist=0
 	/* 0x0008 = HOST_GDT_RING0_CODE_SEL */
 	.long	0x0008 << 16
-	.long	0x00008e00 + (dpl << 13) + ist
+	.long	(1U << 15) + (dpl << 13) + (IDT_TYPE_INT_GATE << 8) + ist
 	.quad	entry
 .endm
 
+/**
+ * @brief Macro to define a 64-bit Trap Gate IDT entry
+ *
+ * The 64-bit offset field is temporarily stored at byte 8-15 and we'll rearrange and fix up it at
+ * runtime in fixup_idt().
+ *
+ * @param[in] entry physical address of the handler. It's offset in the flat code segment.
+ * @param[in] dpl Descriptor Privilege Level, default to 0.
+ * @param[in] ist Dedicated Interrupt Stack Table entry, default value 0 means no dedicated stack.
+ */
 .macro	trap_descriptor entry, dpl=0, ist=0
         /* 0x0008 = HOST_GDT_RING0_CODE_SEL */
 	.long	0x0008 << 16
-	.long	0x00008f00 + (dpl <<13) + ist
+	.long	(1U << 15) + (dpl <<13) + (IDT_TYPE_TRAP_GATE << 8) + ist
 	.quad	entry
 .endm
 
 
+/**
+ * @brief Helper macro to define IDT entries for external interrupts with dpl=0 and ist=0.
+ */
 .macro _external_interrupt_descriptor vector
     __external_interrupt_descriptor %vector
 .endm
-
 
 .macro	__external_interrupt_descriptor vector
 	interrupt_descriptor external_interrupt_\vector
 .endm
 
-#define MACHINE_CHECK_IST   (0x1)
-#define DOUBLE_FAULT_IST    (0x2)
-#define STACK_FAULT_IST     (0x3)
-
-/*
- * We'll use interrupt gates.  Change to trap or task only as needed.
+/**
+ * @brief Define the in-memory IDT
+ *
+ * We'll use interrupt gates and interrupts will be temporarily masked when handling exceptions.
+ * The only difference between trap gate and interrupt gate is that when entering an interrupt gate
+ * RFLAGS.IF is cleared to mask local interrupts.
  */
 .section    .rodata
 .align 16
@@ -89,12 +114,24 @@ interrupt_descriptor	excp_rsvd_29
 interrupt_descriptor	excp_rsvd_30
 interrupt_descriptor	excp_rsvd_31
 
+/**
+ * @brief Define the IDT entries for external interrupts (vector 0x20-0xFF)
+ */
 vector = 0x20
 .rept	(0x100 - 0x20)
 	_external_interrupt_descriptor vector
 	vector = vector + 1
 .endr
 
+/**
+ * @brief Entry points of exception handlers
+ *
+ * Hardware pushes error code to stack for some exceptions. To keep exception stack frame
+ * consistent, following handlers for non-error code exceptions will push a pseudo error code 0.
+ * All exception handlers push a vector number to identify the exception onto stack and than jump
+ * to the common handler excp_save_frame which checks the vector number on stack to dispatch the
+ * corresponding handler.
+ */
 .section .text
 .align 16
 excp_divide_error:
@@ -205,8 +242,13 @@ excp_virtualization:
 
 
 
-/*
- * Macros for rsvd vectors.  Vectors 0x09, 0x0F, 0x15 through 0x1F
+/**
+ * @brief Define IDT handlers for reserved vectors.
+ *
+ * Vectors 0x09, 0x0F, 0x15 through 0x1F are reserved.
+ * The handler is excp_rsvd.
+ *
+ * @param[in] vector Number of the reserved vector
  */
 .macro _rsvd_vector vector
     __rsvd_vector %vector
@@ -236,8 +278,13 @@ vector = 0x15
 
 
 
-/*
- * Macros for external interrupts.  Vectors$0x20 through$0xFF
+/**
+ * @brief Define IDT handlers for external interrupts.
+ *
+ * Vectors 0x20 through 0xFF are for external interrupts.
+ * The handler external_interrupt_{vector} matches the offset field in corresponding IDT entry.
+ * 
+ * @param[in] vector Number of the external interrupt
  */
 .macro _external_interrupt vector
     __external_interrupt %vector
@@ -257,6 +304,9 @@ vector =0x20
     vector = vector + 1
 .endr
 
+/**
+ * @brief Save general purpose register in the exception/interrupt stack frame
+ */
 .macro save_frame
     pushq %r15
     pushq %r14
@@ -279,6 +329,9 @@ vector =0x20
     movq    %rsp, %rdi
 .endm
 
+/**
+ * @brief Restore general purpose register from the exception/interrupt stack frame
+ */
 .macro restore_frame
     popq    %rax
     popq    %rcx
@@ -301,8 +354,8 @@ vector =0x20
     add     $16, %rsp
 .endm
 
-/*
- * Common entry point for defined exceptions
+/**
+ * @brief Common entry point for defined exceptions
  */
 .align 8
 excp_save_frame:
@@ -315,8 +368,9 @@ excp_save_frame:
     iretq
 
 
-/*
- * Common entry point for reserved exceptions.
+/**
+ * @brief Common entry point for reserved exceptions.
+ *
  * These should never execute.
  * We put a handler on them anyway to highlight the unexpected.
  */
@@ -330,8 +384,8 @@ excp_rsvd:
 
     iretq
 
-/*
- * Common entry point for NMI interrupts
+/**
+ * @brief Common entry point for NMI interrupts
  */
 .align 8
 nmi_save_frame:
@@ -344,9 +398,11 @@ nmi_save_frame:
     iretq
 
 
-/*
- * Common entry point for defined interrupts.
- * Vectors 0x20 through 0xFF
+/**
+ * @brief Common entry point for defined interrupts.
+ *
+ * It's the common handler for external interrupts 0x20 ~ 0xFF. It saves the GPRs in the stack and
+ * calls dispatch_interrupt followed by restoring GPRS from the stack.
  */
 .align 8
 external_interrupt_save_frame:
@@ -354,12 +410,10 @@ external_interrupt_save_frame:
 
     call   dispatch_interrupt
 
-    /*
-     * We disable softirq path from interrupt IRET, since right now all IRQ
-     * are for Guest.
-     */
-
     restore_frame
 
     iretq
 
+/**
+ * @}
+ */

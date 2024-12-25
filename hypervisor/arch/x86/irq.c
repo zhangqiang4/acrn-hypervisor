@@ -16,36 +16,80 @@
 #include <dump.h>
 #include <logmsg.h>
 #include <asm/vmx.h>
+#include <irq.h>
 
+/**
+ * @addtogroup hwmgmt_irq hwmgmt.irq
+ *
+ * @{
+ */
+
+/**
+ * @file
+ *
+ * @brief X86 specific interrupt resource management and interrupt handling
+ */
+
+/**
+ * @brief Lock to protect the vector_to_irq mapping
+ */
 static spinlock_t x86_irq_spinlock = { .head = 0U, .tail = 0U, };
 
+/**
+ * @brief X86 private data for each irq_desc.
+ *
+ * It contains the vector number mapped to the IRQ number.
+ */
 static struct x86_irq_data irq_data[NR_IRQS];
 
+/**
+ * @brief Map x86 internal vector to common irq number
+ */
 static uint32_t vector_to_irq[NR_MAX_VECTOR + 1];
 
+/**
+ * @brief The function prototype for spurious interrupt handler.
+ *
+ * The function accepts the interrupt vector as the argument and returns nothing.
+ */
 typedef void (*spurious_handler_t)(uint32_t vector);
 
+/**
+ * @brief Stub for spurious IDT vector (unrequested) handlers
+ */
 spurious_handler_t spurious_handler;
 
-static struct {
-	uint32_t irq;
-	uint32_t vector;
-} irq_static_mappings[NR_STATIC_MAPPINGS] = {
-	{TIMER_IRQ, TIMER_VECTOR},
-	{THERMAL_IRQ, THERMAL_VECTOR},
-	{CMCI_IRQ, CMCI_VECTOR},
-	{NOTIFY_VCPU_IRQ, NOTIFY_VCPU_VECTOR},
-	{PMI_IRQ, PMI_VECTOR},
-
-	/* To be initialized at runtime in init_irq_descs() */
-	[NR_STATIC_MAPPINGS_1 ... (NR_STATIC_MAPPINGS - 1U)] = {},
+/**
+ * @brief Static mapping for hypervisor reserved vectors and irq numbers
+ */
+struct irq_static_mapping {
+	uint32_t irq;		/**< The irq number in a map */
+	uint32_t vector;	/**< The vector number in a map */
 };
 
-/*
- * allocate a vector and bind it to irq
- * for legacy_irq (irq num < 16) and static mapped ones, do nothing
- * if mapping is correct.
- * retval: valid vector number on success, VECTOR_INVALID on failure.
+/**
+ * @brief Array of static IRQ mappings.
+ */
+static struct irq_static_mapping irq_static_mappings[NR_STATIC_MAPPINGS] = {
+	{ .irq = TIMER_IRQ,     .vector = TIMER_VECTOR },
+	{ .irq = THERMAL_IRQ,   .vector = THERMAL_VECTOR },
+	{ .irq = CMCI_IRQ,      .vector = CMCI_VECTOR },
+	{ .irq = NOTIFY_VCPU_IRQ, .vector = NOTIFY_VCPU_VECTOR },
+	{ .irq = PMI_IRQ,       .vector = PMI_VECTOR }
+};
+
+/**
+ * @brief Allocate a vector and bind it to irq
+ *
+ * If the irq has already been bound to a vector, just return the vector.
+ * else find a free vector from VECTOR_DYNAMIC_START to VECTOR_DYNAMIC_END and bind it to the irq.
+ * if the input irq is >= NR_IRQS, return VECTOR_INVALID.
+ *
+ * @param[in]	irq	The irq number to bind
+ *
+ * @return valid vector number on success, VECTOR_INVALID on failure
+ * @retval [0-255] valid vector number on success
+ * @retval VECTOR_INVALID invalid vector on failure.
  */
 uint32_t alloc_irq_vector(uint32_t irq)
 {
@@ -60,14 +104,14 @@ uint32_t alloc_irq_vector(uint32_t irq)
 
 		if (irqd->vector != VECTOR_INVALID) {
 			if (vector_to_irq[irqd->vector] == irq) {
-				/* statically binded */
+				/* statically bound */
 				vr = irqd->vector;
 			} else {
 				pr_err("[%s] irq[%u]:vector[%u] mismatch",
 					__func__, irq, irqd->vector);
 			}
 		} else {
-			/* alloc a vector between:
+			/* allocate a vector between:
 			 *   VECTOR_DYNAMIC_START ~ VECTOR_DYNAMIC_END
 			 */
 			for (vr = VECTOR_DYNAMIC_START;
@@ -89,12 +133,29 @@ uint32_t alloc_irq_vector(uint32_t irq)
 	return ret;
 }
 
+/**
+ * @brief X86 implementation of irq request.
+ *
+ * Allocate a vector for the given IRQ number and bind them.
+ *
+ * @param[in] irq The IRQ number to request.
+ *
+ * @return A boolean value indicating if the request succeeded or not
+ * @retval true IRQ Request succeeded
+ * @retval false IRQ Request failed
+ */
 bool request_irq_arch(uint32_t irq)
 {
 	return (alloc_irq_vector(irq) != VECTOR_INVALID);
 }
 
-/* free the vector allocated via alloc_irq_vector() */
+/**
+ * @brief Free the vector allocated via alloc_irq_vector().
+ *
+ * @param[in] irq The IRQ number to free.
+ *
+ * @return None
+ */
 static void free_irq_vector(uint32_t irq)
 {
 	struct x86_irq_data *irqd;
@@ -118,11 +179,27 @@ static void free_irq_vector(uint32_t irq)
 	}
 }
 
+/**
+ * @brief X86 implementation to free IRQ number.
+ *
+ * Free the internal vector for the given IRQ number.
+ *
+ * @param[in] irq The IRQ number to free.
+ *
+ * @return None
+ */
 void free_irq_arch(uint32_t irq)
 {
 	free_irq_vector(irq);
 }
 
+/**
+ * @brief Get vector number of an interrupt from irq number
+ *
+ * @param[in]	irq	The irq_num to convert
+ *
+ * @return Vector number corresponding to given irq number
+ */
 uint32_t irq_to_vector(uint32_t irq)
 {
 	uint64_t rflags;
@@ -137,6 +214,18 @@ uint32_t irq_to_vector(uint32_t irq)
 	return ret;
 }
 
+/**
+ * @brief Handle spurious interrupts
+ *
+ * Spurious interrupts are those triggered from unused vectors. This means a bug in hardware or
+ * the irq framework. To keep system working, send EOI to LAPIC to allow further interrupts.
+ * Account the spurious interrupts and prints a warning message. If more action is needed, other
+ * modules could register the spurious_handler to handle it.
+ *
+ * @param[in] vector The vector of the spurious interrupt.
+ *
+ * @return None
+ */
 static void handle_spurious_interrupt(uint32_t vector)
 {
 	send_lapic_eoi();
@@ -150,13 +239,36 @@ static void handle_spurious_interrupt(uint32_t vector)
 	}
 }
 
+/**
+ * @brief Check whether an IRQ descriptor needs to be masked on IOAPIC's side
+ *
+ * Level triggered GSI should be masked before handling the irq action.
+ *
+ * @param[in] desc The IRQ descriptor to check
+ *
+ * @return A boolean value indicating the check result
+ *
+ * @retval true This IRQ needs to be masked on IOAPIC
+ * @retval false This IRQ doesn't need to be masked on IOAPIC
+ */
 static inline bool irq_need_mask(const struct irq_desc *desc)
 {
-	/* level triggered gsi should be masked */
 	return (((desc->flags & IRQF_LEVEL) != 0U)
 		&& is_ioapic_irq(desc->irq));
 }
 
+/**
+ * @brief Check whether an IRQ descriptor needs to be unmasked on IOAPIC's side
+ *
+ * Level triggered GSI for non-passthrough device should be unmasked before exit interrupt handler.
+ *
+ * @param[in] desc The IRQ descriptor to check
+ *
+ * @return A boolean value indicating the check result
+ *
+ * @retval true This IRQ needs to be unmasked on IOAPIC
+ * @retval false This IRQ doesn't need to be unmasked on IOAPIC
+ */
 static inline bool irq_need_unmask(const struct irq_desc *desc)
 {
 	/* level triggered gsi for non-ptdev should be unmasked */
@@ -165,6 +277,18 @@ static inline bool irq_need_unmask(const struct irq_desc *desc)
 		&& is_ioapic_irq(desc->irq));
 }
 
+/**
+ * @brief X86 hook before invoking requested irq action handler
+ *
+ * Mask IOAPIC pin if it's configured as level triggered.
+ * Send EOI to LAPIC to allow to queue in new interrupts. Although as this time the local
+ * interrupt is masked by clearing RFLAGS.IF after entered interrupt gate, IOAPICs can queue in
+ * external interrupts in LAPIC as pending when executing irq action handler.
+ *
+ * @param[in] desc The irq_desc to handle
+ *
+ * @return None
+ */
 void pre_irq_arch(const struct irq_desc *desc)
 {
 	if (irq_need_mask(desc))  {
@@ -175,6 +299,15 @@ void pre_irq_arch(const struct irq_desc *desc)
 	send_lapic_eoi();
 }
 
+/**
+ * @brief X86 hook after executing requested irq action handler
+ *
+ * Unmask IOAPIC pin if it's configured as level triggered.
+ *
+ * @param[in] desc The irq_desc to handle
+ *
+ * @return None
+ */
 void post_irq_arch(const struct irq_desc *desc)
 {
 	if (irq_need_unmask(desc)) {
@@ -182,6 +315,19 @@ void post_irq_arch(const struct irq_desc *desc)
 	}
 }
 
+/**
+ * @brief Dispatch interrupt
+ *
+ * To dispatch an interrupt, an action callback will be called if registered.
+ * If no irq is registered for the vector, it is handled as a spurious interrupt by sending EOI
+ * and calling the registered spurious interrupt handler if it is available.
+ * Otherwise, call the generic IRQ handling routine to invoke regsitered irq actions and handle
+ * pending softirqs.
+ *
+ * @param[in] ctx Pointer to interrupt exception context
+ *
+ * @return None
+ */
 void dispatch_interrupt(const struct intr_excp_ctx *ctx)
 {
 	uint32_t vr = ctx->vector;
@@ -212,10 +358,20 @@ void dispatch_interrupt(const struct intr_excp_ctx *ctx)
 	}
 }
 
-/*
- * descs[] must have NR_IRQS entries
+/**
+ * @brief X86 implementation of irq_desc setup
+ *
+ * Setup static mapping between IRQ number and vectors for hypervisor owned interrupts. These IRQ
+ * numbers are reserved to prevent dynamic use.
+ * For each VM, a vector is reserved for Post Interrupt because there can at most only one vCPU
+ * from a VM to be assigned to a pCPU. Other hypervisor owned interrupts and their vectors are
+ * statically defined.
+ *
+ * @param[inout] descs The array of irq_desc to be initialized, must have NR_IRQS entries
+ *
+ * @return None
  */
-void init_irq_descs_arch(struct irq_desc descs[])
+void init_irq_descs_arch(struct irq_desc *descs)
 {
 	uint32_t i;
 
@@ -254,18 +410,40 @@ void init_irq_descs_arch(struct irq_desc descs[])
 	}
 }
 
-/* must be called after IRQ setup */
+/**
+ * @brief x86 implementation of IRQ setup
+ *
+ * Initialize IOAPIC pins and allocate vectors for legacy IRQs
+ * must be called after IRQ setup
+ *
+ * @return None
+ */
 void setup_irqs_arch(void)
 {
 	ioapic_setup_irqs();
 }
 
+/**
+ * @brief Disable interrupts of the Primary and Secondary PICs
+ *
+ * @return None
+ */
 static void disable_pic_irqs(void)
 {
 	pio_write8(0xffU, 0xA1U);
 	pio_write8(0xffU, 0x21U);
 }
 
+/**
+ * @brief Fixup early defined IDT descriptors
+ *
+ * The function iterates all the 128-bit IDT entries and put the handler offset field which was
+ * temporarily stored at high 64 bit to three corresponding bit fields.
+ *
+ * @param[in] idtd Base address of the IDT descriptors
+ *
+ * @return None
+ */
 static inline void fixup_idt(const struct host_idt_descriptor *idtd)
 {
 	uint32_t i;
@@ -282,6 +460,15 @@ static inline void fixup_idt(const struct host_idt_descriptor *idtd)
 	}
 }
 
+/**
+ * @brief Load IDT descriptor
+ *
+ * Load IDT descriptor to IDTR with lidtq instruction
+ *
+ * @param[in] idtd Base address of the IDT descriptor.
+ *
+ * @return None
+ */
 static inline void set_idt(struct host_idt_descriptor *idtd)
 {
 	asm volatile ("   lidtq %[idtd]\n" :	/* no output parameters */
@@ -289,6 +476,19 @@ static inline void set_idt(struct host_idt_descriptor *idtd)
 		      [idtd] "m"(*idtd));
 }
 
+/**
+ * @brief x86 specific exception and interrupt setup
+ *
+ * This function is called from every logical processor.
+ * If the specified physical cpu is the BSP,
+ *	Fix up the 64-bit IDT descriptor.
+ *	Disable PIC.
+ * For any cpu, this function loads the 64-bit IDT descriptor and initializes local APIC.
+ *
+ * @param[in] pcpu_id Physical cpu id.
+ *
+ * @return None
+ */
 void init_interrupt_arch(uint16_t pcpu_id)
 {
 	struct host_idt_descriptor *idtd = &HOST_IDTR;
@@ -304,3 +504,7 @@ void init_interrupt_arch(uint16_t pcpu_id)
 		disable_pic_irqs();
 	}
 }
+
+/**
+ * @}
+ */
