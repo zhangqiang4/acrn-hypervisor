@@ -454,6 +454,14 @@ static void detect_apicv_cap(void)
 		features |= VAPIC_FEATURE_TPR_SHADOW;
 	}
 
+	/* Check for IPI virtualization support using MSR_IA32_VMX_PROCBASED_CTLS3 */
+	if (is_ctrl_setting_allowed(msr_val, VMX_PROCBASED_CTLS_TERTIARY)) {
+		if (check_vmx_ctrl_64(MSR_IA32_VMX_PROCBASED_CTLS3, VMX_PROCBASED_CTLS3_IPI_VIRT) ==
+				VMX_PROCBASED_CTLS3_IPI_VIRT) {
+			features |= VAPIC_FEATURE_IPI_VIRT;
+		}
+	}
+
 	/* Read the MSR_IA32_VMX_PROCBASED_CTLS2 MSR and check for various APICv features */
 	msr_val = msr_read(MSR_IA32_VMX_PROCBASED_CTLS2);
 	if (is_ctrl_setting_allowed(msr_val, VMX_PROCBASED_CTLS2_VAPIC)) {
@@ -473,12 +481,6 @@ static void detect_apicv_cap(void)
 	msr_val = msr_read(MSR_IA32_VMX_PINBASED_CTLS);
 	if (is_ctrl_setting_allowed(msr_val, VMX_PINBASED_CTLS_POST_IRQ)) {
 		features |= VAPIC_FEATURE_POST_INTR;
-	}
-
-	/* Check for IPI virtualization support using MSR_IA32_VMX_PROCBASED_CTLS3 */
-	if (check_vmx_ctrl_64(MSR_IA32_VMX_PROCBASED_CTLS3, VMX_PROCBASED_CTLS3_IPI_VIRT) ==
-			VMX_PROCBASED_CTLS3_IPI_VIRT) {
-		features |= VAPIC_FEATURE_IPI_VIRT;
 	}
 
 	/* Store the detected features in the cpu_caps.apicv_features variable */
