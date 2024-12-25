@@ -43,7 +43,7 @@ struct idt_64_descriptor {
 	} high32;
 	uint32_t offset_63_32;
 	uint32_t rsvd;
-} __aligned(8);
+} __aligned(16);
 
 /*****************************************************************************
  *
@@ -52,7 +52,7 @@ struct idt_64_descriptor {
  *****************************************************************************/
 struct host_idt {
 	struct idt_64_descriptor host_idt_descriptors[HOST_IDT_ENTRIES];
-} __aligned(8);
+} __aligned(16);
 
 /*
  * Definition of the IDT descriptor.

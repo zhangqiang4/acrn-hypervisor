@@ -185,6 +185,8 @@ extern uint16_t mem_loglevel;
 extern uint16_t console_loglevel;
 extern uint16_t npk_loglevel;
 
+extern uint64_t irq_alloc_bitmap[IRQ_ALLOC_BITMAP_SIZE];
+
 static struct shell hv_shell;
 static struct shell *p_shell = &hv_shell;
 

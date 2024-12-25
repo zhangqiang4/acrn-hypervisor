@@ -25,8 +25,6 @@
 #define IRQF_LEVEL	(1U << 1U)	/* 1: level trigger; 0: edge trigger */
 #define IRQF_PT		(1U << 2U)	/* 1: for passthrough dev */
 
-extern uint64_t irq_alloc_bitmap[IRQ_ALLOC_BITMAP_SIZE];
-
 typedef void (*irq_action_t)(uint32_t irq, void *priv_data);
 
 /**
@@ -125,6 +123,13 @@ void do_irq(const uint32_t irq);
  */
 void init_interrupt(uint16_t pcpu_id);
 
+void init_interrupt_arch(uint16_t pcpu_id);
+void init_irq_descs_arch(struct irq_desc *descs);
+void setup_irqs_arch(void);
+void free_irq_arch(uint32_t irq);
+bool request_irq_arch(uint32_t irq);
+void pre_irq_arch(const struct irq_desc *desc);
+void post_irq_arch(const struct irq_desc *desc);
 
 /**
  * @}

@@ -8,6 +8,7 @@
 #define ARCH_X86_IRQ_H
 
 #include <types.h>
+#include <public/acrn_common.h>
 
 /**
  * @file arch/x86/asm/irq.h
@@ -93,8 +94,6 @@ struct x86_irq_data {
 #endif
 };
 
-struct intr_excp_ctx;
-
 /**
  * @brief Allocate a vectror and bind it to irq
  *
@@ -105,15 +104,20 @@ struct intr_excp_ctx;
  *
  * @return valid vector num on susccess, VECTOR_INVALID on failure
  */
-uint32_t alloc_irq_vector(uint32_t irq);
+struct intr_excp_ctx {
+	struct acrn_gp_regs gp_regs;	/**< General Purpose Register */
+	uint64_t vector;		/**< Vector number to index the IDT entry */
+	uint64_t error_code;		/**< Hardware pushed exception error code or a dummy 0 */
+	uint64_t rip;			/**< RIP register before entering the gate */
+	uint64_t cs;			/**< CS register before entering the gate */
+	uint64_t rflags;		/**< RFLAGS register before entering the gate */
+	uint64_t rsp;			/**< RSP register before entering the gate */
+	uint64_t ss;			/**< SS register before entering the gate */
+};
 
-/**
- * @brief Get vector number of an interrupt from irq number
- *
- * @param[in]	irq	The irq_num to convert
- *
- * @return vector number
- */
+void dispatch_exception(struct intr_excp_ctx *ctx);
+void handle_nmi(__unused struct intr_excp_ctx *ctx);
+uint32_t alloc_irq_vector(uint32_t irq);
 uint32_t irq_to_vector(uint32_t irq);
 
 /**
@@ -125,16 +129,6 @@ uint32_t irq_to_vector(uint32_t irq);
  */
 void dispatch_interrupt(const struct intr_excp_ctx *ctx);
 
-/* Arch specific routines called from generic IRQ handling */
 
-struct irq_desc;
-
-void init_irq_descs_arch(struct irq_desc *descs);
-void setup_irqs_arch(void);
-void init_interrupt_arch(uint16_t pcpu_id);
-void free_irq_arch(uint32_t irq);
-bool request_irq_arch(uint32_t irq);
-void pre_irq_arch(const struct irq_desc *desc);
-void post_irq_arch(const struct irq_desc *desc);
 
 #endif /* ARCH_X86_IRQ_H */
