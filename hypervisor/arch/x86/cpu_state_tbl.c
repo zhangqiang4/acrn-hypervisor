@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -10,8 +10,22 @@
 #include <asm/host_pm.h>
 #include <asm/cpu_caps.h>
 #include <asm/board.h>
+/**
+ * @addtogroup hwmgmt_hw-caps
+ *
+ * @{
+ */
 
-/* The table includes cpu px info of Intel A3960 SoC */
+/**
+ * @file
+ * @brief Definitions and implementations for CPU state management.
+ *
+ * This file contains the data structures and functions related to CPU state management within the hwmgmt.hw-caps
+ * module. It defines the state table for CPUs and provides interfaces for other modules to interact with CPU state
+ * information.
+ */
+
+/** @brief The static variable of table includes CPU Px info of Intel A3960 SoC */
 static const struct acrn_pstate_data px_a3960[17] = {
 	{0x960UL, 0UL, 0xAUL, 0xAUL, 0x1800UL, 0x1800UL}, /* P0 */
 	{0x8FCUL, 0UL, 0xAUL, 0xAUL, 0x1700UL, 0x1700UL}, /* P1 */
@@ -32,14 +46,14 @@ static const struct acrn_pstate_data px_a3960[17] = {
 	{0x320UL, 0UL, 0xAUL, 0xAUL, 0x0800UL, 0x0800UL}  /* P16 */
 };
 
-/* The table includes cpu cx info of Intel Broxton SoC such as A39x0, J3455, N3350 */
+/** @brief The static variable of table includes CPU Cx info of Intel Broxton SoC such as A39x0, J3455, N3350 */
 static const struct acrn_cstate_data cx_bxt[3] = {
 	{{SPACE_FFixedHW,  0x0U, 0U, 0U,     0UL}, 0x1U, 0x1U, 0x3E8UL}, /* C1 */
 	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x415UL}, 0x2U, 0x32U, 0x0AUL}, /* C2 */
 	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x419UL}, 0x3U, 0x96U, 0x0AUL}  /* C3 */
 };
 
-/* The table includes cpu px info of Intel A3950 SoC */
+/** @brief The static variable of table includes CPU Px info of Intel A3950 SoC */
 static const struct acrn_pstate_data px_a3950[13] = {
 	{0x7D0UL, 0UL, 0xAUL, 0xAUL, 0x1400UL, 0x1400UL}, /* P0 */
 	{0x76CUL, 0UL, 0xAUL, 0xAUL, 0x1300UL, 0x1300UL}, /* P1 */
@@ -56,7 +70,7 @@ static const struct acrn_pstate_data px_a3950[13] = {
 	{0x320UL, 0UL, 0xAUL, 0xAUL, 0x0800UL, 0x0800UL}  /* P12 */
 };
 
-/* The table includes cpu px info of Intel J3455 SoC */
+/** @brief The static variable of table includes CPU Px info of Intel J3455 SoC */
 static const struct acrn_pstate_data px_j3455[9] = {
 	{0x5DDUL, 0UL, 0xAUL, 0xAUL, 0x1700UL, 0x1700UL}, /* P0 */
 	{0x5DCUL, 0UL, 0xAUL, 0xAUL, 0x0F00UL, 0x0F00UL}, /* P1 */
@@ -69,7 +83,7 @@ static const struct acrn_pstate_data px_j3455[9] = {
 	{0x320UL, 0UL, 0xAUL, 0xAUL, 0x0800UL, 0x0800UL}  /* P8 */
 };
 
-/* The table includes cpu px info of Intel N3350 SoC */
+/** @brief The static variable of table includes CPU Px info of Intel N3350 SoC */
 static const struct acrn_pstate_data px_n3350[5] = {
 	{0x44DUL, 0UL, 0xAUL, 0xAUL, 0x1800UL, 0x1800UL}, /* P0 */
 	{0x44CUL, 0UL, 0xAUL, 0xAUL, 0x0B00UL, 0x0B00UL}, /* P1 */
@@ -78,7 +92,7 @@ static const struct acrn_pstate_data px_n3350[5] = {
 	{0x320UL, 0UL, 0xAUL, 0xAUL, 0x0800UL, 0x0800UL}  /* P4 */
 };
 
-/* The table includes cpu cx info of Intel i7-8650U SoC */
+/** @brief The static variable of table includes CPU Cx info of Intel i7-8650U SoC */
 static const struct acrn_pstate_data px_i78650[16] = {
 	{0x835UL, 0x0UL, 0xAUL, 0xAUL, 0x2A00UL, 0x2A00UL}, /* P0 */
 	{0x834UL, 0x0UL, 0xAUL, 0xAUL, 0x1500UL, 0x1500UL}, /* P1 */
@@ -98,13 +112,14 @@ static const struct acrn_pstate_data px_i78650[16] = {
 	{0x190UL, 0x0UL, 0xAUL, 0xAUL, 0x0400UL, 0x0400UL}  /* P15 */
 };
 
-/* The table includes cpu cx info of Intel i7-8650U SoC */
+/** @brief The static variable of table includes CPU Cx info of Intel i7-8650U SoC */
 static const struct acrn_cstate_data cx_i78650[3] = {
 	{{SPACE_FFixedHW,  0x0U, 0U, 0U,      0UL}, 0x1U, 0x1U,   0UL}, /* C1 */
 	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x1816UL}, 0x2U, 0x97U,  0UL}, /* C2 */
 	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x1819UL}, 0x3U, 0x40AU, 0UL}  /* C3 */
 };
 
+/** @brief The static variable of table includes CPU Px and Cx info of build-in Intel SoC models */
 static const struct cpu_state_table cpu_state_tbl[5] = {
 	{"Intel(R) Atom(TM) Processor A3960 @ 1.90GHz",
 		{(uint8_t)ARRAY_SIZE(px_a3960), px_a3960,
@@ -128,8 +143,31 @@ static const struct cpu_state_table cpu_state_tbl[5] = {
 	}
 };
 
+/**
+ * @brief Static structure variable storing CPU state information.
+ *
+ * This static variable 'cpu_pm_state_info' of type 'struct cpu_state_info' is used to store information about the CPU
+ * state.
+ */
 static struct cpu_state_info cpu_pm_state_info;
 
+
+/**
+ * @brief The internal function to get the index of a CPU in the built-in CPU states table by its model name.
+ *
+ * This function searches for the specified CPU model name in the built-in CPU state table 'cpu_state_tbl[]'. It
+ * returns the index if the CPU model name is found, otherwise it returns -1.
+ *
+ * @param[in] cpuname The model name of the CPU to search for.
+ *
+ * @return An int32_t value indicating the index of 'cpu_state_tbl[]' for the specified 'cpuname'.
+ *
+ * @retval >=0 The index of the global array 'cpu_state_tbl[]' for the specified 'cpuname'.
+ * @retval -1 The specified 'cpuname' was not found in the global array 'cpu_state_tbl[]'.
+ *
+ * @pre None
+ * @post None
+ */
 static int32_t get_state_tbl_idx(const char *cpuname)
 {
 	int32_t i;
@@ -148,11 +186,35 @@ static int32_t get_state_tbl_idx(const char *cpuname)
 	return ret;
 }
 
+/**
+ * @brief The interface to get the CPU state information.
+ *
+ * This function returns a pointer to the data structure containing the CPU state information. The data structure is
+ * defined as `struct cpu_state_info` and is stored in the global variable 'cpu_pm_state_info'.
+ *
+ * @return A pointer to the global variable 'cpu_pm_state_info'.
+ *
+ * @pre N/A
+ * @post N/A
+ */
 struct cpu_state_info *get_cpu_pm_state_info(void)
 {
 	return &cpu_pm_state_info;
 }
 
+/**
+ * @brief The internal function to store CPU state information.
+ *
+ * This function stores the provided CPU state information into the global variable 'cpu_pm_state_info'. It also
+ * adjusts the counts of C and P state if the provided values exceed predefined limits.
+ *
+ * @param[in] state_info A pointer to a 'struct cpu_state_info' containing the CPU state information.
+ *
+ * @return None
+ *
+ * @pre state_info != NULL
+ * @post None
+ */
 static void load_cpu_state_info(const struct cpu_state_info *state_info)
 {
 	if ((state_info->px_cnt != 0U) && (state_info->px_data != NULL)) {
@@ -176,6 +238,23 @@ static void load_cpu_state_info(const struct cpu_state_info *state_info)
 	}
 }
 
+/**
+ * @brief The interface to load CPU state data for the physical CPU.
+ *
+ * This function initializes the global CPU state information by loading data from the appropriate CPU state table,
+ * which is found by following attempts:
+ * 1. It first attempts to find the CPU state information in the global 'cpu_state_tbl[]', based on the CPU model name
+ *    returned by get_pcpu_info().
+ * 2. If not found, it further checks the 'board_cpu_state_tbl' for a valid CPU state table generated by the offline
+ *    tool.
+ * If a CPU state table is found, the global CPU state information 'cpu_pm_state_info' is initialized accordingly.
+ * Otherwise, it is not initialized.
+ *
+ * @return None
+ *
+ * @pre None
+ * @post None
+ */
 void load_pcpu_state_data(void)
 {
 	int32_t tbl_idx;
@@ -187,10 +266,10 @@ void load_pcpu_state_data(void)
 	tbl_idx = get_state_tbl_idx(cpu_info->model_name);
 
 	if (tbl_idx >= 0) {
-		/* The cpu state table is found at global cpu_state_tbl[]. */
+		/* The CPU state table is found at global cpu_state_tbl[]. */
 		state_info = &(cpu_state_tbl + tbl_idx)->state_info;
 	} else {
-		/* check whether board.c has a valid cpu state table which generated by offline tool */
+		/* check whether board.c has a valid CPU state table which generated by offline tool */
 		if (strcmp((board_cpu_state_tbl.model_name), cpu_info->model_name) == 0) {
 			state_info = &board_cpu_state_tbl.state_info;
 		}
@@ -199,3 +278,7 @@ void load_pcpu_state_data(void)
 		load_cpu_state_info(state_info);
 	}
 }
+
+/**
+ * @}
+ */

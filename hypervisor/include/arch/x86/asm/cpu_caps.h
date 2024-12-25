@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -7,7 +7,7 @@
 #ifndef CPUINFO_H
 #define CPUINFO_H
 /**
- * @addtogroup hwmgmt_hw-caps  hwmgmt.hw-caps
+ * @addtogroup hwmgmt_hw-caps
  *
  * @{
  */

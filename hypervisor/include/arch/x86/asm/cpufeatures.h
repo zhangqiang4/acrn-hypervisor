@@ -7,7 +7,7 @@
 #ifndef CPUFEATURES_H
 #define CPUFEATURES_H
 /**
- * @addtogroup hwmgmt_hw-caps  hwmgmt.hw-caps
+ * @addtogroup hwmgmt_hw-caps
  *
  * @{
  */

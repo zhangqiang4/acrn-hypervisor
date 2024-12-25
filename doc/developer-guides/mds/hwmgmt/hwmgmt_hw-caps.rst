@@ -30,8 +30,14 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 [File] arch/x86/platform_caps.c
 ======================================================================
 
+.. doxygenfile:: platform_caps.c
+   :project: Project ACRN
+
 [File] arch/x86/cpu_state_tbl.c
 ======================================================================
+
+.. doxygenfile:: cpu_state_tbl.c
+   :project: Project ACRN
 
 [File] boot/include/acpi.h
 ======================================================================
@@ -53,4 +59,7 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 
 [File] include/arch/x86/asm/platform_caps.h
 ======================================================================
+
+.. doxygenfile:: platform_caps.h
+   :project: Project ACRN
 
