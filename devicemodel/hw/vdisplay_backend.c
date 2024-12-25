@@ -58,7 +58,7 @@ static struct display {
 	int scrs_num;
 	int pipe_num;
 	int vfid;
-
+	uint32_t dgpu_crtc_bitmask;
 	int backlight_num;
 	char *backlight[MAX_BACKLIGHT_DEVICE];
 	pthread_t tid;
@@ -1054,6 +1054,7 @@ vdpy_init(struct vdpy_if *vdpy_if, vblank_inject_func func, void *data)
 		vdpy_if->pipe_num = vdpy.pipe_num;
 		vdpy_if->backlight_num = vdpy.backlight_num;
 		vdpy_if->vfid = vdpy.vfid;
+		vdpy_if->dgpu_crtc_bitmask = vdpy.dgpu_crtc_bitmask;
 		for(count=0; count< vdpy.scrs_num; count++) {
 			vdpy_vblank_init(count,func,data);
 		}
@@ -1394,6 +1395,7 @@ int vdpy_parse_cmd_option(const char *opts)
 {
 	char *str, *stropts, *tmp, *subtmp;
 	int error, snum, vfid = 0;
+	uint32_t bitmask = 0;
 	int hz = -1;
 	struct screen *scr;
 
@@ -1409,6 +1411,7 @@ int vdpy_parse_cmd_option(const char *opts)
 	vdpy.pipe_num = 0;
 	vdpy.backlight_num = 0;
 	vdpy.vfid = 0;
+	vdpy.dgpu_crtc_bitmask = 0;
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
 		if (strcasestr(str, "backlight=")) {
@@ -1424,11 +1427,12 @@ int vdpy_parse_cmd_option(const char *opts)
 			continue;
 		}
 		if (strcasestr(str, "dgpu-vfid=")) {
-			snum = sscanf(str, "dgpu-vfid=%d", &vfid);
-			if (snum == 1)
+			snum = sscanf(str, "dgpu-vfid=%d:0x%x", &vfid, &bitmask);
+			if (snum == 2) {
 				vdpy.vfid = vfid;
-			else
-				pr_err("invalid value for vfid: %s\n", str);
+				vdpy.dgpu_crtc_bitmask = bitmask;
+			} else
+				pr_err("invalid value for vfid setting %s, correct format is: vfid=[num]:[bitmask] \n", str);
 			continue;
 		}
 

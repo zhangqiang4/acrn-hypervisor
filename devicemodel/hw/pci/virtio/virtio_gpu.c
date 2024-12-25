@@ -104,6 +104,7 @@ struct virtio_gpu_config {
 	uint32_t num_scanouts;
 	uint32_t num_capsets;
 	uint32_t num_pipe;
+	uint32_t output_bitmask;
 	uint32_t num_backlight;
 };
 
@@ -404,6 +405,10 @@ struct virtio_gpu_resource_create_blob {
 #define VIRTIO_GPU_BLOB_MEM_GUEST             0x0001
 
 #define VIRTIO_GPU_BLOB_FLAG_USE_SHAREABLE    0x0002
+#define VIRTGPU_BLOB_FLAG_USE_DEVICE_MEM      0x0008
+#define VIRTIO_GPU_BLOB_FLAG_CAP_MASK   (VIRTIO_GPU_BLOB_FLAG_USE_SHAREABLE | \
+					VIRTGPU_BLOB_FLAG_USE_DEVICE_MEM)
+
 	/* blob_mem/blob_id is not used */
 	uint32_t blob_mem;
 	uint32_t blob_flags;
@@ -1700,7 +1705,7 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 	}
 
 	if ((req.blob_mem != VIRTIO_GPU_BLOB_MEM_GUEST) ||
-		(req.blob_flags != VIRTIO_GPU_BLOB_FLAG_USE_SHAREABLE)) {
+		(req.blob_flags & (~VIRTIO_GPU_BLOB_FLAG_CAP_MASK))) {
 		pr_dbg("%s : invalid create_blob parameter for %d.\n",
 				__func__, req.resource_id);
 		resp.type = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
@@ -1744,16 +1749,18 @@ virtio_gpu_cmd_create_blob(struct virtio_gpu_command *cmd)
 		}
 		if (req.size > CURSOR_BLOB_SIZE) {
 			/* Try to create the dma buf */
-			if (cmd->gpu->vdpy_if.vfid > 0)
+			if ((cmd->gpu->vdpy_if.vfid > 0) && (req.blob_flags & VIRTGPU_BLOB_FLAG_USE_DEVICE_MEM)) {
 				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
 									entries,
 									req.nr_entries,
 									MEMORY_TYPE_I915_DEVICE);
-			if (r2d->dma_info == NULL)
+			}
+			if (r2d->dma_info == NULL) {
 				r2d->dma_info = virtio_gpu_create_dmabuf(cmd->gpu,
 									entries,
 									req.nr_entries,
 									MEMORY_TYPE_MEMFD);
+			}
 			if (r2d->dma_info == NULL) {
 				free(entries);
 				resp.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
@@ -2529,7 +2536,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	gpu->cfg.num_capsets = 0;
 	gpu->cfg.num_pipe = gpu->vdpy_if.pipe_num;
 	gpu->cfg.num_backlight = gpu->vdpy_if.backlight_num;
-
+	gpu->cfg.output_bitmask = gpu->vdpy_if.dgpu_crtc_bitmask;
 
 	/* config the device id and vendor id according to spec */
 	pci_set_cfgdata16(dev, PCIR_DEVICE, VIRTIO_DEV_GPU);

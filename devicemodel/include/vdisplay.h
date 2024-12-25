@@ -114,6 +114,7 @@ struct vdpy_if {
 	int pipe_num;
 	int backlight_num;
 	int vfid;
+	uint32_t dgpu_crtc_bitmask;
 };
 
 struct screen_backend_ops {
