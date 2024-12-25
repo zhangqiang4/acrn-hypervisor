@@ -118,6 +118,8 @@ static void init_vmcs9900(struct pci_vdev *vdev)
 	pci_vdev_write_vcfg(vdev, PCIR_VENDOR, 2U, MCS9900_VENDOR);
 	pci_vdev_write_vcfg(vdev, PCIR_DEVICE, 2U, MCS9900_DEV);
 	pci_vdev_write_vcfg(vdev, PCIR_CLASS, 1U, PCIC_SIMPLECOMM);
+	pci_vdev_write_vcfg(vdev, PCIR_HDRTYPE, 1U,
+			PCIM_HDRTYPE_NORMAL | ((vdev->bdf.bits.f == 0U) ? PCIM_MFDEV : 0U));
 	pci_vdev_write_vcfg(vdev, PCIV_SUB_SYSTEM_ID, 2U, 0x1000U);
 	pci_vdev_write_vcfg(vdev, PCIV_SUB_VENDOR_ID, 2U, 0xa000U);
 	pci_vdev_write_vcfg(vdev, PCIR_SUBCLASS, 1U, 0x0U);
