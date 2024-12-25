@@ -124,7 +124,7 @@
                   <xsl:variable name="b" select="substring-before(vbdf/text(), ':')" />
                   <xsl:variable name="d" select="substring-before(substring-after(vbdf/text(), ':'), '.')" />
                   <xsl:variable name="f" select="substring-after(vbdf/text(), '.')" />
-                  <xsl:value-of select="acrn:initializer('vbdf.bits', concat('{', '0x', $b, ', ', '0x', $d, ', ', '0x', $f, '}'))" />
+                  <xsl:value-of select="acrn:initializer('vbdf.bits', concat('{', '.b = 0x', $b, ', ', '.d = 0x', $d, ', ', '.f = 0x', $f, '}'))" />
                 </xsl:otherwise>
               </xsl:choose>
             </xsl:when>
