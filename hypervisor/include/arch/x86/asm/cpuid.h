@@ -118,6 +118,8 @@
 #define CPUID_ECX_PKE		(1U<<3U)
 /* CPUID.07H:ECX.CET_SS */
 #define CPUID_ECX_CET_SS        (1U<<7U)
+/* CPUID.07H:ECX.TME */
+#define CPUID_ECX_TME		(1U<<13U)
 /* CPUID.07H:ECX.LA57 */
 #define CPUID_ECX_LA57		(1U<<16U)
 /* CPUID.07H:ECX.SGX_LC*/
@@ -126,6 +128,8 @@
 #define CPUID_ECX_PKS           (1U<<31U)
 /* CPUID.07H:EDX.Hybrid */
 #define CPUID_EDX_HYBRID        (1U<<15U)
+/* CPUID.07H:EDX.PCONFIG */
+#define CPUID_EDX_PCONFIG       (1U<<18U)
 /* CPUID.07H:EDX.CET_IBT */
 #define CPUID_EDX_CET_IBT       (1U<<20U)
 /* CPUID.07H:EDX.IBRS_IBPB*/

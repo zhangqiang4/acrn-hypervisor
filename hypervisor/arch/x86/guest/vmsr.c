@@ -263,6 +263,18 @@ static const uint32_t unsupported_msrs[] = {
 	IA32_HW_FEEDBACK_CONFIG,
 	IA32_THREAD_FEEDBACK_CHAR,
 	IA32_HW_FEEDBACK_THREAD_CONFIG,
+
+	/*
+	 * TME registers disabled:
+	 * CPUID.07H.ECX[13]
+	 * CPUID.07H.EDX[18]
+	 * CPUID.1BH
+	 */
+	MSR_IA32_TME_CAPABILITY,
+	MSR_IA32_TME_ACTIVATE,
+	MSR_IA32_TME_EXCLUDE_MASK,
+	MSR_IA32_TME_EXCLUDE_BASE,
+	MSR_CORE_MKTME_ACTIVATION,
 };
 
 /* emulated_guest_msrs[] shares same indexes with array vcpu->arch->guest_msrs[] */

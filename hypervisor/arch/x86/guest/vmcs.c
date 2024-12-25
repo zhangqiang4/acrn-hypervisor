@@ -359,6 +359,9 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 
 	value32 |= VMX_PROCBASED_CTLS2_WBINVD;
 
+	/* Disable PCONFIG */
+	value32 &= ~VMX_PROCBASED_CTLS2_PCONFIG;
+
 	exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
 	pr_dbg("VMX_PROC_VM_EXEC_CONTROLS2: 0x%x ", value32);
 

@@ -285,6 +285,10 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	entry.ecx &= ~CPUID_ECX_CET_SS;
 	entry.edx &= ~CPUID_EDX_CET_IBT;
 
+	/* mask TME */
+	entry.ecx &= ~CPUID_ECX_TME;
+	entry.edx &= ~CPUID_EDX_PCONFIG;
+
 	if ((cr4_reserved_mask & CR4_FSGSBASE) != 0UL) {
 		entry.ebx &= ~CPUID_EBX_FSGSBASE;
 	}
@@ -767,13 +771,6 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 			guest_cpuid_0dh(vcpu, eax, ebx, ecx, edx);
 			break;
 
-		/* 0x14U for hybrid arch */
-		case CPUID_TRACE:
-			*eax = 0U;
-			*ebx = 0U;
-			*ecx = 0U;
-			*edx = 0U;
-			break;
 		/* 0x19U */
 		case CPUID_KEY_LOCKER:
 			guest_cpuid_19h(vcpu, eax, ebx, ecx, edx);
@@ -787,6 +784,17 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 		/* 0x80000001U */
 		case CPUID_EXTEND_FUNCTION_1:
 			guest_cpuid_80000001h(vcpu, eax, ebx, ecx, edx);
+			break;
+
+		/* 0x14U for hybrid arch */
+		case CPUID_TRACE:
+			/* FALLTHROUGH */
+		/* 0x1BU for PCONFIG*/
+		case CPUID_PCONFIG:
+			*eax = 0U;
+			*ebx = 0U;
+			*ecx = 0U;
+			*edx = 0U;
 			break;
 
 		default:
