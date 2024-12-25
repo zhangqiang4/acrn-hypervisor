@@ -35,7 +35,7 @@
 
     /* header magic */
     .long   MULTIBOOT_HEADER_MAGIC
-    /* header flags - flags bit 6 : enable mmap_* */
+    /* header flags - flags bit 1 : enable mmap_* */
     .long   MULTIBOOT_HEADER_FLAGS
     /* header checksum = -(magic + flags) */
     .long   -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)

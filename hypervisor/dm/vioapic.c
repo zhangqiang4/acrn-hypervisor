@@ -42,7 +42,7 @@
 #define DBG_LEVEL_VIOAPIC	6U
 #define ACRN_IOAPIC_VERSION	0x11U
 
-#define MASK_ALL_INTERRUPTS   0x0001000000010000UL
+#define MASK_ALL_INTERRUPTS   0x0000000000010000UL
 
 static inline struct acrn_vioapics *vm_ioapics(const struct acrn_vm *vm)
 {
