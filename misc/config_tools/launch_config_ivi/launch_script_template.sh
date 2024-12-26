@@ -395,20 +395,6 @@ function enable_dgpu_vf() {
 			echo $schedexecq | tee -a "$iov_dir/vf$i/gt/exec_quantum_ms"
 			echo $schedtimeout | tee -a "$iov_dir/vf$i/gt/preempt_timeout_us"
 		done
-
-		# W/A: It's likely that dGPU SR-IOV works with lease based
-		# virtualized display. We suffer from race condition in startup
-		# of drm-lease-manager and probing of dGPU KMD (i915_ag), i.e.,
-		# drm-lease-manager would fail to start if it runs before
-		# probing of i915_ag finishes.
-		#
-		# As a workaround, give it a chance to start drm-lease-manager
-		# right before using it. If it is already running, the
-		# following command would be a no-op.
-		#
-		# The race condition would be eliminated when i915_ag is
-		# embedded into the kernel image.
-		systemctl start drm-lease-manager
 	fi
 }
 
