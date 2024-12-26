@@ -1071,10 +1071,15 @@ pci_emul_init(struct vmctx *ctx, struct pci_vdev_ops *ops, int bus, int slot,
 	else
 		fi->fi_param = NULL;
 	err = (*ops->vdev_init)(ctx, pdi, fi->fi_param);
-	if (err == 0)
+	if (err == 0) {
 		fi->fi_devi = pdi;
-	else
+	} else {
+		pci_lintr_release(pdi);
+		/* have set PCIR_COMMAND, this can clean allocated mem handler of bar spaces */
+		pci_emul_free_bars(pdi);
+		pci_emul_free_msixcap(pdi);
 		free(pdi);
+	}
 
 	return err;
 }
