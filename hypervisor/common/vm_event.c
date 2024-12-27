@@ -11,22 +11,12 @@
 #include <vm_event.h>
 #include <sbuf.h>
 
-int32_t init_vm_event(struct acrn_vm *vm, uint64_t *hva)
+int32_t init_vm_event(struct acrn_vm *vm, struct shared_buf *sbuf)
 {
-	struct shared_buf *sbuf = (struct shared_buf *)hva;
-	int ret = -1;
+	vm->sw.vm_event_sbuf = sbuf;
+	spinlock_init(&vm->vm_event_lock);
 
-	stac();
-	if (sbuf != NULL) {
-		if (sbuf->magic == SBUF_MAGIC) {
-			vm->sw.vm_event_sbuf = sbuf;
-			spinlock_init(&vm->vm_event_lock);
-			ret = 0;
-		}
-	}
-	clac();
-
-	return ret;
+	return 0;
 }
 
 int32_t send_vm_event(struct acrn_vm *vm, struct vm_event *event)

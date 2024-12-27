@@ -345,23 +345,13 @@ void set_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id, uint32_t state)
 	}
 }
 
-int init_asyncio(struct acrn_vm *vm, uint64_t *hva)
+int init_asyncio(struct acrn_vm *vm, struct shared_buf *sbuf)
 {
-	struct shared_buf *sbuf = (struct shared_buf *)hva;
-	int ret = -1;
+	vm->sw.asyncio_sbuf = sbuf;
+	INIT_LIST_HEAD(&vm->aiodesc_queue);
+	spinlock_init(&vm->asyncio_lock);
 
-	stac();
-	if (sbuf != NULL) {
-		if (sbuf->magic == SBUF_MAGIC) {
-			vm->sw.asyncio_sbuf = sbuf;
-			INIT_LIST_HEAD(&vm->aiodesc_queue);
-			spinlock_init(&vm->asyncio_lock);
-			ret = 0;
-		}
-	}
-	clac();
-
-	return ret;
+	return 0;
 }
 
 void set_hsm_notification_vector(uint32_t vector)

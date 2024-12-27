@@ -15,6 +15,7 @@
 #include <asm/cpu.h>
 #include <asm/per_cpu.h>
 #include <vm_event.h>
+#include <asm/mmu.h>
 
 uint32_t sbuf_next_ptr(uint32_t pos_arg,
 		uint32_t span, uint32_t scope)
@@ -89,12 +90,12 @@ uint32_t sbuf_put(struct shared_buf *sbuf, uint8_t *data, uint32_t max_len)
 	return ret;
 }
 
-int32_t sbuf_share_setup(uint16_t pcpu_id, uint32_t sbuf_id, uint64_t *hva)
+int32_t sbuf_share_setup(uint16_t pcpu_id, uint32_t sbuf_id, struct shared_buf *sbuf)
 {
 	int ret = -EINVAL;
 
 	if ((pcpu_id < get_pcpu_nums()) && (sbuf_id < ACRN_SBUF_PER_PCPU_ID_MAX)) {
-		per_cpu(sbuf, pcpu_id)[sbuf_id] = (struct shared_buf *) hva;
+		per_cpu(sbuf, pcpu_id)[sbuf_id] = sbuf;
 		pr_info("%s share sbuf for pCPU[%u] with sbuf_id[%u] setup successfully",
 				__func__, pcpu_id, sbuf_id);
 		ret = 0;
@@ -114,26 +115,46 @@ void sbuf_reset(void)
 	}
 }
 
-int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id, uint64_t *hva)
+int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id, uint64_t gpa, struct shared_buf *sbuf)
 {
 	int32_t ret = 0;
+	uint64_t size;
+	uint64_t hva;
+	uint64_t temp_gpa;
 
-	switch (sbuf_id) {
-		case ACRN_TRACE:
-		case ACRN_HVLOG:
-		case ACRN_SEP:
-		case ACRN_SOCWATCH:
-			ret = sbuf_share_setup(cpu_id, sbuf_id, hva);
-			break;
-		case ACRN_ASYNCIO:
-			ret = init_asyncio(vm, hva);
-			break;
-		case ACRN_VM_EVENT:
-			ret = init_vm_event(vm, hva);
-			break;
-		default:
-			pr_err("%s not support sbuf_id %d", __func__, sbuf_id);
+	/* pr_* breaks stac/clac */
+	stac();
+	size = sbuf->size + SBUF_HEAD_SIZE;
+	clac();
+	
+	/* sbuf requires hva to be continuous */
+	hva = (uint64_t)sbuf + PAGE_SIZE;
+	for (temp_gpa = (gpa + PAGE_SIZE); temp_gpa < (gpa + size); temp_gpa += PAGE_SIZE) {
+		if ((uint64_t)gpa2hva(vm, temp_gpa) != hva) {
+			pr_err("sbuf: gpa 0x%016lx is not mapped to continous hva", temp_gpa);
 			ret = -1;
+			break;
+		}
+		hva += PAGE_SIZE;
+	}
+
+	if (ret == 0) {
+		switch (sbuf_id) {
+			case ACRN_TRACE:
+			case ACRN_HVLOG:
+			case ACRN_SEP:
+			case ACRN_SOCWATCH:
+				ret = sbuf_share_setup(cpu_id, sbuf_id, sbuf);
+				break;
+			case ACRN_ASYNCIO:
+				ret = init_asyncio(vm, sbuf);
+				break;
+			case ACRN_VM_EVENT:
+				ret = init_vm_event(vm, sbuf);
+				break;
+			default:
+				pr_err("sbuf: unsupported sbuf_id %u", sbuf_id);
+		}
 	}
 
 	return ret;

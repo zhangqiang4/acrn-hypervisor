@@ -527,14 +527,36 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 {
 	struct acrn_vm *vm = vcpu->vm;
 	struct acrn_sbuf_param asp;
-	uint64_t *hva;
+	struct shared_buf *sbuf;
+	uint64_t magic;
+	uint32_t size;
 	int ret = -1;
 
-	if (copy_from_gpa(vm, &asp, param2, sizeof(asp)) == 0) {
-		if (asp.gpa != 0U) {
-			hva = (uint64_t *)gpa2hva(vm, asp.gpa);
-			ret = sbuf_setup_common(target_vm, asp.cpu_id, asp.sbuf_id, hva);
+	if ((copy_from_gpa(vm, &asp, param2, sizeof(asp)) == 0) &&
+	    (asp.gpa != 0U) && mem_aligned_check(asp.gpa, PAGE_SIZE) &&
+	    ((sbuf = (struct shared_buf*)gpa2hva(vm, asp.gpa)) != NULL)) {
+		/* pr_* breaks stac/clac */
+		stac();
+		magic = sbuf->magic;
+		size = sbuf->size + SBUF_HEAD_SIZE;
+		clac();
+
+		if ((magic == SBUF_MAGIC) && (size != 0)) {
+			pr_info("sbuf: setting up sbuf at gpa 0x%016lx, size 0x%x, type: %d", asp.gpa, size, asp.sbuf_id);
+
+			/* Check from the next page of header locates */
+			if (size > PAGE_SIZE) {
+				ret = !ept_is_valid_mr(vm, asp.gpa + PAGE_SIZE, size - PAGE_SIZE);
+			}
+
+			if (ret == 0) {
+				ret = sbuf_setup_common(target_vm, asp.cpu_id, asp.sbuf_id, asp.gpa, sbuf);
+			}
 		}
+	}
+
+	if (ret != 0) {
+		pr_err("sbuf: invalid sbuf gpa 0x%016lx", asp.gpa);
 	}
 	return ret;
 }
