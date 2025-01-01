@@ -72,6 +72,52 @@ function offline_cpus() {
     done
 }
 
+function configure_cpus_governor() {
+    # Each parameter of this function is considered the APIC ID (as is reported in /proc/cpuinfo, in decimal) of a CPU
+    # assigned to a post-launched VM.
+    for i in $*; do
+        processor_id=$(grep -B 15 "apicid.*: ${i}$" /proc/cpuinfo | grep "^processor" | head -n 1 | cut -d ' ' -f 2)
+        if [ -z ${processor_id} ]; then
+            log2stderr "No processor found for APIC ID ${i}. Skipping..."
+            continue
+        fi
+
+        # Define the path to the CPU governor settings
+        governor_path="/sys/devices/system/cpu/cpu${processor_id}/cpufreq/scaling_governor"
+        available_governors_path="/sys/devices/system/cpu/cpu${processor_id}/cpufreq/scaling_available_governors"
+
+        # Check if the scaling_available_governors file exists
+        if [ -f "$available_governors_path" ]; then
+            available_governors=$(cat "$available_governors_path")
+            # Check if 'powersave' is available in the list of governors
+            if [[ "$available_governors" == *"powersave"* ]]; then
+                # Check if the current governor is already set to 'powersave'
+                governor=$(cat "$governor_path")
+                if [ "$governor" != "powersave" ]; then
+                    # Set the governor to 'powersave'
+                    echo "powersave" > $governor_path
+                    governor=$(cat "$governor_path")
+
+                    # Retry logic in case it fails
+                    while [ "$governor" != "powersave" ]; do
+                        sleep 1
+                        echo "powersave" > $governor_path
+                        governor=$(cat "$governor_path")
+                    done
+                    log2stderr "Configure cpu${processor_id} governor to powersave."
+                else
+                    log2stderr "Governor of cpu${processor_id} is already set to powersave."
+                fi
+            else
+                log2stderr "Powersave governor is not available for cpu${processor_id}. Skipping..."
+            fi
+        else
+            log2stderr "No scaling_available_governors file for cpu${processor_id}. Skipping governor check."
+        fi
+
+    done
+}
+
 function unbind_device() {
     physical_bdf=$1
 
@@ -136,6 +182,11 @@ function add_cpus() {
 
     if [ "${vm_type}" = "RTVM" ] || [ "${scheduler}" = "SCHED_NOOP" ] || [ "${own_pcpu}" = "y" ]; then
         offline_cpus $*
+    fi
+
+    #Configure governor of CPU to powersave for CPU sharing case.
+    if [ "${own_pcpu}" = "None" ]; then
+        configure_cpus_governor $*
     fi
 
     cpu_list=$(local IFS=, ; echo "$*")
