@@ -258,11 +258,8 @@ struct acrn_vm *get_highest_severity_vm(bool runtime);
 bool vm_hide_mtrr(const struct acrn_vm *vm);
 bool is_vhwp_configured(const struct acrn_vm *vm);
 bool is_mc_pt_configured(const struct acrn_vm *vm);
-bool is_vtm_configured(const struct acrn_vm *vm);
-bool is_vptm_configured(const struct acrn_vm *vm);
-/*
- * @pre vm != NULL
- */
+bool is_tm_pt_configured(const struct acrn_vm *vm);
+bool is_ptm_pt_configured(const struct acrn_vm *vm);
 void get_vm_lock(struct acrn_vm *vm);
 
 /*

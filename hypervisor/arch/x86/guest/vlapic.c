@@ -831,7 +831,7 @@ vlapic_trigger_lvt(struct acrn_vlapic *vlapic, uint32_t lvt_index)
 			lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_PERF_LVT);
 			break;
 		case APIC_LVT_THERMAL:
-			if (is_vtm_configured(vcpu->vm)) {
+			if (is_tm_pt_configured(vcpu->vm)) {
 				lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_THERM_LVT);
 			} else {
 				lvt = 0U;

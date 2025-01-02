@@ -333,14 +333,14 @@ static void enable_msr_interception(uint8_t *bitmap, uint32_t msr_arg, uint32_t 
 static void init_thermal_msrs(struct acrn_vcpu *vcpu)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
-	if (!is_vtm_configured(vcpu->vm)) {
+	if (!is_tm_pt_configured(vcpu->vm)) {
 		enable_msr_interception(msr_bitmap, MSR_IA32_CLOCK_MODULATION, INTERCEPT_READ_WRITE);
 		enable_msr_interception(msr_bitmap, MSR_IA32_THERM_INTERRUPT, INTERCEPT_READ_WRITE);
 		if (!is_vhwp_configured(vcpu->vm)) {
 			enable_msr_interception(msr_bitmap, MSR_IA32_THERM_STATUS, INTERCEPT_READ_WRITE);
 		}
 	}
-	if (!is_vptm_configured(vcpu->vm)) {
+	if (!is_ptm_pt_configured(vcpu->vm)) {
 		enable_msr_interception(msr_bitmap, MSR_IA32_PACKAGE_THERM_STATUS, INTERCEPT_READ_WRITE);
 		enable_msr_interception(msr_bitmap, MSR_IA32_PACKAGE_THERM_INTERRUPT, INTERCEPT_READ_WRITE);
 	}
@@ -374,7 +374,7 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_XAPICID, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LDR, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_WRITE);
-		if (!is_vtm_configured(vcpu->vm)) {
+		if (!is_tm_pt_configured(vcpu->vm)) {
 			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LVT_THERMAL, INTERCEPT_READ_WRITE);
 		}
 		set_tsc_msr_interception(vcpu, exec_vmread64(VMX_TSC_OFFSET_FULL) != 0UL);

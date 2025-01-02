@@ -193,7 +193,7 @@ bool is_mc_pt_configured(const struct acrn_vm *vm)
 /**
  * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
  */
-bool is_vtm_configured(const struct acrn_vm *vm)
+bool is_tm_pt_configured(const struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
@@ -203,7 +203,7 @@ bool is_vtm_configured(const struct acrn_vm *vm)
 /**
  * @pre vm != NULL && vm_config != NULL && vm->vmid < CONFIG_MAX_VM_NUM
  */
-bool is_vptm_configured(const struct acrn_vm *vm)
+bool is_ptm_pt_configured(const struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
