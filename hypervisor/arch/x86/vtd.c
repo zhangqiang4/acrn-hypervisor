@@ -1269,6 +1269,8 @@ int32_t init_iommu(void)
 			do_action_for_iommus(prepare_dmar);
 		}
 	}
+
+	enable_iommu();
 	return ret;
 }
 
