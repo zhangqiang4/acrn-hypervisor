@@ -970,7 +970,8 @@ EXCLUDE_PATTERNS       =
 # names given to unnamed nested unions
 
 EXCLUDE_SYMBOLS        = *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
-                        version_info per_cpu_data hv_clos
+                        version_info per_cpu_data hv_clos vcpu2vlapci vm2vcpu acrn_mmiodev \
+                        hc_ptdev_irq
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

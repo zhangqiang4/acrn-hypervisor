@@ -1,15 +1,9 @@
 /*
  * common definition
  *
- * Copyright (C) 2017-2022 Intel Corporation.
+ * Copyright (C) 2017-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
- */
-
-/**
- * @file acrn_common.h
- *
- * @brief acrn common data structure for hypercall or ioctl
  */
 
 #ifndef ACRN_COMMON_H
@@ -21,33 +15,84 @@
  * Common structures for ACRN/HSM/DM
  */
 
+/**
+ * @defgroup lib_public lib.public
+ * @ingroup lib
+ * @brief Public interfaces and common definitions for ACRN hypervisor.
+ *
+ * This module provides the essential data structures, enumerations, and definitions that are shared across
+ * various components of the ACRN Hypervisor. It includes definitions for hypercalls, I/O handling, VM and
+ * vCPU state management, and power management. These interfaces facilitate communication between the
+ * hypervisor, Service VM, and User VMs, ensuring a consistent and efficient virtualization environment.
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Common data structures, enumerations, and definitions for ACRN Hypervisor hypercalls and I/O handling.
+ *
+ * This header defines structures and types used for communication between the hypervisor, Service VM,
+ * and User VMs. It includes VM/VCPU state management, I/O request handling, interrupt operations,
+ * power management, shared buffer configurations and VM event configurations.
+ */
+
+/**
+ * @brief VM reset modes.
+ *
+ * This enumeration defines the reset mode of a VM. These modes determine how hardware and
+ * virtualized components (e.g., registers, MSRs) are initialized during a reset event.
+ */
 enum vm_reset_mode {
-	VM_POWER_ON_RESET,		/* reset by hardware Power-on */
-	VM_COLD_RESET,			/* hardware cold reset */
-	VM_WARM_RESET,			/* behavior slightly differ from cold reset, that some MSRs might be retained. */
-	VM_RESUME_FROM_S3,		/* reset core states after resuming from S3 */
-	VM_RESET_MAX,
+	VM_POWER_ON_RESET,  /**< Reset by hardware power-on */
+	VM_COLD_RESET,      /**< Hardware cold reset */
+	/**
+	 * @brief Hardware warm reset.
+	 *
+	 * In hardware warm reset, the behavior slightly differs from cold reset, that some MSRs might be retained.
+	 */
+	VM_WARM_RESET,
+	VM_RESUME_FROM_S3,  /**< Reset core states after resuming from S3 */
+	VM_RESET_MAX,       /**< The max value of reset mode */
 };
 
-/* Per SDM 10.1.1 vol.3, vcpu reset should be as following types */
+/**
+ * @brief VCPU reset modes.
+ *
+ * Refer to Chapter 10.1.1 Processor State After Reset, Vol.3, SDM 325462-078 for more details about vCPU reset mode.
+ */
 enum vcpu_reset_mode {
-	VCPU_POWER_UP,			/* reset by hardware Power up */
-	VCPU_COLD_RESET,		/* hardware cold reset */
-	VCPU_WARM_RESET,		/* behavior slightly differ from cold reset, that some MSRs might be retained */
-	VCPU_INIT_RESET,		/* reset by INIT */
-	VCPU_RESET_MAX,
-	VCPU_RESET_INVALID = VCPU_RESET_MAX,
+	VCPU_POWER_UP,   /**< Reset by hardware power up */
+	VCPU_COLD_RESET, /**< Hardware cold reset */
+	/**
+	 * @brief Hardware warm reset.
+	 *
+	 * In hardware warm reset, the behavior slightly differs from cold reset, that some MSRs might be retained.
+	 */
+	VCPU_WARM_RESET,
+	VCPU_INIT_RESET, /**< Reset by INIT */
+	VCPU_RESET_MAX,  /**< The max value of reset mode */
+	VCPU_RESET_INVALID = VCPU_RESET_MAX, /**< Invalid reset mode */
 };
 
-/* Per SDM 11.4.7(Local APIC State) vol.3, lapic state should be as following types */
+/**
+ * @brief VLAPIC reset modes.
+ *
+ * Refer to Chapter 11.4.7 Local APIC State, Vol.3, SDM 325462-078 for more details about vLAPIC reset state.
+ */
 enum vlapic_reset_mode {
-	VLAPIC_POWER_UP,			/* following a power-up or reset of the processor */
-	VLAPIC_SOFTWARE_DISABLE,		/* clear APIC Software Enable/Disable flag in SVR */
-	VLAPIC_INIT_RESET,		/* following an INIT reset of the processor */
-	VLAPIC_RESET_MAX,
-	VLAPIC_RESET_INVALID = VLAPIC_RESET_MAX,
+	VLAPIC_POWER_UP,   /**< APIC reset to power-up state */
+	VLAPIC_SOFTWARE_DISABLE, /**< Clear APIC Software Enable/Disable flag in SVR */
+	VLAPIC_INIT_RESET, /**< APIC reset via INIT signal */
+	VLAPIC_RESET_MAX,  /**< The max value for valid vLAPIC reset modes */
+	VLAPIC_RESET_INVALID = VLAPIC_RESET_MAX, /**< Invalid reset mode */
 };
 
+/**
+ * @brief VM reset mode to vCPU reset mode mapping.
+ *
+ * This array is to map the reset mode of a VM to the reset mode of a vCPU.
+ */
 static const enum vcpu_reset_mode vm2vcpu[VM_RESET_MAX] = {
 	[VM_POWER_ON_RESET]	= VCPU_POWER_UP,
 	[VM_COLD_RESET]		= VCPU_COLD_RESET,
@@ -55,18 +100,54 @@ static const enum vcpu_reset_mode vm2vcpu[VM_RESET_MAX] = {
 	[VM_RESUME_FROM_S3]	= VCPU_COLD_RESET,
 };
 
+/**
+ * @brief Convert VM reset mode to vCPU reset mode.
+ *
+ * This function converts the reset mode of a VM to the reset mode of a vCPU. If the mode is valid (in the range of
+ * [VM_POWER_ON_RESET, VM_RESET_MAX) ), it returns the corresponding vCPU reset mode. Otherwise, it returns
+ * VCPU_RESET_INVALID.
+ *
+ * @param[in] mode The reset mode of a VM.
+ *
+ * @return The reset mode of a vCPU.
+ *
+ * @pre N/A
+ *
+ * @post return <= VCPU_RESET_MAX
+ */
 static inline enum vcpu_reset_mode reset_mode_vm2vcpu(enum vm_reset_mode mode)
 {
 	return ((VM_POWER_ON_RESET <= mode) && (mode < VM_RESET_MAX)) ?
 		vm2vcpu[mode] : VCPU_RESET_INVALID;
 }
 
+/**
+ * @brief VCPU reset mode to VLAPIC reset mode mapping.
+ *
+ * This array is to map the reset mode of a vCPU to the reset mode of a VLAPIC.
+ */
 static const enum vlapic_reset_mode vcpu2vlapci[VCPU_RESET_MAX] = {
 	[VCPU_POWER_UP]		= VLAPIC_POWER_UP,
 	[VCPU_COLD_RESET]	= VLAPIC_POWER_UP,
 	[VCPU_WARM_RESET]	= VLAPIC_POWER_UP,
 	[VCPU_INIT_RESET]	= VLAPIC_INIT_RESET,
 };
+
+/**
+ * @brief Convert vCPU reset mode to VLAPIC reset mode.
+ *
+ * This function converts the reset mode of a vCPU to the reset mode of a VLAPIC. If the mode is valid (in the range of
+ * [VCPU_POWER_UP, VCPU_RESET_MAX) ) and the mode is not VCPU_RESET_INVALID, it returns the corresponding VLAPIC reset
+ * mode. Otherwise, it returns VLAPIC_RESET_INVALID.
+ *
+ * @param[in] mode The reset mode of a vCPU.
+ *
+ * @return The reset mode of a VLAPIC.
+ *
+ * @pre N/A
+ *
+ * @post return <= VLAPIC_RESET_MAX
+ */
 static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode mode)
 {
 	return ((VCPU_POWER_UP <= mode) && (mode < VCPU_RESET_MAX)) ?
@@ -77,74 +158,85 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
  * IO request
  */
 
-#define ACRN_IO_REQUEST_MAX		16U
-#define ACRN_ASYNCIO_MAX		64U
+#define ACRN_IO_REQUEST_MAX		16U  /**< Max I/O requests */
+#define ACRN_ASYNCIO_MAX		64U  /**< Max async I/O requests */
 
-#define ACRN_IOREQ_STATE_PENDING	0U
-#define ACRN_IOREQ_STATE_COMPLETE	1U
-#define ACRN_IOREQ_STATE_PROCESSING	2U
-#define ACRN_IOREQ_STATE_FREE		3U
+#define ACRN_IOREQ_STATE_PENDING	0U	/**< The I/O request is pending */
+#define ACRN_IOREQ_STATE_COMPLETE	1U  /**< The I/O request has been completed */
+#define ACRN_IOREQ_STATE_PROCESSING	2U  /**< The I/O request is being processed */
+#define ACRN_IOREQ_STATE_FREE		3U  /**< The I/O request slot is free */
 
-#define ACRN_IOREQ_TYPE_PORTIO		0U
-#define ACRN_IOREQ_TYPE_MMIO		1U
-#define ACRN_IOREQ_TYPE_PCICFG		2U
-#define ACRN_IOREQ_TYPE_WP		3U
+#define ACRN_IOREQ_TYPE_PORTIO      0U  /**< Port I/O request type */
+#define ACRN_IOREQ_TYPE_MMIO        1U  /**< MMIO request type */
+#define ACRN_IOREQ_TYPE_PCICFG      2U  /**< PCI configuration space access type */
+#define ACRN_IOREQ_TYPE_WP          3U  /**< Write-protection fault handling type */
 
-#define ACRN_IOREQ_DIR_READ		0U
-#define ACRN_IOREQ_DIR_WRITE		1U
-
-
+#define ACRN_IOREQ_DIR_READ     0U  /**< The I/O request direction is read */
+#define ACRN_IOREQ_DIR_WRITE    1U  /**< The I/O request direction is write */
 
 /* IOAPIC device model info */
-#define VIOAPIC_RTE_NUM	48U  /* vioapic pins */
+#define VIOAPIC_RTE_NUM	48U  /**< Number of Redirection Table Entries in vIOAPIC */
 
 #if VIOAPIC_RTE_NUM < 24U
 #error "VIOAPIC_RTE_NUM must be larger than 23"
 #endif
 
 /* Generic VM flags from guest OS */
-#define GUEST_FLAG_LAPIC_PASSTHROUGH		(1UL << 1U)  	/* Whether LAPIC is passed through */
-#define GUEST_FLAG_IO_COMPLETION_POLLING	(1UL << 2U)  	/* Whether need hypervisor poll IO completion */
-#define GUEST_FLAG_HIDE_MTRR			(1UL << 3U)  	/* Whether hide MTRR from VM */
-#define GUEST_FLAG_RT				(1UL << 4U)     /* Whether the vm is RT-VM */
-#define GUEST_FLAG_SECURITY_VM			(1UL << 6U)	/* Whether this VM needs to do security-vm related fixup (TPM2 and SMBIOS pt) */
-#define GUEST_FLAG_STATIC_VM       (1UL << 8U)  /* Whether this VM uses static VM configuration */
-#define GUEST_FLAG_TEE				(1UL << 9U)	/* Whether the VM is TEE VM */
-#define GUEST_FLAG_REE				(1UL << 10U)	/* Whether the VM is REE VM */
-#define GUEST_FLAG_PMU_PASSTHROUGH	(1UL << 11U)    /* Whether PMU is passed through */
+#define GUEST_FLAG_LAPIC_PASSTHROUGH     (1UL << 1U)  /**< Whether LAPIC is passed through */
+#define GUEST_FLAG_IO_COMPLETION_POLLING (1UL << 2U)  /**< Whether need hypervisor poll IO completion */
+#define GUEST_FLAG_HIDE_MTRR		(1UL << 3U)  /**< Whether hide MTRR from VM */
+#define GUEST_FLAG_RT				(1UL << 4U)  /**< Whether the vm is RT-VM */
+/**
+ * @brief Whether this VM needs to do security-vm related fixup (TPM2 andSMBIOS passthrough)
+ */
+#define GUEST_FLAG_SECURITY_VM		(1UL << 6U)
+#define GUEST_FLAG_STATIC_VM		(1UL << 8U)  /**< Whether this VM uses static VM configuration */
+#define GUEST_FLAG_TEE				(1UL << 9U)	 /**< Whether the VM is TEE VM */
+#define GUEST_FLAG_REE				(1UL << 10U) /**< Whether the VM is REE VM */
+#define GUEST_FLAG_PMU_PASSTHROUGH	(1UL << 11U) /**< Whether PMU is passed through */
 /* TODO: remove these DEPRECATED items along with config tools */
-#define GUEST_FLAG_VHWP				(1UL << 12U)    /* [DEPRECATED] Whether the VM supports vHWP */
-#define GUEST_FLAG_VTM				(1UL << 13U)    /* [DEPRECATED] Whether the VM supports virtual thermal monitor */
-#define GUEST_FLAG_VPTM				(1UL << 15U)    /* [DEPRECATED] the VM supports virtual package thermal management */
-
-#define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)		/* Whether the VCPU supports vHWP */
-#define GUEST_CPU_FEATURE_TM_PT		(1UL << 1U)		/* Whether passthrough per-core thermal monitor to guest */
-#define GUEST_CPU_FEATURE_PTM_PT	(1UL << 2U)		/* Whether passthrough package thermal monitor to guest */
-#define GUEST_CPU_FEATURE_LBR_PT	(1UL << 3U)		/* Whether passthrough last branch records to guest */
-
-/* TODO: We may need to get this addr from guest ACPI instead of hardcode here */
-#define VIRTUAL_SLEEP_CTL_ADDR		0x400U /* Pre-launched VM uses ACPI reduced HW mode and sleep control register */
-#define VIRTUAL_PM1A_CNT_ADDR		0x404U
-#define	VIRTUAL_PM1A_SCI_EN		0x0001
-#define VIRTUAL_PM1A_SLP_TYP		0x1c00U
-#define VIRTUAL_PM1A_SLP_EN		0x2000U
-#define	VIRTUAL_PM1A_ALWAYS_ZERO	0xc003
-
-#define MAX_VM_NAME_LEN        (16U)
+#define GUEST_FLAG_VHWP  (1UL << 12U)  /**< [DEPRECATED] Whether the VM supports vHWP */
+#define GUEST_FLAG_VTM   (1UL << 13U)  /**< [DEPRECATED] Whether the VM supports virtual thermal monitor */
+#define GUEST_FLAG_VPTM  (1UL << 15U)  /**< [DEPRECATED] Whether the VM supports virtual package thermal management */
 
 /**
- * @brief Hypercall
- *
- * @addtogroup acrn_hypercall ACRN Hypercall
- * @{
+ * @brief Whether the vCPU supports vHWP
  */
+#define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)
+/**
+ * @brief Whether passthrough per-core thermal monitor to guest
+ */
+#define GUEST_CPU_FEATURE_TM_PT		(1UL << 1U)
+/**
+ * @brief Whether passthrough package thermal monitor to guest
+ */
+#define GUEST_CPU_FEATURE_PTM_PT	(1UL << 2U)
+/**
+ * @brief Whether passthrough last branch records to guest
+ */
+#define GUEST_CPU_FEATURE_LBR_PT	(1UL << 3U)
+
+/* TODO: We may need to get this addr from guest ACPI instead of hardcode here */
+
+/* Pre-launched VM uses ACPI reduced HW mode and sleep control register */
+#define VIRTUAL_SLEEP_CTL_ADDR    0x400U  /**< Sleep control register address */
+
+#define VIRTUAL_PM1A_CNT_ADDR     0x404U  /**< PM1A control register address */
+#define	VIRTUAL_PM1A_SCI_EN       0x0001  /**< SCI_EN bit in PM1A_CNT */
+#define VIRTUAL_PM1A_SLP_TYP      0x1c00U /**< SLP_TYP field in PM1A_CNT */
+#define VIRTUAL_PM1A_SLP_EN       0x2000U /**< SLP_EN bit in PM1A_CNT */
+#define	VIRTUAL_PM1A_ALWAYS_ZERO  0xc003  /**< PM1A reserved bits forced to zero */
+
+#define MAX_VM_NAME_LEN        (16U)  /**< The maximum length of a VM name */
 
 /**
  * @brief Representation of a MMIO request
+ *
+ * This structure represents a MMIO request, containing the direction, address, size, and value of the request.
  */
 struct acrn_mmio_request {
 	/**
-	 * @brief Direction of the access
+	 * @brief Direction of the access.
 	 *
 	 * Either \p ACRN_IOREQ_DIR_READ or \p ACRN_IOREQ_DIR_WRITE.
 	 */
@@ -172,7 +264,9 @@ struct acrn_mmio_request {
 };
 
 /**
- * @brief Representation of a port I/O request
+ * @brief Representation of a port I/O request.
+ *
+ * This structure represents a PIO request, containing the direction, address, size, and value of the request.
  */
 struct acrn_pio_request {
 	/**
@@ -182,29 +276,20 @@ struct acrn_pio_request {
 	 */
 	uint32_t direction;
 
-	/**
-	 * @brief reserved
-	 */
-	uint32_t reserved;
+	uint32_t reserved; /**< Reserved */
 
-	/**
-	 * @brief Port address of the I/O access
-	 */
-	uint64_t address;
+	uint64_t address; /**< Port address of the I/O access */
 
-	/**
-	 * @brief Width of the I/O access in byte
-	 */
-	uint64_t size;
+	uint64_t size; /**< Width of the I/O access in byte */
 
-	/**
-	 * @brief The value read for I/O reads or to be written for I/O writes
-	 */
-	uint32_t value;
+	uint32_t value; /**< The value read for I/O reads or to be written for I/O writes */
 };
 
 /**
- * @brief Representation of a PCI configuration space access
+ * @brief Representation of a PCI configuration space access request.
+ *
+ * This structure represents a pci configuration space access, containing the direction, size, value, bus, device,
+ * function, and register of the request.
  */
 struct acrn_pci_request {
 	/**
@@ -214,40 +299,20 @@ struct acrn_pci_request {
 	 */
 	uint32_t direction;
 
-	/**
-	 * @brief Reserved
-	 */
-	uint32_t reserved[3];/* need keep same header fields with pio_request */
+	/* need keep same header fields with pio_request */
+	uint32_t reserved[3]; /**< Reserved */
 
-	/**
-	 * @brief Width of the I/O access in byte
-	 */
-	int64_t size;
+	int64_t size; /**< Width of the I/O access in byte */
 
-	/**
-	 * @brief The value read for I/O reads or to be written for I/O writes
-	 */
-	int32_t value;
+	int32_t value; /**< The value read for I/O reads or to be written for I/O writes */
 
-	/**
-	 * @brief The \p bus part of the BDF of the device
-	 */
-	int32_t bus;
+	int32_t bus; /**< The \p bus part of the BDF of the device */
 
-	/**
-	 * @brief The \p device part of the BDF of the device
-	 */
-	int32_t dev;
+	int32_t dev; /**< The \p device part of the BDF of the device */
 
-	/**
-	 * @brief The \p function part of the BDF of the device
-	 */
-	int32_t func;
+	int32_t func; /**< The \p function part of the BDF of the device */
 
-	/**
-	 * @brief The register to be accessed in the configuration space
-	 */
-	int32_t reg;
+	int32_t reg; /**< The register to be accessed in the configuration space */
 };
 
 /**
@@ -266,6 +331,8 @@ struct acrn_pci_request {
  *
  * Based on the rules above, a typical I/O request lifecycle should looks like
  * the following.
+ *
+ * @alignment 256
  *
  * @verbatim embed:rst:leading-asterisk
  *
@@ -334,6 +401,7 @@ struct acrn_pci_request {
  *
  *   2. Due to similar reasons, setting state to COMPLETE is the last operation
  *      of request handling in HSM or clients in Service VM.
+ *
  */
 struct acrn_io_request {
 	/**
@@ -363,10 +431,10 @@ struct acrn_io_request {
 	 * Byte offset: 64.
 	 */
 	union {
-		struct acrn_pio_request		pio_request;
-		struct acrn_pci_request		pci_request;
-		struct acrn_mmio_request	mmio_request;
-		uint64_t			data[8];
+		struct acrn_pio_request		pio_request;  /**< PIO request header */
+		struct acrn_pci_request		pci_request;  /**< PCI request header */
+		struct acrn_mmio_request	mmio_request; /**< MMIO request header */
+		uint64_t			data[8];  /**< Request content */
 	} reqs;
 
 	/**
@@ -393,138 +461,161 @@ struct acrn_io_request {
 	uint32_t processed;
 } __aligned(256);
 
+/**
+ * @brief IO request buffer.
+ *
+ * This structure is used to store multiple I/O requests.
+ */
 struct acrn_io_request_buffer {
+	/**
+	 * @brief The I/O requests.
+	 *
+	 * This union is used to store multiple I/O requests.
+	 */
 	union {
-		struct acrn_io_request	req_slot[ACRN_IO_REQUEST_MAX];
-		int8_t			reserved[4096];
+		struct acrn_io_request	req_slot[ACRN_IO_REQUEST_MAX];  /**< IO requests slots */
+		int8_t			reserved[4096];  /**< Reserved */
 	};
 };
 
+/**
+ * @brief Info for asynchronous I/O operations.
+ *
+ * Used to register I/O register regions for asynchronous I/O polling.
+ */
 struct acrn_asyncio_info {
-	uint32_t type;
+	uint32_t type;        /**< Type of the I/O operation (ACRN_ASYNCIO_PIO or ACRN_ASYNCIO_MMIO) */
+	/**
+	 * @brief Indicates whether data matching is required during I/O event checks.
+	 *
+	 * 0 means that data matching can be skipped. Otherwise, it is required.
+	 */
 	uint32_t match_data;
-	uint64_t addr;
-	uint64_t fd;
-	uint64_t data;
+	uint64_t addr;        /**< Base address of the I/O region */
+	uint64_t fd;          /**< Eventfd descriptor for notifications */
+	uint64_t data;        /**< The data to be checked when data matching is required */
 };
 
 /**
- * @brief Info to create a VM, the parameter for HC_CREATE_VM hypercall
+ * @brief Info to create a VM, the parameter for HC_CREATE_VM hypercall.
+ *
+ * The VM creation info is used to create a VM with specified vCPUs, name, and flags.
  */
 struct acrn_vm_creation {
-	/** created vmid return to HSM. Keep it first field */
-	uint16_t vmid;
 
-	/** Reserved */
-	uint16_t reserved0;
+	/* created vmid return to HSM. Keep it first field */
+	uint16_t vmid;      /**< Assigned VM ID */
 
-	/** VCPU numbers this VM want to create */
-	uint16_t vcpu_num;
+	uint16_t reserved0; /**< Reserved */
 
-	/** Reserved */
-	uint16_t reserved1;
+	uint16_t vcpu_num;  /**< VCPU numbers this VM want to create */
 
-	/** the name of this VM */
-	uint8_t	 name[MAX_VM_NAME_LEN];
+	uint16_t reserved1; /**< Reserved */
 
-	/** VM flag bits from Guest OS */
-	uint64_t vm_flag;
+	uint8_t	 name[MAX_VM_NAME_LEN];  /**< VM name string */
 
-	uint64_t ioreq_buf;
+	uint64_t vm_flag;   /**< Guest flags */
 
-	/**
+	uint64_t ioreq_buf; /**< GPA of I/O request buffer */
+
+	/*
 	 *   The least significant set bit is the PCPU # the VCPU 0 maps to;
 	 *   second set least significant bit is the PCPU # the VCPU 1 maps to;
 	 *   and so on...
-	*/
-	uint64_t cpu_affinity;
+	 */
+	uint64_t cpu_affinity; /**< Bitmap of allowed physical CPUs */
 };
 
-/* General-purpose register layout aligned with the general-purpose register idx
- * when vmexit, such as vmexit due to CR access, refer to SMD Vol.3C 27-6.
+/**
+ * @brief General-purpose registers layout.
+ *
+ * Mirrors the general-purpose registers. Refer to Chapter 28.6 Loading MSRs, Vol.3, SDM 325462-078 for more details.
  */
 struct acrn_gp_regs {
-	uint64_t rax;
-	uint64_t rcx;
-	uint64_t rdx;
-	uint64_t rbx;
-	uint64_t rsp;
-	uint64_t rbp;
-	uint64_t rsi;
-	uint64_t rdi;
-	uint64_t r8;
-	uint64_t r9;
-	uint64_t r10;
-	uint64_t r11;
-	uint64_t r12;
-	uint64_t r13;
-	uint64_t r14;
-	uint64_t r15;
+	uint64_t rax;  /**< Value in the RAX register */
+	uint64_t rcx;  /**< Value in the RCX register */
+	uint64_t rdx;  /**< Value in the RDX register */
+	uint64_t rbx;  /**< Value in the RBX register */
+	uint64_t rsp;  /**< Value in the RSP register */
+	uint64_t rbp;  /**< Value in the RBP register */
+	uint64_t rsi;  /**< Value in the RSI register */
+	uint64_t rdi;  /**< Value in the RDI register */
+	uint64_t r8;   /**< Value in the R8 register */
+	uint64_t r9;   /**< Value in the R9 register */
+	uint64_t r10;  /**< Value in the R10 register */
+	uint64_t r11;  /**< Value in the R11 register */
+	uint64_t r12;  /**< Value in the R12 register */
+	uint64_t r13;  /**< Value in the R13 register */
+	uint64_t r14;  /**< Value in the R14 register */
+	uint64_t r15;  /**< Value in the R15 register */
 };
 
-/* struct to define how the descriptor stored in memory.
- * Refer SDM Vol3 3.5.1 "Segment Descriptor Tables"
- * Figure 3-11
+/**
+ * @brief Descriptor table pointer.
+ *
+ * This structure is to define the descriptor table pointer, which is used to store the limit and base address of the
+ * descriptor table. Refer to Chapter 3.5.1 Segment Descriptor Tables, Vol.3, SDM 325462-078 for more details.
+ *
+ * @remark This structure shall be packed.
  */
 struct acrn_descriptor_ptr {
-	uint16_t limit;
-	uint64_t base;
-	uint16_t reserved[3];   /* align struct size to 64bit */
+	uint16_t limit;  /**< Table limit */
+	uint64_t base;   /**< 64-bit linear address of the table */
+	uint16_t reserved[3];   /**< Align struct size to 64bit */
 } __packed;
 
 /**
- * @brief registers info for vcpu.
+ * @brief registers info for vCPU.
+ *
+ * This structure is used to store the register information of a vCPU.
  */
 struct acrn_regs {
-	struct acrn_gp_regs gprs;
-	struct acrn_descriptor_ptr gdt;
-	struct acrn_descriptor_ptr idt;
+	struct acrn_gp_regs gprs;        /**< Values in guest general-purpose registers */
+	struct acrn_descriptor_ptr gdt;  /**< Value in the guest global descriptor table register (GDTR) */
+	struct acrn_descriptor_ptr idt;  /**< Value in the guest interrupt descriptor table register (IDTR) */
 
-	uint64_t        rip;
-	uint64_t        cs_base;
-	uint64_t        cr0;
-	uint64_t        cr4;
-	uint64_t        cr3;
-	uint64_t        ia32_efer;
-	uint64_t        rflags;
-	uint64_t        reserved_64[4];
+	uint64_t rip;               /**< Value in guest RIP */
+	uint64_t cs_base;           /**< Value in the 'base address' field of the guest CS hidden part */
+	uint64_t cr0;               /**< Value in guest CR0 */
+	uint64_t cr4;               /**< Value in guest CR4 */
+	uint64_t cr3;               /**< Value in guest CR3 */
+	uint64_t ia32_efer;         /**< Value in guest IA32_EFER */
+	uint64_t rflags;            /**< Value in guest RFLAGS */
+	uint64_t reserved_64[4];    /**< Reserved for future extensions */
 
-	uint32_t        cs_ar;
-	uint32_t        cs_limit;
-	uint32_t        reserved_32[3];
+	uint32_t cs_ar;             /**< Value in the 'access information' field of the CS hidden part */
+	uint32_t cs_limit;          /**< Value in the 'limit' field of the CS hidden part */
+	uint32_t reserved_32[3];    /**< Reserved for future extensions */
 
 	/* don't change the order of following sel */
-	uint16_t        cs_sel;
-	uint16_t        ss_sel;
-	uint16_t        ds_sel;
-	uint16_t        es_sel;
-	uint16_t        fs_sel;
-	uint16_t        gs_sel;
-	uint16_t        ldt_sel;
-	uint16_t        tr_sel;
+	uint16_t cs_sel;            /**< The value in the guest CS selector */
+	uint16_t ss_sel;            /**< The value in the guest SS selector */
+	uint16_t ds_sel;            /**< The value in the guest DS selector */
+	uint16_t es_sel;            /**< The value in the guest ES selector */
+	uint16_t fs_sel;            /**< The value in the guest FS selector */
+	uint16_t gs_sel;            /**< The value in the guest GS selector */
+	uint16_t ldt_sel;           /**< The value in the guest LDTR selector */
+	uint16_t tr_sel;            /**< The value in the guest TR selector */
 };
 
 /**
- * @brief Info to set vcpu state
+ * @brief Info to set vCPU state
  *
  * the parameter for HC_SET_VCPU_STATE
  */
 struct acrn_vcpu_regs {
-	/** the virtual CPU ID for the VCPU to set state */
-	uint16_t vcpu_id;
+	uint16_t vcpu_id;      /**< The virtual CPU ID for the vCPU to set state */
 
-	/** reserved space to make cpu_state aligned to 8 bytes */
-	uint16_t reserved[3];
+	uint16_t reserved[3];  /**< Reserved space to make cpu_state aligned to 8 bytes */
 
-	/** the structure to hold vcpu state */
-	struct acrn_regs vcpu_regs;
+	struct acrn_regs vcpu_regs; /**< The structure to hold vCPU state */
 };
 
-/** Operation types for setting IRQ line */
-#define GSI_SET_HIGH		0U
-#define GSI_SET_LOW		1U
-#define GSI_RAISING_PULSE	2U
-#define GSI_FALLING_PULSE	3U
+/* Operation types for setting IRQ line */
+#define GSI_SET_HIGH        0U  /**< Set the IRQ line to high */
+#define GSI_SET_LOW         1U  /**< Set the IRQ line to low */
+#define GSI_RAISING_PULSE   2U  /**< Generate a rising edge pulse on the IRQ line */
+#define GSI_FALLING_PULSE   3U  /**< Generate a falling edge pulse on the IRQ line */
 
 /**
  * @brief Info to Set/Clear/Pulse a virtual IRQ line for a VM
@@ -532,8 +623,8 @@ struct acrn_vcpu_regs {
  * the parameter for HC_SET_IRQLINE hypercall
  */
 struct acrn_irqline_ops {
-	uint32_t gsi;
-	uint32_t op;
+	uint32_t gsi; /**< The GSI number of the IRQ line */
+	uint32_t op;  /**< The operation to perform on the IRQ line */
 };
 
 
@@ -543,125 +634,186 @@ struct acrn_irqline_ops {
  * the parameter for HC_INJECT_MSI hypercall
  */
 struct acrn_msi_entry {
-	/** MSI addr[19:12] with dest VCPU ID */
-	uint64_t msi_addr;
+	uint64_t msi_addr;  /**< MSI addr[19:12] with destination vCPU ID */
 
-	/** MSI data[7:0] with vector */
-	uint64_t msi_data;
+	uint64_t msi_data;  /**< MSI data[7:0] with vector */
 };
 
+#define SPACE_SYSTEM_MEMORY     0U  /**< System memory address space. */
+#define SPACE_SYSTEM_IO         1U  /**< System I/O address space. */
+#define SPACE_PCI_CONFIG        2U  /**< PCI configuration space. */
+#define SPACE_Embedded_Control  3U  /**< Embedded controller address space. */
+#define SPACE_SMBUS             4U  /**< SMBus address space. */
+#define SPACE_PLATFORM_COMM     10U /**< Platform communication address space. */
+#define SPACE_FFixedHW          0x7FU /**< Fixed hardware address space. */
+
 /**
- * @brief Info The power state data of a VCPU.
+ * @brief ACPI Generic Address Structure (GAS)
  *
+ * This structure is used to define the ACPI Generic Address Structure (GAS), which is used to describe the address
+ * space for a device.
+ *
+ * @remark This structure shall be packed.
  */
-
-#define SPACE_SYSTEM_MEMORY     0U
-#define SPACE_SYSTEM_IO         1U
-#define SPACE_PCI_CONFIG        2U
-#define SPACE_Embedded_Control  3U
-#define SPACE_SMBUS             4U
-#define SPACE_PLATFORM_COMM     10U
-#define SPACE_FFixedHW          0x7FU
-
 struct acrn_acpi_generic_address {
-	uint8_t 	space_id;
-	uint8_t 	bit_width;
-	uint8_t 	bit_offset;
-	uint8_t 	access_size;
-	uint64_t	address;
+	uint8_t 	space_id;   /**< The address space where the register resides */
+	uint8_t 	bit_width;  /**< The bit width of the register */
+	uint8_t 	bit_offset; /**< The bit offset within the register */
+	uint8_t 	access_size; /**< The access size for the register */
+	uint64_t	address;    /**< The address of the register */
 } __attribute__ ((__packed__));
 
+/**
+ * @brief Info about the power state data of a vCPU.
+ *
+ * This structure holds information about the power state (C-state) of a vCPU.
+ */
 struct acrn_cstate_data {
-	struct acrn_acpi_generic_address cx_reg;
-	uint8_t 	type;
-	uint32_t	latency;
-	uint64_t	power;
+	struct acrn_acpi_generic_address cx_reg; /**< The ACPI GAS for the C-state register */
+	uint8_t 	type;    /**< The type of C-state */
+	uint32_t	latency; /**< The latency of entering or exiting this C-state */
+	uint64_t	power;   /**< The power consumption in this C-state */
 };
 
+/**
+ * @brief Info about the power state data of a vCPU.
+ *
+ * This structure holds information about the power state (P-state) of a vCPU.
+ */
 struct acrn_pstate_data {
-	uint64_t core_frequency;	/* megahertz */
-	uint64_t power;			/* milliWatts */
-	uint64_t transition_latency;	/* microseconds */
-	uint64_t bus_master_latency;	/* microseconds */
-	uint64_t control;		/* control value */
-	uint64_t status;		/* success indicator */
+	uint64_t core_frequency;     /**< Core frequency in megahertz */
+	uint64_t power;              /**< The power consumption in this P-state in milliwatts */
+	uint64_t transition_latency; /**< The transition latency in microseconds */
+	uint64_t bus_master_latency; /**< The bus mater latency in microseconds */
+	uint64_t control;            /**< The control value for this P-state */
+	uint64_t status;		     /**< The success indicator for this P-state */
 };
 
+/**
+ * @brief CPU frequency policy types
+ *
+ * This enumeration defines the different CPU frequency policy types that can be applied to a vCPU.
+ */
 enum acrn_cpufreq_policy_type {
-	CPUFREQ_POLICY_PERFORMANCE,
-	CPUFREQ_POLICY_NOMINAL,
+	CPUFREQ_POLICY_PERFORMANCE,  /**< Performance-oriented frequency policy */
+	CPUFREQ_POLICY_NOMINAL,      /**< Nominal frequency policy */
 };
 
+/**
+ * @brief CPU frequency limits
+ *
+ * This structure holds the limits for CPU frequency, including performance levels for Hardware-Controlled Performance
+ * States (HWP) and P-state indices.
+ */
 struct acrn_cpufreq_limits {
 	/* Performance levels for HWP */
-	uint8_t guaranteed_hwp_lvl;
-	uint8_t highest_hwp_lvl;
-	uint8_t lowest_hwp_lvl;
+	uint8_t guaranteed_hwp_lvl; /**< Guaranteed performance level for HWP */
+	uint8_t highest_hwp_lvl;    /**< Highest performance level for HWP */
+	uint8_t lowest_hwp_lvl;     /**< Lowest performance level for HWP */
 	/* Index for the p-state table _PSS */
-	uint8_t nominal_pstate;
-	uint8_t performance_pstate;
+	uint8_t nominal_pstate;     /**< Nominal P-state index */
+	uint8_t performance_pstate; /**< Performance P-state index */
 };
 
-struct acpi_sx_pkg {
-	uint8_t		val_pm1a;
-	uint8_t		val_pm1b;
-	uint16_t	reserved;
-} __aligned(8);
-
-struct pm_s_state_data {
-	struct acrn_acpi_generic_address pm1a_evt;
-	struct acrn_acpi_generic_address pm1b_evt;
-	struct acrn_acpi_generic_address pm1a_cnt;
-	struct acrn_acpi_generic_address pm1b_cnt;
-	struct acpi_sx_pkg s3_pkg;
-	struct acpi_sx_pkg s5_pkg;
-	uint32_t *wake_vector_32;
-	uint64_t *wake_vector_64;
-} __aligned(8);
-
 /**
- * @brief Info PM command from DM/HSM.
+ * @brief ACPI Sx package.
  *
- * The command would specify request type(e.g. get px count or data) for
- * specific VM and specific VCPU with specific state number.
- * For Px, PMCMD_STATE_NUM means Px number from 0 to (MAX_PSTATE - 1),
- * For Cx, PMCMD_STATE_NUM means Cx entry index from 1 to MAX_CX_ENTRY.
+ * This structure represents the ACPI Sx package, which contains values for the PM1a and PM1b registers.
+ *
+ * @alignment 8
  */
-#define PMCMD_VMID_MASK		0xff000000U
-#define PMCMD_VCPUID_MASK	0x00ff0000U
-#define PMCMD_STATE_NUM_MASK	0x0000ff00U
-#define PMCMD_TYPE_MASK		0x000000ffU
+struct acpi_sx_pkg {
+	uint8_t		val_pm1a;  /**< Value for the PM1a register */
+	uint8_t		val_pm1b;  /**< Value for the PM1b register */
+	uint16_t	reserved;  /**< Reserved for alignment */
+} __aligned(8);
 
-#define PMCMD_VMID_SHIFT	24U
-#define PMCMD_VCPUID_SHIFT	16U
-#define PMCMD_STATE_NUM_SHIFT	8U
+/**
+ * @brief Power management S-state data
+ *
+ * This structure holds information about the power management S-states of a vCPU.
+ *
+ * @alignment 8
+ */
+struct pm_s_state_data {
+	struct acrn_acpi_generic_address pm1a_evt; /**< The ACPI GAS for the PM1a event register */
+	struct acrn_acpi_generic_address pm1b_evt; /**< The ACPI GAS for the PM1b event register */
+	struct acrn_acpi_generic_address pm1a_cnt; /**< The ACPI GAS for the PM1a control register */
+	struct acrn_acpi_generic_address pm1b_cnt; /**< The ACPI GAS for the PM1b control register */
+	struct acpi_sx_pkg s3_pkg;  /**< The ACPI Sx package for the S3 state */
+	struct acpi_sx_pkg s5_pkg;  /**< The ACPI Sx package for the S5 state */
+	uint32_t *wake_vector_32;   /**< 32-bit wake vector for the VM */
+	uint64_t *wake_vector_64;   /**< 64-bit wake vector for the VM */
+} __aligned(8);
 
+/**
+ * @defgroup PMCMD Info PM command from DM/HSM.
+ *
+ * The command would specify request type(e.g. get px count or data) for specific VM and specific vCPU with specific
+ * state number.
+ * - For Px, PMCMD_STATE_NUM means Px number from 0 to (MAX_PSTATE - 1).
+ * - For Cx, PMCMD_STATE_NUM means Cx entry index from 1 to MAX_CX_ENTRY.
+ *
+ * @{
+ */
+#define PMCMD_VMID_MASK		0xff000000U  /**< Bitmask to extract the VM ID from the PM command */
+#define PMCMD_VCPUID_MASK	0x00ff0000U  /**< Bitmask to extract the vCPU ID from the PM command */
+#define PMCMD_STATE_NUM_MASK	0x0000ff00U /**< Bitmask to extract the state number from the PM command */
+#define PMCMD_TYPE_MASK		0x000000ffU  /**< Bitmask to extract the command type from the PM command */
+
+#define PMCMD_VMID_SHIFT	24U     /**< Bit shift value to position the VM ID in the PM command */
+#define PMCMD_VCPUID_SHIFT	16U     /**< Bit shift value to position the vCPU ID in the PM command */
+#define PMCMD_STATE_NUM_SHIFT	8U  /**< Bit shift value to position the state number in the PM command */
+/**
+ * @}
+ */
+
+/**
+ * @brief Power management command types.
+ *
+ * This enumeration defines the different types of power management commands.
+ */
 enum acrn_pm_cmd_type {
-	ACRN_PMCMD_GET_PX_CNT,
-	ACRN_PMCMD_GET_PX_DATA,
-	ACRN_PMCMD_GET_CX_CNT,
-	ACRN_PMCMD_GET_CX_DATA,
+	ACRN_PMCMD_GET_PX_CNT,  /**< Get the count of P-states */
+	ACRN_PMCMD_GET_PX_DATA, /**< Get the data of P-states */
+	ACRN_PMCMD_GET_CX_CNT,  /**< Get the count of C-states */
+	ACRN_PMCMD_GET_CX_DATA, /**< Get the data of C-states */
 };
 
 /**
- * @brief Info to get a VM interrupt count data
+ * @brief Maximum number of passthrough devices.
  *
- * the parameter for HC_VM_INTR_MONITOR hypercall
+ * Predefined maximum number of passthrough devices for each VM when getting a VM interrupt count data. For each
+ * passthrough device, its allocated physical interrupt along with its interrupt count are recorded.
  */
 #define MAX_PTDEV_NUM 24U
-struct acrn_intr_monitor {
-	/** sub command for intr monitor */
-	uint32_t cmd;
-	/** the count of this buffer to save */
-	uint32_t buf_cnt;
 
-	/** the buffer which save each interrupt count */
-	uint64_t buffer[MAX_PTDEV_NUM * 2];
+/**
+ * @brief Interrupt monitor structure
+ *
+ * This structure is used to manage and store information related to interrupt monitoring for a VM.
+ *
+ * @alignment 8
+ */
+struct acrn_intr_monitor {
+	uint32_t cmd;     /**< Sub command for interrupt monitor */
+	uint32_t buf_cnt; /**< The count of this buffer to save */
+	uint64_t buffer[MAX_PTDEV_NUM * 2];  /**< The buffer which save each interrupt count */
 } __aligned(8);
 
-/** cmd for intr monitor **/
-#define INTR_CMD_GET_DATA 0U
-#define INTR_CMD_DELAY_INT 1U
+/**
+ * @defgroup INTR_CMD Command for interrupt monitor.
+ *
+ * These commands are used to manage the interrupt monitor for a VM.
+ *
+ * @{
+ */
+#define INTR_CMD_GET_DATA 0U   /**< Retrieve the current interrupt data */
+#define INTR_CMD_DELAY_INT 1U  /**< Delay the interrupt */
+
+/**
+ * @}
+ */
 
 /*
  * PRE_LAUNCHED_VM is launched by ACRN hypervisor, with LAPIC_PT;
@@ -671,20 +823,36 @@ struct acrn_intr_monitor {
  * Assumption: vm_configs array is completely initialized w.r.t. load_order member of
  * 		acrn_vm_config for all the VMs.
  */
+
+ /**
+  * @brief ACRN VM load order types
+  *
+  * This enumeration defines the different types of ACRN VM load orders. Pre-launched VMs are launched by the ACRN
+  * hypervisor first. Service VMs are launched by the ACRN hypervisor, and post-launched VMs are launched by the ACRN
+  * devicemodel at the last.
+  */
 enum acrn_vm_load_order {
-	PRE_LAUNCHED_VM = 0,
-	SERVICE_VM,
-	POST_LAUNCHED_VM,	/* Launched by Devicemodel in Service VM */
-	MAX_LOAD_ORDER
+	PRE_LAUNCHED_VM = 0, /**< Pre-launched VM */
+	SERVICE_VM,          /**< Service VM */
+	POST_LAUNCHED_VM,	 /**< Post-launched VM */
+	MAX_LOAD_ORDER       /**< Maximum number of load order types */
 };
 
+/**
+ * @brief VM configuration header
+ *
+ * This structure holds the header information for a VM configuration, including the load order, name, severity, CPU
+ * affinity, and guest flags.
+ *
+ * @alignment 8
+ */
 struct acrn_vm_config_header {
-       enum acrn_vm_load_order load_order;
-       char name[MAX_VM_NAME_LEN];
-       uint8_t reserved[2];
-       uint8_t severity;
-       uint64_t cpu_affinity;
-       uint64_t guest_flags;
+       enum acrn_vm_load_order load_order; /**< The load order of the VM */
+       char name[MAX_VM_NAME_LEN];  /**< The name of the VM */
+       uint8_t reserved[2];    /**< Reserved */
+       uint8_t severity;       /**< The severity level of the VM */
+       uint64_t cpu_affinity;  /**< The CPU affinity of the VM */
+       uint64_t guest_flags;   /**< The guest flags for the VM */
        /*
         * The following are hv-specific members and are thus opaque.
         * vm_config_entry_size determines the real size of this structure.
@@ -692,123 +860,136 @@ struct acrn_vm_config_header {
 } __aligned(8);
 
 /**
- * @brief Info to configure virtual root port
+ * @brief Info to configure virtual root port.
  *
- * Configuration passed to hv when adding a virtual root port which
- * is used as PTM root
+ * Configuration passed to hypervisor when adding a virtual root port which is used as PTM root.
  */
 struct vrp_config
 {
-	uint16_t phy_bdf;
-	uint8_t max_payload; /* dev cap's max payload */
-	uint8_t primary_bus;
-	uint8_t secondary_bus;
-	uint8_t subordinate_bus;
-	uint8_t ptm_capable;
-	uint32_t ptm_cap_offset;
+	uint16_t phy_bdf;    /**< The physical BDF of the root port */
+	uint8_t max_payload; /**< The maximum payload size for the device */
+	uint8_t primary_bus; /**< The primary bus number for the root port */
+	uint8_t secondary_bus;   /**< The secondary bus number for the root port */
+	uint8_t subordinate_bus; /**< The subordinate bus number for the root port */
+	uint8_t ptm_capable; /**< Whether the root port is PTM capable */
+	uint32_t ptm_cap_offset; /**< The offset of the PTM capability in the PCI configuration space */
 };
 
 /* Type of PCI device assignment */
-#define ACRN_PTDEV_QUIRK_ASSIGN	(1U << 0)
+#define ACRN_PTDEV_QUIRK_ASSIGN	(1U << 0)  /**< PCI device assignment quirk */
 
-#define ACRN_PCI_NUM_BARS	6U
+#define ACRN_PCI_NUM_BARS	6U  /**< Number of BARs in a PCI device */
+
 /**
  * @brief Info to assign or deassign PCI for a VM
  *
+ * This structure holds the information required to assign or deassign a PCI device to/from a VM.
  */
 struct acrn_pcidev {
-	/** the type of the the pass-through PCI device */
-	uint32_t type;
+	uint32_t type;     /**< the type of the the pass-through PCI device */
 
-	/** virtual BDF# of the pass-through PCI device */
-	uint16_t virt_bdf;
+	uint16_t virt_bdf; /**< virtual BDF# of the pass-through PCI device */
 
-	/** physical BDF# of the pass-through PCI device */
-	uint16_t phys_bdf;
+	uint16_t phys_bdf; 	/**< physical BDF# of the pass-through PCI device */
 
-	/** the PCI Interrupt Line, initialized by ACRN-DM, which is RO and
-	 *  ideally not used for pass-through MSI/MSI-x devices.
+	/**
+	 * @brief The PCI interrupt line
+	 *
+	 * The PCI Interrupt Line, initialized by ACRN-DM, which is RO and ideally not used for pass-through
+	 * MSI/MSI-x devices.
 	 */
 	uint8_t intr_line;
 
-	/** the PCI Interrupt Pin, initialized by ACRN-DM, which is RO and
-	 *  ideally not used for pass-through MSI/MSI-x devices.
+	/**
+	 * @brief The PCI interrupt pin
+	 *
+	 * The PCI Interrupt Pin, initialized by ACRN-DM, which is RO and ideally not used for pass-through
+	 * MSI/MSI-x devices.
 	 */
 	uint8_t intr_pin;
 
-	/** the base address of the PCI BAR, initialized by ACRN-DM. */
-	uint32_t bar[ACRN_PCI_NUM_BARS];
+	uint32_t bar[ACRN_PCI_NUM_BARS]; /**< the base address of the PCI BAR, initialized by ACRN-DM. */
 };
 
-#define MMIODEV_RES_NUM        3
+#define MMIODEV_RES_NUM        3  /**< Number of MMIO resources for a device */
 
 /**
  * @brief Info to assign or deassign a MMIO device for a VM
+ *
+ * This structure holds the information required to assign or deassign an MMIO device to/from a VM.
  */
 struct acrn_mmiodev {
-	char name[8];
+	char name[8];   /**< The name of the MMIO device */
+
+	/**
+	 * @brief The MMIO resources for the MMIO device.
+	 */
 	struct acrn_mmiores {
-		/** the gpa of the MMIO region for the MMIO device */
-		uint64_t user_vm_pa;
-		/** the hpa of the MMIO region for the MMIO device: for post-launched VM
-		  * it's pa in service vm; for pre-launched VM it's pa in HV.
-		  */
+		uint64_t user_vm_pa;  /**< the gpa of the MMIO region for the MMIO device */
+
+		/**
+		 * @brief The HPA of the MMIO region for the MMIO device:
+		 *
+		 * For post-launched VM it's PA in service vm; for pre-launched VM it's PA in HV.
+		 */
 		uint64_t host_pa;
-		/** the size of the MMIO region for the MMIO resource */
-		uint64_t size;
-		/** the memory type of the MMIO region for the MMIO resource */
-		uint64_t mem_type;
+		uint64_t size; /**< The size of the MMIO region for the MMIO resource */
+		uint64_t mem_type; /**< The memory type of the MMIO region for the MMIO resource */
 	} res[MMIODEV_RES_NUM];
 };
 
 /**
- * @brief Info to create or destroy a virtual PCI or legacy device for a VM
+ * @brief Info to create or destroy a virtual PCI or legacy device for a VM.
  *
  * the parameter for HC_CREATE_VDEV or HC_DESTROY_VDEV hypercall
  */
 struct acrn_vdev {
-	/*
-	 * the identifier of the device, the low 32 bits represent the vendor
-	 * id and device id of PCI device and the high 32 bits represent the
-	 * device number of the legacy device
+	/**
+	 * @brief the identifier of the device
+	 *
+	 * The low 32 bits represent the vendor ID and device ID of PCI device and the high 32 bits represent the
+	 * device number of the legacy device.
 	 */
 	union {
-		uint64_t value;
+		uint64_t value;  /**< The value of the device identifier */
+		/**
+		 * @brief The fields of the device identifier.
+		 */
 		struct {
-			uint16_t vendor;
-			uint16_t device;
-			uint32_t legacy_id;
+			uint16_t vendor;    /**< The vendor ID of the PCI device */
+			uint16_t device;    /**< The device ID of the PCI device */
+			uint32_t legacy_id; /**< The legacy device ID */
 		} fields;
 	} id;
 
-	/*
-	 * the slot of the device, if the device is a PCI device, the slot
-	 * represents BDF, otherwise it represents legacy device slot number
+	/**
+	 * @brief The slot of the device
+	 *
+	 * If the device is a PCI device, the slot represents BDF, otherwise it represents legacy device slot number.
 	 */
 	uint64_t slot;
 
-	/** the IO resource address of the device, initialized by ACRN-DM. */
-	uint32_t io_addr[ACRN_PCI_NUM_BARS];
+	uint32_t io_addr[ACRN_PCI_NUM_BARS]; /**< The IO resource address of the device, initialized by ACRN-DM */
 
-	/** the IO resource size of the device, initialized by ACRN-DM. */
-	uint32_t io_size[ACRN_PCI_NUM_BARS];
+	uint32_t io_size[ACRN_PCI_NUM_BARS]; /**< The IO resource size of the device, initialized by ACRN-DM */
 
-	/** the options for the virtual device, initialized by ACRN-DM. */
-	uint8_t	args[128];
+	uint8_t	args[128]; /**< The options for the virtual device, initialized by ACRN-DM. */
 };
 
-#define ACRN_ASYNCIO_PIO	(0x01U)
-#define ACRN_ASYNCIO_MMIO	(0x02U)
+#define ACRN_ASYNCIO_PIO	(0x01U)  /**< PIO type for asynchronous I/O */
+#define ACRN_ASYNCIO_MMIO	(0x02U)  /**< MMIO type for asynchronous I/O */
 
-#define SBUF_MAGIC	0x5aa57aa71aa13aa3UL
-#define SBUF_MAX_SIZE	(1UL << 22U)
-#define SBUF_HEAD_SIZE	64U
+#define SBUF_MAGIC	0x5aa57aa71aa13aa3UL  /**< Magic number for the shared buffer */
+#define SBUF_MAX_SIZE	(1UL << 22U)      /**< Maximum size of the shared buffer */
+#define SBUF_HEAD_SIZE	64U               /**< Size of the shared buffer header */
 
 /**
- * @brief sbuf flags.
+ * @defgroup OVERRUN/OVERWRITE Configuration flags for shared buffer.
  *
- * These flags are used to configure the behavior of the shared buffer (sbuf).
- * They control features such as overrun counting and overwrite capability.
+ * These flags are used to configure the behavior of the shared buffer (sbuf). They control features such as overrun
+ * counting and overwrite capability.
+ *
+ * @{
  */
 
 /**
@@ -827,8 +1008,11 @@ struct acrn_vdev {
  * When this flag is set, the buffer will overwrite the oldest data when it becomes full.
  */
 #define OVERWRITE_EN	(1U << 1U)
-
 /**
+ * @}
+ */
+
+/*
  * (sbuf) head + buf (store (ele_num - 1) elements at most)
  * buffer empty: tail == head
  * buffer full:  (tail + ele_size) % size == head
@@ -884,7 +1068,7 @@ struct shared_buf {
 	uint32_t padding[6];   /**< Padding to align the structure size */
 };
 
-/**
+/*
  * VM event architecture:
  * +------------------------------------------------------+
  * |    Service VM                                        |
@@ -920,30 +1104,42 @@ struct shared_buf {
  *  - DM notifies event delivery logic via eventfd.
  *  - The event delivery logic fetches and handles events from the DM event ring sbuf.
  */
-#define VM_EVENT_RTC_CHG	0U
-#define VM_EVENT_POWEROFF	1U
-#define VM_EVENT_TRIPLE_FAULT	2U
 
-#define VM_EVENT_COUNT		3U
+#define VM_EVENT_RTC_CHG	0U  /**< RTC change event */
+#define VM_EVENT_POWEROFF	1U  /**< VM poweroff event */
+#define VM_EVENT_TRIPLE_FAULT	2U /**< VM triple fault event */
 
-#define VM_EVENT_DATA_LEN	28U
+#define VM_EVENT_COUNT		3U  /**< Total number of VM event types */
 
+#define VM_EVENT_DATA_LEN	28U /**< Length of the event data */
+
+/**
+ * @brief VM event structure
+ */
 struct vm_event {
-    uint32_t type;
-    uint8_t event_data[VM_EVENT_DATA_LEN];
+	uint32_t type;  /**< The type of the VM event */
+	uint8_t event_data[VM_EVENT_DATA_LEN];  /**< The data associated with the event */
 };
 
+/**
+ * @brief RTC change event data.
+ *
+ * This structure holds the data for an RTC change event, including the last known time and the delta
+ * time since the last change.
+ */
 struct rtc_change_event_data {
-	int64_t	last_time; /* time(in secs) of the RTC defore been set */
-	int64_t delta_time; /* delta of time(in secs) the RTC has been changed */
+	int64_t	last_time;  /**< Time (in seconds) of the RTC before been set */
+	int64_t delta_time; /**< \p delta of time (in seconds) the RTC has been changed */
 };
 
 /* DM vrtc's reference time is besed on sys time, while the HV vrtc is based on pRTC.
  * When the delta time is sent to users, they need to know what it is relative to.
  */
-#define RTC_CHG_RELATIVE_PHYSICAL_RTC		0
-#define RTC_CHG_RELATIVE_SERVICE_VM_SYS_TIME	1
+#define RTC_CHG_RELATIVE_PHYSICAL_RTC         0  /**< RTC change relative to the physical RTC change */
+#define RTC_CHG_RELATIVE_SERVICE_VM_SYS_TIME  1  /**< RTC change relative to the SOS system time change */
+
+#endif /* ACRN_COMMON_H */
+
 /**
  * @}
  */
-#endif /* ACRN_COMMON_H */
