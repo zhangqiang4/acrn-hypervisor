@@ -8,6 +8,7 @@
 
 #include <libusb-1.0/libusb.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -914,6 +915,16 @@ void usb_dev_free_streams(void *pdata, uint8_t *eps, uint8_t num_eps)
 	libusb_free_streams(udev->handle, eps, num_eps);
 }
 
+static void desc_hide_wakeup(struct usb_dev *udev, void *data, int len)
+{
+	struct usb_config_descriptor *config = data;
+
+	if (len >= offsetof(struct usb_config_descriptor, bmAttributes) &&
+			config->bmAttributes & UC_REMOTE_WAKEUP) {
+		config->bmAttributes &= ~UC_REMOTE_WAKEUP;
+	}
+}
+
 int
 usb_dev_request(void *pdata, struct usb_xfer *xfer)
 {
@@ -926,6 +937,7 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	struct usb_block *blk;
 	uint8_t *data;
 	int rc;
+	bool need_hide_wakeup = false;
 
 	udev = pdata;
 	xfer->status = USB_ERR_NORMAL_COMPLETION;
@@ -972,6 +984,14 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 		UPRINTF(LDBG, "UR_SET_INTERFACE\n");
 		usb_dev_set_if(udev, index, value, xfer);
 		goto out;
+	case UREQ(UR_GET_DESCRIPTOR, UT_READ):
+		/* 
+		 * the higher byte is descriptor type, the lower byte is index. There may be
+		 * multiple config descriptors.
+		 */
+		if ((value >> 8) == UDESC_CONFIG)
+			need_hide_wakeup = true;
+		break;
 	case UREQ(UR_CLEAR_FEATURE, UT_WRITE_ENDPOINT):
 		if (value) {
 			/* according to usb spec (ch9), this is impossible */
@@ -1008,6 +1028,14 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 		xfer->status = usb_dev_err_convert(rc);
 		goto out;
 	}
+
+	/* 
+	 * For GET_DESCRIPTOR request for config descriptor, hide the "remote wakeup" attribute
+	 * to avoid guest triggers auto-suspend as there is no way for acrn-dm to capture
+	 * the physical device wakeup signal.
+	 */
+	if (need_hide_wakeup && data)
+		desc_hide_wakeup(udev, data, rc);
 
 	if (blk) {
 		blk->blen = len - rc;
