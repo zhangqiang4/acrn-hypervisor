@@ -363,11 +363,19 @@ static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (cpl == 0U) {
 			/* to access XCR0,'ecx' should be 0 */
 			if ((vcpu_get_gpreg(vcpu, CPU_REG_RCX) & 0xffffffffUL) == 0UL) {
+				struct cpuinfo_x86 *cpu_info = get_pcpu_info();
+				/* CPUID.0DH, EDX:EAX is a bitmap of all user state components managed by XSAVE */
+				uint64_t supported_xcr0 = ((uint64_t)cpu_info->cpuid_leaves[FEAT_D_0_EDX] << 32U)
+					+ cpu_info->cpuid_leaves[FEAT_D_0_EAX];
+
+				/* vcpu not support Intel MPX */
+				supported_xcr0  &= ~(CPUID_EAX_XCR0_BNDREGS | CPUID_EAX_XCR0_BNDCSR);
+
 				val64 = (vcpu_get_gpreg(vcpu, CPU_REG_RAX) & 0xffffffffUL) |
 						(vcpu_get_gpreg(vcpu, CPU_REG_RDX) << 32U);
 
 				/* bit 0(x87 state) of XCR0 can't be cleared */
-				if (((val64 & 0x01UL) != 0UL) && ((val64 & XCR0_RESERVED_BITS) == 0UL)) {
+				if (((val64 & 0x01UL) != 0UL) && ((val64 & supported_xcr0) == val64)) {
 					/*
 					 * XCR0[2:1] (SSE state & AVX state) can't not be
 					 * set to 10b as it is necessary to set both bits
