@@ -243,7 +243,7 @@ int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu)
 	 *    guest flags. Attempts to invoke an unpermitted hypercall will make a vCPU see -EINVAL as the return
 	 *    value. No exception is triggered in this case.
 	 */
-	if (!is_service_vm(vm)) {
+	if (!is_service_vm(vm) || (get_vcpu_mode(vcpu) != CPU_MODE_64BIT)) {
 		vcpu_inject_ud(vcpu);
 	} else if (!is_hypercall_from_ring0()) {
 		vcpu_inject_gp(vcpu, 0U);
