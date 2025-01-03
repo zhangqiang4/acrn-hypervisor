@@ -9,7 +9,10 @@ from sphinx.domains.c import (
     CDomain,
     DefinitionParser,
     LookupKey,
-    logger
+    logger,
+    ASTAssignmentExpr,
+    ASTExpression,
+    _expression_assignment_ops
 )
 
 from breathe.renderer import RenderContext
@@ -254,6 +257,107 @@ class BreatheCDomain:
     meth = {
         '_resolve_xref_inner': _resolve_xref_inner,
         'resolve_xref': resolve_xref
+    }
+
+
+class BreatheDefinitionParser:
+    """
+    Parse initializers as follows:
+    1. Sphinx has supported: static struct X x = {1, 2};
+    2. Sphinx has supported: static struct X x = {x = 1, y = 2};
+    3. Newly added: static struct X x = {x = {1, 2}};
+    4. Newly added: static struct X x = {x = {y = 1}};
+    5. Newly added: static struct X x = {{1, 2}, {3, 4}};
+    6. Newly added: static struct X x = {{x1 = 1, x2 = 2}, {y1 = 3, y2 = 4}};
+    7. Miscellaneous: static struct X x =
+    {1, x1 = 2, x2 = {{3}, 4}, x3 = {y1 = 5, y2 = {z1 = 6}}, {7, 8, {9}}, {x4 = 10, x5 = 11}};
+    """
+    def _parse_inner_initializer_or_expression(self):
+        # Parse inner initializer
+        # eg1. static struct X x = {{1,2},{3,4}};
+        # eg2. static struct X x = {{x1 = 1, x2 = 2},{y1 = 3, y2 = 4}};
+        self.skip_ws()
+        if self.definition[self.pos] not in '{':  # inner initializer
+            return self._parse_expression()
+        else:
+            return self._parse_braced_init_list()
+
+    def _parse_initializer_list(self, name: str, open: str, close: str
+                                ) -> Tuple[List[ASTExpression], bool]:
+        # Parse open and close with the actual initializer-list in between
+        # -> initializer-clause '...'[opt]
+        #  | initializer-list ',' initializer-clause '...'[opt]
+        # TODO: designators
+        self.skip_ws()
+        if not self.skip_string_and_ws(open):
+            return None, None
+        if self.skip_string(close):
+            return [], False
+
+        exprs = []
+        trailingComma = False
+        while True:
+            self.skip_ws()
+            expr = self._parse_inner_initializer_or_expression()  # initializer or expression, make a judgement!
+            self.skip_ws()
+            exprs.append(expr)
+            self.skip_ws()
+            if self.skip_string(close):
+                break
+            if not self.skip_string_and_ws(','):
+                self.fail("Error in %s, expected ',' or '%s'." % (name, close))
+            if self.current_char == close and close == '}':
+                self.pos += 1
+                trailingComma = True
+                break
+        return exprs, trailingComma
+
+    def _parse_initializer_or_expression(self):
+        # Parse initializer
+        # eg3. static struct X x = {x1 = {1, 2}, x2 = {3, 4}};
+        # eg4. static struct X x = {x1 = {x2 = 1, x3 = 2}, y1 = {y2 = 3, y3 = 4}};
+        self.skip_ws()
+        if self.definition[self.pos] in '{':  # initializer
+            return self._parse_braced_init_list()
+        else:
+            return self._parse_logical_or_expression()
+
+    def _parse_assignment_expression(self) -> ASTExpression:
+        # -> conditional-expression
+        #  | logical-or-expression assignment-operator initializer-clause
+        # -> conditional-expression ->
+        #     logical-or-expression
+        #   | logical-or-expression "?" expression ":" assignment-expression
+        #   | logical-or-expression assignment-operator initializer-clause
+        exprs = []
+        ops = []
+        orExpr = self._parse_logical_or_expression()
+        exprs.append(orExpr)  # lvals
+        # TODO: handle ternary with _parse_conditional_expression_tail
+        while True:
+            oneMore = False
+            self.skip_ws()
+            for op in _expression_assignment_ops:
+                if op[0] in 'abcnox':
+                    if not self.skip_word(op):
+                        continue
+                else:
+                    if not self.skip_string(op):
+                        continue
+                # parse rvals
+                expr = self._parse_initializer_or_expression()  # initializer or expression, make a judgement!
+                exprs.append(expr)  # rvals
+                ops.append(op)  # ops
+                oneMore = True
+            if not oneMore:
+                break
+        return ASTAssignmentExpr(exprs, ops)  # lval = rval
+
+    meth = {
+        '_parse_inner_initializer_or_expression': _parse_inner_initializer_or_expression,
+        '_parse_initializer_list': _parse_initializer_list,
+        '_parse_initializer_or_expression': _parse_initializer_or_expression,
+        '_parse_assignment_expression': _parse_assignment_expression
     }
 
 
@@ -591,4 +695,5 @@ def setup():
     HookManager(ASTNestedName).hook(mapping=BreatheASTNestedName.meth)
     HookManager(Symbol).hook(mapping=BreatheSymbol.meth)
     HookManager(CDomain).hook(mapping=BreatheCDomain.meth)
+    HookManager(DefinitionParser).hook(mapping=BreatheDefinitionParser.meth)
     HookManager(SphinxRenderer).hook(mapping=BreatheRenderer.meth)
