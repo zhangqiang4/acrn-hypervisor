@@ -697,7 +697,7 @@ static struct acrn_vuart *find_active_target_vuart(const struct vuart_config *vu
 		target_vm = get_vm_from_vmid(target_vmid);
 		target_vu = &target_vm->vuart[target_vuid];
 
-		if ((target_vu != NULL) && (target_vu->active)) {
+		if (target_vu->active) {
 			ret_vu = target_vu;
 		}
 	}
