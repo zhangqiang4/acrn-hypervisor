@@ -246,7 +246,7 @@ static uint32_t create_zeropage_e820(struct zero_page *zp, const struct acrn_vm 
 	struct e820_entry *zp_e820 = zp->entries;
 	const struct e820_entry *vm_e820 = vm->e820_entries;
 
-	if ((zp_e820 == NULL) || (vm_e820 == NULL) || (entry_num == 0U) || (entry_num > E820_MAX_ENTRIES)) {
+	if ((vm_e820 == NULL) || (entry_num == 0U) || (entry_num > E820_MAX_ENTRIES)) {
 		pr_err("e820 create error");
 		entry_num = 0U;
 	} else {
