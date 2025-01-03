@@ -439,7 +439,7 @@ static uint64_t vm_get_register(const struct acrn_vcpu *vcpu, enum cpu_reg_name 
 {
 	uint64_t reg_val = 0UL;
 
-	if ((reg >= CPU_REG_GENERAL_FIRST) && (reg <= CPU_REG_GENERAL_LAST)) {
+	if (reg <= CPU_REG_GENERAL_LAST) {
 		reg_val = vcpu_get_gpreg(vcpu, reg);
 	} else if ((reg >= CPU_REG_NONGENERAL_FIRST) &&
 		(reg <= CPU_REG_NONGENERAL_LAST)) {
@@ -468,7 +468,7 @@ static void vm_set_register(struct acrn_vcpu *vcpu, enum cpu_reg_name reg,
 								uint64_t val)
 {
 
-	if ((reg >= CPU_REG_GENERAL_FIRST) && (reg <= CPU_REG_GENERAL_LAST)) {
+	if (reg <= CPU_REG_GENERAL_LAST) {
 		vcpu_set_gpreg(vcpu, reg, val);
 	} else if ((reg >= CPU_REG_NONGENERAL_FIRST) &&
 		(reg <= CPU_REG_NONGENERAL_LAST)) {
@@ -1915,14 +1915,11 @@ static int32_t decode_opcode(struct instr_emul_vie *vie)
 static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mode)
 {
 	uint8_t x;
-	int32_t ret;
+	int32_t ret = -1;
 
 	if ((vie->op.op_flags & VIE_OP_F_NO_MODRM) != 0U) {
 		ret = 0;
-	} else if (cpu_mode == CPU_MODE_REAL) {
-		ret = -1;
 	} else if (vie_peek(vie, &x) != 0) {
-		ret = -1;
 	} else {
 		vie->mod = (x >> 6U) & 0x3U;
 		vie->rm =  (x >> 0U) & 0x7U;
@@ -1933,11 +1930,9 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
 		 * fault. There has to be a memory access involved to cause the
 		 * EPT fault.
 		 */
-		if (vie->mod == VIE_MOD_DIRECT) {
-			ret = -1;
-		} else {
+		if (vie->mod != VIE_MOD_DIRECT) {
 			if (((vie->mod == VIE_MOD_INDIRECT) && (vie->rm == VIE_RM_DISP32)) ||
-					((vie->mod != VIE_MOD_DIRECT) && (vie->rm == VIE_RM_SIB))) {
+					(vie->rm == VIE_RM_SIB)) {
 				/*
 				 * Table 2-5: Special Cases of REX Encodings
 				 *
@@ -1957,7 +1952,7 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
 			vie->reg |= (vie->rex_r << 3U);
 
 			/* SIB */
-			if ((vie->mod != VIE_MOD_DIRECT) && (vie->rm == VIE_RM_SIB)) {
+			if (vie->rm == VIE_RM_SIB) {
 				/* done */
 			} else {
 				vie->base_register = (enum cpu_reg_name)vie->rm;
@@ -1969,7 +1964,8 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
 				case VIE_MOD_INDIRECT_DISP32:
 					vie->disp_bytes = 4U;
 					break;
-				case VIE_MOD_INDIRECT:
+				default:
+					/* VIE_MOD_INDIRECT */
 					if (vie->rm == VIE_RM_DISP32) {
 						vie->disp_bytes = 4U;
 					/*
@@ -1987,9 +1983,6 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
 							vie->base_register = CPU_REG_LAST;
 						}
 					}
-					break;
-				default:
-					/* VIE_MOD_DIRECT */
 					break;
 				}
 
@@ -2371,53 +2364,59 @@ int32_t decode_instruction(struct acrn_vcpu *vcpu, bool full_decode)
 	int32_t retval;
 	enum vm_cpu_mode cpu_mode;
 
-	emul_ctxt = &vcpu->inst_ctxt;
-	retval = vie_init(&emul_ctxt->vie, vcpu);
-
-	if (retval < 0) {
-		if (retval != -EFAULT) {
-			pr_err("init vie failed @ 0x%016lx:", vcpu_get_rip(vcpu));
-		}
+	cpu_mode = get_vcpu_mode(vcpu);
+	if (cpu_mode == CPU_MODE_REAL) {
+		pr_err("Instruction emulation doesn't support under REAL MODE(vm %d, cpu %d)\n",
+			vcpu->vm->vm_id, vcpu->vcpu_id);
+		retval = -1;
 	} else {
-		csar = exec_vmread32(VMX_GUEST_CS_ATTR);
-		cpu_mode = get_vcpu_mode(vcpu);
+		emul_ctxt = &vcpu->inst_ctxt;
+		retval = vie_init(&emul_ctxt->vie, vcpu);
 
-		retval = local_decode_instruction(cpu_mode, seg_desc_def32(csar), &emul_ctxt->vie);
-
-		if (retval != 0) {
-			if (full_decode) {
-				pr_err("decode instruction failed @ 0x%016lx:", vcpu_get_rip(vcpu));
-				vcpu_inject_ud(vcpu);
-				retval = -EFAULT;
+		if (retval < 0) {
+			if (retval != -EFAULT) {
+				pr_err("init vie failed @ 0x%016lx:", vcpu_get_rip(vcpu));
 			}
 		} else {
-			vcpu->arch.inst_len = emul_ctxt->vie.num_processed;
+			csar = exec_vmread32(VMX_GUEST_CS_ATTR);
 
-			/*
-			 * We do operand check in instruction decode phase and
-			 * inject exception accordingly. In late instruction
-			 * emulation, it will always success.
-			 *
-			 * We only need to do dst check for movs. For other instructions,
-			 * they always has one register and one mmio which trigger EPT
-			 * by access mmio. With VMX enabled, the related check is done
-			 * by VMX itself before hit EPT violation.
-			 *
-			 */
-			if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_CHECK_GVA_DI) != 0U) {
-				retval = instr_check_di(vcpu);
+			retval = local_decode_instruction(cpu_mode, seg_desc_def32(csar), &emul_ctxt->vie);
+
+			if (retval != 0) {
+				if (full_decode) {
+					pr_err("decode instruction failed @ 0x%016lx:", vcpu_get_rip(vcpu));
+					vcpu_inject_ud(vcpu);
+					retval = -EFAULT;
+				}
 			} else {
-				retval = instr_check_gva(vcpu, cpu_mode);
-			}
+				vcpu->arch.inst_len = emul_ctxt->vie.num_processed;
 
-			if (retval >= 0) {
-				/* return the Memory Operand byte size */
-				if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_BYTE_OP) != 0U) {
-					retval = 1;
-				} else if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_WORD_OP) != 0U) {
-					retval = 2;
+				/*
+				* We do operand check in instruction decode phase and
+				* inject exception accordingly. In late instruction
+				* emulation, it will always success.
+				*
+				* We only need to do dst check for movs. For other instructions,
+				* they always has one register and one mmio which trigger EPT
+				* by access mmio. With VMX enabled, the related check is done
+				* by VMX itself before hit EPT violation.
+				*
+				*/
+				if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_CHECK_GVA_DI) != 0U) {
+					retval = instr_check_di(vcpu);
 				} else {
-					retval = (int32_t)emul_ctxt->vie.opsize;
+					retval = instr_check_gva(vcpu, cpu_mode);
+				}
+
+				if (retval >= 0) {
+					/* return the Memory Operand byte size */
+					if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_BYTE_OP) != 0U) {
+						retval = 1;
+					} else if ((emul_ctxt->vie.op.op_flags & VIE_OP_F_WORD_OP) != 0U) {
+						retval = 2;
+					} else {
+						retval = (int32_t)emul_ctxt->vie.opsize;
+					}
 				}
 			}
 		}
