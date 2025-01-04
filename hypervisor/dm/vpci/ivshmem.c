@@ -28,60 +28,101 @@
  * functions to model a ivshmem device as a PCI device.
  */
 
-/* config space of ivshmem device */
-#define	IVSHMEM_CLASS		0x05U
-#define	IVSHMEM_REV		0x01U
-#define IVSHMEM_MAX_REGIONS		32U
+#define	IVSHMEM_CLASS		0x05U /**< This macro defines class for ivshmem device, which is memory controller. */
+#define	IVSHMEM_REV		0x01U /**< This macro defines revision for ivshmem device. Revision is 0x01U. */
+#define IVSHMEM_MAX_REGIONS		32U /**< This macro defines max regions of ivshmem device, max number is 32. */
 
 /*
  * ivshmem device supports bar0, bar1 and bar2,
  * indexes of them shall begin with 0 and be continuous.
  */
-#define IVSHMEM_MMIO_BAR	0U
-#define IVSHMEM_MSIX_BAR	1U
-#define IVSHMEM_SHM_BAR	2U
+#define IVSHMEM_MMIO_BAR	0U /**< This macro defines ivshmem device BAR0, BAR0 holds device registers. */
+#define IVSHMEM_MSIX_BAR	1U /**< This macro defines ivshmem device BAR1, BAR1 holds MSI-X table. */
+#define IVSHMEM_SHM_BAR	2U /**< This macro defines ivshmem device BAR2, BAR2 maps the shared memory object. */
 
-#define IVSHMEM_MMIO_BAR_SIZE 256UL
+#define IVSHMEM_MMIO_BAR_SIZE 256UL /**< This macro defines ivshmem device BAR0 size is 256 bytes. */
 
 /* The device-specific registers of ivshmem device */
-#define	IVSHMEM_IRQ_MASK_REG	0x0U
-#define	IVSHMEM_IRQ_STA_REG	0x4U
-#define	IVSHMEM_IV_POS_REG	0x8U
-#define	IVSHMEM_DOORBELL_REG	0xcU
+#define	IVSHMEM_IRQ_MASK_REG	0x0U /**< Define ivshmem BAR0 interrupt mask register, it's read/write register. */
+#define	IVSHMEM_IRQ_STA_REG	0x4U /**< Define ivshmem BAR0 interrupt status register, it's read/write register. */
+#define	IVSHMEM_IV_POS_REG	0x8U /**< Define ivshmem BAR0 ivposition register, it's read only register. */
+#define	IVSHMEM_DOORBELL_REG	0xcU /**< Define ivshmem BAR0 doorbell register, it's write only register. */
 
+/**
+ * @brief Array of ivshmem shared memory region.
+ *
+ * An array of data structure `ivshmem_shm_region`, with the array size defined by `IVSHMEM_MAX_REGIONS`. It defines
+ * all ivshmem shared memory regions in the platform. The ivshmem memory region information is defined in scenario
+ * file, and this array will be auto-generated during the build.
+ */
 static struct ivshmem_shm_region mem_regions[IVSHMEM_MAX_REGIONS] = {
 	IVSHMEM_SHM_REGIONS
 };
 
+/**
+ * @brief The union represents an ivshmem doorbell.
+ *
+ * This union can be used to access the doorbell value either as a 32-bit integer or as a structure containing a vector
+ * index and a peer ID, The union's high 16 bits are the ID of the peer to interrupt, and its low 16 bits select an
+ * interrupt vector.
+ */
 union ivshmem_doorbell {
-	uint32_t val;
+	uint32_t val;  /**< 32-bit value representing the doorbell. */
+	/**
+	 * @brief The struct represents doorbell register.
+	 */
 	struct {
-		uint16_t vector_index;
-		uint16_t peer_id;
+		uint16_t vector_index; /**< 16 bits representing index of the vector. */
+		uint16_t peer_id; /**< 16 bits representing ID of the peer. */
 	} reg;
 };
 
+/**
+ * @brief The data structure represents an ivshmem device.
+ *
+ * This data structure represents an ivshmem device, it includes a pointer to virtual PCI device, a pointer to ivshmem
+ * shared memory region, and a union structure represents four 32-bit register.
+ */
 struct ivshmem_device {
-	struct pci_vdev* pcidev;
+	struct pci_vdev* pcidev; /**< Pointer to the PCI virtual device. */
+	/**
+	 * @brief The union represents memory-mapped I/O registers of an ivshmem device.
+	 */
 	union {
-		uint32_t data[4];
+		uint32_t data[4]; /**< Array of four 32-bit data values. */
+		/**
+		 * @brief The struct represents the specific memory-mapped I/O registers of an ivshmem device.
+		 */
 		struct {
-			uint32_t irq_mask;
-			uint32_t irq_state;
-			/*
-			 * If the device is not configured for interrupts,
-			 * this is zero. Else, ivpos is the device's ID.
+			uint32_t irq_mask; /**< Interrupt mask register. */
+			uint32_t irq_state; /**< Interrupt state register. */
+			/**
+			 * @brief If the device is not configured for interrupts, this is zero, else ivpos is the
+			 * device's ID, device ID is VM ID in acrn implementation.
 			 */
 			uint32_t ivpos;
-
-			/* Writing doorbell register requests to interrupt a peer */
+			/**
+			 * @brief Writing doorbell register requests to interrupt a peer.
+			 */
 			union ivshmem_doorbell doorbell;
 		} regs;
 	} mmio;
-	struct ivshmem_shm_region *region;
+	struct ivshmem_shm_region *region; /**< Pointer to ivshmem share memory region. */
 };
 
+/**
+ * @brief Array of ivshmem devices.
+ *
+ * This array is allocated to hold all ivshmem devices, IVSHMEM_DEV_NUM is the number of ivshmem shared memory region
+ * number defined in scenario file.
+ */
 static struct ivshmem_device ivshmem_dev[IVSHMEM_DEV_NUM];
+
+/**
+ * @brief Spinlock for synchronizing access to ivshmem devices.
+ *
+ * This spinlock is used to avoid access race to ivshmem devices.
+ */
 static spinlock_t ivshmem_dev_lock = { .head = 0U, .tail = 0U, };
 
 /**
@@ -115,8 +156,18 @@ void init_ivshmem_shared_memory()
 	}
 }
 
-/*
+/**
+ * @brief Find an ivshmem shared memory region by name.
+ *
+ * This function searches for an ivshmem shared memory region with the specified name.
+ *
+ * @param[in] name The name of the shared memory region to find.
+ *
+ * @return A pointer to the ivshmem shared memory region if found, or NULL if not found.
+ *
  * @pre name != NULL
+ *
+ * @post N/A
  */
 static struct ivshmem_shm_region *find_shm_region(const char *name)
 {
@@ -130,13 +181,20 @@ static struct ivshmem_shm_region *find_shm_region(const char *name)
 	return ((i < num) ? &mem_regions[i] : NULL);
 }
 
-/*
- * @brief There are two ivshmem server implementation in HV-land and
- *	  DM-land, they're used for briding the notification channel
- *	  between ivshmem devices acrossed VMs.
+/**
+ * @brief Bind a ivshmem device.
+ *
+ * This function searches the ivshmem shared memory region by region name, if the region exists, it sets the virtual
+ * PCI device's VM ID to mmio register ivpos of ivshmem device, and associates ivshmem device with the shared memory
+ * region, which used for bridging the notification channel between ivshmem devices across VMs.
+ *
+ * @param[inout] vdev Pointer to the PCI virtual device.
+ *
+ * @return None
  *
  * @pre vdev != NULL
- * @pre region->doorbell_peers[vm_id] = NULL
+ *
+ * @post N/A
  */
 static void ivshmem_server_bind_peer(struct pci_vdev *vdev)
 {
@@ -154,8 +212,19 @@ static void ivshmem_server_bind_peer(struct pci_vdev *vdev)
 	}
 }
 
-/*
+/**
+ * @brief Unbind a ivshmem device.
+ *
+ * This function unbinds the specified ivshmem device from the shared memory region by setting region's doorbell peer
+ * ivshmem device pointer to be NULL.
+ *
+ * @param[inout] vdev Pointer to the PCI virtual device.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
+ *
+ * @post N/A
  */
 static void ivshmem_server_unbind_peer(struct pci_vdev *vdev)
 {
@@ -164,8 +233,24 @@ static void ivshmem_server_unbind_peer(struct pci_vdev *vdev)
 	region->doorbell_peers[vpci2vm(vdev->vpci)->vm_id] = NULL;
 }
 
-/*
+/**
+ * @brief Notify a peer ivshmem device.
+ *
+ * This function checks the ivshmem device with specified destination peer ID, if the destination ivshmem device
+ * exists, it checks the device's MSI-X and vector index, if the device's MSI-X is enabled, vector index is less than
+ * device's MSI-X table count, and the MSI-X entry is not masked, it sends a notification to a peer ivshmem device by
+ * injecting an MSI according to the configuration of the specified vector index to the destination ivshmem device.
+ *
+ * @param[in] src_ivs_dev Pointer to the source ivshmem device.
+ * @param[in] dest_peer_id ID of the destination peer.
+ * @param[in] vector_index Index of the MSI-X vector to be used for the notification.
+ *
+ * @return None
+ *
  * @pre src_ivs_dev != NULL
+ * @pre dest_peer_id < MAX_IVSHMEM_PEER_NUM
+ *
+ * @post N/A
  */
 static void ivshmem_server_notify_peer(struct ivshmem_device *src_ivs_dev, uint16_t dest_peer_id, uint16_t vector_index)
 {
@@ -196,7 +281,19 @@ static void ivshmem_server_notify_peer(struct ivshmem_device *src_ivs_dev, uint1
 	}
 }
 
-/*
+/**
+ * @brief Create an ivshmem device.
+ *
+ * This function creates an ivshmem device by associating a PCI virtual device with an available ivshmem device slot.
+ * It use spinlock to avoid access race to ivshmem_dev, it also clear ivshmem_device mmio to ensure the same initial
+ * states after VM reboot.
+ *
+ * @param[inout] vdev Pointer to the PCI virtual device.
+ *
+ * @return None
+ *
+ * @pre vdev != NULL
+ *
  * @post vdev->priv_data != NULL
  */
 static void create_ivshmem_device(struct pci_vdev *vdev)
@@ -320,14 +417,14 @@ static int32_t read_ivshmem_vdev_cfg(struct pci_vdev *vdev, uint32_t offset, uin
 /**
  * @brief Unmap the specified BAR for the ivshmem device.
  *
- * This function unmaps the specified BAR for the ivshmem device. It is typically called during the destroy phase of the
- * ivshmem device or when guest updates the BAR register.
+ * This function unmaps the specified BAR for the ivshmem device. It is typically called during the destroy phase of
+ * the ivshmem device or when guest updates the BAR register.
  *
  * - BAR0 and BAR1 are used for device registers and MSI-X table and PBA, respectively. If the specified idx is 0 or 1
- *   and the field base_gpa in the specified vBAR is not 0, it unregisters the mmio range handler for the BAR by calling
- *   unregister_mmio_emulation_handler().
- * - BAR2 maps the shared memory object. If the specified idx is 2 and the field base_gpa in vBAR2 is not 0, it releases
- *   the ept memory mapping for the shared memory region by calling ept_del_mr().
+ *   and the field base_gpa in the specified vBAR is not 0, it unregisters the mmio range handler for the BAR by
+ *   calling unregister_mmio_emulation_handler().
+ * - BAR2 maps the shared memory object. If the specified idx is 2 and the field base_gpa in vBAR2 is not 0, it
+ *   releases the ept memory mapping for the shared memory region by calling ept_del_mr().
  * - Otherwise, it does nothing.
  *
  * @param[inout] vdev Pointer to the PCI device that is treated as an ivshmem device.
@@ -359,13 +456,13 @@ static void ivshmem_vbar_unmap(struct pci_vdev *vdev, uint32_t idx)
  * This function maps the specified virtual BAR for the ivshmem device. It is typically called when guest updates the
  * BAR register.
  *
- * - BAR0 is used for device registers. If the specified idx is 0 and the field base_gpa in the specified vBAR is not 0,
- *   it registers the mmio range handler (via the callback ivshmem_mmio_handler) for the BAR and deletes the 4KB ept
+ * - BAR0 is used for device registers. If the specified idx is 0 and the field base_gpa in the specified vBAR is not
+ *   0, it registers the mmio range handler (via the callback ivshmem_mmio_handler) for the BAR and deletes the 4KB ept
  *   memory mapping for the BAR by calling ept_del_mr().
- * - BAR1 is used for MSI-X table and PBA. If the specified idx is 1 and the field base_gpa in the specified vBAR is not
- *   0, it registers the mmio range handler (via the callback vmsix_handle_table_mmio_access) for the BAR and deletes
- *   the ept memory mapping for the BAR by calling ept_del_mr(). It also sets the mmio_gpa field in the vdev->msix to
- *   the GPA of the BAR for MSI-X table access.
+ * - BAR1 is used for MSI-X table and PBA. If the specified idx is 1 and the field base_gpa in the specified vBAR is
+ *   not 0, it registers the mmio range handler (via the callback vmsix_handle_table_mmio_access) for the BAR and
+ *   deletes the ept memory mapping for the BAR by calling ept_del_mr(). It also sets the mmio_gpa field in the
+ *   vdev->msix to the GPA of the BAR for MSI-X table access.
  * - BAR2 maps the shared memory object. If the specified idx is 2, the field base_gpa in vBAR2 is not 0 and the field
  *   base_hpa in vBAR2 is not INVALID_HPA, it adds the ept memory mapping as (EPT_RD|EPT_WR|EPT_WB|EPT_IGNORE_PAT) for
  *   the BAR by calling ept_add_mr().
@@ -409,8 +506,8 @@ static void ivshmem_vbar_map(struct pci_vdev *vdev, uint32_t idx)
  * This function handles writes to the configuration space of the specified virtual PCI device that is configured as an
  * ivshmem device. It is typically called when the guest writes to the ivshmem device's configuration space.
  *
- * - If the write request is for a BAR register, it updates the BAR with the provided value. It also needs to update the
- *   ept mapping and mmio emulation handler based on the bar information. For detailed operations, refer to
+ * - If the write request is for a BAR register, it updates the BAR with the provided value. It also needs to update
+ *   the ept mapping and mmio emulation handler based on the bar information. For detailed operations, refer to
  *   vpci_update_one_vbar(), ivshmem_vbar_map() and ivshmem_vbar_unmap().
  * - If the write request is for the MSI-X capability register, it specially handles the write request. For detailed
  *   operations, refer to write_vmsix_cap_reg().
@@ -624,13 +721,14 @@ static void deinit_ivshmem_vdev(struct pci_vdev *vdev)
  * hypervisor. This function is used for the case for now and it is usually used in the initialization phase of a
  * post-launch VM.
  *
- * - Per the ivshmem specification, BAR2 maps the shared memory object. For the ivshmem device to be created, the shared
- *   memory region name is stored in dev->args and the size of the shared memory region is stored in
+ * - Per the ivshmem specification, BAR2 maps the shared memory object. For the ivshmem device to be created, the
+ *   shared memory region name is stored in dev->args and the size of the shared memory region is stored in
  *   dev->io_size[IVSHMEM_SHM_BAR].
- * - It traverses all configured PCI devices of the specified VM. Based on the input shared memory region name, it finds
- *   corresponding acrn_vm_pci_dev_config and ivshmem_shm_region.
- * - If the acrn_vm_pci_dev_config is not found or the ivshmem_shm_region is not found or the size of ivshmem_shm_region
- *   is not equal to the size specified in dev->io_size[IVSHMEM_SHM_BAR], the function returns -EINVAL.
+ * - It traverses all configured PCI devices of the specified VM. Based on the input shared memory region name, it
+ *   finds corresponding acrn_vm_pci_dev_config and ivshmem_shm_region.
+ * - If the acrn_vm_pci_dev_config is not found or the ivshmem_shm_region is not found or the size of
+ *   ivshmem_shm_region is not equal to the size specified in dev->io_size[IVSHMEM_SHM_BAR], the function returns
+ *   -EINVAL.
  * - Otherwise, update the acrn_vm_pci_dev_config with input device information specified in dev and initializes a new
  *   virtual PCI device as an ivshmem device. For detailed operations, refer to vpci_init_vdev(). The function returns
  *   -EINVAL if the vpci_init_vdev() fails.
@@ -667,7 +765,8 @@ int32_t create_ivshmem_vdev(struct acrn_vm *vm, struct acrn_vdev *dev)
 				dev_config->vbar_base[IVSHMEM_MMIO_BAR] = (uint64_t) dev->io_addr[IVSHMEM_MMIO_BAR];
 				dev_config->vbar_base[IVSHMEM_MSIX_BAR] = (uint64_t) dev->io_addr[IVSHMEM_MSIX_BAR];
 				dev_config->vbar_base[IVSHMEM_SHM_BAR] = (uint64_t) dev->io_addr[IVSHMEM_SHM_BAR];
-				dev_config->vbar_base[IVSHMEM_SHM_BAR] |= ((uint64_t) dev->io_addr[IVSHMEM_SHM_BAR + 1U]) << 32U;
+				dev_config->vbar_base[IVSHMEM_SHM_BAR] |=
+								((uint64_t) dev->io_addr[IVSHMEM_SHM_BAR + 1U]) << 32U;
 				vdev = vpci_init_vdev(&vm->vpci, dev_config, NULL);
 				spinlock_release(&vm->vpci.lock);
 				if (vdev != NULL) {
@@ -726,9 +825,9 @@ int32_t destroy_ivshmem_vdev(struct pci_vdev *vdev)
  * @brief Data structure implementation for virtual Inter-VM shared memory device (ivshmem) operations.
  *
  * The ivshmem is actually first introduced by QEMU to share a memory region between multiple VMs and host. It is
- * modeled as a PCI device exposing said memory to the VM as a PCI BAR. ACRN also introduces it to transfer data between
- * VMs based on the shared memory region. Struct pci_vdev_ops is used to define the operations of virtual PCI device and
- * definition here is used to support ivshmem device.
+ * modeled as a PCI device exposing said memory to the VM as a PCI BAR. ACRN also introduces it to transfer data
+ * between VMs based on the shared memory region. Struct pci_vdev_ops is used to define the operations of virtual PCI
+ * device and definition here is used to support ivshmem device.
  *
  * @consistency N/A
  * @alignment N/A

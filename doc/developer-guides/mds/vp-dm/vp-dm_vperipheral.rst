@@ -45,7 +45,8 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 [File] include/dm/ivshmem.h
 ======================================================================
 
-
+.. doxygenfile:: ivshmem.h
+   :project: Project ACRN
 
 [File] include/dm/vuart.h
 ======================================================================

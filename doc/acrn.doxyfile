@@ -855,6 +855,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/page.h \
                           ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
+                          ../hypervisor/include/dm/ivshmem.h \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
                           ../hypervisor/dm/vpci/vpci_bridge.c \
@@ -934,7 +935,7 @@ EXCLUDE_PATTERNS       =
 # Exclude internal names (starting with an _) and doxygen-added __unnamed__
 # names given to unnamed nested unions
 
-EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps
+EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

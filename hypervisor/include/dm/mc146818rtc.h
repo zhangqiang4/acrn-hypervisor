@@ -51,7 +51,7 @@
  * @file
  * @brief Definition for rtc register location.
  *
- * This file provides the macro definition fro rtc register location and offset, details refer to.MC146818 datasheet.
+ * This file provides the macro definition for rtc register location and offset, details refer to MC146818 datasheet.
  */
 #define RTC_SEC	0x00	/**< Seconds register address location */
 #define RTC_SECALRM	0x01	/**< Seconds alarm register address location */

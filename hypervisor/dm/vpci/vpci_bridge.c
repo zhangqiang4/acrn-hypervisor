@@ -160,7 +160,7 @@ static int32_t read_vpci_bridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 	if ((offset + bytes) <= 0x100U) {
 		*val = pci_vdev_read_vcfg(vdev, offset, bytes);
 	} else {
-		/* just passthru read to physical device when read PCIE sapce > 0x100 */
+		/* just passthru read to physical device when read PCIE space > 0x100 */
 		*val = pci_pdev_read_cfg(vdev->pdev->bdf, offset, bytes);
 	}
 
