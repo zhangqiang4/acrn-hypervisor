@@ -231,6 +231,7 @@ enum {
 #define VIRTIO_DEV_I2C		0x1062
 #define	VIRTIO_DEV_GPIO		0x1069
 #define VIRTIO_DEV_SPI		0x106D
+#define VIRTIO_DEV_DMABUF   0x1065
 
 /*
  * ACRN virtio device IDs
