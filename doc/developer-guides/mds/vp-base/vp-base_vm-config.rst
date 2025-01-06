@@ -15,6 +15,9 @@ This section contains the documentation of the module `vp-base.vm-config`.
 [File] arch/x86/configs/vm_config.c
 ======================================================================
 
+.. doxygenfile:: configs/vm_config.c
+   :project: Project ACRN
+
 [File] arch/x86/configs/pci_dev.c
 ======================================================================
 
