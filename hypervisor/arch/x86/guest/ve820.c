@@ -1,7 +1,22 @@
 /*
- * Copyright (C) 2019-2022 Intel Corporation.
+ * Copyright (C) 2019-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/**
+ * @addtogroup vp-base_vm
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief VM virtual E820 management functions.
+ *
+ * This file contains implementation for managing VM's virtual E820
+ * table, including initializing, editing and removing virtual E820
+ * entries of a VM.
  */
 
 #include <asm/e820.h>
@@ -13,12 +28,60 @@
 #include <logmsg.h>
 #include <ptdev.h>
 
+/**
+ * @brief GPA low address index
+ *
+ * Index to entry for low RAM address below 1MB in pre_ve820_template
+ */
 #define ENTRY_GPA_L		2U
+/**
+ * @brief GPA high address index
+ *
+ * Index to entry for high RAM address above 4GB in pre_ve820_template
+ */
 #define ENTRY_GPA_HI		7U
 
+/**
+ * @brief E820 entries array for Service VM
+ *
+ * This array records E820 entries for Service VM, with
+ * a maximum of E820_MAX_ENTRIES entry.
+ */
 static struct e820_entry service_vm_e820[E820_MAX_ENTRIES];
+/**
+ * @brief E820 entries array for Pre-Launched VM
+ *
+ * This 2D array records E820 entries for a total of PRE_VM_NUM Pre-Launched VMs,
+ * and a maximum of E820_MAX_ENTRIES for each Pre-Launched VM.
+ */
 static struct e820_entry pre_vm_e820[PRE_VM_NUM][E820_MAX_ENTRIES];
 
+/**
+ * @brief Find available memory region from virtual E820 table.
+ *
+ * This function tries to find a consecutive memory region from virtual E820 table
+ * of \p vm. The search is confined within a search window with \p min_addr
+ * as lower bound and \p max_addr as higher bound.
+ *
+ * The function checks all E820 RAM entries against search window, to calculate if
+ * they have an intersection region with at least page up-rounded \p size bytes.
+ * If it does, the start GPA of the highest page up-rounded \p size bytes in that
+ * intersection region is returned.
+ *
+ * @remark This function is not responsible for book-keeping allocated memory region across
+ * various calls, it simply returns a region that satisfies specified condition.
+ * It is the caller's responsibility to synchronize the usage of those regions.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[in] vm The VM whose virtual E820 table to be searched
+ * @param[in] size Size of the region
+ * @param[in] min_addr The lower bound of search window
+ * @param[in] max_addr The higher bound of search window
+ *
+ * @return Start GPA of the found memory region. INVALID_GPA if no available region was found.
+ */
 uint64_t find_space_from_ve820(struct acrn_vm *vm, uint32_t size, uint64_t min_addr, uint64_t max_addr)
 {
 	int32_t i;
@@ -47,9 +110,22 @@ uint64_t find_space_from_ve820(struct acrn_vm *vm, uint32_t size, uint64_t min_a
 	return gpa;
 }
 
-/* a sorted VM e820 table is critical for memory allocation or slot location,
+/**
+ * @brief Sort VM's virtual E820 table from lowest to highest.
+ *
+ * This function sorts a VM's virtual E820 table according to entry base address,
+ * from lowest to highest.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose virtual E820 table to be sorted
+ *
+ * @remark a sorted VM e820 table is critical for memory allocation or slot location,
  * for example, put ramdisk at the end of TOLUD(Top of LOW Usable DRAM) and
- * put kernel at its begining so that provide largest load capicity for them.
+ * put kernel at its beginning to provide largest load capacity.
+ *
+ * @return None
  */
 static void sort_vm_e820(struct acrn_vm *vm)
 {
@@ -68,6 +144,25 @@ static void sort_vm_e820(struct acrn_vm *vm)
 	}
 }
 
+/**
+ * @brief Filter memory regions from Service VM virtual E820
+ *
+ * This function filters memory region from start_pa to end_pa from virtual E820.
+ * The removal action might cause original RAM E820 entry to be shrinked, splitted
+ * or type-changed. The removed region is guaranteed not to be of type E820_TYPE_RAM,
+ * but it is not necessarily marked as E820_TYPE_RESERVED. It is possible that
+ * part of the region forms an E820 hole (the region is not described in E820 table
+ * at all).
+ *
+ * @pre vm != NULL && is_service_vm(vm) == true
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose virtual E820 table to be filtered
+ * @param[in] start_pa Start address of memory region to be filtered
+ * @param[in] end_pa End address of memory region to be filtered
+ *
+ * @return None
+ */
 static void filter_mem_from_service_vm_e820(struct acrn_vm *vm, uint64_t start_pa, uint64_t end_pa)
 {
 	uint32_t i;
@@ -129,9 +224,20 @@ static void filter_mem_from_service_vm_e820(struct acrn_vm *vm, uint64_t start_p
 }
 
 /**
- * before boot Service VM, call it to hide HV and prelaunched VM memory in e820 table from Service VM
+ * @brief Create virtual E820 table for Service VM.
  *
- * @pre vm != NULL
+ * This function creates virtual E820 table for Service VM. The Service VM
+ * virtual E820 table uses physical E820 table as base, and filters out
+ * the Pre-Launched VM owned memory regions and hypervisor owned regions.
+ *
+ * The vE820 table is sorted by calling `sort_vm_e820` before returning.
+ *
+ * @pre vm != NULL && is_service_vm(vm) == true
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose virtual E820 table to be created
+ *
+ * @return None
  */
 void create_service_vm_e820(struct acrn_vm *vm)
 {
@@ -168,6 +274,25 @@ void create_service_vm_e820(struct acrn_vm *vm)
 	sort_vm_e820(vm);
 }
 
+/**
+ * @brief Pre-Launch VM virtual E820 template
+ *
+ * This array stores template vE820 table for Pre-Launched VMs.
+ * vE820 layout for pre-launched VM:
+ *
+ * - entry0: usable under 1MB
+ * - entry1: reserved for MP Table/ACPI RSDP from 0xf0000 to 0xfffff
+ * - entry2: hpa_low
+ * - entry3: gpu_opregion (0x5000)
+ * - entry4: ACPI Reclaim from 0x7fe00000 to 0x7fefffff (1M)
+ * - entry5: ACPI NVS from 0x7ff00000 to 0x7fffffff (1M)
+ *   -# First 64k reserved
+ *   -# (CONFIG_SECURITY_VM_FIXUP=y) SMBIOS table in between 64k and 0xb0000
+ *   -# (CONFIG_SECURITY_VM_FIXUP=y) TPM2 event log region, if supported by platform,
+ *   is placed at 0x7ffb0000 to 0x7fffffff
+ * - entry6: reserved for 32bit PCI hole from 0x80000000 to 0xffffffff
+ * - (entry7): usable for hpa_hi, if available (above 4G)
+ */
 static const struct e820_entry pre_ve820_template[E820_MAX_ENTRIES] = {
 	{	/* usable RAM under 1MB */
 		.baseaddr = 0x0UL,
@@ -206,6 +331,20 @@ static const struct e820_entry pre_ve820_template[E820_MAX_ENTRIES] = {
 	},
 };
 
+/**
+ * @brief Calculate total size of memory regions
+ *
+ * This function calculates the total size of an array of vm_hpa_regions with
+ * \p num elements.
+ *
+ * @pre regions != NULL
+ * @post N/A
+ *
+ * @param[in] regions VM HPA regions to calculate
+ * @param[in] num Number of elements in \p regions
+ *
+ * @return Total size of regions.
+ */
 static inline uint64_t calculate_memory_size(struct vm_hpa_regions *regions, uint64_t num)
 {
 	uint64_t i;
@@ -219,7 +358,19 @@ static inline uint64_t calculate_memory_size(struct vm_hpa_regions *regions, uin
 }
 
 /**
+ * @brief Initialize an E820 entry to be E820_TYPE_RAM with given memory region.
+ *
+ * Initialize an E820 entry \p entry as type E820_TYPE_RAM, base GPA \p gpa and length
+ * \p length.
+ *
  * @pre entry != NULL
+ * @post N/A
+ *
+ * @param[out] entry Output entry pointer
+ * @param[in] gpa Start GPA of the region
+ * @param[in] length Length of the region
+ *
+ * @return None
  */
 static inline void add_ram_entry(struct e820_entry *entry, uint64_t gpa, uint64_t length)
 {
@@ -229,34 +380,44 @@ static inline void add_ram_entry(struct e820_entry *entry, uint64_t gpa, uint64_
 }
 
 /**
- * @pre vm != NULL
+ * @brief Create virtual E820 table for Pre-Launched VM
  *
- * ve820 layout for pre-launched VM:
+ * Create virtual E820 table for Pre-Launched VM.
+ * This function uses pre_ve820_template as base vE820, and
+ * adjust/add RAM entries to match the actual memory size specified for the VM.
  *
- *   entry0: usable under 1MB
- *   entry1: reserved for MP Table/ACPI RSDP from 0xf0000 to 0xfffff
- *   entry2: hpa_low
- *   entry3: gpu_opregion (0x5000)
- *   entry4: ACPI Reclaim from 0x7fe00000 to 0x7fefffff (1M)
- *   entry5: ACPI NVS from 0x7ff00000 to 0x7fffffff (1M)
- *            Currently this is used by:
- *            a) first 64k reserved
- *            if CONFIG_SECURITY_VM_FIXUP enabled,
- *              b) TPM2 event log region (if platform supports TPM2 eventlog) from 0x7ffb0000 to 0x7fffffff
- *              c) SMBIOS table in between 64k and 0xb0000
- *   entry6: reserved for 32bit PCI hole from 0x80000000 to 0xffffffff
- *   (entry7): usable for
- *            hpa_hi, if avaiable (above 4G)
+ * - `--------------------- 0`
+ * - First 1MB (Usable)
+ * - `--------------------- 1MB`
+ * - Low RAM (Usable)
+ * - `--------------------- GPU_OPREGION_GPA`
+ * - GPU_OPREGION
+ * - `--------------------- VIRT_ACPI_DATA_ADDR`
+ * - ACPI NVS/DATA (Usable)
+ * - `--------------------- 2GB`
+ * - PCI memory hole
+ * - `--------------------- 4GB`
+ * - High RAM (Usable)
+ *
+ * As shown above, the four "Usable" region (First 1MB, Low RAM, ACPI NVS/DATA, High RAM)
+ * should add up to specified memory size of the VM.
+ *
+ * If the specified VM memory size is less than the first three added up, the
+ * Low RAM region will be adjusted to the actual size (total_size - 1MB - ACPI_NVS/DATA).
+ *
+ * If the specified VM memory size is greater than the first three added up, the
+ * High RAM entry will be created to host the remaining memory size
+ * (total_size - 2GB + GPU_OPREGION).
+ *
+ * The vE820 table is sorted by calling `sort_vm_e820` before returning.
+ *
+ * @pre vm != NULL && is_prelaunched_vm(vm) == true
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose virtual E820 table to be setup
+ *
+ * @return None
  */
-
-/*
-	The actual memory mapping under 2G looks like below:
-	|<--1M-->|
-	|<-----hpa_low--->|
-	|<---Non-mapped hole (if there is)-->|
-	|<-----gpu_opregion--->|
-	|<---(1M + 1M) ACPI NVS/DATA--->|
-*/
 void create_prelaunched_vm_e820(struct acrn_vm *vm)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
@@ -282,3 +443,7 @@ void create_prelaunched_vm_e820(struct acrn_vm *vm)
 	vm->e820_entry_num = entry_idx;
 	sort_vm_e820(vm);
 }
+
+/**
+ * @}
+ */

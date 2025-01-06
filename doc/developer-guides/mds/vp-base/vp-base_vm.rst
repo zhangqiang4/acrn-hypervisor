@@ -22,6 +22,9 @@ This section contains the documentation of the module `vp-base.vm`.
 [File] arch/x86/guest/ve820.c
 ======================================================================
 
+.. doxygenfile:: guest/ve820.c
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/guest/vm.h
 ======================================================================
 
