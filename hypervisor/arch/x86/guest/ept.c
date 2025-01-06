@@ -29,7 +29,7 @@
  * 3) high MMIO - Only PCI BARs're high MMIO (we didn't build the high MMIO EPT mapping
  *                except writing PCI 64 bits BARs)
  *
- * The first two parts may use PD_PAGE_NUM(get_e820_ram_size() + MEM_4G) PD pages to build EPT mapping
+ * The first two parts may use PD_PAGE_NUM(get_ram_top_address()) PD pages to build EPT mapping
  * at most;
  * The high MMIO may use (CONFIG_MAX_PCI_DEV_NUM * 6U) PD pages (may plus some PDPT entries
  * if the high MMIO BAR size is larger than 1GB) to build EPT mapping at most
@@ -41,7 +41,7 @@
  * 3) high MMIO - Only PCI BARs're high MMIO (we didn't build the high MMIO EPT mapping
  *                except writing PCI 64 bits BARs)
  *
- * The first two parts may use PT_PAGE_NUM(get_e820_ram_size() + MEM_4G) PT pages to build EPT mapping
+ * The first two parts may use PT_PAGE_NUM(get_ram_top_address()) PT pages to build EPT mapping
  * at most;
  * The high MMIO may use (CONFIG_MAX_PCI_DEV_NUM * 6U) PT pages to build EPT mapping at most:
  * this is because: (a) each 64 bits MMIO BAR may spend one PT page at most to build EPT mapping,
@@ -53,12 +53,12 @@
  *                      from the MSI-X table BAR. In this case, it will also spend one PT page.
  *                  (b) each PCI device may have six 64 bits MMIO (three general BARs plus three VF BARs)
  *                  (c) The Maximum number of PCI devices for ACRN and the Maximum number of virtual PCI devices
- *                      for VM both are get_e820_ram_size()
+ *                      for VM both are CONFIG_MAX_PCI_DEV_NUM
  */
 static uint64_t get_ept_page_num(void)
 {
-	uint64_t ept_pd_page_num = PD_PAGE_NUM(get_e820_ram_size() + MEM_4G) + CONFIG_MAX_PCI_DEV_NUM * 6U;
-	uint64_t ept_pt_page_num = PT_PAGE_NUM(get_e820_ram_size() + MEM_4G) + CONFIG_MAX_PCI_DEV_NUM * 6U;
+	uint64_t ept_pd_page_num = PD_PAGE_NUM(get_ram_top_address()) + CONFIG_MAX_PCI_DEV_NUM * 6U;
+	uint64_t ept_pt_page_num = PT_PAGE_NUM(get_ram_top_address()) + CONFIG_MAX_PCI_DEV_NUM * 6U;
 
 	return roundup((EPT_PML4_PAGE_NUM + EPT_PDPT_PAGE_NUM + ept_pd_page_num + ept_pt_page_num), 64U);
 }

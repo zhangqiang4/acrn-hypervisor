@@ -31,7 +31,7 @@
  */
 
 static uint32_t hv_e820_entries_nr;
-static uint64_t hv_e820_ram_size;
+static uint64_t hv_e820_top_address;
 /* Describe the memory layout the hypervisor uses */
 static struct e820_entry hv_e820[E820_MAX_ENTRIES];
 
@@ -234,7 +234,7 @@ static void init_e820_from_mmap(struct acrn_boot_info *abi)
 	}
 }
 
-static void calculate_e820_ram_size(void)
+static void calculate_e820_top_address(void)
 {
         uint32_t i;
 
@@ -243,11 +243,13 @@ static void calculate_e820_ram_size(void)
                                 hv_e820[i].type, hv_e820[i].baseaddr, hv_e820[i].length);
 
                 if (hv_e820[i].type == E820_TYPE_RAM) {
-                        hv_e820_ram_size += hv_e820[i].baseaddr + hv_e820[i].length;
+					if (hv_e820_top_address < (hv_e820[i].baseaddr + hv_e820[i].length)) {
+						hv_e820_top_address = hv_e820[i].baseaddr + hv_e820[i].length;
+					}
                 }
         }
 
-        dev_dbg(DBG_LEVEL_E820, "ram size: 0x%016lx ",hv_e820_ram_size);
+        dev_dbg(DBG_LEVEL_E820, "E820 top address is: 0x%016lx ", hv_e820_top_address);
 }
 
 static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
@@ -348,31 +350,29 @@ void init_e820(void)
 		init_e820_from_mmap(abi);
 	}
 
-	calculate_e820_ram_size();
+	calculate_e820_top_address();
 	alloc_hv_memory();
 	/* reserve multiboot modules memory */
 	alloc_mods_memory();
 }
 
 /**
- * @brief Get the total size of RAM in the E820 table.
+ * @brief Get the top address of RAM.
  *
- * This functions returns the total size of RAM as recorded during the initialization of the E820 table.
+ * This functions returns the top address of RAM which is mainly used to calculate EPT and PPT,
  *
- * ACRN hypervisor is the first owner to manage system memory, usually BIOS/bootloader will pass the platform
- * physical memory layout - E820 table to hypervisor, hypervisor then doing its memory management based on it.
- * Hypervisor maintains an array hv_e820[E820_MAX_ENTRIES] to illustrate: 1) the memory layout initially abstracted
- * from the physical E820 table, 2) how the memory is managed by hypervisor.
+ * The top address is mainly used to calculate EPT and PPT, on the x86 platform, high memory are continuous
+ * and begin from 4G, so calculating the top address will save more memory than calculating RAM size + 4G.
  *
- * @return The total size of RAM in bytes.
+ * @return The top address of RAM
  *
  * @pre N/A
  *
  * @post N/A
  */
-uint64_t get_e820_ram_size(void)
+uint64_t get_ram_top_address(void)
 {
-        return hv_e820_ram_size;
+        return (hv_e820_top_address > MEM_4G) ? hv_e820_top_address : MEM_4G;
 }
 
 /**
