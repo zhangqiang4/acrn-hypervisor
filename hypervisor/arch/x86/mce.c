@@ -36,7 +36,7 @@ void inject_mc_event_to_governing_vcpu(uint16_t pcpu_id, bool is_cmci)
 		 * 3. pCPU in root mode. We need to wake up governing vm.
 		 */
 
-		vcpu = vcpu_from_pid(vm, pcpu_id);
+		vcpu = vcpu_from_pcpu_id(vm, pcpu_id);
 		if (vcpu == NULL) {
 			continue;
 		}

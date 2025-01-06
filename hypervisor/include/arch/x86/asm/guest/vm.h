@@ -182,7 +182,7 @@ static inline struct acrn_vcpu *vcpu_from_vid(struct acrn_vm *vm, uint16_t vcpu_
 	return &(vm->hw.vcpu_array[vcpu_id]);
 }
 
-static inline struct acrn_vcpu *vcpu_from_pid(struct acrn_vm *vm, uint16_t pcpu_id)
+static inline struct acrn_vcpu *vcpu_from_pcpu_id(struct acrn_vm *vm, uint16_t pcpu_id)
 {
 	uint16_t i;
 	struct acrn_vcpu *vcpu, *target_vcpu = NULL;

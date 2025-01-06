@@ -233,7 +233,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 			 */
 			if ((vdev->pdev != NULL) &&
 			    ((lo & PCI_BASE_ADDRESS_IO_MASK) != (uint32_t)vbar->base_hpa)) {
-				struct acrn_vcpu *vcpu = vcpu_from_pid(vpci2vm(vdev->vpci), get_pcpu_id());
+				struct acrn_vcpu *vcpu = vcpu_from_pcpu_id(vpci2vm(vdev->vpci), get_pcpu_id());
 				if (vcpu != NULL) {
 					vcpu_inject_gp(vcpu, 0U);
 				}
@@ -245,7 +245,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 			}
 		} else {
 			if (!mem_aligned_check(base, PAGE_SIZE)) {
-				struct acrn_vcpu *vcpu = vcpu_from_pid(vpci2vm(vdev->vpci), get_pcpu_id());
+				struct acrn_vcpu *vcpu = vcpu_from_pcpu_id(vpci2vm(vdev->vpci), get_pcpu_id());
 				if (vcpu != NULL) {
 					vcpu_inject_gp(vcpu, 0U);
 				}
