@@ -121,6 +121,7 @@
     <xsl:value-of select="acrn:initializer('companion_vm_id', concat(companion_vmid, 'U'))" />
     <xsl:value-of select="acrn:initializer('mcbanks_bitmask', concat(mcbanks_bitmask, 'U'))" />
     <xsl:call-template name="guest_flags" />
+    <xsl:call-template name="cpu_features" />
 
     <xsl:if test="acrn:is-rdt-enabled()">
       <xsl:call-template name="clos" />
@@ -191,6 +192,13 @@
   <xsl:template name="guest_flags">
     <xsl:variable name="vm_id" select="@id" />
     <xsl:value-of select="acrn:initializer('guest_flags', concat('(', acrn:string-join(//allocation-data/acrn-config/vm[@id=$vm_id]/guest_flags/guest_flag, '|', '', ''),')'))" />
+  </xsl:template>
+
+  <xsl:template name="cpu_features">
+    <xsl:variable name="vm_id" select="@id" />
+    <xsl:if test="//allocation-data/acrn-config/vm[@id=$vm_id]/cpu_features/node()">
+      <xsl:value-of select="acrn:initializer('cpu_features', concat('(', acrn:string-join(//allocation-data/acrn-config/vm[@id=$vm_id]/cpu_features/feature_flag, '|', '', ''),')'))" />
+    </xsl:if>
   </xsl:template>
 
   <xsl:template name="clos">

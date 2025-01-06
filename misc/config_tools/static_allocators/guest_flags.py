@@ -19,8 +19,6 @@ policies = [
     GuestFlagPolicy(".//io_completion_polling = 'y'", "GUEST_FLAG_IO_COMPLETION_POLLING"),
     GuestFlagPolicy(".//secure_world_support = 'y'", "GUEST_FLAG_SECURE_WORLD_ENABLED"),
     GuestFlagPolicy(".//hide_mtrr_support = 'y'", "GUEST_FLAG_HIDE_MTRR"),
-    GuestFlagPolicy(".//virtual_thermal_monitor = 'y'", "GUEST_FLAG_VTM"),
-    GuestFlagPolicy(".//virtual_package_thermal_management = 'y'", "GUEST_FLAG_VPTM"),
     GuestFlagPolicy(".//security_vm = 'y'", "GUEST_FLAG_SECURITY_VM"),
     GuestFlagPolicy(".//vm_type = 'RTVM'", "GUEST_FLAG_RT"),
     GuestFlagPolicy(".//vm_type = 'RTVM' and .//load_order = 'PRE_LAUNCHED_VM' and //hv/BUILD_TYPE= 'debug'", "GUEST_FLAG_PMU_PASSTHROUGH"),
@@ -38,8 +36,3 @@ def fn(board_etree, scenario_etree, allocation_etree):
             if vm_node.xpath(policy.condition):
                 acrn_config_utilities.append_node("./guest_flags/guest_flag", str(policy.guest_flag), allocation_vm_node)
         acrn_config_utilities.append_node("./guest_flags/guest_flag",'GUEST_FLAG_STATIC_VM', allocation_vm_node)
-        load_order = vm_node.find("load_order").text
-        if board_etree.xpath("//capability[@id = 'hwp_supported']") and \
-           (lib.lib.is_service_vm(load_order) or \
-           (get_node(".//own_pcpu/text()", vm_node) == "y" and get_node(".//os_type/text()", vm_node) != "Windows OS")):
-            acrn_config_utilities.append_node("./guest_flags/guest_flag", 'GUEST_FLAG_VHWP', allocation_vm_node)

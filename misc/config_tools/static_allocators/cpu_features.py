@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+#
+# Copyright (C) 2022 Intel Corporation.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+import logging
+import sys, os, re
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'library'))
+import acrn_config_utilities, lib.error, lib.lib
+from collections import namedtuple
+from acrn_config_utilities import get_node
+
+class CpuFeaturePolicy(namedtuple("CpuFeaturePolicy", ["feature_flag", "host_condition_list", "extra_check_fn"])):
+    pass
+
+def check_hwp(vm_id, board_etree, scenario_etree, allocation_etree):
+    vm_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']", scenario_etree)
+    load_order = vm_node.find("load_order").text
+    if (lib.lib.is_service_vm(load_order) or \
+        (get_node(".//own_pcpu/text()", vm_node) == "y" and get_node(".//os_type/text()", vm_node) != "Windows OS")):
+            return True
+    return False
+
+policies = {
+    "vhwp": CpuFeaturePolicy("GUEST_CPU_FEATURE_VHWP", ["hwp_supported"], check_hwp),
+    "tm": CpuFeaturePolicy("GUEST_CPU_FEATURE_TM_PT", [], None),
+    "ptm": CpuFeaturePolicy("GUEST_CPU_FEATURE_PTM_PT", [], None),
+}
+
+def check_host_cpu(processor_node, condition_list):
+    models = processor_node.xpath("//model")
+    for model in models:
+        for condition in condition_list:
+            if not model.xpath(f"capability[@id='{condition}']"):
+                logging.error(f"Processor {model.get('description')} doesn't have capability {condition}")
+                return False
+    return True
+
+def fn(board_etree, scenario_etree, allocation_etree):
+    for vm_node in scenario_etree.xpath("//vm"):
+        vm_id = vm_node.get('id')
+        allocation_vm_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']", allocation_etree)
+        if allocation_vm_node is None:
+            allocation_vm_node = acrn_config_utilities.append_node("/acrn-config/vm", None, allocation_etree, id = vm_id)
+
+        cpu_features_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']/cpu_features", scenario_etree)
+        if cpu_features_node is None:
+            continue
+
+        for cpu_feature in cpu_features_node:
+            feature = cpu_feature.text
+            if policies.get(feature) is None:
+                logging.error(f"Unknown CPU feature {feature} in vm {vm_id}")
+                sys.exit(1)
+
+            if not check_host_cpu(get_node(f"/acrn-config/processors", board_etree), policies[feature].host_condition_list):
+                sys.exit(1)
+
+            if policies[feature].extra_check_fn is not None:
+                if not policies[feature].extra_check_fn(vm_id, board_etree, scenario_etree, allocation_etree):
+                    logging.error(f"Extra check failed for {feature}")
+                    sys.exit(1)
+            
+            acrn_config_utilities.append_node("./cpu_features/feature_flag", policies[feature].feature_flag, allocation_vm_node)
+            

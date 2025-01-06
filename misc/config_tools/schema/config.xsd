@@ -435,6 +435,11 @@ These settings can only be changed at build time.</xs:documentation>
         <xs:documentation>Select a subset of physical CPUs that this VM can use. More than one can be selected.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="cpu_features" type="CPUFeatures" minOccurs="0">
+      <xs:annotation acrn:title="CPU Features" acrn:applicable-vms="pre-launched, post-launched, service-vm" acrn:views="advanced">
+        <xs:documentation>Optional CPU features enabled on VM.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="usb_xhci" type="USBDevsConfiguration" minOccurs="0">
         <xs:annotation acrn:title="" acrn:views="basic" acrn:applicable-vms="post-launched">
       </xs:annotation>

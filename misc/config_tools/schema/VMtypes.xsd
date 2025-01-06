@@ -613,4 +613,15 @@ device file when user config it as virtio serial port, which can be read and wri
     </xs:element>
   </xs:sequence>
 </xs:complexType>
+
+<xs:complexType name="CPUFeatures">
+  <xs:sequence>
+    <xs:element name="cpu_feature" type="xs:string" maxOccurs="unbounded">
+      <xs:annotation acrn:title="CPUFeature">
+        <xs:documentation>List of optional CPU features enabled on VM.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
+  </xs:sequence>
+</xs:complexType>
+
 </xs:schema>

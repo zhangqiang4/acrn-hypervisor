@@ -196,6 +196,23 @@ bool is_paused_vm(const struct acrn_vm *vm)
 }
 
 /**
+ * @brief Check if a specific CPU feature is enabled for a given VM.
+ *
+ * This function checks if a specific CPU feature is enabled for the given VM.
+ *
+ * @pre vm != NULL
+ *
+ * @param[in] vm      The VM to be checked
+ * @param[in] feature The CPU feature to be checked, defined as GUEST_CPU_FEATURE_*
+ *
+ * @return true if the specified CPU feature is enabled for the VM, false otherwise.
+ */
+bool vm_cpu_feature_enabled(const struct acrn_vm *vm, uint64_t feature)
+{
+	return ((get_vm_config(vm->vm_id)->cpu_features & feature) != 0U);
+}
+
+/**
  * @brief Checks if a VM is Service VM.
  *
  * This function checks if a VM is Service VM. A VM is Service VM if
@@ -370,9 +387,7 @@ bool is_static_configured_vm(const struct acrn_vm *vm)
  */
 bool is_vhwp_configured(const struct acrn_vm *vm)
 {
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	return ((vm_config->guest_flags & GUEST_FLAG_VHWP) != 0U);
+	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP);
 }
 
 /**
@@ -417,9 +432,7 @@ bool is_mc_pt_configured(const struct acrn_vm *vm)
  */
 bool is_tm_pt_configured(const struct acrn_vm *vm)
 {
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	return ((vm_config->guest_flags & GUEST_FLAG_VTM) != 0U);
+	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_TM_PT);
 }
 
 /**
@@ -440,9 +453,7 @@ bool is_tm_pt_configured(const struct acrn_vm *vm)
  */
 bool is_ptm_pt_configured(const struct acrn_vm *vm)
 {
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	return ((vm_config->guest_flags & GUEST_FLAG_VPTM) != 0U);
+	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_PTM_PT);
 }
 
 /**

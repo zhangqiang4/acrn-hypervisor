@@ -172,6 +172,7 @@ struct acrn_vm_config {
 							 *	GUEST_FLAG_LAPIC_PASSTHROUGH
 							 * We could add more guest flags in future;
 							 */
+	uint64_t cpu_features;				/* Virtual CPU features */
 	struct sched_params sched_params;		/* Scheduler params for vCPUs of this VM */
 	uint16_t companion_vm_id;			/* The companion VM id for this VM */
 	struct acrn_vm_mem_config memory;		/* memory configuration of VM */

@@ -112,9 +112,14 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #define GUEST_FLAG_TEE				(1UL << 9U)	/* Whether the VM is TEE VM */
 #define GUEST_FLAG_REE				(1UL << 10U)	/* Whether the VM is REE VM */
 #define GUEST_FLAG_PMU_PASSTHROUGH	(1UL << 11U)    /* Whether PMU is passed through */
-#define GUEST_FLAG_VHWP				(1UL << 12U)    /* Whether the VM supports vHWP */
-#define GUEST_FLAG_VTM				(1UL << 13U)    /* Whether the VM supports virtual thermal monitor */
-#define GUEST_FLAG_VPTM				(1UL << 15U)    /* Whether the VM supports virtual package thermal management */
+/* TODO: remove these DEPRECATED items along with config tools */
+#define GUEST_FLAG_VHWP				(1UL << 12U)    /* [DEPRECATED] Whether the VM supports vHWP */
+#define GUEST_FLAG_VTM				(1UL << 13U)    /* [DEPRECATED] Whether the VM supports virtual thermal monitor */
+#define GUEST_FLAG_VPTM				(1UL << 15U)    /* [DEPRECATED] the VM supports virtual package thermal management */
+
+#define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)		/* Whether the VCPU supports vHWP */
+#define GUEST_CPU_FEATURE_TM_PT		(1UL << 1U)		/* Whether passthrough per-core thermal monitor to guest */
+#define GUEST_CPU_FEATURE_PTM_PT	(1UL << 2U)		/* Whether passthrough package thermal monitor to guest */
 
 /* TODO: We may need to get this addr from guest ACPI instead of hardcode here */
 #define VIRTUAL_SLEEP_CTL_ADDR		0x400U /* Pre-launched VM uses ACPI reduced HW mode and sleep control register */
