@@ -221,12 +221,11 @@ static inline uint64_t calculate_memory_size(struct vm_hpa_regions *regions, uin
 /**
  * @pre entry != NULL
  */
-static inline uint64_t add_ram_entry(struct e820_entry *entry, uint64_t gpa, uint64_t length)
+static inline void add_ram_entry(struct e820_entry *entry, uint64_t gpa, uint64_t length)
 {
 	entry->baseaddr = gpa;
 	entry->length = length;
 	entry->type = E820_TYPE_RAM;
-	return round_pde_up(entry->baseaddr + entry->length);
 }
 
 /**
