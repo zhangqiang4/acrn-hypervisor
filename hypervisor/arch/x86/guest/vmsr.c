@@ -432,6 +432,7 @@ static void prepare_auto_msr_area(struct acrn_vcpu *vcpu)
 		struct acrn_vm_config *cfg = get_vm_config(vcpu->vm->vm_id);
 		uint16_t vcpu_clos;
 
+		ASSERT(cfg->num_pclosids != 0, "error, cfg->num_pclosids is 0");
 		ASSERT(cfg->pclosids != NULL, "error, cfg->pclosids is NULL");
 
 		vcpu_clos = cfg->pclosids[vcpu->vcpu_id%cfg->num_pclosids];
