@@ -116,6 +116,12 @@
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
         <POLICY>
+          <VM>VM1</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
           <VM>VM2</VM>
           <VCPU>0</VCPU>
           <TYPE>Unified</TYPE>
@@ -214,6 +220,108 @@
         <POLICY>
           <VM>VM2</VM>
           <VCPU>16</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>17</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>18</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM2</VM>
+          <VCPU>19</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>1</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>2</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>3</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>4</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>5</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>6</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>7</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>8</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM3</VM>
+          <VCPU>9</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM4</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM4</VM>
+          <VCPU>1</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM4</VM>
+          <VCPU>2</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM4</VM>
+          <VCPU>3</VCPU>
           <TYPE>Unified</TYPE>
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
