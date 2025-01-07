@@ -25,6 +25,8 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 {
 	struct guest_cpu_context *ctx = &vcpu->arch.contexts;
 	struct ext_context *ectx = &ctx->ext_ctx;
+	/* As CPUID.01H:ECX[7] is removed from guests, guests should not see EIST enable bit. */
+	uint64_t misc_en = msr_read(MSR_IA32_MISC_ENABLE) & ~MSR_IA32_MISC_ENABLE_EIST;
 
 	pr_dbg("%s,cr0:0x%lx, cr4:0x%lx.", __func__, cr0, cr4);
 
@@ -53,7 +55,11 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	load_segment(ectx->ldtr, VMX_GUEST_LDTR);
 
 	/* init guest ia32_misc_enable value for guest read */
-	vcpu_set_guest_msr(vcpu, MSR_IA32_MISC_ENABLE, msr_read(MSR_IA32_MISC_ENABLE));
+	if (!is_pmu_pt_configured(vcpu->vm)) {
+		/* DS is not supported, set BTS and PEBS unavailable */
+		misc_en |= (MSR_IA32_MISC_ENABLE_BTS_UNAVAIL | MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL);
+	}
+	vcpu_set_guest_msr(vcpu, MSR_IA32_MISC_ENABLE, misc_en);
 
 	vcpu_set_guest_msr(vcpu, MSR_IA32_PERF_CTL, msr_read(MSR_IA32_PERF_CTL));
 
