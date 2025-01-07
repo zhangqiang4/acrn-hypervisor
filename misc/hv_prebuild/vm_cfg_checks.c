@@ -31,13 +31,21 @@ static bool check_vm_clos_config(uint16_t vm_id)
 	bool ret = true;
 	struct acrn_vm_config *vm_config = get_vm_config(vm_id);
 
-	for (i = 0U; i < vm_config->num_pclosids; i++) {
-		if (((platform_clos_num != 0U) && (vm_config->pclosids[i] == platform_clos_num))
-				|| (vm_config->pclosids[i] > platform_clos_num)) {
-			printf("vm%u: vcpu%u clos(%u) exceed the max clos(%u).",
-				vm_id, i, vm_config->pclosids[i], platform_clos_num);
-			ret = false;
-			break;
+	if((vm_config->name[0] != '\0') && (vm_config->num_pclosids == 0U)) {
+		printf("vm%u: invalid num_closids(0), pls check CAT configuration in Configurator tool\n",
+			vm_id);
+		ret = false;
+	}
+
+	if(ret) {
+		for (i = 0U; i < vm_config->num_pclosids; i++) {
+			if (((platform_clos_num != 0U) && (vm_config->pclosids[i] == platform_clos_num))
+					|| (vm_config->pclosids[i] > platform_clos_num)) {
+				printf("vm%u: vcpu%u clos(%u) exceed the max clos(%u).",
+					vm_id, i, vm_config->pclosids[i], platform_clos_num);
+				ret = false;
+				break;
+			}
 		}
 	}
 	return ret;
