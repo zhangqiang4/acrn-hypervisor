@@ -188,13 +188,27 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 				if (((cr0 & CR0_CD) == 0UL) && ((cr0 & CR0_NW) != 0UL)) {
 					ret = false;
 				}
-				/* SDM 4.10.1 "Process-Context Identifiers"
-				 *
-				 * MOV to CR0 causes a general-protection exception if it would
-				 * clear CR0.PG to 0 while CR4.PCIDE = 1
-				 */
-				if (((cr0 & CR0_PG) == 0UL) && ((vcpu_get_cr4(vcpu) & CR4_PCIDE) != 0UL)) {
-					ret = false;
+
+				if ((cr0 & CR0_PG) == 0UL) {
+					if ((vcpu_get_efer(vcpu) & MSR_IA32_EFER_LME_BIT) != 0UL) {
+						/* SDM Vol.2 "MOV—Move to/from Control Registers"
+						 *
+						 * In 64-Bit mode, clearing CR0.PG causes #GP(0).
+						 */
+						ret = false;
+					} else if ((vcpu_get_cr4(vcpu) & CR4_PCIDE) != 0UL) {
+						/* SDM 4.10.1 "Process-Context Identifiers"
+						 *
+						 * MOV to CR0 causes a general-protection exception if it would
+						 * clear CR0.PG to 0 while CR4.PCIDE = 1 and in
+						 * compatibility mode.
+						 */
+						ret = false;
+					} else {
+						/* CR0.PG is allowed to be 0 in compatibility/protected
+						 * mode with CR4.PCIDE = 0, and real-address mode.
+						 */
+					}
 				}
 			}
 		}
