@@ -101,6 +101,7 @@ struct surface {
 		int dmabuf_planar_fd[3];
 		int dmabuf_planar_fd_cnt;
 	} dma_info;
+	bool protected;
 };
 
 struct cursor {

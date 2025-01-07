@@ -63,6 +63,7 @@
 #define VIRTIO_GPU_F_ALLOW_P2P			13
 #define VIRTIO_GPU_F_FLIP_SEQUENCE		14
 #define VIRTIO_GPU_F_HDCP                       15
+#define VIRTIO_GPU_F_PROTECTED_BO               16
 
 /*
  * Host capabilities
@@ -265,6 +266,7 @@ struct virtio_gpu_resource_2d {
 	struct iovec *iov;
 	uint32_t iovcnt;
 	bool blob;
+	bool protected;
 	struct dma_buf_info *dma_info;
 	LIST_ENTRY(virtio_gpu_resource_2d) link;
 };
@@ -2142,6 +2144,7 @@ virtio_gpu_cmd_set_scanout_blob(struct virtio_gpu_command *cmd)
 	surf.stride[0] = req.strides[0];
 	surf.dma_info.dmabuf_fd = r2d->dma_info->dmabuf_fd;
 	surf.surf_type = SURFACE_DMABUF;
+	surf.protected = r2d->protected;
 	bytes_pp = 4;
 	switch (req.format) {
 	case VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM:
@@ -2190,10 +2193,11 @@ virtio_gpu_irq_bh(void *data)
 #define VIRTIO_GPU_TUNNEL_CMD_SET_BLEND 2
 #define VIRTIO_GPU_TUNNEL_CMD_SET_PLANARS 3
 #define VIRTIO_GPU_TUNNEL_CMD_SET_SPRITE_SCALING 4
+#define VIRTIO_GPU_TUNNEL_CMD_SET_BO_PROTECTION 5
 
 static void dispatch_tunnel_cmd(struct virtio_gpu *gpu, int handle, uint32_t scanout_id, uint32_t plane_id, struct virtio_gpu_cmd *cmdp)
 {
-
+	struct virtio_gpu_resource_2d *r2d;
 	switch (cmdp->cmd) {
 
 	case VIRTIO_GPU_TUNNEL_CMD_SET_ROTATION:
@@ -2204,7 +2208,6 @@ static void dispatch_tunnel_cmd(struct virtio_gpu *gpu, int handle, uint32_t sca
 		break;
 	case VIRTIO_GPU_TUNNEL_CMD_SET_PLANARS:
 		uint32_t dmabuf_planar[3];
-		struct virtio_gpu_resource_2d *r2d;
 		int i;
 		for(i=0; i<cmdp->size; i++) {
 			r2d = virtio_gpu_find_resource_2d(gpu, cmdp->data32[i]);
@@ -2218,6 +2221,15 @@ static void dispatch_tunnel_cmd(struct virtio_gpu *gpu, int handle, uint32_t sca
 		break;
 	case VIRTIO_GPU_TUNNEL_CMD_SET_SPRITE_SCALING:
 		vdpy_set_scaling(handle, scanout_id, plane_id, cmdp->data32[0], cmdp->data32[1], cmdp->data32[2], cmdp->data32[3]);
+		break;
+	case VIRTIO_GPU_TUNNEL_CMD_SET_BO_PROTECTION:
+		r2d = virtio_gpu_find_resource_2d(gpu, cmdp->data32[0]);
+		if (!r2d) {
+			pr_dbg("%s : resource %d is not existing.\n",
+					__func__, cmdp->data32[0]);
+		} else {
+			r2d->protected = cmdp->data32[1];
+		}
 		break;
 	default:
 		pr_err("not allowable tunnel cmd \r\n");
@@ -2695,6 +2707,7 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		if (gpu->is_blob_supported) {
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_RESOURCE_BLOB);
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MODIFIER);
+			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_PROTECTED_BO);
 
 			if(vdpy_mplane_check()) {
 				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_PIXEL_BLEND_MODE);
