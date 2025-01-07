@@ -289,6 +289,11 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	entry.ecx &= ~CPUID_ECX_TME;
 	entry.edx &= ~CPUID_EDX_PCONFIG;
 
+	/* mask architectural LBRs */
+	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_LBR_PT)) {
+		entry.edx &= ~CPUID_EDX_LBR;
+	}
+
 	if ((cr4_reserved_mask & CR4_FSGSBASE) != 0UL) {
 		entry.ebx &= ~CPUID_EBX_FSGSBASE;
 	}
@@ -518,6 +523,13 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 			case CPUID_TRACE:
 			/* 0x1BU, PCONFIG */
 			case CPUID_PCONFIG:
+				break;
+			/* 0x1CU, LBR */
+			case CPUID_LAST_BRANCH_RECORD:
+				if (vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_LBR_PT)) {
+					init_vcpuid_entry(i, 0U, 0U, &entry);
+					result = set_vcpuid_entry(vm, &entry);
+				}
 				break;
 			default:
 				init_vcpuid_entry(i, 0U, 0U, &entry);
@@ -801,7 +813,6 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 			*ecx = 0U;
 			*edx = 0U;
 			break;
-
 		default:
 			/*
 			 * In this switch statement, leaf 0x01/0x04/0x06/0x0b/0x0d/0x19/0x1f/0x80000001

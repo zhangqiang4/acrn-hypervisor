@@ -26,6 +26,7 @@ policies = {
     "vhwp": CpuFeaturePolicy("GUEST_CPU_FEATURE_VHWP", ["hwp_supported"], check_hwp),
     "tm": CpuFeaturePolicy("GUEST_CPU_FEATURE_TM_PT", [], None),
     "ptm": CpuFeaturePolicy("GUEST_CPU_FEATURE_PTM_PT", [], None),
+    "lbr": CpuFeaturePolicy("GUEST_CPU_FEATURE_LBR_PT", [], None),
 }
 
 def check_host_cpu(processor_node, condition_list):

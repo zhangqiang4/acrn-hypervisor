@@ -120,6 +120,7 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)		/* Whether the VCPU supports vHWP */
 #define GUEST_CPU_FEATURE_TM_PT		(1UL << 1U)		/* Whether passthrough per-core thermal monitor to guest */
 #define GUEST_CPU_FEATURE_PTM_PT	(1UL << 2U)		/* Whether passthrough package thermal monitor to guest */
+#define GUEST_CPU_FEATURE_LBR_PT	(1UL << 3U)		/* Whether passthrough last branch records to guest */
 
 /* TODO: We may need to get this addr from guest ACPI instead of hardcode here */
 #define VIRTUAL_SLEEP_CTL_ADDR		0x400U /* Pre-launched VM uses ACPI reduced HW mode and sleep control register */

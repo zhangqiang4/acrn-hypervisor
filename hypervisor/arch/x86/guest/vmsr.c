@@ -346,6 +346,25 @@ static void init_thermal_msrs(struct acrn_vcpu *vcpu)
 	}
 }
 
+/* Enable LBR MSRs interception */
+static void init_lbr_msrs(struct acrn_vcpu *vcpu)
+{
+	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
+	uint32_t msr;
+	if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_LBR_PT)) {
+		/* Enable read and write msr interception for all MSR_LASTBRANCH_x_FROM_IP MSRs (0x680U ~ 0x69FU) */
+		for (msr = (MSR_LASTBRANCH_31_FROM_IP - 31); msr <= MSR_LASTBRANCH_31_FROM_IP; msr ++) {
+			enable_msr_interception(msr_bitmap, msr, INTERCEPT_READ_WRITE);
+		}
+		/* Intercept MSR_IA32_LER_FROM_LIP (0x1DDU) */
+		enable_msr_interception(msr_bitmap, MSR_IA32_LER_FROM_LIP, INTERCEPT_READ_WRITE);
+		/* Intercept MSR_IA32_LER_TO_LIP (0x1DEU) */
+		enable_msr_interception(msr_bitmap, MSR_IA32_LER_TO_LIP, INTERCEPT_READ_WRITE);
+		/* Intercept MSR_IA32_DEBUGCTL (0x1D9U) */
+		enable_msr_interception(msr_bitmap, MSR_IA32_DEBUGCTL, INTERCEPT_READ_WRITE);
+	}
+}
+
 /*
  * Enable read and write msr interception for x2APIC MSRs
  */
@@ -628,6 +647,9 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 
 	/* Initialize thermal MSRs interception */
 	init_thermal_msrs(vcpu);
+
+	/*  Initialize Last Branch Records MSRs interception */
+	init_lbr_msrs(vcpu);
 }
 
 static int32_t write_pat_msr(struct acrn_vcpu *vcpu, uint64_t value)

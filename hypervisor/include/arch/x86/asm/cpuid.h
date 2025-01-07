@@ -538,6 +538,12 @@
  */
 #define CPUID_EDX_PCONFIG       (1U<<18U)
 /**
+ * @brief A bit representing whether the processor supports Architectural LBRs.
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=0H):EDX[19].
+ */
+ #define CPUID_EDX_LBR          (1U<<19U)
+ /**
  * @brief A bit representing whether the processor supports CET Indirect Branch Tracking features.
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=0H):EDX[20].
