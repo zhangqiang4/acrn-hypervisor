@@ -51,13 +51,24 @@
 #define CR4_PASSTHRU_BITS	(CR4_VME | CR4_PVI | CR4_TSD | CR4_DE | \
 				CR4_PGE | CR4_PCE | CR4_OSFXSR | CR4_PCIDE | \
 				CR4_OSXSAVE | CR4_FSGSBASE | CR4_OSXMMEXCPT | \
-				CR4_UMIP | CR4_LA57 | CR4_MCE)
+				CR4_UMIP | CR4_LA57)
 static uint64_t cr4_passthru_mask = CR4_PASSTHRU_BITS;	/* bound to flexible bits */
 
 #define CR4_TRAP_AND_PASSTHRU_BITS	(CR4_PSE | CR4_PAE | CR4_SMEP | CR4_SMAP | CR4_PKE | CR4_PKS | CR4_KL)
 static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* bound to flexible bits */
 
-#define CR4_TRAP_AND_EMULATE_BITS	0UL /* software emulated bits even if host is fixed */
+/* For CR4.MCE, we follow below policy:
+ * CR4.MCE should always be enabled in physical CR4, regardless of values of vCR4.
+ * Physically turning off CR4.MCE will suppress #MC and this will result in logical processor
+ * to enter shutdown state when the machine check event happens. (SDM 29.8, Machine-Check
+ * Events During VM Exit)
+ */
+#define CR4_TRAP_AND_EMULATE_BITS	CR4_MCE /* software emulated bits even if host is fixed */
+
+/* Physical initial value for pure emulated bits */
+#define CR4_EM_BITS_INITIAL_PHYS_VALUE	CR4_MCE
+
+/* No EM_BITS_INITIAL_VIRT_VALUE defined as that will be zero */
 
 /* Change of these bits should change vcpuid too */
 #define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE)
@@ -352,6 +363,10 @@ static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
 		ret = false;
 	}
 
+	if (!is_mc_pt_enabled(vcpu) && ((cr4 & CR4_MCE) != 0UL)) {
+		ret = false;
+	}
+
 	return ret;
 }
 
@@ -499,7 +514,8 @@ void init_cr0_cr4_flexible_bits(void)
 	 */
 	cr4_rsv_bits_guest_value = (fixed0 & ~cr4_flexible_bits);
 
-	initial_guest_cr4 = (cr4_rsv_bits_guest_value & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_PHYS_VALUE;
+	initial_guest_cr4 = (cr4_rsv_bits_guest_value & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_PHYS_VALUE \
+						| CR4_EM_BITS_INITIAL_PHYS_VALUE;
 	cr4_rsv_bits_guest_value = (cr4_rsv_bits_guest_value & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_VIRT_VALUE;
 
 	pr_dbg("cr4_flexible_bits:0x%lx, cr4_passthru_mask:0x%lx, cr4_trap_and_passthru_mask:0x%lx.",
