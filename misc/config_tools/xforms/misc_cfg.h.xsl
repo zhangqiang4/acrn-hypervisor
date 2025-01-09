@@ -98,7 +98,7 @@
     </xsl:if>
   </xsl:variable>
   <xsl:variable name="extra_memmap">
-      <xsl:value-of select="concat('memmap=', //hv/MEMORY/RAMOOPS_SIZE, '$', //hv/MEMORY/RAMOOPS_START, ',', //hv/MEMORY/HVLOG_SIZE, '$', //hv/MEMORY/HVLOG_START)" />
+      <xsl:value-of select="concat('memmap=', //hv/MEMORY/HV_RESERVED_SIZE, '$', //hv/MEMORY/HV_RESERVED_START)" />
   </xsl:variable>
   <xsl:variable name="ramoops_cmdline">
       <xsl:value-of select="concat('ramoops.mem_address=', //hv/MEMORY/RAMOOPS_START, ' ramoops.mem_size=', //hv/MEMORY/RAMOOPS_SIZE, ' ramoops.console_size=0x200000 ramoops.dump_oops=1')" />
