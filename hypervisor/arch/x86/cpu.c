@@ -37,6 +37,7 @@
 #include <delay.h>
 #include <thermal.h>
 #include <asm/mce.h>
+#include <asm/platform_caps.h>
 
 #define CPU_UP_TIMEOUT		100U /* millisecond */
 #define CPU_DOWN_TIMEOUT	100U /* millisecond */

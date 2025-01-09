@@ -32,7 +32,9 @@ struct platform_caps_x86 {
 };
 
 extern struct platform_caps_x86 platform_caps;
+
 struct cpu_state_info *get_cpu_pm_state_info(void);
+void load_pcpu_state_data(void);
 /**
  * @}
  */
