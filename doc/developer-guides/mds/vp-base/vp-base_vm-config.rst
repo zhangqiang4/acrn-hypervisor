@@ -5,7 +5,9 @@ Design of Module `vp-base.vm-config`
 
 This section contains the documentation of the module `vp-base.vm-config`.
 
-
+.. doxygengroup:: vp-base_vm_config
+   :project: Project ACRN
+   :desc-only:
 
 .. contents::
    :local:
@@ -16,6 +18,9 @@ This section contains the documentation of the module `vp-base.vm-config`.
 [File] arch/x86/configs/pci_dev.c
 ======================================================================
 
+.. doxygenfile:: configs/pci_dev.c
+   :project: Project ACRN
+
 [File] arch/x86/configs/vacpi.c
 ======================================================================
 
@@ -24,6 +29,9 @@ This section contains the documentation of the module `vp-base.vm-config`.
 
 [File] include/arch/x86/asm/pci_dev.h
 ======================================================================
+
+.. doxygenfile:: asm/pci_dev.h
+   :project: Project ACRN
 
 [File] include/dm/vacpi.h
 ======================================================================

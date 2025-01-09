@@ -1,7 +1,21 @@
 /*
- * Copyright (C) 2019-2022 Intel Corporation.
+ * Copyright (C) 2019-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/**
+ * @addtogroup vp-base_vm_config
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief PCI device helper utilities
+ *
+ * This file contains helper utility on initializing ACRN device
+ * configuration structure.
  */
 
 #include <asm/vm_config.h>
@@ -10,8 +24,18 @@
 #include <vpci.h>
 #include <logmsg.h>
 
-/*
- * @pre pdev != NULL;
+/**
+ * @brief Check if a physical PCI device is allocated to any Pre-Launched VM.
+ *
+ * Check if a given physical PCI device \p pdev is allocated to any Pre-Launched VM
+ * by comparing their BDFs.
+ *
+ * @pre pdev != NULL
+ * @post N/A
+ *
+ * @param[in] pdev Physical PCI device structure to be checked
+ *
+ * @return true if \p pdev is allocated to any Pre-Launched VM, false otherwise.
  */
 static bool allocate_to_prelaunched_vm(struct pci_pdev *pdev)
 {
@@ -40,16 +64,42 @@ static bool allocate_to_prelaunched_vm(struct pci_pdev *pdev)
 }
 
 
-/*
- * @brief Initialize a acrn_vm_pci_dev_config structure
+/**
+ * @brief Initialize an acrn_vm_pci_dev_config structure
  *
- * Initialize a acrn_vm_pci_dev_config structure with a specified the pdev structure.
- * A acrn_vm_pci_dev_config is used to store a PCI device configuration for a VM. The
- * caller of the function init_one_dev_config should guarantee execution atomically.
+ * Initialize an acrn_vm_pci_dev_config structure with a specified pdev structure
+ * and add to Service VM's PCI device configuration list.
+ * An acrn_vm_pci_dev_config is used to store a PCI device configuration for a VM.
+ *
+ * ACRN follows below rules to config device configuration:
+ * - Hypervisor owns configured debug UART. Additionally if there's Pre-Launched VM,
+ *   HV owns all Type 1 devices (bridges). These are hidden from all VMs.
+ * - If physical devices are allocated to Pre-Launched VM, hide them from Service VM.
+ * - If a multi-function PCI device function 0 is allocated to either Pre-Launched VM or
+ *   hypervisor, a dummy placeholder device for function 0 is created and assigned to Service VM
+ *   so that the devices with function 1 or higher can be detected from Service VM.
+ * - The device configuration of Pre-Launched VM owned devices (physical or virtual) are
+ *   initialized by config-tool.
+ * - The device configuration of Post-Launched VMs contains only HV emulated virtual devices (for
+ *   example, IVSHMEM), as Post-Launched VMs does not own physical devices.
+ *
+ * @remark The caller should guarantee atomic execution.
  *
  * @pre pdev != NULL
  *
- * @return If there's a successfully initialized acrn_vm_pci_dev_config return it, otherwise return NULL;
+ * @return A pointer to Service VM's device devconfig is returned.
+ * @retval non-NULL-pointer One of the following applies:
+ * - the \p pdev is a passed-through device being allocated to Service-VM. Service VM
+ *   is granted access to the physical device. In this case the return value points to
+ *   devconfig of physical device.
+ * - the \p pdev is a Type-1 device. Service VM is granted access to hypervisor-emulated
+ *   virtual device only. In this case the return value points to devconfig of
+ *   hypervisor-emulated counterpart.
+ * - the \p pdev is function 0 of a multi-function PCI device, but being allocated
+ *   to Pre-Launched VM or hypervisor. Service VM is granted access to a dummy placeholder
+ *   device. In this case the return value points to devconfig of dummy device.
+ *
+ * @retval NULL The physical device \p pdev shall be hidden from Service-VM.
  */
 struct acrn_vm_pci_dev_config *init_one_dev_config(struct pci_pdev *pdev)
 {
@@ -103,3 +153,7 @@ struct acrn_vm_pci_dev_config *init_one_dev_config(struct pci_pdev *pdev)
 	}
 	return dev_config;
 }
+
+/**
+ * @}
+ */

@@ -823,6 +823,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/security.h \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
+                          ../hypervisor/include/arch/x86/asm/pci_dev.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm.h \
                           ../hypervisor/include/arch/x86/asm/idt.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
@@ -889,6 +890,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/vm.c \
                           ../hypervisor/arch/x86/guest/vmcall.c \
                           ../hypervisor/arch/x86/guest/vmcs.c \
+                          ../hypervisor/arch/x86/configs/pci_dev.c \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \
