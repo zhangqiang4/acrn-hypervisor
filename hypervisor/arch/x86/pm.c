@@ -21,6 +21,7 @@
 #include <delay.h>
 #include <asm/board.h>
 #include <asm/cpuid.h>
+#include <asm/platform_caps.h>
 
 struct cpu_context cpu_ctx;
 

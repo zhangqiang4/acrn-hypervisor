@@ -10,6 +10,8 @@
 #include <asm/host_pm.h>
 #include <asm/cpu_caps.h>
 #include <asm/board.h>
+#include <asm/platform_caps.h>
+
 /**
  * @addtogroup hwmgmt_hw-caps
  *
