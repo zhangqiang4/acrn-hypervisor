@@ -542,6 +542,7 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 		clac();
 
 		if ((magic == SBUF_MAGIC) && (size != 0)) {
+			ret = 0;
 			pr_info("sbuf: setting up sbuf at gpa 0x%016lx, size 0x%x, type: %d", asp.gpa, size, asp.sbuf_id);
 
 			/* Check from the next page of header locates */
