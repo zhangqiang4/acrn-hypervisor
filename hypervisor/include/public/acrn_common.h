@@ -114,7 +114,6 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #define GUEST_FLAG_PMU_PASSTHROUGH	(1UL << 11U)    /* Whether PMU is passed through */
 #define GUEST_FLAG_VHWP				(1UL << 12U)    /* Whether the VM supports vHWP */
 #define GUEST_FLAG_VTM				(1UL << 13U)    /* Whether the VM supports virtual thermal monitor */
-#define GUEST_FLAG_STATELESS			(1UL << 14U)	/* Whether the VM is stateless (can be forcefully shutdown with no data loss) */
 #define GUEST_FLAG_VPTM				(1UL << 15U)    /* Whether the VM supports virtual package thermal management */
 
 /* TODO: We may need to get this addr from guest ACPI instead of hardcode here */
