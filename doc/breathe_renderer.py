@@ -12,9 +12,13 @@ from sphinx.domains.c import (
     logger,
     ASTAssignmentExpr,
     ASTExpression,
-    _expression_assignment_ops
+    _expression_assignment_ops,
+    ASTBracedInitList
 )
-
+from sphinx.util.cfamily import (
+    StringifyTransform
+)
+from sphinx.writers.html5 import HTML5Translator
 from breathe.renderer import RenderContext
 from breathe.renderer.sphinxrenderer import SphinxRenderer, \
     intersperse, NodeFinder
@@ -22,7 +26,7 @@ from breathe.renderer.sphinxrenderer import SphinxRenderer, \
 from typing import (Callable, Dict, List, Optional, Tuple, Union, cast)
 
 from docutils import nodes
-from docutils.nodes import Element, Node, TextElement
+from docutils.nodes import Element, Node, TextElement, Text
 
 from sphinx import addnodes
 from sphinx.addnodes import pending_xref
@@ -361,6 +365,103 @@ class BreatheDefinitionParser:
     }
 
 
+class BreatheHTML5Translator:
+    def visit_Text(self, node: Text) -> None:
+        text = node.astext()
+        # Don't encode `<br/>` and `&nbsp;` for initializer's rendering purpose
+        # It implemented in _html_base.py by translate through a dictionary called special_characters
+        # I found it hard to offer a function called decode to reverse the process
+        # So I just tackled two special cases here
+        if text in ['<br/>'] + ['&nbsp;' * 4 * i for i in range(1, 100)]:
+            encoded = text
+        else:  # general situation
+            encoded = self.encode(text)
+        if self.protect_literal_text:
+            # moved here from base class's visit_literal to support
+            # more formatting in literal nodes
+            for token in self.words_and_spaces.findall(encoded):
+                if token.strip():
+                    # protect literal text from line wrapping
+                    self.body.append('<span class="pre">%s</span>' % token)
+                elif token in ' \n':
+                    # allow breaks at whitespace
+                    self.body.append(token)
+                else:
+                    # protect runs of multiple spaces; the last one can wrap
+                    self.body.append('&#160;' * (len(token) - 1) + ' ')
+        else:
+            if self.in_mailto and self.settings.cloak_email_addresses:
+                encoded = self.cloak_email(encoded)
+            self.body.append(encoded)
+
+    meth = {
+        'visit_Text': visit_Text
+    }
+
+
+DEPTH = 0
+
+
+class BreatheASTBracedInitList:
+    def _marked(self, lines, mark=', '):
+        return [line + mark for line in lines if line != lines[-1]] + [lines[-1]]
+
+    def _tab(self, lines):
+        res = []
+        for line in lines:
+            if (et := line.split('\n')) and len(et) == 1:
+                res.append('\t' + et[0])
+            elif len(et) > 1:
+                res_ = []
+                for e in et:
+                    if e != '':
+                        res_.append('\t' + e)
+                res.append('\n'.join(res_))
+        return res
+
+    def _line(self, lines):
+        ret = ['{'] + [i for i in lines if i != lines[-1]] + [lines[-1]] + ['}']
+        return '\n'.join(ret) + '\n'
+
+    def _stringify(self, transform: StringifyTransform) -> str:
+        exprs = [transform(e) for e in self.exprs]
+        return self._line(self._marked(self._tab(exprs)))
+
+    def describe_signature(self, signode: TextElement, mode: str,
+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
+
+        global DEPTH
+        DEPTH += 1
+        verify_description_mode(mode)
+        signode += addnodes.desc_sig_punctuation('{', '{')
+        signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+        first = True
+        for e in self.exprs:
+            if not first:
+                signode += addnodes.desc_sig_punctuation(',', ',')
+                signode += addnodes.desc_sig_space()
+                signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+            else:
+                first = False
+            signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
+            e.describe_signature(signode, mode, env, symbol)
+        if self.trailingComma:
+            signode += addnodes.desc_sig_punctuation(',', ',')
+            signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+        signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+        DEPTH -= 1
+        signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
+        signode += addnodes.desc_sig_punctuation('}', '}')
+
+    meth = {
+        '_marked': _marked,
+        '_tab': _tab,
+        '_line': _line,
+        '_stringify': _stringify,
+        'describe_signature': describe_signature
+    }
+
+
 class BreatheRenderer:
     sections = SphinxRenderer.sections
 
@@ -696,4 +797,6 @@ def setup():
     HookManager(Symbol).hook(mapping=BreatheSymbol.meth)
     HookManager(CDomain).hook(mapping=BreatheCDomain.meth)
     HookManager(DefinitionParser).hook(mapping=BreatheDefinitionParser.meth)
+    HookManager(HTML5Translator).hook(mapping=BreatheHTML5Translator.meth)
+    HookManager(ASTBracedInitList).hook(mapping=BreatheASTBracedInitList.meth)
     HookManager(SphinxRenderer).hook(mapping=BreatheRenderer.meth)
