@@ -368,8 +368,11 @@ static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu)
 				uint64_t supported_xcr0 = ((uint64_t)cpu_info->cpuid_leaves[FEAT_D_0_EDX] << 32U)
 					+ cpu_info->cpuid_leaves[FEAT_D_0_EAX];
 
-				/* vcpu not support Intel MPX */
-				supported_xcr0  &= ~(CPUID_EAX_XCR0_BNDREGS | CPUID_EAX_XCR0_BNDCSR);
+				/*
+				 * SDM Vol.1 13-4, XCR0[4:3] are associated with MPX state,
+				 * vcpu currently not support Intel MPX.
+				 */
+				supported_xcr0 &= ~(XCR0_BNDREGS | XCR0_BNDCSR);
 
 				val64 = (vcpu_get_gpreg(vcpu, CPU_REG_RAX) & 0xffffffffUL) |
 						(vcpu_get_gpreg(vcpu, CPU_REG_RDX) << 32U);
@@ -382,14 +385,8 @@ static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu)
 					 * to use AVX instructions.
 					 */
 					if ((val64 & (XCR0_SSE | XCR0_AVX)) != XCR0_AVX) {
-						/*
-						 * SDM Vol.1 13-4, XCR0[4:3] are associated with MPX state,
-						 * Guest should not set these two bits without MPX support.
-						 */
-						if ((val64 & (XCR0_BNDREGS | XCR0_BNDCSR)) == 0UL) {
-							write_xcr(0, val64);
-							ret = 0;
-						}
+						write_xcr(0, val64);
+						ret = 0;
 					}
 				}
 			}
