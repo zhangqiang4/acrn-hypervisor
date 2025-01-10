@@ -117,4 +117,6 @@ struct shell {
 #define SHELL_CMD_WRMSR_PARAM		"[-p<pcpu_id>]	<msr_index> <value>"
 #define SHELL_CMD_WRMSR_HELP		"Write value (in hexadecimal) to the MSR at msr_index (in hexadecimal) for CPU"\
 					" ID pcpu_id"
+int64_t strtol_deci(const char *nptr);
+
 #endif /* SHELL_PRIV_H */

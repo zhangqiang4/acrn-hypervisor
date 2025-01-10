@@ -878,6 +878,14 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/dm/vpci/vhostbridge.c \
                           ../hypervisor/include/dm/vuart.h \
                           ../hypervisor/dm/vpci/vdev.c \
+                          ../hypervisor/arch/x86/lib/memory.c \
+                          ../hypervisor/lib/string.c \
+                          ../hypervisor/include/lib/hash.h \
+                          ../hypervisor/include/lib/list.h \
+                          ../hypervisor/include/lib/rtl.h \
+                          ../hypervisor/include/lib/util.h \
+                          ../hypervisor/include/lib/types.h \
+                          ../hypervisor/include/lib/errno.h \
 
 
 # This tag can be used to specify the character encoding of the source files
@@ -2161,6 +2169,7 @@ PREDEFINED             = "__attribute__(x)=" \
                          "CONFIG_RETPOLINE=" \
                          "CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED=" \
 
+PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
 PREDEFINED             += "build_bitmap_testandclear(name, op_len, op_type, lock)= \
 static inline bool name(uint16_t nr_arg, volatile op_type *addr) \

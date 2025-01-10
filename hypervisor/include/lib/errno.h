@@ -1,11 +1,24 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef ERRNO_H
 #define ERRNO_H
+
+/**
+ * @addtogroup lib_util
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Definition of error type.
+ *
+ * This file provides error type definition.
+ */
 
 /** Indicates that operation not permitted. */
 #define EPERM		1
@@ -29,5 +42,9 @@
 #define ENOSYS		38
 /** Indicates that timeout occurs. */
 #define ETIMEDOUT	110
+
+/**
+ * @}
+ */
 
 #endif /* ERRNO_H */
