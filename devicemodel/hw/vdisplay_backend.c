@@ -1313,12 +1313,32 @@ static void deinit_backends()
 bool vdpy_mplane_check()
 {
 	struct vdpy_backend **pdpp, *pdp;
+	int i = 0;
+	bool active_backend = false;
+	bool mplane_support = false;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->mplane_check)
-			return pdp->mplane_check();
+		active_backend = false;
+		for (i = 0; i < vdpy.scrs_num; i++) {
+			if (strcmp(vdpy.scrs[i].name, pdp->name) == 0) {
+				active_backend = true;
+				break;
+			}
+		}
+		if(active_backend) {
+			if (!pdp->mplane_check) {
+				mplane_support = false;
+			} else {
+				mplane_support = pdp->mplane_check();
+			}
+			if (!mplane_support)
+				return false;
+		}
 	}
-	return true;
+	if (mplane_support)
+		return true;
+	else
+		return false;
 }
 
 void vdpy_mplane_fallback()
