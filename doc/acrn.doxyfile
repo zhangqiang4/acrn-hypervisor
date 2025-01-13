@@ -808,6 +808,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/mmu.h \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
+                          ../hypervisor/include/arch/x86/asm/notify.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm.h \
@@ -855,6 +856,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/irq.c \
                           ../hypervisor/arch/x86/exception.c \
                           ../hypervisor/arch/x86/nmi.c \
+                          ../hypervisor/arch/x86/notify.c \
                           ../hypervisor/arch/x86/idt.S \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \

@@ -15,9 +15,37 @@
 #include <asm/guest/vm.h>
 #include <asm/guest/virq.h>
 
+/**
+ * @defgroup hwmgmt_smpcall hwmgmt.smpcall
+ * @ingroup hwmgmt
+ * @brief The definition and implementation of SMP call and Posted Interrupt notifications.
+ *
+ * @{
+ */
+
+/**
+ * @brief Implementations for SMP call mechanism.
+ */
+
+/**
+ * @brief Target physical processor ID bit mask of current SMP call.
+ *
+ * It's set by caller of smp_call_function() and cleared by target processors in execution of SMP
+ * call interrupt handler .
+ */
 static uint64_t smp_call_mask = 0UL;
 
-/* run in interrupt context */
+/**
+ * @brief The SMP call notification handler run in interrupt context.
+ * 
+ * This handler executes the SMP callback set by the invoker if current processor is on the target
+ * processor bit mask. Otherwise, this is a spurious interrupt.
+ *
+ * @param irq IRQ number for this interrupt handler
+ * @param data Pointer to private data for the interrupt handler
+ *
+ * @return None
+ */
 static void kick_notification(__unused uint32_t irq, __unused void *data)
 {
 	/* Notification vector is used to kick target cpu out of non-root mode.
@@ -36,11 +64,47 @@ static void kick_notification(__unused uint32_t irq, __unused void *data)
 	}
 }
 
+/**
+ * @brief Handle SMP call notification request for vCPUs configured with Local APIC Pass-through.
+ *
+ * For processor running in vCPU context with Local APIC Pass-through enabled, after receiving the
+ * INIT signal, the VM-exit handler will check the notification request and invoke this handler.
+ * Note this is called in vCPU thread in VMX root operation, instead of in interrupt context.
+ * This handler just calls the kick_notification handler with a dummy irq number 0 since it's not
+ * from interrupt context.
+ *
+ * @return None
+ */
 void handle_smp_call(void)
 {
 	kick_notification(0, NULL);
 }
 
+/**
+ * @brief Invoke a SMP call to let target processors execute given function.
+ *
+ * This function first set the mask of target processor IDs in smp_call_mask, and then triggers
+ * every processor on given bit mask to execute the function, and wait all bits on smp_call_mask
+ * to be cleared by target processors.
+ * For each active target processor, if it's the invoker, just execute the function directly.
+ * If it's not, make a ACRN_REQUEST_SMP_CALL request if it's configured for an Local APIC
+ * Pass-through VM and the vCPU is running. For other cases, trigger an IPI with the notification
+ * vector. In either way, if target processor is in VM context, it will exit VMX non-root operation
+ * and the hypervisor will handle the notification interrupt.  If target processor is in root
+ * operation, i.e. the hypervisor context, the IPI will be handled by hypervisor directly.
+ *
+ * For VM configured with Local APIC Pass-through, the invoker can't simply issue an IPI with
+ * the notification vector because such IPI will be taken as a real interrupt by guest
+ * Instead, the invoker requests vCPUs on target processors to exit to hypervisor context.
+ * This is accomplished by vcpu_make_request, which triggers INIT signal via Local APIC
+ * to trigger VM-exit of target vCPUs.
+ *
+ * @param mask The bit mask of target processor IDs.
+ * @param func The function to execute from target processors.
+ * @param data The data parameter pointer for func
+ *
+ * @return None
+ */
 void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 {
 	uint16_t pcpu_id;
@@ -82,8 +146,14 @@ void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 	wait_sync_change(&smp_call_mask, 0UL);
 }
 
-/*
- * @pre be called only by BSP initialization process
+/**
+ * @brief Set up SMP call notification interrupt handler
+ *
+ * This must be called in the BSP initialization process to enable the SMP call mechanism. By
+ * design, IRQ number and vector for the per-cpu notification interrupt are constant. The setup
+ * process just requests the IRQ with given handler.
+ *
+ * @return None
  */
 void setup_notification(void)
 {
@@ -96,8 +166,19 @@ void setup_notification(void)
         }
 }
 
-/*
- * posted interrupt handler
+/**
+ * @brief The Posted Interrupt notification handler run in interrupt context.
+ *
+ * This handles Posted Interrupt notification when CPU is running in VMX root operation (either in
+ * the target vCPU thread context or other contexts) and local interrupt is enabled. We just
+ * requests the vCPU to inject the notification vector to guest via self IPI after disabling local
+ * interrupt. The Posted Interrupt hardware will then trigger interrupt after next VM-enter.
+ *
+ * @param irq IRQ number for this interrupt handler
+ * @param data Pointer to private data for the interrupt handler
+ *
+ * @return None
+ *
  * @pre (irq - POSTED_INTR_IRQ) < CONFIG_MAX_VM_NUM
  */
 static void handle_pi_notification(uint32_t irq, __unused void *data)
@@ -108,7 +189,18 @@ static void handle_pi_notification(uint32_t irq, __unused void *data)
 	vcpu_handle_pi_notification(vcpu_index);
 }
 
-/*pre-condition: be called only by BSP initialization proccess*/
+/**
+ * @brief Set up Posted Interrupt notification interrupt handlers
+ *
+ * This must be called in the BSP initialization process to enable the Posted Interrupt mechanism.
+ * By design, IRQ numbers and vectors for the Posted Interrupts are statically allocated, one pair
+ * for one VM. It's based on the design that at most one vCPU of a VM can be run on a pCPU. For
+ * each pCPU, there are at most CONFIG_MAX_VM_NUM vCPUs (each from a different VM). To post
+ * interrupts to there vCPUs, CONFIG_MAX_VM_NUM Posted Interrupt notification vectors are enough.
+ * The setup process just requests the IRQs with given handler.
+ *
+ * @return None
+ */
 void setup_pi_notification(void)
 {
 	uint32_t i;
@@ -120,3 +212,7 @@ void setup_pi_notification(void)
 		}
 	}
 }
+
+/**
+ * @}
+ */
