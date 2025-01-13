@@ -28,7 +28,7 @@ uint64_t strtoul_hex(const char *nptr)
 {
 	const char *s = nptr;
 	char c, digit;
-	uint64_t acc, cutoff, cutlim;
+	uint64_t acc, cutoff;
 	uint64_t base = 16UL;
 	int32_t any;
 
@@ -46,12 +46,17 @@ uint64_t strtoul_hex(const char *nptr)
 	}
 
 	cutoff = ULONG_MAX / base;
-	cutlim = ULONG_MAX % base;
 	acc = 0UL;
 	any = 0;
 	digit = hex_digit_value(c);
 	while (digit >= 0) {
-		if ((acc > cutoff) || ((acc == cutoff) && ((uint64_t)digit > cutlim))) {
+                /* The original overflow checking logic has cutoff and
+		   cutlim checks at the same time:
+		   (acc > cutoff) || ((acc == off) && (digit > cutlim)),
+		   where cutlim is ULONG_MAX % base. Since we're implementing
+		   specifically for base 16, digit > cutlim will never be
+		   true, so simplify the logic to (acc > cutoff). */
+		if (acc > cutoff) {
 			any = -1;
 			break;
 		} else {
