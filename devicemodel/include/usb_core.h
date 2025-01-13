@@ -33,7 +33,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include "types.h"
-#include "log.h"
 
 /* FIXME:
  * There are some huge data requests which need more than 256 TRBs in a single
@@ -213,14 +212,7 @@ enum USB_ERRCODE {
 
 #define	USB_DATA_OK(x, i)	((x)->data[(i)].buf != NULL)
 
-#define LOG_TAG "USB: "
-#define LFTL 0
-#define LWRN 1
-#define LINF 2
-#define LDBG 3
-#define LVRB 4
-#define UPRINTF(lvl, fmt, args...) \
-	do { if (lvl <= usb_log_level) pr_dbg(LOG_TAG fmt, ##args); } while (0)
+#define usb_pr_prefix "usb: "
 
 #define NATIVE_USBSYS_DEVDIR "/sys/bus/usb/devices"
 
@@ -239,10 +231,6 @@ index_inc(int idx, int maxcnt)
 	return (idx + 1) % maxcnt;
 }
 
-extern int usb_log_level;
-static inline int usb_get_log_level(void)		{ return usb_log_level; }
-static inline void usb_set_log_level(int level)	{ usb_log_level = level; }
-void usb_parse_log_level(char level);
 struct usb_devemu *usb_emu_finddev(char *name);
 int usb_native_is_bus_existed(uint8_t bus_num);
 int usb_native_is_port_existed(uint8_t bus_num, uint8_t port_num);

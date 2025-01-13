@@ -81,10 +81,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "usb_core.h"
+#include "log.h"
 #include "dm_string.h"
 
 SET_DECLARE(usb_emu_set, struct usb_devemu);
-int usb_log_level;
 
 struct usb_devemu *
 usb_emu_finddev(char *name)
@@ -147,32 +147,32 @@ usb_native_is_port_existed(uint8_t bus_num, uint8_t port_num)
 	snprintf(buf, sizeof(buf), "%s/usb%d/maxchild", NATIVE_USBSYS_DEVDIR,
 			bus_num);
 	if (access(buf, R_OK)) {
-		UPRINTF(LWRN, "can't find maxchild file\r\n");
+		pr_warn("can't find maxchild file\r\n");
 		return 0;
 	}
 
 	fd = open(buf, O_RDONLY);
 	if (fd < 0) {
-		UPRINTF(LWRN, "fail to open maxchild file\r\n");
+		pr_warn("fail to open maxchild file\r\n");
 		return 0;
 	}
 
 	rc = read(fd, &cnt, sizeof(cnt));
 	if (rc < 0) {
-		UPRINTF(LWRN, "fail to read maxchild file\r\n");
+		pr_warn("fail to read maxchild file\r\n");
 		close(fd);
 		return 0;
 	}
 
 	rc = dm_strtoi(cnt, (char **)&cnt, 10, &native_port_cnt);
 	if (rc) {
-		UPRINTF(LWRN, "fail to get maxchild number\r\n");
+		pr_warn("fail to get maxchild number\r\n");
 		close(fd);
 		return 0;
 	}
 
 	if (port_num > native_port_cnt || port_num < 0) {
-		UPRINTF(LWRN, "invalid port_num %d, max port count %d\r\n",
+		pr_warn("invalid port_num %d, max port count %d\r\n",
 				port_num, native_port_cnt);
 		close(fd);
 		return 0;
@@ -193,34 +193,6 @@ usb_native_is_device_existed(struct usb_devpath *path)
 		ret = (access(_path, F_OK) == 0);
 	}
 	return ret;
-}
-
-void usb_parse_log_level(char level)
-{
-	switch (level) {
-	case 'F':
-	case 'f':
-		usb_set_log_level(LFTL);
-		break;
-	case 'W':
-	case 'w':
-		usb_set_log_level(LWRN);
-		break;
-	case 'I':
-	case 'i':
-		usb_set_log_level(LINF);
-		break;
-	case 'D':
-	case 'd':
-		usb_set_log_level(LDBG);
-		break;
-	case 'V':
-	case 'v':
-		usb_set_log_level(LVRB);
-		break;
-	default:
-		usb_set_log_level(LFTL);
-	}
 }
 
 char *
@@ -268,19 +240,19 @@ usb_get_hub_port_num(struct usb_devpath *path)
 	snprintf(buf, sizeof(buf), "%s/%d-%s/maxchild", NATIVE_USBSYS_DEVDIR,
 			path->bus, usb_dev_path(path));
 	if (access(buf, R_OK)) {
-		UPRINTF(LWRN, "can't find maxchild file\r\n");
+		pr_warn("can't find maxchild file\r\n");
 		return -1;
 	}
 
 	fd = open(buf, O_RDONLY);
 	if (fd < 0) {
-		UPRINTF(LWRN, "fail to open maxchild file\r\n");
+		pr_warn("fail to open maxchild file\r\n");
 		return -1;
 	}
 
 	rc = read(fd, &cnt, sizeof(cnt));
 	if (rc < 0) {
-		UPRINTF(LWRN, "fail to read maxchild file\r\n");
+		pr_warn("fail to read maxchild file\r\n");
 		close(fd);
 		return -1;
 	}
@@ -289,7 +261,7 @@ usb_get_hub_port_num(struct usb_devpath *path)
 
 	rc = dm_strtoi(cnt, (char **)&cnt, 10, &icnt);
 	if (rc) {
-		UPRINTF(LWRN, "fail to get maxchild\r\n");
+		pr_warn("fail to get maxchild\r\n");
 		return -1;
 	}
 

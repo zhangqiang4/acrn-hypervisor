@@ -121,7 +121,7 @@ int usb_dev_sys_init(usb_dev_sys_cb conn_cb, usb_dev_sys_cb disconn_cb,
 		usb_dev_sys_cb notify_cb, usb_dev_sys_cb intr_cb,
 		usb_dev_sys_cb lock_ep_cb,
 		usb_dev_sys_cb unlock_ep_cb,
-		void *hci_data, int log_level);
+		void *hci_data);
 void usb_dev_sys_deinit(void);
 void *usb_dev_init(void *pdata, char *opt);
 void usb_dev_deinit(void *pdata);
