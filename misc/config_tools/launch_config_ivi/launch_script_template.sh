@@ -420,6 +420,29 @@ function enable_dgpu_vf() {
 			exit 1
 		fi
 
+		# Set GGTT size of PF of dGPU to 256MB.  Otherwise, atomic
+		# commit when using direct display could fail due to lack of
+		# GGTT.
+		local reserved_ggtt_size=268435456
+		echo "$reserved_ggtt_size" > "$iov_dir/pf/gt/ggtt_spare"
+
+		local count=0
+		for i in $(ls $dgpu_path); do
+			path="$dgpu_path/$i/status"
+			if [ -f $path ]; then
+				if ( cat $path |grep "connected" |grep -v "disconnected"  > /dev/null); then
+					let "count++"
+				fi
+			fi
+		done
+
+		echo "connected monitor count: $count"
+		if [ $count -eq "0" ]; then
+			count=1
+		fi
+		local lmem=$((count*128*1024*1024))
+		echo $lmem > "$iov_dir/pf/gt/lmem_spare"
+
 		if [ ! -f $dg2_numvfs_file ] || [ "$dg2_numvfs" != `cat $dg2_numvfs_file` ]; then
 			if [ "0" != `cat $dg2_numvfs_file` ]; then
 				log2stderr "Destroy VFs before create them."
@@ -429,11 +452,6 @@ function enable_dgpu_vf() {
 			(echo 0 > $dg2_autoprobe_file && echo $dg2_numvfs > $dg2_numvfs_file) \
 				    || { log2stderr "Cannot enable VF for dGPU" && exit 1; }
 		fi
-		# Set GGTT size of PF of dGPU to 256MB.  Otherwise, atomic
-		# commit when using direct display could fail due to lack of
-		# GGTT.
-		local reserved_ggtt_size=268435456
-		echo "$reserved_ggtt_size" > "$dgpu_path/iov/pf/gt/ggtt_spare"
 
 		local schedexecq=25
 		local schedtimeout=500000
