@@ -34,6 +34,9 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 [File] include/arch/x86/asm/per_cpu.h
 ======================================================================
 
+.. doxygenfile:: per_cpu.h
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/rdt.h
 ======================================================================
 
