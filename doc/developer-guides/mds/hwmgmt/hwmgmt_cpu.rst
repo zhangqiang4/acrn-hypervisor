@@ -39,3 +39,7 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 
 [File] include/arch/x86/asm/cpuid.h
 ======================================================================
+
+.. doxygenfile:: cpuid.h
+   :project: Project ACRN
+
