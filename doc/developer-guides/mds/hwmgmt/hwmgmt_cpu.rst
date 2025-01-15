@@ -13,6 +13,9 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 [File] arch/x86/cpu.c
 ======================================================================
 
+.. doxygenfile:: cpu.c
+   :project: Project ACRN
+
 [File] arch/x86/gdt.c
 ======================================================================
 
@@ -33,4 +36,3 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 
 [File] include/arch/x86/asm/cpuid.h
 ======================================================================
-

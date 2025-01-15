@@ -844,6 +844,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../devicemodel/include/pci_core.h \
                           ../devicemodel/include/public/hsm_ioctl_defs.h \
                           ../hypervisor/arch/x86/cpu_caps.c \
+                          ../hypervisor/arch/x86/cpu.c \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
                           ../hypervisor/arch/x86/guest/vm.c \
@@ -942,7 +943,8 @@ EXCLUDE_PATTERNS       =
 # Exclude internal names (starting with an _) and doxygen-added __unnamed__
 # names given to unnamed nested unions
 
-EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings
+EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
+                        version_info
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
