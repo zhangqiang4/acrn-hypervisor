@@ -25,6 +25,9 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 [File] include/arch/x86/asm/cpu.h
 ======================================================================
 
+.. doxygenfile:: cpu.h
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/gdt.h
 ======================================================================
 

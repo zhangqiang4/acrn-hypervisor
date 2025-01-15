@@ -845,6 +845,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../devicemodel/include/public/hsm_ioctl_defs.h \
                           ../hypervisor/arch/x86/cpu_caps.c \
                           ../hypervisor/arch/x86/cpu.c \
+                          ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
                           ../hypervisor/arch/x86/guest/vm.c \
