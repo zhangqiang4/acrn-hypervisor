@@ -514,7 +514,8 @@ usb_dev_update_ep(struct usb_dev *udev)
 		return;
 
 	for (i = 0; i < cfg->bNumInterfaces; i++) {
-		_if = &cfg->interface[i].altsetting[udev->alts[i]];
+		uint8_t ifnum = cfg->interface[i].altsetting[0].bInterfaceNumber;
+		_if = &cfg->interface[i].altsetting[udev->alts[ifnum]];
 
 		for (j = 0; j < _if->bNumEndpoints; j++) {
 			desc = &_if->endpoint[j];
@@ -549,10 +550,11 @@ usb_dev_native_toggle_if(struct usb_dev *udev, int claim)
 
 	c = config->bConfigurationValue;
 	for (i = 0; i < config->bNumInterfaces; i++) {
+		uint8_t ifnum = config->interface[i].altsetting[0].bInterfaceNumber;
 		if (claim == 1)
-			r = libusb_claim_interface(udev->handle, i);
+			r = libusb_claim_interface(udev->handle, ifnum);
 		else {
-			r = libusb_release_interface(udev->handle, i);
+			r = libusb_release_interface(udev->handle, ifnum);
 			/* according to libusb, if libusb_release_interface
 			 * return LIBUSB_ERROR_NOT_FOUND, it means that this
 			 * interface is not claimed before. This case should
@@ -597,19 +599,20 @@ usb_dev_native_toggle_if_drivers(struct usb_dev *udev, int attach)
 
 	c = config->bConfigurationValue;
 	for (i = 0; i < config->bNumInterfaces; i++) {
+		uint8_t ifnum = config->interface[i].altsetting[0].bInterfaceNumber;
 		if (attach == 1)
-			r = libusb_attach_kernel_driver(udev->handle, i);
+			r = libusb_attach_kernel_driver(udev->handle, ifnum);
 		else {
-			if (libusb_kernel_driver_active(udev->handle, i) == 1)
+			if (libusb_kernel_driver_active(udev->handle, ifnum) == 1)
 				r = libusb_detach_kernel_driver(udev->handle,
-						i);
+						ifnum);
 		}
 
 		if (r) {
 			rc = -1;
 			pr_warn("%d-%s:%d.%d can't %stach if driver, r %d"
 					"\r\n", path->bus, usb_dev_path(path),
-					c, i, attach == 1 ? "at" : "de", r);
+					c, ifnum, attach == 1 ? "at" : "de", r);
 		}
 	}
 	if (rc)
