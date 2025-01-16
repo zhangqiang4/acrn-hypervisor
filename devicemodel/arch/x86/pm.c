@@ -209,7 +209,8 @@ pm1_enable_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		 * the global lock, but ACPI-CA whines profusely if it
 		 * can't set GBL_EN.
 		 */
-		pm1_enable = *eax & (PM1_RTC_EN | PM1_PWRBTN_EN | PM1_GBL_EN);
+		pm1_enable = *eax & (PM1_RTC_EN | PM1_PWRBTN_EN |
+				     PM1_SLPBTN_EN | PM1_GBL_EN);
 		sci_update(ctx);
 	}
 	pthread_mutex_unlock(&pm_lock);
@@ -219,16 +220,29 @@ pm1_enable_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 INOUT_PORT(pm1_status, PM1A_EVT_ADDR, IOPORT_F_INOUT, pm1_status_handler);
 INOUT_PORT(pm1_enable, PM1A_EVT_ADDR + 2, IOPORT_F_INOUT, pm1_enable_handler);
 
-void
-inject_power_button_event(struct vmctx *ctx)
+static void
+toggle_pm1_status(struct vmctx *ctx, uint16_t status_bit)
 {
-	pr_info("press power button\n");
 	pthread_mutex_lock(&pm_lock);
-	if (!(pm1_status & PM1_PWRBTN_STS)) {
-		pm1_status |= PM1_PWRBTN_STS;
+	if (!(pm1_status & status_bit)) {
+		pm1_status |= status_bit;
 		sci_update(ctx);
 	}
 	pthread_mutex_unlock(&pm_lock);
+}
+
+void
+inject_power_button_event(struct vmctx *ctx)
+{
+	pr_info("pm: press acpi power button\n");
+	toggle_pm1_status(ctx, PM1_PWRBTN_STS);
+}
+
+void
+inject_sleep_button_event(struct vmctx *ctx)
+{
+	pr_info("pm: press acpi sleep button\n");
+	toggle_pm1_status(ctx, PM1_SLPBTN_STS);
 }
 
 static void

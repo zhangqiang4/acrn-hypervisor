@@ -28,11 +28,11 @@ vm_stop_handler(void *arg)
 static int
 vm_suspend_handler(void *arg)
 {
-	/*
-	 * Invoke vm_stop_handler directly in here since suspend of User VM is
-	 * set by User VM power button setting.
-	 */
-	return vm_stop_handler(arg);
+	if (!arg)
+		return -EINVAL;
+
+	inject_sleep_button_event(arg);
+	return 0;
 }
 
 static struct monitor_vm_ops vm_ops = {

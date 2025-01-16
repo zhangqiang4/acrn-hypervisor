@@ -474,7 +474,7 @@ basl_fwrite_fadt(FILE *fp, struct vmctx *ctx)
 	EFPRINTF(fp, "\t\t\tAll CPUs support C1 (V1) : 1\n");
 	EFPRINTF(fp, "\t\t\tC2 works on MP system (V1) : 0\n");
 	EFPRINTF(fp, "\t\t\tControl Method Power Button (V1) : 0\n");
-	EFPRINTF(fp, "\t\t\tControl Method Sleep Button (V1) : 1\n");
+	EFPRINTF(fp, "\t\t\tControl Method Sleep Button (V1) : 0\n");
 	EFPRINTF(fp, "\t\t\tRTC wake not in fixed reg space (V1) : 0\n");
 	EFPRINTF(fp, "\t\t\tRTC can wake system from S4 (V1) : 0\n");
 	EFPRINTF(fp, "\t\t\t32-bit PM Timer (V1) : 1\n");

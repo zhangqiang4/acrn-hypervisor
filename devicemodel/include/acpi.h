@@ -115,6 +115,7 @@ void	sci_init(struct vmctx *ctx);
 void	pm_write_dsdt(struct vmctx *ctx, int ncpu);
 void	pm_backto_wakeup(struct vmctx *ctx);
 void	inject_power_button_event(struct vmctx *ctx);
+void	inject_sleep_button_event(struct vmctx *ctx);
 void	power_button_init(struct vmctx *ctx);
 void	power_button_deinit(struct vmctx *ctx);
 
