@@ -2150,21 +2150,19 @@ virtio_sound_pcm_init(struct virtio_sound *virt_snd, char *device, char *hda_fn_
 	stream->dbg_fd = NULL;
 	err = virtio_sound_create_pcm_thread(stream);
 	if (err) {
+		/* Stream will be released when deinit virtio sound module. */
 		pr_err("%s: stream create thread failed!\n", __func__);
-		free(stream);
 		return -1;
 	}
 	err = pthread_mutex_init(&stream->mtx, NULL);
 	if (err) {
 		pr_err("%s: mutex init failed with error %d!\n", __func__, err);
-		free(stream);
 		return -1;
 	}
 	err = pthread_mutex_init(&stream->ctl_mtx, NULL);
 	if (err) {
 		pr_err("%s: mutex init failed with error %d!\n", __func__, err);
 		pthread_mutex_destroy(&stream->mtx);
-		free(stream);
 		return -1;
 	}
 	return 0;
