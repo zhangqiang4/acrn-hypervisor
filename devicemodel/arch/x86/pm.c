@@ -45,9 +45,6 @@
 #include "vm_event.h"
 
 static pthread_mutex_t pm_lock = PTHREAD_MUTEX_INITIALIZER;
-static struct mevent *power_button;
-static sig_t old_power_handler;
-
 /*
  * Reset Control register at I/O port 0xcf9.  Bit 2 forces a system
  * reset when it transitions from 0 to 1.  Bit 1 selects the type of
@@ -235,13 +232,6 @@ inject_power_button_event(struct vmctx *ctx)
 }
 
 static void
-power_button_handler(int signal, enum ev_type type, void *arg)
-{
-	if (arg)
-		inject_power_button_event(arg);
-}
-
-static void
 send_poweroff_event(void)
 {
 	struct vm_event event;
@@ -307,26 +297,9 @@ smi_cmd_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		 * command register, not impact power button emulation. so need
 		 * to remove all power button emulation from here.
 		 */
-		if (power_button == NULL) {
-
-			/*
-			 * TODO: For the SIGTERM, IOC mediator also needs to
-			 * support it, and SIGTERM handler needs to be written
-			 * as one common interface for both APCI power button
-			 * and IOC mediator in future.
-			 */
-			power_button = mevent_add(SIGTERM, EVF_SIGNAL,
-				power_button_handler, ctx, NULL, NULL);
-			old_power_handler = signal(SIGTERM, SIG_IGN);
-		}
 		break;
 	case ACPI_DISABLE:
 		pm1_control &= ~VIRTUAL_PM1A_SCI_EN;
-		if (power_button != NULL) {
-			mevent_delete(power_button);
-			power_button = NULL;
-			signal(SIGTERM, old_power_handler);
-		}
 		break;
 	}
 	pthread_mutex_unlock(&pm_lock);
