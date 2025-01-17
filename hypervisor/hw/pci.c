@@ -2,7 +2,7 @@
  * Copyright (c) 1997, Stefan Esser <se@freebsd.org>
  * Copyright (c) 2000, Michael Smith <msmith@freebsd.org>
  * Copyright (c) 2011 NetApp, Inc.
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2024 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,27 +46,92 @@
 #include <hash.h>
 #include <util.h>
 
-#define PDEV_HLIST_HASHBITS 6U
-#define PDEV_HLIST_HASHSIZE (1U << PDEV_HLIST_HASHBITS)
+/**
+ * @defgroup hwmgmt_pci hwmgmt.pci
+ * @ingroup hwmgmt
+ * @brief Implementation of PCI related functions.
+ *
+ * This module provides the interfaces to interact with physical PCI devices. These operations are essential
+ * to handle physical PCI devices.
+ *
+ * @{
+ */
 
+/**
+ * @file
+ * @brief Functions to operate PCI device
+ *
+ * This file implements functions to operate PCI device configuration space. These operations involve
+ * PCI hierarchy scanning, configuration space registers read/write, iommu related operations and so on.
+ */
+
+#define PDEV_HLIST_HASHBITS 6U    /**< Bits used to create the key of hash list */
+#define PDEV_HLIST_HASHSIZE (1U << PDEV_HLIST_HASHBITS)    /**< The size of hash list */
+
+/**
+ * @brief Number of PCI devices
+ */
 static uint32_t num_pci_pdev;
+/**
+ * @brief List of PCI devices
+ *
+ * This is a global list used to manage all initialized PCI devices.
+ */
 static struct pci_pdev pci_pdevs[CONFIG_MAX_PCI_DEV_NUM];
+/**
+ * @brief Hash list of PCI devices
+ *
+ * This is a global hash list used to quickly search a PCI device.
+ */
 static struct hlist_head pdevs_hlist_heads[PDEV_HLIST_HASHSIZE];
 
-/* For HV owned pdev */
+/**
+ * @brief Number of PCI devices owned by hypervisor
+ */
 static uint32_t num_hv_owned_pci_pdev;
+/**
+ * @brief List of PCI devices
+ *
+ * This is a global list used to manage all hypervisor owned PCI devices, i.e. PCI bridge
+ * or PCI debug uart device.
+ */
 static struct pci_pdev *hv_owned_pci_pdevs[CONFIG_MAX_PCI_DEV_NUM];
 
+/**
+ * @brief Get the number of physical PCI devices owned by hypervisor
+ *
+ * @return The number of physical PCI devices owned by hypervisor
+ *
+ * @remark N/A
+ */
 uint32_t get_hv_owned_pdev_num(void)
 {
 	return num_hv_owned_pci_pdev;
 }
 
+/**
+ * @brief Get the list of physical PCI devices owned by hypervisor
+ *
+ * @return A pointer to indicate a list of physical PCI devices owned by hypervisor
+ *
+ * @remark N/A
+ */
 const struct pci_pdev **get_hv_owned_pdevs(void)
 {
 	return (const struct pci_pdev **)hv_owned_pci_pdevs;
 }
 
+/**
+ * @brief Instance of data structure for PCI memory mapped configuration space (MMCFG) region
+ *
+ * The address indicates the MMCFG Base Address. The start_bus indicates the start bus number.
+ * The end_bus indicates the end bus number.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 static struct pci_mmcfg_region phys_pci_mmcfg = {
 	.address = DEFAULT_PCI_MMCFG_BASE,
 	.start_bus = DEFAULT_PCI_MMCFG_START_BUS,
@@ -74,18 +139,48 @@ static struct pci_mmcfg_region phys_pci_mmcfg = {
 };
 
 #ifdef CONFIG_ACPI_PARSE_ENABLED
+/**
+ * @brief Set the instance of data structure for MMCFG region
+ *
+ * @param[in] region Pointer to a data structure for MMCFG region.
+ *
+ * @return None
+ *
+ * @pre region != NULL
+ *
+ * @remark The function is valid when CONFIG_ACPI_PARSE_ENABLED is enabled
+ */
 void set_mmcfg_region(struct pci_mmcfg_region *region)
 {
 	phys_pci_mmcfg = *region;
 }
 #endif
 
+/**
+ * @brief Get the instance of data structure for MMCFG region
+ *
+ * @return A pointer to the instance of data structure for MMCFG region
+ *
+ */
 struct pci_mmcfg_region *get_mmcfg_region(void)
 {
 	return &phys_pci_mmcfg;
 }
 
 #if defined(HV_DEBUG)
+/**
+ * @brief Calculate CONFIG_ADDRESS Register Vaule using PIO method
+ *
+ * Refer to Chapter 3.2.2.3.2 Software Generation of Configuration Transactions,
+ * PCI Local Bus Specification Revision 3.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ *
+ * @return An unsigned integer which indicates the CONFIG_ADDRESS Register Vaule
+ *
+ * @remark The function is valid when hypervisor debug mode is enabled
+ */
 static inline uint32_t pio_off_to_address(union pci_bdf bdf, uint32_t offset)
 
 {
@@ -96,6 +191,20 @@ static inline uint32_t pio_off_to_address(union pci_bdf bdf, uint32_t offset)
 	return addr;
 }
 
+/**
+ * @brief Read configuration space register value using PIO method
+ *
+ * Refer to Chapter 3.2.2.3.2 Software Generation of Configuration Transactions,
+ * PCI Local Bus Specification Revision 3.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to read.
+ *
+ * @return An unsigned integer which indicates the value read out from the register
+ *
+ * @remark The function is valid when hypervisor debug mode is enabled
+ */
 static uint32_t pci_pio_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes)
 {
 	uint32_t addr;
@@ -122,6 +231,21 @@ static uint32_t pci_pio_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t by
 	return val;
 }
 
+/**
+ * @brief Write configuration space register using PIO method
+ *
+ * Refer to Chapter 3.2.2.3.2 Software Generation of Configuration Transactions,
+ * PCI Local Bus Specification Revision 3.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to write.
+ * @param[in] val    The value to write.
+ *
+ * @return None
+ *
+ * @remark The function is valid when hypervisor debug mode is enabled
+ */
 static void pci_pio_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val)
 {
 	uint32_t addr = pio_off_to_address(bdf, offset);
@@ -143,37 +267,95 @@ static void pci_pio_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes
 	}
 }
 #else
+/**
+ * @brief Read configuration space register value using PIO method
+ *
+ * The function returns 0xFFFFFFFF directly because the PIO method is not supported in release mode.
+ * Under such scenario, ECAM (MMIO) method should be used.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to read.
+ *
+ * @return An unsigned integer which indicates the value read out from the register
+ *
+ * @remark PIO method is not valid when release mode is enabled
+ */
 static uint32_t pci_pio_read_cfg(__unused union pci_bdf bdf,
 		__unused uint32_t offset, __unused uint32_t bytes)
 {
 	return ~0U;
 }
 
+/**
+ * @brief Write configuration space register using PIO method
+ *
+ * The function does nothing because the PIO method is not supported in release mode.
+ * Under such scenario, MMIO method should be used.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to write.
+ * @param[in] val    The value to write.
+ *
+ * @return None
+ *
+ * @remark PIO method is not valid when release mode is enabled
+ */
 static void pci_pio_write_cfg(__unused union pci_bdf bdf,
 		__unused uint32_t offset, __unused uint32_t bytes, __unused uint32_t val)
 {
 }
 #endif
 
+/**
+ * @brief Instance of data structure for PIO operations
+ *
+ * The PCI configuration space read and write callback functions are registered.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 static const struct pci_cfg_ops pci_pio_cfg_ops = {
 	.pci_read_cfg = pci_pio_read_cfg,
 	.pci_write_cfg = pci_pio_write_cfg,
 };
 
-/*
+/**
+ * @brief Calculate register address using ECAM method
+ *
+ * Refer to Chapter 7.2.2 PCI Express Enhanced Configuration Access Mechanism (ECAM),
+ * PCI Express® Base Specification Revision 5.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ *
+ * @return An unsigned integer which indicates the MMCFG address of the register
+ *
  * @pre offset < 0x1000U
- * @pre phys_pci_mmcfg.address 4K-byte alignment
+ * @pre phys_pci_mmcfg.address % 4096 == 0
  */
 static inline uint32_t mmcfg_off_to_address(union pci_bdf bdf, uint32_t offset)
 {
 	return (uint32_t)phys_pci_mmcfg.address + (((uint32_t)bdf.value << 12U) | offset);
 }
 
-/*
+/**
+ * @brief Read configuration space register value using ECAM method
+ *
+ * Refer to Chapter 7.2.2 PCI Express Enhanced Configuration Access Mechanism (ECAM),
+ * PCI Express® Base Specification Revision 5.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to read.
+ *
+ * @return An unsigned integer which indicates the value read out from the register
+ *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
- * @pre offset 1-byte  alignment if byte == 1U
- *             2-byte alignment if byte == 2U
- *             4-byte alignment if byte == 4U
+ * @pre pci_is_valid_access(offset, bytes) == true
  */
 static uint32_t pci_mmcfg_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes)
 {
@@ -185,11 +367,21 @@ static uint32_t pci_mmcfg_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t 
 	return (uint32_t)mmio_read(hva, bytes);
 }
 
-/*
+/**
+ * @brief Write configuration space register using ECAM method
+ *
+ * Refer to Chapter 7.2.2 PCI Express Enhanced Configuration Access Mechanism (ECAM),
+ * PCI Express® Base Specification Revision 5.0.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to write.
+ * @param[in] val    Value to write.
+ *
+ * @return None
+ *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
- * @pre offset 1-byte alignment  if byte == 1U
- *             2-byte alignment if byte == 2U
- *             4-byte alignment if byte == 4U
+ * @pre pci_is_valid_access(offset, bytes) == true
  */
 static void pci_mmcfg_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val)
 {
@@ -201,21 +393,52 @@ static void pci_mmcfg_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t byt
 	mmio_write(hva, bytes, val);
 }
 
+/**
+ * @brief Instance of data structure for ECAM operations
+ *
+ * The PCI configuration space read and write callback functions are registered.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 static const struct pci_cfg_ops pci_mmcfg_cfg_ops = {
 	.pci_read_cfg = pci_mmcfg_read_cfg,
 	.pci_write_cfg = pci_mmcfg_write_cfg,
 };
 
+/**
+ * @brief Global variable to hold instance of data structure for PIO or ECAM operations
+ */
 static const struct pci_cfg_ops *acrn_pci_cfg_ops = &pci_pio_cfg_ops;
 
+/**
+ * @brief Switch PCI configuration space operation functions to ECAM (MMIO)
+ *
+ * The default PCI configuration space operation functions are PIO functions. This function
+ * is used to switch them to ECAM (MMIO) functions.
+ *
+ * @return None
+ */
 void pci_switch_to_mmio_cfg_ops(void)
 {
 	acrn_pci_cfg_ops = &pci_mmcfg_cfg_ops;
 }
 
-/*
+/**
+ * @brief Read configuration space register value
+ *
+ * This is the interface function. It calls registered PCI configuration space operation functions
+ * to read register.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to read.
+ *
+ * @return An unsigned integer which indicates the value read out from the register
+ *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
- * @pre must not be called before pci_switch_to_mmio_cfg_ops in release version.
  */
 uint32_t pci_pdev_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes)
 {
@@ -226,15 +449,42 @@ uint32_t pci_pdev_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes)
 	return val;
 }
 
-/*
+/**
+ * @brief Write configuration space register
+ *
+ * This is the interface function. It calls registered PCI configuration space operation functions
+ * to write register.
+ *
+ * @param[in] bdf    The data structure of PCI device BDF.
+ * @param[in] offset The register offset in configuration space.
+ * @param[in] bytes  The size to write.
+ * @param[in] val    The value to write.
+ *
+ * @return None
+ *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
- * @pre must not be called before pci_switch_to_mmio_cfg_ops in release version.
  */
 void pci_pdev_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val)
 {
 	acrn_pci_cfg_ops->pci_write_cfg(bdf, offset, bytes, val);
 }
 
+/**
+ * @brief Check whether to restore the BARs value to physical device registers
+ *
+ * This function checks if the values of physical device's current BAR registers equal to
+ * the ones saved when initializing the physical device. If they don't equal, return true.
+ * Otherwise, return false.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return A boolean value to indicate whether to restore the BARs value
+ *
+ * @retval TRUE  Restore the BARs value
+ * @retval FALSE Do not restore the BARs value
+ *
+ * @pre pdev != NULL
+ */
 bool pdev_need_bar_restore(const struct pci_pdev *pdev)
 {
 	bool need_restore = false;
@@ -251,6 +501,21 @@ bool pdev_need_bar_restore(const struct pci_pdev *pdev)
 	return need_restore;
 }
 
+/**
+ * @brief Get the BAR resources from physical device
+ *
+ * This function gets the original BAR register value by reading physical device's BAR
+ * register. Then, it writes 0xFFFFFFFF to the BAR register to get the BAR size. After
+ * getting the BAR resources, the function restores the BAR register.
+ *
+ * @param[in]    bdf    The data structure of PCI device BDF.
+ * @param[in]    offset The BAR register offset in configuration space.
+ * @param[inout] res    Pointer to the data structure of PCI BAR resource.
+ *
+ * @return None
+ *
+ * @pre res != NULL
+ */
 static void get_pci_bar_resource(union pci_bdf bdf, uint32_t offset, struct pci_bar_resource *res)
 {
        res->phy_bar = pci_pdev_read_cfg(bdf, offset, 4U);
@@ -260,6 +525,17 @@ static void get_pci_bar_resource(union pci_bdf bdf, uint32_t offset, struct pci_
        pci_pdev_write_cfg(bdf, offset, 4U, res->phy_bar);
 }
 
+/**
+ * @brief Save the BAR resources from physical device
+ *
+ * This function iterates the physical device's BAR registers and saves the BAR resources.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return None
+ *
+ * @pre pdev != NULL
+ */
 static inline void pdev_save_bar(struct pci_pdev *pdev)
 {
 	uint32_t idx;
@@ -269,6 +545,18 @@ static inline void pdev_save_bar(struct pci_pdev *pdev)
 	}
 }
 
+/**
+ * @brief Restore the saved BAR registers values to physical device
+ *
+ * This function iterates the physical device's BAR registers and restores the BAR registers
+ * values to physical device.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return None
+ *
+ * @pre pdev != NULL
+ */
 void pdev_restore_bar(const struct pci_pdev *pdev)
 {
 	uint32_t idx;
@@ -278,6 +566,19 @@ void pdev_restore_bar(const struct pci_pdev *pdev)
 	}
 }
 
+/**
+ * @brief Find the physical device through BDF
+ *
+ * This function iterates a global physical device list to find a device which BDF equals to
+ * input BDF.
+ *
+ * @param[in] pbdf An unsigned integer which indicates the BDF of a device to find.
+ *
+ * @return A pointer to the data structure of PCI physical device
+ *
+ * @retval non-NULL A pointer to the data structure of PCI physical device
+ * @retval NULL     No device is found
+ */
 static const struct pci_pdev *pci_find_pdev(uint16_t pbdf)
 {
 	struct hlist_node *n;
@@ -293,22 +594,34 @@ static const struct pci_pdev *pci_find_pdev(uint16_t pbdf)
 	return found;
 }
 
-/* @brief: Find the DRHD index corresponding to a PCI device
- * Runs through the pci_pdevs and returns the value in drhd_idx
- * member from pdev structure that matches matches B:D.F
+/**
+ * @brief Find the DRHD index corresponding to a PCI physical device
  *
- * @pbdf[in]	B:D.F of a PCI device
+ * Run through a global physical device list to find a device which BDF equals to
+ * the input one. Then, return the value in drhd_idx member from PCI physical device
+ * data structure.
  *
- * @return if there is a matching pbdf in pci_pdevs, pdev->drhd_idx, else INVALID_DRHD_INDEX
+ * @param[in] pbdf An unsigned integer which indicates the BDF of a device to find.
+ *
+ * @return An unsigned integer which indicates the DRHD index of a PCI device
+ *
+ * @retval drhd_index         The DRHD index corresponding to a PCI device found through input BDF
+ * @retval INVALID_DRHD_INDEX No device found through the input BDF
  */
-
 uint32_t pci_lookup_drhd_for_pbdf(uint16_t pbdf)
 {
 	const struct pci_pdev *pdev = pci_find_pdev(pbdf);
 	return (pdev != NULL) ? pdev->drhd_index : INVALID_DRHD_INDEX;
 }
 
-/* enable: 1: enable INTx; 0: Disable INTx */
+/**
+ * @brief Enable or disable the INTx of a PCI physical device
+ *
+ * @param[in] bdf    An unsigned integer which indicates the BDF of a device.
+ * @param[in] enable A boolean to indicate to enable or disable the INTx of a device.
+ *
+ * @return None
+ */
 void enable_disable_pci_intx(union pci_bdf bdf, bool enable)
 {
 	uint32_t cmd, new_cmd;
@@ -326,6 +639,20 @@ void enable_disable_pci_intx(union pci_bdf bdf, bool enable)
 	}
 }
 
+/**
+ * @brief Check if a PCI physical device is a platform hidden PCI device
+ *
+ * Run through a global hidden device list to find a device which BDF equals to
+ * the input one. If the device can be found, that means this device is hidden by the
+ * platform.
+ *
+ * @param[in] bdf An unsigned integer which indicates the BDF of a device to find.
+ *
+ * @return A boolean value which indicates whether the PCI device is hidden
+ *
+ * @retval TRUE  The device is hidden
+ * @retval FALSE The device is not hidden
+ */
 #if (MAX_HIDDEN_PDEVS_NUM > 0)
 bool is_plat_hidden_pdev(union pci_bdf bdf)
 {
@@ -349,6 +676,20 @@ bool is_plat_hidden_pdev(__unused union pci_bdf bdf)
 }
 #endif
 
+/**
+ * @brief Check if a PCI physical device is owned by hypervisor
+ *
+ * Run through a global hypervisor owned device list to find a device which BDF equals
+ * to the input one. If the device can be found, that means this device is owned by the
+ * hypervisor, e.g. PCI bridge.
+ *
+ * @param[in] pbdf An unsigned integer which indicates the BDF of a device to find.
+ *
+ * @return A boolean value which indicates whether the PCI device is owned by the hypervisor
+ *
+ * @retval TRUE  The device is owned by the hypervisor
+ * @retval FALSE The device is not owned by the hypervisor
+ */
 bool is_hv_owned_pdev(union pci_bdf pbdf)
 {
 	bool ret = false;
@@ -364,35 +705,74 @@ bool is_hv_owned_pdev(union pci_bdf pbdf)
 	return ret;
 }
 
-/*
- * quantity of uint64_t to encode a bitmap of all bus values
- * TODO: PCI_BUSMAX is a good candidate to move to
- * generated platform files.
- */
-#define BUSES_BITMAP_LEN        ((PCI_BUSMAX + 1U) >> 6U)
+#define BUSES_BITMAP_LEN ((PCI_BUSMAX + 1U) >> 6U)  /**< Quantity of uint64_t to encode a bitmap of all bus values */
 
-/*
- * must be >= total Endpoints in all DRDH devscope
- * TODO: BDF_MAPPING_NUM is a good candidate to move to
- * generated platform files.
+/**
+ * @brief MAX Device Scope Entries of PCI Endpoint Device and PCI Sub-hierarchy in all DRDH in DMAR ACPI Table
  */
-#define BDF_MAPPING_NUM			32U
+#define BDF_MAPPING_NUM 32U
 
+/**
+ * @brief Data structure to record the PCI device mapping to DRHD
+ *
+ * The data structure is used to record the PCI device BDF and the device corresponding
+ * DRHD index. The device is within the device scope of a DRHD.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 struct pci_bdf_to_drhd_index_mapping {
-	union pci_bdf dev_scope_bdf;
-	uint32_t dev_scope_drhd_index;
+	union pci_bdf dev_scope_bdf;  /**< BDF of the device which is within DRHD device scope */
+	uint32_t dev_scope_drhd_index;  /**< The corresponding DRHD index */
 };
 
+/**
+ * @brief Data structure to record the DRHD mapping relationship of a group of PCI devices
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 struct pci_bdf_mapping_group {
-	uint32_t pci_bdf_map_count;
+	uint32_t pci_bdf_map_count;  /**< Count of the device which is within DRHD device scope */
+	/**
+	 * @brief List of devices which are within DRHD device scope
+	 */
 	struct pci_bdf_to_drhd_index_mapping bdf_map[BDF_MAPPING_NUM];
 };
 
+/**
+ * @brief Data structure to record the PCI bus and its corresponding DRHD
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 struct pci_bus_num_to_drhd_index_mapping {
-	uint8_t bus_under_scan;
-	uint32_t bus_drhd_index;
+	uint8_t bus_under_scan;  /**< PCI bus number which is being scanned */
+	uint32_t bus_drhd_index;  /**< The PCI bus corresponding DRHD index */
 };
 
+/**
+ * @brief Get DRHD index of a PCI physical device
+ *
+ * Run through an input device list which belongs to DRHD to find a device which BDF
+ * equals to the input one. If the device can be found, that means this device is owned
+ * within the DRHD device scope. Then, return the DRHD index back. Otherwise, return the
+ * input DRHD index.
+ *
+ * @param[in] pbdf               An unsigned integer which indicates the BDF of a device to find.
+ * @param[in] bdfs_from_drhds    A pointer to a device list which belongs to DRHD.
+ * @param[in] current_drhd_index Index of current DRHD to check.
+ *
+ * @return Index of DRHD that the PCI device belongs to
+ *
+ * @pre bdfs_from_drhds != NULL
+ */
 static uint32_t pci_check_override_drhd_index(union pci_bdf pbdf,
 		const struct pci_bdf_mapping_group *const bdfs_from_drhds,
 		uint32_t current_drhd_index)
@@ -413,15 +793,34 @@ static uint32_t pci_check_override_drhd_index(union pci_bdf pbdf,
 	return bdf_drhd_index;
 }
 
-/* @brief: scan PCI physical devices from specific bus.
- * walks through the bus to scan PCI physical devices and using the discovered physical devices
- * to initialize pdevs, each pdev can only provdie a physical device information (like bdf, bar,
- * capabilities) before using this pdev, it needs to use the pdev to initialize a per VM device
- * configuration(acrn_vm_pci_dev_config), call init_one_dev_config or init_all_dev_config to do this.
+/**
+ * @brief Scan PCI physical devices from specific bus
+ *
+ * Walk through the bus to scan PCI physical devices and using the discovered physical devices
+ * to initialize PCI physical device data structure instances, each instance can only provide
+ * a physical device information (like bdf, bar, capabilities). Before using this instance, it
+ * needs to use the instance to initialize a per VM device configuration (acrn_vm_pci_dev_config),
+ * call init_one_dev_config or init_all_dev_config to do this.
+ *
+ * @param[in]    bus             Bus number to scan.
+ * @param[inout] buses_visited   Bus bitmap array to record which bus has been visited.
+ * @param[in]    bdfs_from_drhds A pointer to a device list which belongs to DRHD.
+ * @param[in]    drhd_index      DRHD index.
+ *
+ * @return None
+ *
+ * @pre bdfs_from_drhds != NULL
  */
 static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_LEN],
 		const struct pci_bdf_mapping_group *const bdfs_from_drhds, uint32_t drhd_index)
 {
+	/*
+	 * TODO
+	 * Refine the scan logic into:
+	 * 1. Scan devices under bus 0
+	 * 2. If there is a bridge, scan the bridge instead.
+	 * 3. Record the parent for a child device
+	 */
 	uint32_t vendor;
 	uint8_t hdr_type, dev, func, func_max;
 	union pci_bdf pbdf;
@@ -482,10 +881,20 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 	}
 }
 
-/*
- * @brief: Setup bdfs_from_drhds data structure as the DMAR tables are walked searching
- * for PCI device scopes. bdfs_from_drhds is used later in scan_pci_hierarchy
- * to map the right DRHD unit to the PCI device
+/**
+ * @brief Add a PCI device to the DRHD date structure which it unders
+ *
+ * When walking DMAR tables to search PCI device scope, add the device into a global DRHD
+ * data structure which will be used later in scan_pci_hierarchy to map the right DRHD unit
+ * to the PCI device.
+ *
+ * @param[in]    bdf             An unsigned integer which indicates the BDF of a device to find.
+ * @param[inout] bdfs_from_drhds A pointer to a device list which belongs to DRHD.
+ * @param[in]    drhd_index      DRHD index.
+ *
+ * @return None
+ *
+ * @pre bdfs_from_drhds != NULL
  */
 static void pci_add_bdf_from_drhd(union pci_bdf bdf, struct pci_bdf_mapping_group *const bdfs_from_drhds,
 					uint32_t drhd_index)
@@ -501,12 +910,19 @@ static void pci_add_bdf_from_drhd(union pci_bdf bdf, struct pci_bdf_mapping_grou
 }
 
 
-/*
- * @brief: Setup bdfs_from_drhds data structure as the DMAR tables are walked searching
- * for PCI device scopes. bdfs_from_drhds is used later in scan_pci_hierarchy
- * to map the right DRHD unit to the PCI device.
- * TODO: bdfs_from_drhds is a good candidate to be part of generated platform
- * info.
+/**
+ * @brief Parse DRHD device scope
+ *
+ * Walk DMAR tables to search device scope, add the device which type is endpoint or bridge
+ * into a global DRHD data structure which will be used later in scan_pci_hierarchy.
+ *
+ * @param[inout] bdfs_from_drhds  A pointer to a device list which belongs to DRHD.
+ * @param[out]   drhd_idx_pci_all DRHD index which is updated when the DRHD has DRHD_FLAG_INCLUDE_PCI_ALL_MASK set.
+ *
+ * @return None
+ *
+ * @pre bdfs_from_drhds != NULL
+ * @pre drhd_idx_pci_all != NULL
  */
 static void pci_parse_iommu_devscopes(struct pci_bdf_mapping_group *const bdfs_from_drhds,
 						uint32_t *drhd_idx_pci_all)
@@ -540,15 +956,22 @@ static void pci_parse_iommu_devscopes(struct pci_bdf_mapping_group *const bdfs_f
 	}
 }
 
-/*
+/**
+ * @brief Configure PCI bridge
+ *
  * There are some rules to config PCI bridge: try to avoid interference between Service VM and RTVM or
  * pre-launched VM; and to support some features like SRIOV by default, so as following:
- *	1. disable interrupt, including INTx and MSI.
- *	2. enable ARI if it's a PCIe bridge and all its sub devices support ARI (need check further).
+ *  1. disable interrupt, including INTx and MSI.
+ *  2. enable ARI if it's a PCIe bridge and all its sub devices support ARI (need check further).
  *  3. enable ACS. (now assume BIOS does it), could check and do it in HV in the future.
  *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return None
+ *
+ * @pre pdev != NULL
  */
-static void	config_pci_bridge(const struct pci_pdev *pdev)
+static void config_pci_bridge(const struct pci_pdev *pdev)
 {
 	uint32_t offset, val, msgctrl;
 
@@ -580,10 +1003,16 @@ static void	config_pci_bridge(const struct pci_pdev *pdev)
 	}
 }
 
-/*
- * @brief: walks through all pdevs that have been initialized and determine
- * which pdevs need to be added to pci dev_config. The pdevs added to pci
- * dev_config will be exposed to Service VM finally.
+/**
+ * @brief Initialize a per VM device configuration data structure for all PCI physical devices
+ *
+ * Walk through all PCI physical devices that have been initialized and initialize a per VM device
+ * configuration data structure for the device. But for the SRIOV device, drop the device if no room
+ * for its all of virtual functions. The device which can be initialized PCI device configuration for
+ * a VM will be exposed to Service VM finally. For bridge, configure it to disable INTx/MSI and enable
+ * ARI if if conditions are fulfilled.
+ *
+ * @return None
  */
 static void init_all_dev_config(void)
 {
@@ -621,11 +1050,15 @@ static void init_all_dev_config(void)
 	}
 }
 
-/*
- * @brief Walks the PCI heirarchy and initializes array of pci_pdev structs
- * Uses DRHD info from ACPI DMAR tables to cover the endpoints and
- * bridges along with their hierarchy captured in the device scope entries
- * Walks through rest of the devices starting at bus 0 and thru PCI_BUSMAX
+/**
+ * @brief Initialize PCI physical device list
+ *
+ * Walk the PCI hierarchy and initialize an array of PCI physical devices. Use DRHD info from
+ * ACPI DMAR tables to cover the endpoints and bridges along with their hierarchy captured in
+ * the device scope entries. Then, walk through the rest of the devices starting at bus 0 and
+ * thru PCI_BUSMAX. Do necessary initializations for the PCI physical devices.
+ *
+ * @return None
  */
 void init_pci_pdev_list(void)
 {
@@ -649,6 +1082,17 @@ void init_pci_pdev_list(void)
 	init_all_dev_config();
 }
 
+/**
+ * @brief Get the number of BARs according to header type
+ *
+ * @param[in] hdr_type Flag to indicate the header type.
+ *
+ * @return An unsigned integer to indicate the number of BARs
+ *
+ * @retval PCI_STD_NUM_BARS    Header type is 0
+ * @retval PCIM_HDRTYPE_BRIDGE Header type is 1
+ * @retval 0                   Other cases
+ */
 static inline uint32_t pci_pdev_get_nr_bars(uint8_t hdr_type)
 {
 	uint32_t nr_bars = 0U;
@@ -671,6 +1115,16 @@ static inline uint32_t pci_pdev_get_nr_bars(uint8_t hdr_type)
 }
 
 /**
+ * @brief Set PTM Enable and Root Select
+ *
+ * This function sets the PTM Enable and Root Select in PTM control register if the PTM capability
+ * is supported.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ * @param[in] pos  Position of the Precision Time Management Extended Capability header register.
+ *
+ * @return None
+ *
  * @pre pdev != NULL
  */
 static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
@@ -702,6 +1156,15 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
 }
 
 /**
+ * @brief Enumerate PCIe Extended Capabilities
+ *
+ * This function walk through each PCIe extend capabilities to decode SRIOV capability and
+ * enable PTM capability which features need be emumerated by ACRN.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return None
+ *
  * @pre pdev != NULL
  */
 static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
@@ -774,7 +1237,16 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 	}
 }
 
-/*
+/**
+ * @brief Enumerate PCI and PCIe Capabilities
+ *
+ * This function walk through each PCI and PCIe Capabilities to decode the MSI, MSI-X, PMC, AF,
+ * PCIe Capability and PCIe Extended Capabilities which need be emuerated by ACRN.
+ *
+ * @param[in] pdev Pointer to the data structure of PCI physical device.
+ *
+ * @return None
+ *
  * @pre pdev != NULL
  */
 static void pci_enumerate_cap(struct pci_pdev *pdev)
@@ -837,16 +1309,25 @@ static void pci_enumerate_cap(struct pci_pdev *pdev)
 	}
 }
 
-/*
- * @brief Initialize a pdev data structure.
+/**
+ * @brief Initialize a PCI physical device data structure
  *
- * Initialize a pdev data structure with a physical device BDF(pbdf) and DRHD index(drhd_index).
+ * Initialize a PCI physical device data structure with a physical device BDF and
+ * DRHD index. Then, add the device into a global device hash list to manage. But
+ * the function fails if below scenarios happen:
+ *   - The number of created PCI physical devices exceeds CONFIG_MAX_PCI_DEV_NUM;
+ *   - The Header Type of the PCI physical device is not PCIM_HDRTYPE_NORMAL or
+ *     PCIM_HDRTYPE_BRIDGE.
+ *
  * The caller of the function init_pdev should guarantee execution atomically.
  *
- * @param pbdf        Physical device BDF
- * @param drhd_index  DRHD index
+ * @param[in] bdf        Physical device BDF.
+ * @param[in] drhd_index DRHD index.
  *
- * @return If there's a successfully initialized pdev return it, otherwise return NULL;
+ * @return A pointer to indicate PCI physical device data structure instance
+ *
+ * @retval non-NULL Succeed to initialize PCI physical device data structure
+ * @retval NULL     Fail to initialize the PCI physical device data structure
  */
 struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 {
@@ -898,3 +1379,7 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 
 	return pdev;
 }
+
+/**
+ * @}
+ */

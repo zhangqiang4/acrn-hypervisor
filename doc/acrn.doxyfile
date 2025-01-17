@@ -895,6 +895,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/lib/util.h \
                           ../hypervisor/include/lib/types.h \
                           ../hypervisor/include/lib/errno.h \
+                          ../hypervisor/hw/pci.c \
+                          ../hypervisor/include/hw/pci.h \
 
 
 # This tag can be used to specify the character encoding of the source files
@@ -2178,6 +2180,7 @@ PREDEFINED             = "__attribute__(x)=" \
                          "CONFIG_RETPOLINE=" \
                          "CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED=" \
                          "CONFIG_RDT_ENABLED=" \
+                         "CONFIG_ACPI_PARSE_ENABLED=" \
 
 PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
