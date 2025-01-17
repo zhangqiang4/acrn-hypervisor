@@ -35,6 +35,7 @@ struct virtio_vdmabuf {
 	struct vhost_vdmabuf *vhost_vdmabuf;
 	uint64_t        features;
 	uint64_t size;
+	char *host_addr;
 };
 
 struct vhost_vdmabuf {

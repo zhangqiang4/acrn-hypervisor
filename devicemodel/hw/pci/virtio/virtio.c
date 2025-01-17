@@ -2129,3 +2129,25 @@ int dm_virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_regi
 	}
 	return 0;
 }
+
+int
+virtio_pci_add_shm_cap(struct virtio_base *base, uint8_t bar, uint64_t offset,
+			uint64_t length, uint8_t id)
+{
+	struct virtio_pci_cap64 cap;
+
+	cap.cap.cap_vndr = PCIY_VENDOR;
+	cap.cap.cap_next = 0;
+	cap.cap.cap_len = sizeof(cap);
+	cap.cap.bar = bar;
+
+	cap.cap.id = id;
+	cap.cap.length = length;
+	cap.cap.offset = offset;
+	cap.cap.cfg_type = VIRTIO_PCI_CAP_SHARED_MEMORY_CFG;
+	cap.length_hi = length >> 32;
+	cap.offset_hi = offset >> 32;
+
+	pci_emul_add_capability(base->dev, (u_char *)&cap, sizeof(cap));
+	return 0;
+}

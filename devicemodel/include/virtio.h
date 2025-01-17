@@ -730,4 +730,6 @@ void dm_virtio_iothread_handler(void *arg);
 void dm_virtio_set_iothread(struct virtio_base *base,
 		bool is_register);
 int dm_virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_register, int fd);
+int virtio_pci_add_shm_cap(struct virtio_base *base, uint8_t bar, uint64_t offset,
+			uint64_t length, uint8_t id);
 #endif	/* _VIRTIO_H_ */

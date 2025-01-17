@@ -28,6 +28,8 @@
 #include "dm_string.h"
 #include "vhost_vdmabuf.h"
 
+#define VDMABUF_SHMEM_ID	1
+
 /* VHOST_VDMABUF specific defines */
 #define VHOST_VDMABUF_SET_RUNNING       _IOW(VHOST_VIRTIO, 0x90, int)
 
@@ -40,10 +42,30 @@ struct vhost_vdmabuf_set {
 	char name[MAX_VM_NAME_LEN];
 };
 
+#define VIRTIO_VDMABUF_IOCTL_SHARED_MEM \
+	_IOC(_IOC_NONE, 'G', 8, sizeof(struct virtio_vdmabuf_smem))
+struct virtio_vdmabuf_smem {
+	/* IN parameters */
+	uint64_t hva;
+	uint64_t gpa;
+	uint64_t size;
+};
+
 static int
 vhost_vdmabuf_set_running(struct vhost_dev *vdev, int start)
 {
 	return vhost_kernel_ioctl(vdev, VHOST_VDMABUF_SET_RUNNING, &start);
+}
+
+static int
+vhost_vdmabuf_set_smem(struct vhost_dev *vdev, uint64_t hva, uint64_t gpa, uint64_t size)
+{
+	struct virtio_vdmabuf_smem smem = { 0 };
+	smem.hva = hva;
+	smem.gpa = gpa;
+	smem.size = size;
+
+	return vhost_kernel_ioctl(vdev, VIRTIO_VDMABUF_IOCTL_SHARED_MEM, &smem);
 }
 
 static int
@@ -60,20 +82,20 @@ vhost_vdmabuf_start(struct vhost_vdmabuf *vhost_vdmabuf)
 	int rc;
 
 	if (vhost_vdmabuf->vhost_started) {
-		pr_err("The vhost vdmabuf is already started, re-using it.\n");
+		pr_info("The vhost vdmabuf is already started, re-using it\n");
 		return 0;
 	}
 
 	rc = vhost_dev_start(&vhost_vdmabuf->vdev);
 	if (rc < 0) {
-		pr_err("vhost_dev_start is failed.\n");
+		pr_err("vhost_dev_start is failed with %rc\n", rc);
 		return -1;
 	}
 
 	rc = vhost_vdmabuf_set_running(&vhost_vdmabuf->vdev, 1);
 	if (rc < 0) {
 		vhost_dev_stop(&vhost_vdmabuf->vdev);
-		pr_err("vhost_vdmabuf_set_running is failed with %d.\n", rc);
+		pr_err("vhost_vdmabuf_set_running is failed with %d\n", rc);
 		return -1;
 	}
 
@@ -87,7 +109,7 @@ vhost_vdmabuf_stop(struct vhost_vdmabuf *vhost_vdmabuf)
 	int rc;
 
 	if (!vhost_vdmabuf->vhost_started) {
-		pr_err("vhost vdmabuf is not started.\n");
+		pr_info("vhost vdmabuf is not started\n");
 		return 0;
 	}
 
@@ -99,7 +121,7 @@ vhost_vdmabuf_stop(struct vhost_vdmabuf *vhost_vdmabuf)
 
 	rc = vhost_dev_stop(&vhost_vdmabuf->vdev);
 	if (rc < 0) {
-		pr_err("vhost_dev_stop is failed.\n");
+		pr_err("vhost_dev_stop is failed with %d\n", rc);
 		return -1;
 	}
 
@@ -115,21 +137,21 @@ virtio_vdmabuf_set_status(void *vdev, uint64_t status)
 	int rc;
 
 	if (!vdmabuf->vhost_vdmabuf) {
-		pr_err("virtio_vdmabuf_set_status vhost is NULL.\n");
+		pr_err("virtio_vdmabuf_set_status vhost_vdmabuf is not initialized\n");
 		return;
 	}
 
 	if (should_start) {
 		rc = vhost_vdmabuf_start(vdmabuf->vhost_vdmabuf);
 		if (rc < 0) {
-			pr_err("vhost_vdmabuf_start is failed.\n");
+			pr_err("vhost_vdmabuf_start is failed with %d\n", rc);
 			return;
 		}
 	} else if (vdmabuf->vhost_vdmabuf->vhost_started &&
 			should_start == 0) {
 		rc = vhost_vdmabuf_stop(vdmabuf->vhost_vdmabuf);
 		if (rc < 0) {
-			pr_err("vhost_vdmabuf_stop is failed.\n");
+			pr_err("vhost_vdmabuf_stop is failed with %d\n", rc);
 			return;
 		}
 	}
@@ -160,7 +182,7 @@ virtio_vdmabuf_reset(void *vdev)
 {
 	struct virtio_vdmabuf *vdmabuf = vdev;
 
-	pr_dbg("vdmabuf: device reset requested.\n");
+	pr_dbg("virtio vdmabuf device reset requested\n");
 	/* now reset rings, MSI-X vectors, and negotiated capabilities */
 	virtio_reset_dev(&vdmabuf->base);
 }
@@ -186,7 +208,7 @@ vhost_vdmabuf_init(struct virtio_base *base, int vq_idx)
 
 	vhost_vdmabuf = calloc(1, sizeof(struct vhost_vdmabuf));
 	if (!vhost_vdmabuf) {
-		pr_err("vdmabuf init out of memory.\n");
+		pr_err("failed to alloc vhost_vdmabuf memory\n");
 		return NULL;
 	}
 
@@ -195,14 +217,14 @@ vhost_vdmabuf_init(struct virtio_base *base, int vq_idx)
 	vhost_vdmabuf->vdev.vqs = vhost_vdmabuf->vqs;
 	vhost_vdmabuf->vhost_fd = open("/dev/vhost-vdmabuf", O_RDWR);;
 	if (vhost_vdmabuf->vhost_fd < 0) {
-		pr_err("Open vhost-vdmabuf fail, pls open vdmabuf kernel config.\n");
+		pr_err("open vhost-vdmabuf failed, pls open vdmabuf kernel config\n");
 		goto fail;
 	}
 
 	rc = vhost_dev_init(&vhost_vdmabuf->vdev, base, vhost_vdmabuf->vhost_fd, vq_idx,
 			vhost_features, 0, 0);
 	if (rc < 0) {
-		pr_err("vhost_dev_init failed.\n");
+		pr_err("vhost_dev_init failed, rc:%d\n", rc);
 		goto fail_vhost_init;
 	}
 
@@ -223,11 +245,11 @@ vhost_vdmabuf_deinit(struct vhost_vdmabuf *vhost_vdmabuf)
 
 	rc = vhost_vdmabuf_stop(vhost_vdmabuf);
 	if (rc < 0)
-		pr_err("vhost_dev_stop is failed.\n");
+		pr_err("vhost_dev_stop is failed, rc:%d\n", rc);
 
 	rc = vhost_dev_deinit(&vhost_vdmabuf->vdev);
 	if (rc < 0)
-		pr_err("vhost_dev_deinit is failed.\n");
+		pr_err("vhost_dev_deinit is failed, rc:%d\n", rc);
 
 	close(vhost_vdmabuf->vhost_fd);
 	free(vhost_vdmabuf);
@@ -248,7 +270,7 @@ parse_option(struct virtio_vdmabuf *vdmabuf, char *opts)
 		if (strstr(str, "size=")) {
 			ret = sscanf(str, "size=%d", &size);
 			if (ret != 1) {
-				pr_err("vdmabuf:incorrect size option\n");
+				pr_err("incorrect size option\n");
 				return -1;
 			}
 		}
@@ -266,10 +288,11 @@ virtio_vhost_vdmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	int rc;
 	pthread_mutexattr_t attr;
 	struct vhost_vdmabuf_set set;
+	char *host_addr = NULL;
 
 	vdmabuf = calloc(1, sizeof(struct virtio_vdmabuf));
 	if (!vdmabuf) {
-		pr_err("vdmabuf: memory allocate failed.");
+		pr_err("failed to allocate vdmabuf memory\n");
 		return -1;
 	}
 
@@ -277,22 +300,22 @@ virtio_vhost_vdmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	rc = parse_option(vdmabuf, opts);
 	if (rc < 0) {
-		pr_err("vdmabuf:failed to parse option\n");
+		pr_err("failed to parse option, opts:%s\n", opts);
 		goto fail_free_vdmabuf;
 	}
 	rc = pthread_mutexattr_init(&attr);
 	if (rc) {
-		pr_err("vdmabuf: mutexattr init failed with erro %d\n", rc);
+		pr_err("mutexattr init failed with error %d\n", rc);
 		goto fail_free_vdmabuf;
 	}
 	rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	if (rc) {
-		pr_err("vdmabuf: mutexattr_settype failed with error %d\n", rc);
+		pr_err("mutexattr_settype failed with error %d\n", rc);
 		goto fail_free_vdmabuf;
 	}
 	rc = pthread_mutex_init(&vdmabuf->mtx, &attr);
 	if (rc) {
-		pr_err("vdmabuf: pthread_mutexattr_init failed with error %d\n", rc);
+		pr_err("pthread_mutexattr_init failed with error %d\n", rc);
 		goto fail_free_vdmabuf;
 	}
 
@@ -312,18 +335,36 @@ virtio_vhost_vdmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pci_set_cfgdata16(dev, PCIR_REVID, 1);
 
 	virtio_set_modern_bar(&vdmabuf->base, false);
-
+	if (vdmabuf->size) {
+		host_addr = mmap(0, vdmabuf->size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+		if (!host_addr) {
+			pr_err("virtio dmabuf mmap failure, rc:%d\n", rc);
+			goto fail_destroy_mtx;
+		}
+		pci_emul_alloc_bar(dev, 2, PCIBAR_MEM64, vdmabuf->size);
+		virtio_pci_add_shm_cap(&vdmabuf->base, 2, 0, vdmabuf->size, VDMABUF_SHMEM_ID);
+		rc = vm_map_memseg_vma(ctx, vdmabuf->size, dev->bar[2].addr, (vm_paddr_t) host_addr, PROT_READ | PROT_WRITE);
+		if (rc < 0) {
+			pr_err("virtio dmabuf map memseg failure, rc:%d\n", rc);
+			goto fail_destroy_mtx;
+		}
+	}
 	vdmabuf->vhost_vdmabuf = vhost_vdmabuf_init(&vdmabuf->base, 0);
 	if (!vdmabuf->vhost_vdmabuf) {
-		pr_err("vdmabuf: vhost init failed.\n");
+		pr_err("virtio dmabuf init failure\n");
 		goto fail_destroy_mtx;
 	}
 	set.vmid = vdmabuf->config.vmid;
 	memcpy(set.name, ctx->name, MAX_VM_NAME_LEN);
 	vhost_vdmabuf_set_vmid(&vdmabuf->vhost_vdmabuf->vdev, &set);
 
+	vdmabuf->host_addr = host_addr;
+	if (vdmabuf->size) {
+		vhost_vdmabuf_set_smem(&vdmabuf->vhost_vdmabuf->vdev, (uint64_t)host_addr, dev->bar[2].addr, vdmabuf->size);
+	}
+
 	if (virtio_interrupt_init(&vdmabuf->base, virtio_uses_msix())) {
-		pr_err("vdmabuf: virtio interrupt failed.\n");
+		pr_err("virtio dmabuf interrupt init failure\n");
 		goto fail_definit_vdmabuf;
 	}
 	return 0;
@@ -331,6 +372,8 @@ virtio_vhost_vdmabuf_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 fail_definit_vdmabuf:
 	vhost_vdmabuf_deinit(vdmabuf->vhost_vdmabuf);
 fail_destroy_mtx:
+	if (host_addr)
+		munmap(host_addr, vdmabuf->size);
 	pthread_mutex_destroy(&vdmabuf->mtx);
 fail_free_vdmabuf:
 	free(vdmabuf);
@@ -347,8 +390,11 @@ virtio_vhost_vdmabuf_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 		if (vdmabuf->vhost_vdmabuf)
 			vhost_vdmabuf_deinit(vdmabuf->vhost_vdmabuf);
+
+		if (vdmabuf->host_addr)
+			munmap(vdmabuf->host_addr, vdmabuf->size);
 		pthread_mutex_destroy(&vdmabuf->mtx);
-		pr_dbg("%s: vdmabuf deinit done\n", __func__);
+		pr_dbg("virtio dmabuf deinit done\n");
 		free(vdmabuf);
 	}
 }
