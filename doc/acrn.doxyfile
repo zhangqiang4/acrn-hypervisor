@@ -843,6 +843,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/board.h \
                           ../hypervisor/include/dm/mmio_dev.h \
                           ../hypervisor/include/dm/vioapic.h \
+                          ../hypervisor/include/dm/vacpi.h \
                           ../hypervisor/include/dm/io_req.h \
                           ../hypervisor/include/common/hypercall.h \
                           ../hypervisor/include/common/irq.h \
@@ -891,6 +892,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/vmcall.c \
                           ../hypervisor/arch/x86/guest/vmcs.c \
                           ../hypervisor/arch/x86/configs/pci_dev.c \
+                          ../hypervisor/arch/x86/configs/vacpi.c \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \

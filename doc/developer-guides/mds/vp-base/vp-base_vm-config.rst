@@ -24,6 +24,9 @@ This section contains the documentation of the module `vp-base.vm-config`.
 [File] arch/x86/configs/vacpi.c
 ======================================================================
 
+.. doxygenfile:: configs/vacpi.c
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/vm_config.h
 ======================================================================
 
@@ -36,3 +39,5 @@ This section contains the documentation of the module `vp-base.vm-config`.
 [File] include/dm/vacpi.h
 ======================================================================
 
+.. doxygenfile:: dm/vacpi.h
+   :project: Project ACRN
