@@ -950,6 +950,10 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/schedule.h \
                           ../hypervisor/common/event.c \
                           ../hypervisor/include/common/event.h \
+                          ../hypervisor/arch/x86/guest/pm.c \
+                          ../hypervisor/arch/x86/guest/vm_reset.c \
+                          ../hypervisor/include/arch/x86/asm/guest/guest_pm.h \
+                          ../hypervisor/include/arch/x86/asm/guest/vm_reset.h \
 
 
 # This tag can be used to specify the character encoding of the source files

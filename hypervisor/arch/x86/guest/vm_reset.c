@@ -14,6 +14,32 @@
 #include <dump.h>
 
 /**
+ * @addtogroup vp-base_pm
+ *
+ * @{
+ */
+
+/**
+ * @file
+ *
+ * @brief Implementation of VM reset.
+ *
+ * This file provides Functions for VM reset.
+ */
+
+/**
+ * @brief Process triple fault VM exit event.
+ *
+ * We shutdown the VM that causes the exception.
+ *  - If the exception is from post launched VMs, send a vm event to service VM and inject pm1a S5
+ *    request to Service VM to shutdown the guest.
+ *  - If it is from service VM, shutdown all none RT post-launched VMs and then shutdown itself.
+ *  - If it is from pre-launched VMs, shutdown the VM here.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that cause the exception.
+ *
+ * @return None.
+ *
  * @pre vm != NULL
  */
 void triple_fault_shutdown_vm(struct acrn_vcpu *vcpu)
@@ -71,6 +97,20 @@ void triple_fault_shutdown_vm(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief IO read callback for reset reg.
+ *
+ * Feed the virtual reset control reg value to VM.
+ * For post launched VM the request is Re-injected to DM.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO read.
+ * @param[in] addr Unused for callback.
+ * @param[in] bytes Unused for callback.
+ *
+ * @return How the request is processed.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
  */
@@ -96,7 +136,31 @@ static bool handle_reset_reg_read(struct acrn_vcpu *vcpu, __unused uint16_t addr
 }
 
 /**
- * @pre vm != NULL
+ * @brief Handle reset write from VMs.
+ *
+ * This function handles common reset reg write form VMs, regardless the source.
+ * If the write is not a reset request, re-inject it to DM for post launched VMs and
+ * ignore it for others.
+ * If the write is a reset request, we will try to reset the VM by those steps:
+ *  - For RTVM, Set VM_READY_TO_POWEROFF state to indicate it is requesting poweroff.
+ *  - Reset the host if the request is from highest severity VM.
+ *  - Re-inject the request if it is from post VM.
+ *  - If it's Service VM reset while RTVM is still alive or pre-launched VM reset,
+ *    ACRN doesn't support re-launch, just shutdown the guest.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO write.
+ * @param[in] reset True if it is a reset write, false for otherwise.
+ * @param[in] warm True for warm boot, false for cold.
+ *
+ * @return How the request is processed.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
+ * @pre vcpu != NULL
+ * @pre vcpu->vm != NULL
+ *
+ * @remark May not return as it could reset the host.
  */
 static bool handle_common_reset_reg_write(struct acrn_vcpu *vcpu, bool reset, bool warm)
 {
@@ -141,6 +205,21 @@ static bool handle_common_reset_reg_write(struct acrn_vcpu *vcpu, bool reset, bo
 }
 
 /**
+ * @brief IO write callback for keyboard reset register (0x64).
+ *
+ * Check the write value and send the request to common reset process.
+ * If its width is 1 byte and value is 0xfe, it a valid reset request.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO write.
+ * @param[in] addr Unused as it is a single address handler.
+ * @param[in] bytes Width of the IO request.
+ * @param[in] val Value to be written.
+ *
+ * @return How the request is processed.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
  */
@@ -150,6 +229,26 @@ static bool handle_kb_write(struct acrn_vcpu *vcpu, __unused uint16_t addr, size
 	return handle_common_reset_reg_write(vcpu, ((bytes == 1U) && (val == 0xfeU)), false);
 }
 
+/**
+ * @brief IO read callback for keyboard reset register (0x64).
+ *
+ * Reads from the physical register value for service VM and 1 byte width.
+ * Returns ~0U (hide the feature) for other cases.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO read.
+ * @param[in] addr Address of the IO request.
+ * @param[in] bytes Width of the IO request.
+ *
+ * @return How the request is processed. Always true.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
+ * @pre vcpu != NULL
+ * @pre vcpu->vm != NULL
+ *
+ * @remark Read value returned by vcpu->req.reqs.pio_request.value.
+ */
 static bool handle_kb_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t bytes)
 {
 	if (is_service_vm(vcpu->vm) && (bytes == 1U)) {
@@ -162,16 +261,31 @@ static bool handle_kb_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t bytes)
 	return true;
 }
 
-
-/*
- * Reset Control register at I/O port 0xcf9.
- *     Bit 1 - 0: "soft" reset. Force processor begin execution at power-on reset vector.
- *             1: "hard" reset. e.g. assert PLTRST# (if implemented) to do a host reset.
- *     Bit 2 - initiates a system reset when it transitions from 0 to 1.
- *     Bit 3 - 1: full reset (aka code reset), SLP_S3#/4#/5# or similar pins are asserted for full power cycle.
- *             0: will be dropped if system in S3/S4/S5.
- */
 /**
+ * @brief IO write callback for CF9 reset register (0xcf9).
+ *
+ * Check the write value and send the request to common reset process.
+ *
+ * Reset Control register at I/O port 0xcf9:
+ * - Bit 1
+ *   - 0: "soft" reset. Force processor begin execution at power-on reset vector.
+ *   - 1: "hard" reset. e.g. assert PLTRST# (if implemented) to do a host reset.
+ * - Bit 2
+ *   - initiates a system reset when it transitions from 0 to 1.
+ * - Bit 3
+ *   - 1: full reset (aka code reset), SLP_S3#/4#/5# or similar pins are asserted for full power cycle.
+ *   - 0: will be dropped if system in S3/S4/S5.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO write.
+ * @param[in] addr Unused as it is a single address handler.
+ * @param[in] bytes Width of the IO request.
+ * @param[in] val Value to be written.
+ *
+ * @return How the request is processed.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
  */
@@ -186,6 +300,22 @@ static bool handle_cf9_write(struct acrn_vcpu *vcpu, __unused uint16_t addr, siz
 }
 
 /**
+ * @brief IO write callback for host ACPI reset register.
+ *
+ * Check the write value and send the request to common reset process.
+ * Write to physical port if it is not a reset value.
+ * Only handles 1 byte write, others are ignored.
+ *
+ * @param[inout] vcpu Pointer to the vCPU which initiates the IO write.
+ * @param[in] addr Unused as it is a single address handler.
+ * @param[in] bytes Width of the IO request.
+ * @param[in] val Value to be written.
+ *
+ * @return How the request is processed.
+ *
+ * @retval True Request processed.
+ * @retval False Re-inject to DM.
+ *
  * @pre vcpu != NULL
  * @pre vcpu->vm != NULL
  */
@@ -212,6 +342,17 @@ static bool handle_reset_reg_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t
 }
 
 /**
+ * @brief Register reset IO registers address handlers.
+ *
+ * 3 kinds of reset IO registers are intercepted and handled in hypervisor:
+ *  - 0x64 PORT
+ *  - 0xcf9 PORT
+ *  - ACPI defined reset register, that is not 64/cf9 for service VM.
+ *
+ * @param[inout] vm The VM to which the GAS handlers are registered.
+ *
+ * @return None.
+ *
  * @pre vm != NULL
  */
 void register_reset_port_handler(struct acrn_vm *vm)
@@ -249,6 +390,15 @@ void register_reset_port_handler(struct acrn_vm *vm)
 	}
 }
 
+/**
+ * @brief Shutdown the VM that has been paused.
+ *
+ * This function shuts down the VMs that has been paused and marked in per_cpu shutdown_vm_bitmap.
+ *
+ * @param[in] pcpu_id The id of physical CPU which initiates the shutdown.
+ *
+ * @return None.
+ */
 void shutdown_vm_from_idle(uint16_t pcpu_id)
 {
 	uint16_t vm_id;
@@ -265,3 +415,7 @@ void shutdown_vm_from_idle(uint16_t pcpu_id)
 		bitmap_clear_nolock(vm_id, vms);
 	}
 }
+
+/**
+ * @}
+ */
