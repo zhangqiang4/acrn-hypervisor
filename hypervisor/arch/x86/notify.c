@@ -15,8 +15,6 @@
 #include <asm/guest/vm.h>
 #include <asm/guest/virq.h>
 
-static uint32_t notification_irq = IRQ_INVALID;
-
 static uint64_t smp_call_mask = 0UL;
 
 /* run in interrupt context */
@@ -84,39 +82,18 @@ void smp_call_function(uint64_t mask, smp_call_func_t func, void *data)
 	wait_sync_change(&smp_call_mask, 0UL);
 }
 
-static int32_t request_notification_irq(irq_action_t func, void *data)
-{
-	int32_t retval;
-
-	if (notification_irq != IRQ_INVALID) {
-		pr_info("%s, Notification vector already allocated on this CPU", __func__);
-		retval = -EBUSY;
-	} else {
-		/* all cpu register the same notification vector */
-		retval = request_irq(NOTIFY_VCPU_IRQ, func, data, IRQF_NONE);
-		if (retval < 0) {
-			pr_err("Failed to add notify isr");
-			retval = -ENODEV;
-		} else {
-			notification_irq = (uint32_t)retval;
-		}
-	}
-
-	return retval;
-}
-
 /*
  * @pre be called only by BSP initialization process
  */
 void setup_notification(void)
 {
-	/* support IPI notification, Service VM will register all CPU */
-	if (request_notification_irq(kick_notification, NULL) < 0) {
-		pr_err("Failed to setup notification");
-	}
-
-	dev_dbg(DBG_LEVEL_PTIRQ, "NOTIFY: irq[%d] setup vector %x",
-		notification_irq, irq_to_vector(notification_irq));
+	if (request_irq(NOTIFY_VCPU_IRQ, kick_notification, NULL, IRQF_NONE) < 0) {
+		pr_err("Failed to register handler for notify irq 0x%x with vector 0x%x",
+		        NOTIFY_VCPU_IRQ, irq_to_vector(NOTIFY_VCPU_IRQ));
+	} else {
+	        dev_dbg(DBG_LEVEL_IRQ, "Registered handler for notify irq 0x%x with vector 0x%x",
+		        NOTIFY_VCPU_IRQ, irq_to_vector(NOTIFY_VCPU_IRQ));
+        }
 }
 
 /*
