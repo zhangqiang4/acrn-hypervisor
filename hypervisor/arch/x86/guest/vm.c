@@ -370,27 +370,6 @@ bool is_static_configured_vm(const struct acrn_vm *vm)
 }
 
 /**
- * @brief Checks if a VM has configured virtual HWP.
- *
- * This function checks if a VM has configured virtual HWP.
- * A VM has configured virtual HWP if GUEST_FLAG_VHWP
- * is set in VM's guest flags.
- *
- * @pre vm != NULL
- * @pre vm->vm_id < CONFIG_MAX_VM_NUM
- * @pre get_vm_config(vm->vm_id) != NULL
- * @post N/A
- *
- * @param[in] vm The VM to be checked.
- *
- * @return true if VM has configured virtual HWP, false otherwise.
- */
-bool is_vhwp_configured(const struct acrn_vm *vm)
-{
-	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP);
-}
-
-/**
  * @brief Checks if a VM has configured Machine Check capability passthrough.
  *
  * This function checks if a VM has configured Machine Check capability passthrough.
@@ -411,49 +390,6 @@ bool is_mc_pt_configured(const struct acrn_vm *vm)
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
 	return (vm_config->mcbanks_bitmask != 0);
-}
-
-/**
- * @brief Checks if a VM has configured Per-Core Thermal capability passthrough.
- *
- * This function checks if a VM has configured Per-Core Thermal capability passthrough.
- * A VM has configured Thermal capability passthrough if GUEST_FLAG_VTM
- * is set in VM's guest flags in its vm_config.
- *
- * @pre vm != NULL
- * @pre vm->vm_id < CONFIG_MAX_VM_NUM
- * @pre get_vm_config(vm->vm_id) != NULL
- * @post N/A
- *
- * @param[in] vm The VM to be checked.
- *
- * @return true if VM has configured Per-Core Thermal capability passthrough,
- *         false otherwise.
- */
-bool is_tm_pt_configured(const struct acrn_vm *vm)
-{
-	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_TM_PT);
-}
-
-/**
- * @brief Checks if a VM has configured PTM (Package Thermal Management) passthrough.
- *
- * This function checks if a VM has configured Package Thermal Management passthrough.
- * A VM has configured Package Thermal Management passthrough if GUEST_FLAG_VPTM is set
- * in VM's guest flags in its vm_config.
- *
- * @pre vm != NULL
- * @pre vm->vm_id < CONFIG_MAX_VM_NUM
- * @pre get_vm_config(vm->vm_id) != NULL
- * @post N/A
- *
- * @param[in] vm The VM to be checked.
- *
- * @return true if VM has configured PTM passthrough, false otherwise.
- */
-bool is_ptm_pt_configured(const struct acrn_vm *vm)
-{
-	return vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_PTM_PT);
 }
 
 /**

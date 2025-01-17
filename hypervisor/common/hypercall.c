@@ -1109,7 +1109,7 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm
 			 * px_cnt. The hypercall returns success and px_cnt = 0.
 			 * If the VM's p-state is hidden or hv doesn't have its p-state info, the hypercall returns -1.
 			 */
-			if (is_vhwp_configured(target_vm)) {
+			if (vm_cpu_feature_enabled(target_vm, GUEST_CPU_FEATURE_VHWP)) {
 				px_cnt = 0U;
 			} else if (!is_pt_pstate(target_vm)) {
 				break;

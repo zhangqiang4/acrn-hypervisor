@@ -272,7 +272,7 @@ void vcpu_inject_mc(struct acrn_vcpu *vcpu)
 /* Inject thermal sensor interrupt to guest */
 void vcpu_inject_thermal_interrupt(struct acrn_vcpu *vcpu)
 {
-	if (is_tm_pt_configured(vcpu->vm)) {
+	if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
 		(void)vlapic_set_local_intr(vcpu->vm, vcpu->vcpu_id, APIC_LVT_THERMAL);
 	};
 }

@@ -27,6 +27,7 @@
 
 #ifndef ASSEMBLER
 
+#include <acrn_common.h>
 #include <asm/lib/bits.h>
 #include <asm/lib/spinlock.h>
 #include <asm/pgtable.h>
@@ -440,10 +441,7 @@ bool is_pi_capable(const struct acrn_vm *vm);
 bool has_rt_vm(void);
 struct acrn_vm *get_highest_severity_vm(bool runtime);
 bool vm_hide_mtrr(const struct acrn_vm *vm);
-bool is_vhwp_configured(const struct acrn_vm *vm);
 bool is_mc_pt_configured(const struct acrn_vm *vm);
-bool is_tm_pt_configured(const struct acrn_vm *vm);
-bool is_ptm_pt_configured(const struct acrn_vm *vm);
 void get_vm_lock(struct acrn_vm *vm);
 void put_vm_lock(struct acrn_vm *vm);
 

@@ -333,14 +333,14 @@ static void enable_msr_interception(uint8_t *bitmap, uint32_t msr_arg, uint32_t 
 static void init_thermal_msrs(struct acrn_vcpu *vcpu)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
-	if (!is_tm_pt_configured(vcpu->vm)) {
+	if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
 		enable_msr_interception(msr_bitmap, MSR_IA32_CLOCK_MODULATION, INTERCEPT_READ_WRITE);
 		enable_msr_interception(msr_bitmap, MSR_IA32_THERM_INTERRUPT, INTERCEPT_READ_WRITE);
-		if (!is_vhwp_configured(vcpu->vm)) {
+		if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			enable_msr_interception(msr_bitmap, MSR_IA32_THERM_STATUS, INTERCEPT_READ_WRITE);
 		}
 	}
-	if (!is_ptm_pt_configured(vcpu->vm)) {
+	if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_PTM_PT)) {
 		enable_msr_interception(msr_bitmap, MSR_IA32_PACKAGE_THERM_STATUS, INTERCEPT_READ_WRITE);
 		enable_msr_interception(msr_bitmap, MSR_IA32_PACKAGE_THERM_INTERRUPT, INTERCEPT_READ_WRITE);
 	}
@@ -374,7 +374,7 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_XAPICID, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LDR, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_WRITE);
-		if (!is_tm_pt_configured(vcpu->vm)) {
+		if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
 			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_LVT_THERMAL, INTERCEPT_READ_WRITE);
 		}
 		set_tsc_msr_interception(vcpu, exec_vmread64(VMX_TSC_OFFSET_FULL) != 0UL);
@@ -540,8 +540,8 @@ void init_mc_msrs(struct acrn_vcpu *vcpu)
 			if (bitmap_weight(conf_bm) != (1 + fls64(conf_bm))) {
 				/* TODO: Non-continuous bank pt currently not supported */
 				pr_err("Non-continous mcbanks_bitmask or bitmask doesn't start from 0. For VM%d, MC banks will NOT be passed-through", vm->vm_id);
-			} else if (!(is_service_vm(vm) || is_vhwp_configured(vm) || is_lapic_pt_configured(vm))) {
-				/* is_vhwp_configured will be true if own_pcpu was set to y in scenario XML */
+			} else if (!(is_service_vm(vm) || vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP) || is_lapic_pt_configured(vm))) {
+				/* GUEST_CPU_FEATURE_VHWP will be set if own_pcpu was set to y in scenario XML */
 				pr_err("Guest mcbanks_bitmask configured but this guest does NOT exclusively own pCPU.");
 				pr_err("MC banks will NOT be passed-through.");
 			} else {
@@ -754,7 +754,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_PERF_STATUS:
 	{
-		if (is_vhwp_configured(vcpu->vm)) {
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			v = msr_read(msr);
 		} else {
 			v = get_perf_status();
@@ -773,7 +773,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	case MSR_IA32_MPERF:
 	case MSR_IA32_APERF:
 	{
-		if (is_vhwp_configured(vcpu->vm)) {
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			v = msr_read(msr);
 		} else {
 			err = -EACCES;
@@ -889,7 +889,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_PLATFORM_INFO:
 	{
-		if (is_service_vm(vcpu->vm) || is_vhwp_configured(vcpu->vm)) {
+		if (is_service_vm(vcpu->vm) || vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			v = msr_read(msr);
 			v &= MSR_PLATFORM_INFO_MAX_NON_TURBO_LIM_RATIO_MASK |
 			     MSR_PLATFORM_INFO_MAX_EFFICIENCY_RATIO_MASK |
@@ -1176,7 +1176,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_PM_ENABLE:
 	{
-		if (!is_vhwp_configured(vcpu->vm)) {
+		if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			err = -EACCES;
 		}
 		/* Set by HV. Writing from guests will have no effect */
@@ -1189,7 +1189,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_HWP_REQUEST:
 	{
-		if (is_vhwp_configured(vcpu->vm) &&
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP) &&
 			((v & (MSR_IA32_HWP_REQUEST_RSV_BITS | MSR_IA32_HWP_REQUEST_PKG_CTL)) == 0)) {
 			msr_write(msr, v);
 		} else {
@@ -1199,7 +1199,8 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_HWP_STATUS:
 	{
-		if (is_vhwp_configured(vcpu->vm) && ((v & MSR_IA32_HWP_STATUS_RSV_BITS) == 0)) {
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP) &&
+		    ((v & MSR_IA32_HWP_STATUS_RSV_BITS) == 0)) {
 			msr_write(msr, v);
 		} else {
 			err = -EACCES;
@@ -1209,7 +1210,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	case MSR_IA32_MPERF:
 	case MSR_IA32_APERF:
 	{
-		if (is_vhwp_configured(vcpu->vm)) {
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			msr_write(msr, v);
 		} else {
 			err = -EACCES;

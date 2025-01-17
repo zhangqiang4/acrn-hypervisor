@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2022 Intel Corporation.
+# Copyright (C) 2025 Intel Corporation.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
@@ -48,19 +48,17 @@ def fn(board_etree, scenario_etree, allocation_etree):
         if cpu_features_node is None:
             continue
 
-        for cpu_feature in cpu_features_node:
-            feature = cpu_feature.text
-            if policies.get(feature) is None:
-                logging.error(f"Unknown CPU feature {feature} in vm {vm_id}")
-                sys.exit(1)
+        for cpu_feature_node in cpu_features_node:
+            feature = cpu_feature_node.text
+            if not feature in policies:
+                raise lib.error.SettingError(f"Unknown CPU feature {feature} in vm {vm_id}")
 
             if not check_host_cpu(get_node(f"/acrn-config/processors", board_etree), policies[feature].host_condition_list):
-                sys.exit(1)
+                raise lib.error.SettingError(f"Host CPU doesn't support {feature}")
 
             if policies[feature].extra_check_fn is not None:
                 if not policies[feature].extra_check_fn(vm_id, board_etree, scenario_etree, allocation_etree):
-                    logging.error(f"Extra check failed for {feature}")
-                    sys.exit(1)
+                    raise lib.error.ResourceError(f"Extra check failed for {feature}")
             
             acrn_config_utilities.append_node("./cpu_features/feature_flag", policies[feature].feature_flag, allocation_vm_node)
             

@@ -350,14 +350,14 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	*eax &= ~(CPUID_EAX_HFI | CPUID_EAX_ITD);
 	/* Since HFI is hidden, hide the edx too */
 	*edx = 0U;
-	if (!is_vhwp_configured(vm)) {
+	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP)) {
 		*eax &= ~(CPUID_EAX_HWP | CPUID_EAX_HWP_AW | CPUID_EAX_HWP_EPP);
 		*ecx &= ~CPUID_ECX_HCFC;
 	}
-	if (!is_tm_pt_configured(vm)) {
+	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_TM_PT)) {
 		*eax &= ~(CPUID_EAX_ECMD | CPUID_EAX_HFN | CPUID_EAX_DTS | CPUID_EAX_PLN);
 	}
-	if (!is_ptm_pt_configured(vm)) {
+	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_PTM_PT)) {
 		*eax &= ~CPUID_EAX_PTM;
 	}
 }
@@ -634,7 +634,7 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 		/* mask Debug Store feature */
 		*edx &= ~CPUID_EDX_DTES;
 	}
-	if (!is_tm_pt_configured(vcpu->vm)) {
+	if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
 		*ecx &= ~CPUID_ECX_TM2;
 		*edx &= ~(CPUID_EDX_TM1 | CPUID_EDX_ACPI);
 	}
