@@ -33,6 +33,9 @@ This section contains the documentation of the module `vp-base.vm-config`.
 [File] include/arch/x86/asm/vm_config.h
 ======================================================================
 
+.. doxygenfile:: asm/vm_config.h
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/pci_dev.h
 ======================================================================
 

@@ -823,6 +823,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/security.h \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
+                          ../hypervisor/include/arch/x86/asm/vm_config.h \
                           ../hypervisor/include/arch/x86/asm/pci_dev.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm.h \
                           ../hypervisor/include/arch/x86/asm/idt.h \
@@ -2248,6 +2249,8 @@ PREDEFINED             = "__attribute__(x)=" \
                          "CONFIG_ACPI_PARSE_ENABLED=" \
                          "CONFIG_ACRNTRACE_ENABLED=" \
                          "CONFIG_SCHED_BVT=" \
+                         "SERVICE_VM_NUM=1" \
+                         "CONFIG_RELEASE" \
 
 PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
