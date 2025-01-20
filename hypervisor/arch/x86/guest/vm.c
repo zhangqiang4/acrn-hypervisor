@@ -1398,6 +1398,8 @@ void start_vm(struct acrn_vm *vm)
 	bsp = vcpu_from_vid(vm, BSP_CPU_ID);
 	vcpu_make_request(bsp, ACRN_REQUEST_INIT_VMCS);
 	launch_vcpu(bsp);
+
+	pr_acrnlog("VM[%d] EPTP at %016lx\n", vm->vm_id, vm->arch_vm.nworld_eptp);
 }
 
 /**

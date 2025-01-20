@@ -1072,6 +1072,12 @@ static int32_t iommu_attach_device(const struct iommu_domain *domain, uint8_t bu
 			context_entry->hi_64 = hi_64;
 			context_entry->lo_64 = lo_64;
 			iommu_flush_cache(context_entry, sizeof(struct dmar_entry));
+
+			pr_info("attach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
+			 	bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
+				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_TT_MASK, CTX_ENTRY_LOWER_TT_POS),
+				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_P_MASK, CTX_ENTRY_LOWER_P_POS));
+
 			ret = 0;
 		}
 	} else {
@@ -1130,6 +1136,11 @@ static int32_t iommu_detach_device(const struct iommu_domain *domain, uint8_t bu
 							DMAR_CIRG_DEVICE);
 			dmar_invalid_iotlb(dmar_unit, vmid_to_domainid(domain->vm_id), 0UL, 0U, false,
 							DMAR_IIRG_DOMAIN);
+
+			pr_info("detach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
+				bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
+				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_TT_MASK, CTX_ENTRY_LOWER_TT_POS),
+				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_P_MASK, CTX_ENTRY_LOWER_P_POS));
 		}
 	} else {
 		if (is_dmar_unit_ignored(dmar_unit)) {
