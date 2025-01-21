@@ -41,6 +41,8 @@ struct per_cpu_region {
 			 *   processor. */
 	struct shared_buf *sbuf[ACRN_SBUF_PER_PCPU_ID_MAX]; /**< Shared buffer address array. */
 	char logbuf[LOG_MESSAGE_MAX_SIZE]; /**< The buffer of log message per CPU. */
+	char temp_logbuf[TEMP_LOG_BUFFER_SIZE][LOG_MESSAGE_MAX_SIZE]; /**< Temp log buffer per CPU. */
+	uint32_t temp_logbuf_count;  /**< Temp log buffer counts. */
 #ifdef HV_DEBUG
 	uint32_t npk_log_ref; /**< Reference to calculate the channel offset of NPK log. */
 #endif

@@ -90,12 +90,33 @@ uint32_t sbuf_put(struct shared_buf *sbuf, uint8_t *data, uint32_t max_len)
 	return ret;
 }
 
+static void flush_temp_log(uint16_t pcpu_id, struct shared_buf *sbuf) {
+	uint32_t *log_count = &per_cpu(temp_logbuf_count, pcpu_id);
+	char (*temp_logbuf)[LOG_MESSAGE_MAX_SIZE] = per_cpu(temp_logbuf, pcpu_id);
+	uint32_t index = 0;
+
+	/* We may lose some log at the time of flush*/
+	while (index < (*log_count)) {
+		uint32_t msg_len = strnlen_s(temp_logbuf[index], LOG_MESSAGE_MAX_SIZE);
+		(void)sbuf_put_many(sbuf, LOG_ENTRY_SIZE, (uint8_t *)temp_logbuf[index],
+			LOG_ENTRY_SIZE * (((msg_len - 1U) / LOG_ENTRY_SIZE) + 1));
+		index++;
+	}
+
+	*log_count = 0;
+}
+
 int32_t sbuf_share_setup(uint16_t pcpu_id, uint32_t sbuf_id, struct shared_buf *sbuf)
 {
 	int ret = -EINVAL;
 
 	if ((pcpu_id < get_pcpu_nums()) && (sbuf_id < ACRN_SBUF_PER_PCPU_ID_MAX)) {
+		if (sbuf_id == ACRN_HVLOG) {
+			flush_temp_log(pcpu_id, sbuf);
+		}
+
 		per_cpu(sbuf, pcpu_id)[sbuf_id] = sbuf;
+
 		pr_info("%s share sbuf for pCPU[%u] with sbuf_id[%u] setup successfully",
 				__func__, pcpu_id, sbuf_id);
 		ret = 0;

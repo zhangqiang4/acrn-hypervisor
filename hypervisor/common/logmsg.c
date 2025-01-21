@@ -31,12 +31,20 @@ static void mem_log(uint16_t pcpu_id, char *buffer)
 {
 	uint32_t msg_len;
 	struct shared_buf *sbuf = per_cpu(sbuf, pcpu_id)[ACRN_HVLOG];
+	msg_len = strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE);
 
-	/* If sbuf is not ready, we just drop the massage */
 	if (sbuf != NULL) {
-		msg_len = strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE);
 		(void)sbuf_put_many(sbuf, LOG_ENTRY_SIZE, (uint8_t *)buffer,
 			LOG_ENTRY_SIZE * (((msg_len - 1U) / LOG_ENTRY_SIZE) + 1));
+	} else {
+		/* store logs in temp buffer */
+		char (*temp_buffer)[LOG_MESSAGE_MAX_SIZE] = per_cpu(temp_logbuf, pcpu_id);
+		uint32_t *temp_count = &per_cpu(temp_logbuf_count, pcpu_id);
+
+		if (*temp_count < TEMP_LOG_BUFFER_SIZE) {
+			(*temp_count)++;
+			memcpy_s(temp_buffer[(*temp_count) - 1U], LOG_MESSAGE_MAX_SIZE, buffer, msg_len);
+		}
 	}
 }
 

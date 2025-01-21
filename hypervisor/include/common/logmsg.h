@@ -23,6 +23,8 @@
  */
 #define LOG_MESSAGE_MAX_SIZE	(4U * LOG_ENTRY_SIZE)
 
+#define TEMP_LOG_BUFFER_SIZE    256U
+
 #define DBG_LEVEL_LAPICPT	5U
 
 #if defined(HV_DEBUG)
