@@ -206,14 +206,16 @@ int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32
 static void vcpu_inject_exception(struct acrn_vcpu *vcpu)
 {
 	uint32_t vector = vcpu->arch.exception_info.exception;
-
-	if ((exception_type[vector] & EXCEPTION_ERROR_CODE_VALID) != 0U) {
-		exec_vmwrite32(VMX_ENTRY_EXCEPTION_ERROR_CODE,
-				vcpu->arch.exception_info.error);
-	}
+	/* SDM 253665-086 Vol3 28.6.1.3: error code is not valid for real mode. */
+	uint32_t excep_type = (vcpu->arch.cpu_mode != CPU_MODE_REAL) ?
+			exception_type[vector] : (exception_type[vector] & ~EXCEPTION_ERROR_CODE_VALID);
 
 	exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, VMX_INT_INFO_VALID |
-			(exception_type[vector] << 8U) | (vector & 0xFFU));
+			(excep_type << 8U) | (vector & 0xFFU));
+
+	if ((excep_type & EXCEPTION_ERROR_CODE_VALID) != 0U) {
+		exec_vmwrite32(VMX_ENTRY_EXCEPTION_ERROR_CODE, vcpu->arch.exception_info.error);
+	}
 
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;
 
