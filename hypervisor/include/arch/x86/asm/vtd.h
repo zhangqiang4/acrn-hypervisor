@@ -223,11 +223,6 @@ static inline uint8_t iommu_ecap_mhmv(uint64_t ecap)
 	return ((uint8_t)(ecap >> 20U) & 0xfU);
 }
 
-static inline uint8_t iommu_ecap_ecs(uint64_t ecap)
-{
-	return ((uint8_t)(ecap >> 24U) & 1U);
-}
-
 static inline uint8_t iommu_ecap_mts(uint64_t ecap)
 {
 	return ((uint8_t)(ecap >> 25U) & 1U);
@@ -236,11 +231,6 @@ static inline uint8_t iommu_ecap_mts(uint64_t ecap)
 static inline uint8_t iommu_ecap_nest(uint64_t ecap)
 {
 	return ((uint8_t)(ecap >> 26U) & 1U);
-}
-
-static inline uint8_t iommu_ecap_dis(uint64_t ecap)
-{
-	return ((uint8_t)(ecap >> 27U) & 1U);
 }
 
 static inline uint8_t iommu_ecap_prs(uint64_t ecap)

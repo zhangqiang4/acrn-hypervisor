@@ -310,10 +310,8 @@ static void dmar_unit_show_capability(struct dmar_drhd_rt *dmar_unit)
 	pr_info("\tSnoopControl:%d", iommu_ecap_sc(dmar_unit->ecap));
 	pr_info("\tIOTLB RegOffset:0x%x", iommu_ecap_iro(dmar_unit->ecap));
 	pr_info("\tMHMV:0x%x", iommu_ecap_mhmv(dmar_unit->ecap));
-	pr_info("\tECS:%d", iommu_ecap_ecs(dmar_unit->ecap));
 	pr_info("\tMTS:%d", iommu_ecap_mts(dmar_unit->ecap));
 	pr_info("\tNEST:%d", iommu_ecap_nest(dmar_unit->ecap));
-	pr_info("\tDIS:%d", iommu_ecap_dis(dmar_unit->ecap));
 	pr_info("\tPRS:%d", iommu_ecap_prs(dmar_unit->ecap));
 	pr_info("\tERS:%d", iommu_ecap_ers(dmar_unit->ecap));
 	pr_info("\tSRS:%d", iommu_ecap_srs(dmar_unit->ecap));
