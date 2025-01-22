@@ -1,6 +1,7 @@
 import os
 import sys
 
+import docutils.nodes
 from sphinx.domains.c import (
     ASTIdentifier,
     ASTNestedName,
@@ -632,7 +633,7 @@ class BreatheRenderer:
 
                         So I use one stack and recursive function to fulfill the requirement.
                         """
-                        child_nodes = []
+                        child_nodes_ = []
 
                         if not path.p:
                             path_ = p_.children
@@ -653,10 +654,16 @@ class BreatheRenderer:
                             node_ = child_node[1]
                             finder = NodeFinder(node_.document)
                             node_.walk(finder)
-                            contentnode = finder.content
+                            contentnode_ = finder.content
+                            # fixed anonymous structs/unions with descriptions added but cascading style will be hide
+                            contentnode = [
+                                e
+                                for e in contentnode_.children
+                                if not isinstance(e, docutils.nodes.paragraph)
+                            ]
 
                             def branch(contentnode, branch_no):
-                                descs = contentnode.children[branch_no].children
+                                descs = contentnode[branch_no].children
                                 for i, dc in enumerate(descs):  # <desc>=[dt,dd]
                                     if i % 2 == 1:
                                         dt_id = dc.children[0].attributes['ids']
@@ -667,24 +674,30 @@ class BreatheRenderer:
                                         if desc_sig_id not in inner_level_nodes:
                                             continue
                                         nn = inner_level_nodes[desc_sig_id]
-                                        if nn and not desc_content.children:
+                                        dd_without_para = [e for e in desc_content.children if
+                                                           type(e) != docutils.nodes.paragraph]
+                                        if nn and not dd_without_para:
                                             p = path_map[desc_sig_id]
                                             if not p.visited:
                                                 inner_result = render_by_path(nn, path=path_map[desc_sig_id])
                                                 node_ = inner_result[1]
                                                 finder = NodeFinder(node_.document)
                                                 node_.walk(finder)
-                                                contentnode_inner = finder.content
+                                                contentnode_inner_ = finder.content
+                                                contentnode_inner = [
+                                                    e
+                                                    for e in contentnode_inner_.children
+                                                    if not isinstance(e, docutils.nodes.paragraph)
+                                                ]
                                                 desc_content.extend(contentnode_inner)
 
                             # first time, you will reach the branch started by "#include xxx"
                             # later on, you will reach the branch which omit header "#include xxx"
-                            br_no = 0 if len(contentnode.children) == 1 else 1
+                            br_no = 0 if len(contentnode) == 1 else -1
                             branch(contentnode, br_no)
+                            child_nodes_.extend(child_node)
 
-                            child_nodes.extend(child_node)
-
-                        return child_nodes
+                        return child_nodes_
 
                     current_level_nodes = render_by_path(node)
                     child_nodes.extend(current_level_nodes)
