@@ -1280,9 +1280,10 @@ int32_t init_iommu(void)
 		if (ret == 0) {
 			do_action_for_iommus(prepare_dmar);
 		}
+
+		enable_iommu();
 	}
 
-	enable_iommu();
 	return ret;
 }
 
