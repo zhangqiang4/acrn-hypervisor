@@ -867,6 +867,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/hw/hw_timer.h \
                           ../hypervisor/include/public/acrn_common.h \
                           ../hypervisor/include/public/acrn_hv_defs.h \
+                          ../hypervisor/include/arch/x86/asm/guest/vcpuid.h \
                           ../devicemodel/include/virtio.h \
                           ../devicemodel/include/virtio_kernel.h \
                           ../devicemodel/include/virtio_be.h \
@@ -915,6 +916,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/idt.S \
                           ../hypervisor/arch/x86/vtd.c \
                           ../hypervisor/arch/x86/vmx.c \
+                          ../hypervisor/arch/x86/guest/vcpuid.c \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \
                           ../hypervisor/include/dm/mc146818rtc.h \

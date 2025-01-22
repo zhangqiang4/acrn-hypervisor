@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -17,11 +17,66 @@
 #include <logmsg.h>
 #include <asm/rdt.h>
 
-static struct percpu_cpuids {
-	uint32_t leaf_nr;
-	uint32_t leaves[MAX_VM_VCPUID_ENTRIES];
-} pcpu_cpuids;
+/**
+ * @defgroup vp-base_vcpuid vp-base.vcpuid
+ *
+ * @ingroup vp-base
+ *
+ * @brief Implement virtual CPUID(vCPUID) related interfaces and data structures
+ *
+ * This module provides interfaces to configure, initialize guest vCPUIDs, also includes functions to access
+ * the vCPUIDs.
+ *
+ * @{
+ */
 
+/**
+ * @file
+ * @brief Define VM vCPUIDs and external vCPUID APIs
+ *
+ * This file implements virtual CPUID related functions, including functions to initialize vCPUIDs,
+ * query vCPUID leaves and set/get vCPUIDs leaves etc.
+ */
+
+/**
+ * @brief Data structure to hold per-CPU vCPUIDs
+ *
+ * Some CPUID leaves have different values across different logical CPUs within the system, these vCPUIDs include
+ * CPUID_FEATURES, CPUID_EXTEND_TOPOLOGY, CPUID_XSAVE_FEATURES, CPUID_KEY_LOCKER, CPUID_V2_EXTEND_TOPOLOGY,
+ * CPUID_EXTEND_FUNCTION_1, they are represented by this data structure.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ */
+struct percpu_cpuids {
+	uint32_t leaf_nr; /**< Number of leaves in leaves array */
+	uint32_t leaves[MAX_VM_VCPUID_ENTRIES]; /**< CPUID leaf IDs */
+};
+
+/**
+ * @brief Variable to store per-CPU vCPUIDs
+ *
+ * This variable contains guest vCPUIDs that can vary across vCPUs.
+ */
+static struct percpu_cpuids pcpu_cpuids;
+
+/**
+ * @brief Search vCPUID entries for the CPUID leaf and subleaf
+ *
+ * This function iterates VM cached vCPUID array to find the entry identified by leaf and subleaf.
+ * Note, the function's search algorithm assumes that VM's vcpuid entries in vcpuid_entries array have
+ * been sorted with leaf value ascending order which is guaranteed by set_vcpuid_entries().
+ *
+ * @param[in] vcpu Target vCPU to find the vCPUID leaf
+ * @param[in] leaf vCPUID leaf to search for
+ * @param[in] subleaf vCPUID subleaf to search for
+ *
+ * @return Target vCPUID entry if found, otherwise NULL.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static inline const struct vcpuid_entry *local_find_vcpuid_entry(const struct acrn_vcpu *vcpu,
 					uint32_t leaf, uint32_t subleaf)
 {
@@ -55,6 +110,26 @@ static inline const struct vcpuid_entry *local_find_vcpuid_entry(const struct ac
 	return found_entry;
 }
 
+/**
+ * @brief Find specific vCPUID entry with CPUID leaf and subleaf
+ *
+ * This is used to find specific vCPUID through local_find_vcpuid_entry(). If the target vCPUID
+ * entry is not found, handle the returned vCPUID values as stated in SDM. Refer to CPUID—CPU
+ * Identification Vol.2, SDM 325462-078US for details.
+ *
+ * @param[in] vcpu Target vCPU to find the vCPUID entry
+ * @param[in] leaf_arg Target vCPUID leaf to search for
+ * @param[in] subleaf Target vCPUID subleaf to search for
+ *
+ * @return The vCPUID entry identified by {leaf, subleaf} if the entry is found, or an entry stuffed with
+ * highest leaf basic information if input leaf is higher than the supported maximum input value, or NULL
+ * if the leaf is lower than the supported maximum input value but the entry referenced by {leaf, subleaf}
+ * does not exist.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static inline const struct vcpuid_entry *find_vcpuid_entry(const struct acrn_vcpu *vcpu,
 					uint32_t leaf_arg, uint32_t subleaf)
 {
@@ -87,6 +162,24 @@ static inline const struct vcpuid_entry *find_vcpuid_entry(const struct acrn_vcp
 	return entry;
 }
 
+/**
+ * @brief Set a vCPUID entry into vCPUID array
+ *
+ * This function copies vCPUID entry data to per VM cached vCPUID array and increases the cpuid entry total
+ * number by 1. If vCPUID entry number exceeds MAX_VM_VCPUID_ENTRIES, print error message.
+ *
+ * @param[inout] vm Target VM to set the vCPUID entry
+ * @param[in] entry Source vCPUID node holding the vCPUID entry data
+ *
+ * @return A integer value indicating the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 Set vCPUID entry successfully.
+ *
+ * @pre vm != NULL && entry != NULL
+ *
+ * @post N/A
+ */
 static inline int32_t set_vcpuid_entry(struct acrn_vm *vm,
 				const struct vcpuid_entry *entry)
 {
@@ -107,7 +200,31 @@ static inline int32_t set_vcpuid_entry(struct acrn_vm *vm,
 }
 
 /**
- * initialization of virtual CPUID leaf
+ * @brief Initialize one vCPUID entry
+ *
+ * This function sets the initial values for the vCPUID identified by leaf, subleaf and flags. For HV emulated
+ * virtual CPUID entries, the initial data is set by HV. For vCPUID entries supported by HW, the initial data
+ * is retrieved by executing CPUID instruction with leaf/subleaf.
+ * Refer to Section 6.3.3 CPUID Leaves of Software Architecture Design Specification for the detailed design that
+ * specifies the expected behavior of initializing virtual CPUIDs.
+ *
+ * - HV emulated vCPUIDs:
+ *   - Leaf 0x40000000, 0x40000001, 0x40000010.
+ *   - Leaf 0x16: If the leaf is supported by HW, initialize the entry with native values,
+ *   otherwise emulate the values.
+ * - Other vCPUIDs:
+ *   - Initialized the entries with native values identified with leaf/subleaf.
+ *
+ * @param[in] leaf vCPUID leaf to identify the entry
+ * @param[in] subleaf vCPUID subleaf to identify the entry
+ * @param[in] flags Whether to check subleaf
+ * @param[inout] entry Target vCPUID entry to initialize
+ *
+ * @return None
+ *
+ * @pre entry != NULL
+ *
+ * @post N/A
  */
 static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 			uint32_t flags, struct vcpuid_entry *entry)
@@ -192,6 +309,25 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 }
 
 #ifdef CONFIG_SGX_ENABLED
+/**
+ * @brief Set SGX related vCPUID entries
+ *
+ * This function initializes 3 SGX entries:
+ * - CPUID.(EAX=12H,ECX=0H) is stuffed with HW supported SGX information.
+ * - CPUID.(EAX=12H,ECX=01H) is stuffed with HW supported values except bit 3 and bit 4 are excluded in ECX.
+ * - CPUID.(EAX=12H,ECX=02H) entry values are fully emulated according to SGX current settings.
+ *
+ * @param[inout] vm Target VM to set SGX vCPUID entry data
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 SGX vCPUID entries are set successfully.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t set_vcpuid_sgx(struct acrn_vm *vm)
 {
 	int32_t result = 0;
@@ -234,6 +370,23 @@ static int32_t set_vcpuid_sgx(struct acrn_vm *vm)
 }
 #endif
 
+/**
+ * @brief Set cache related vCPUID entries
+ *
+ * This function initializes cache related vCPUIDs, i.e., CPUID.(EAX=04H,ECX=0H) and its subleaves. The data is
+ * retrieved by executing CPUID instruction with the leaves and subleaves.
+ *
+ * @param[inout] vm Target VM to set cache vCPUID entry data
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 The vCPUID operation succeeded.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 {
 	int32_t result = 0;
@@ -258,6 +411,29 @@ static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 	return result;
 }
 
+/**
+ * @brief Set extended feature vCPUIDs
+ *
+ * This function initializes extended feature vCPUIDs, i.e., CPUID.(EAX=07H,ECX=0H) and
+ * its subleaves. For CPUID.(EAX=07H,ECX=0H), it first stuffs the entry with results
+ * returned by executing CPUID.(EAX=07H,ECX=0H) instruction, then filter out some unsupported
+ * features, such as LA57, SGX, SGX_LC, MPX, Process Trace, CET, TME etc. Also filter out the
+ * features according to current VM and CR4 configuration. The subleaves CPUID.(EAX=07H,ECX=i)
+ * are stuffed with values returned by executing CPUID.(EAX=07H,ECX=i) instruction.
+ * Refer to Section 6.3.3 CPUID Leaves of Software Architecture Design Specification for the detailed design that
+ * specifies the expected behavior of initializing extended feature vCPUID leaves.
+ *
+ * @param[inout] vm Target VM to set extended feature vCPUID entry data
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 The vCPUID operation succeeded.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 {
 	uint64_t cr4_reserved_mask = get_cr4_reserved_bits(vm);
@@ -357,6 +533,30 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	return result;
 }
 
+/**
+ * @brief Get Monitor/MWait vCPUID
+ *
+ * This function sets Monitor/MWait vCPUID entry, i.e., CPUID.(EAX=05H).
+ * The entry data is first retrieved by executing CPUID.(EAX=05H,ECX=0H), then enable
+ * CPUID.(EAX=05H,ECX=0H).ECX[3] if below conditions are met:
+ * - MSR_IA32_MISC_ENABLE_MONITOR_ENA in guest MSR_IA32_MISC_ENABLE is set.
+ * - LAPIC is not passed through to VM.
+ *
+ * Otherwise, skip enabling the bit.
+ *
+ * @param[in] vcpu Target vCPU to set the vCPUID entry
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to hold CPUID EBX value
+ * @param[out] ecx Pointer to hold CPUID ECX value
+ * @param[out] edx Pointer to hold CPUID EDX value
+
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_05h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
@@ -368,6 +568,32 @@ static void guest_cpuid_05h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	}
 }
 
+/**
+ * @brief Get thermal and power vCPUID entry
+ *
+ * The function emulates CPUID.(EAX=06H) entry data. It first retrieves entry data by
+ * executing CPUID.(EAX=06H,ECX=0H) then filters out the feature bits not supported by HV or
+ * not supported by VM configuration.
+ * - Bits not supported by HV:
+ *   - CPUID_EAX_HWP_CTL, CPUID_EAX_HWP_PLR, CPUID_EAX_HWP_N, CPUID_EAX_HFI, CPUID_EAX_ITD
+ *
+ * - Bits affected by VM config:
+ *   - CPUID_EAX_HWP, CPUID_EAX_HWP_AW, CPUID_EAX_HWP_EPP, CPUID_ECX_HCFC, CPUID_EAX_ECMD,
+ *   - CPUID_EAX_HFN, CPUID_EAX_DTS, CPUID_EAX_PLN, CPUID_EAX_PTM
+ *
+ * @param[in] vm Target VM to get the CPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to hold CPUID EBX value
+ * @param[out] ecx Pointer to hold CPUID ECX value
+ * @param[out] edx Pointer to hold CPUID EDX value
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	cpuid_subleaf(CPUID_THERMAL_POWER, *ecx, eax, ebx, ecx, edx);
@@ -396,6 +622,24 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	}
 }
 
+/**
+ * @brief Set VM thermal and power vCPUID
+ *
+ * This function initializes VM thermal and power related vCPUID entry, i.e., CPUID.(EAX=06H,ECX=0H).
+ * The entry data is retrieved by guest_cpuid_06h() and is set to the per-VM vCPUID entries array by
+ * set_vcpuid_entry().
+ *
+ * @param[in] vm Target VM to set vCPUID entry
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 The vCPUID operation succeeded.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t set_vcpuid_thermal_power(struct acrn_vm *vm)
 {
 	struct vcpuid_entry entry;
@@ -409,6 +653,29 @@ static int32_t set_vcpuid_thermal_power(struct acrn_vm *vm)
 	return set_vcpuid_entry(vm, &entry);
 }
 
+/**
+ * @brief Set virtual and extended vCPUIDs
+ *
+ * This function initializes HV emulated CPUIDs and extended CPUIDs.
+ * - HV emulated CPUIDs:
+ *   - CPUID.(EAX=0x40000000H,ECX=0H) : Return the CPUID leaf range supported by HV and HV vendor signature.
+ *   - CPUID.(EAX=0x40000001H,ECX=0H) : Return the extended information of ACRN hypervisor.
+ *   - CPUID.(EAX=0x40000010H,ECX=0H) : Return the current TSC frequency and current Bus frequency in kHz.
+ * - extended CPUIDs:
+ *   - CPUID.(EAX=0x80000000H,ECX=0H), CPUID.(EAX=0x80000002H,ECX=0H) and other extended entries.
+ *   Refer to CPUID—CPU Identification instruction, SDM Vol.2 325462-078US for details.
+ *
+ * @param[in] vm Target VM to set vCPUID entries
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 The vCPUID operation succeeded.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t set_vcpuid_extended_function(struct acrn_vm *vm)
 {
 	uint32_t i, limit;
@@ -451,6 +718,20 @@ static int32_t set_vcpuid_extended_function(struct acrn_vm *vm)
 	return result;
 }
 
+/**
+ * @brief Check whether the vCPUID leaf is per-cpu leaf
+ *
+ * This function iterates pcpu_cpuids array to check whether the target vCPUID leaf belongs to
+ * per-cpu leaf.
+ *
+ * @param[in] leaf Target vCPUID leaf to check
+ *
+ * @return true if the leaf is per-cpu vCPUID leaf, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool is_percpu_related(uint32_t leaf)
 {
 	uint32_t i;
@@ -465,6 +746,23 @@ static inline bool is_percpu_related(uint32_t leaf)
 	return ret;
 }
 
+/**
+ * @brief Set per-cpu type vCPUID leaves
+ *
+ * This function initializes per-cpu type vCPUID leaves. These leaves include CPUID_FEATURES,
+ * CPUID_EXTEND_TOPOLOGY, CPUID_XSAVE_FEATURES, CPUID_KEY_LOCKER, CPUID_V2_EXTEND_TOPOLOGY and
+ * CPUID_EXTEND_FUNCTION_1. And if the processor is identified as a hybrid part, also include
+ * these CPUID leaves: CPUID_TLB, CPUID_CACHE, CPUID_THERMAL_POWER, CPUID_TRACE, CPUID_FREQ,
+ * CPUID_ADDR_TRANS, CPUID_MODEL_ID, CPUID_LAST_BRANCH_RECORD and CPUID_EXTEND_CACHE. Per-cpu
+ * vCPUID leaf values may be emulated for different vCPUs but per-VM CPUID leaf values are
+ * unified across one VM's vCPUs.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline void percpu_cpuid_init(void)
 {
 	/* 0x1U, 0xBU, 0xDU, 0x19U, 0x1FU, 0x80000001U */
@@ -489,6 +787,34 @@ static inline void percpu_cpuid_init(void)
 	}
 }
 
+/**
+ * @brief Set one VM's vCPUID entries
+ *
+ * This function is used to initialize vCPUID entries of one VM, it's called during VM creation.
+ * The origin CPUID leaf data are retrieved from results of executing CPUID instruction with
+ * the leaf/subleaf, HV shall filter out features/feature bits from vCPUID entries if they're
+ * not supported. HV virtualized leaves, such as CPUID.(EAX=0x40000000H,ECX=0H),
+ * CPUID.(EAX=0x40000001H,ECX=0H) and CPUID.(EAX=0x40000010H, ECX=0H) are initialized with fixed data.
+ * Refer to Section 6.3.3 CPUID Leaves of Software Architecture Design Specification for the detailed design that
+ * specifies the expected behavior of initializing virtual CPUIDs.
+ *
+ * Normal case behaviors:
+ * - Succeed to set up all vCPUID entries of a VM
+ *
+ * Error case behaviors:
+ * - vCPUID entry number overflows and returns an error code
+ *
+ * @param[inout] vm Target VM to set vCPUID entries
+ *
+ * @return A integer value to indicate operation result
+ *
+ * @retval -ENOMEM vCPUID entry number overflows.
+ * @retval 0 The vCPUID operation succeeded.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 int32_t set_vcpuid_entries(struct acrn_vm *vm)
 {
 	int32_t result;
@@ -585,6 +911,27 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 	return result;
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=01H,ECX=0H) leaf data
+ *
+ * This function emulates CPUID.(EAX=01H,ECX=0H) leaf data. It first executes CPUID.(EAX=01H,ECX=0H) to retrieve
+ * platform CPUID data, then synthesize the CPUID data.
+ * Refer to Section 6.3.3 CPUID Leaves of Software Architecture Design Specification for the detailed design that
+ * specifies the expected behavior of vCPUID(EAX=01H,ECX=0H).
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[out] ecx Pointer to a variable to hold ECX
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	uint32_t apicid = vlapic_get_apicid(vcpu_vlapic(vcpu));
@@ -682,6 +1029,25 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	}
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=0BH,ECX>=0) leaf data
+ *
+ * This function emulates CPUID.(EAX=0BH,ECX>=0) leaf data. It first executes CPUID.(EAX=0BH,ECX>=0) to retrieve
+ * platform CPUID data, then overwrite EDX value with vCPU's x2APIC ID.
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[inout] ecx Pointer to hold input CPUID subleaf and output CPUID ECX value
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_0bh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	/* Forward host cpu topology to the guest, guest will know the native platform information such as host cpu topology here */
@@ -691,6 +1057,27 @@ static void guest_cpuid_0bh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	*edx = vlapic_get_apicid(vcpu_vlapic(vcpu));
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=0DH,ECX>=0) leaf data
+ *
+ * This function emulates CPUID.(EAX=0DH,ECX>=0) and sub-leaf data. If pCPU doesn't support X86_FEATURE_OSXSAVE,
+ * then resets the entry data, otherwise it executes CPUID.(EAX=0DH,ECX>=0) to retrieve platform CPUID data, then
+ * filters out MPX bits for CPUID.(EAX=0DH,ECX=0H) entry and CET bits for CPUID.(EAX=0DH,ECX=01H) entry. It also
+ * resets CPUID.(EAX=0DH,ECX=0BH) entry and CPUID.(EAX=0DH,ECX=0CH) entry as HV doesn't support CET feature.
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[inout] ecx Pointer to hold input CPUID subleaf and output CPUID ECX value
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_0dh(__unused struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	uint32_t subleaf = *ecx;
@@ -705,8 +1092,8 @@ static void guest_cpuid_0dh(__unused struct acrn_vcpu *vcpu, uint32_t *eax, uint
 		switch (subleaf) {
 		case 0U:
 			/* SDM Vol.1 17-2, On processors that do not support Intel MPX,
-			 * CPUID.(EAX=0DH,ECX=0):EAX[3] and
-			 * CPUID.(EAX=0DH,ECX=0):EAX[4] will both be 0 */
+			 * CPUID.(EAX=0DH,ECX=0H):EAX[3] and
+			 * CPUID.(EAX=0DH,ECX=0H):EAX[4] will both be 0 */
 			*eax &= ~(CPUID_EAX_XCR0_BNDREGS | CPUID_EAX_XCR0_BNDCSR);
 			break;
 		case 1U:
@@ -726,6 +1113,27 @@ static void guest_cpuid_0dh(__unused struct acrn_vcpu *vcpu, uint32_t *eax, uint
 	}
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=19H,ECX=0H) leaf data
+ *
+ * This function emulates CPUID.(EAX=19H,ECX=0H) leaf data. If pCPU supports X86_FEATURE_KEYLOCKER,
+ * then it executes CPUID.(EAX=19H,ECX=0H) to retrieve platform CPUID data, then filters out
+ * CPUID_EBX_KL_AES_EN bit if guest doesn't set CR4.KL bit, and also filters out CPUID_ECX_KL_NOBACKUP
+ * and CPUID_ECX_KL_RANDOM_KS. Otherwise reset entry data for the vCPUID leaf.
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[out] ecx Pointer to a variable to hold ECX
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_19h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	if (pcpu_has_cap(X86_FEATURE_KEYLOCKER)) {
@@ -743,6 +1151,25 @@ static void guest_cpuid_19h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	}
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=1FH,ECX>=0) leaf data
+ *
+ * This function emulates CPUID.(EAX=1FH,ECX>=0) leaf data. It first executes CPUID.(EAX=1FH,ECX>=0)
+ * to retrieve platform CPUID data, then overwrite EDX value with vCPU's x2APIC ID.
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[inout] ecx Pointer to hold input CPUID subleaf and output CPUID ECX value
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_1fh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	cpuid_subleaf(CPUID_V2_EXTEND_TOPOLOGY, *ecx, eax, ebx, ecx, edx);
@@ -751,6 +1178,28 @@ static void guest_cpuid_1fh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	*edx = vlapic_get_apicid(vcpu_vlapic(vcpu));
 }
 
+/**
+ * @brief Get vCPU CPUID.(EAX=80000001H,ECX=0H) leaf data
+ *
+ * This function emulates CPUID.(EAX=80000001H,ECX=0H) leaf data. It first checks Max. input
+ * value for extended function CPUID, if the entry is there and 80000001H leaf is supported,
+ * then it executes CPUID.(EAX=80000001H,ECX=0H) to retrieve platform data, then if guest sets
+ * IA32_MISC_ENABLE_XD_DISABLE, it filters out CPUID_EDX_XD_BIT_AVIL from EDX. Otherwise reset
+ * the leaf entry.
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[out] ecx Pointer to a variable to hold ECX
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 static void guest_cpuid_80000001h(const struct acrn_vcpu *vcpu,
 	uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
@@ -775,6 +1224,35 @@ static void guest_cpuid_80000001h(const struct acrn_vcpu *vcpu,
 	}
 }
 
+/**
+ * @brief Get guest CPUID data identified by leaf and subleaf
+ *
+ * This function retrieves guest vCPUID data from VM cached vCPUID array if it's not a per-cpu leaf.
+ * Otherwise it gets data through vCPUID helpers for specific leaves, i.e., CPUID_FEATURES,
+ * CPUID_THERMAL_POWER, CPUID_EXTEND_TOPOLOGY, CPUID_XSAVE_FEATURES, CPUID_KEY_LOCKER,
+ * CPUID_V2_EXTEND_TOPOLOGY and CPUID_EXTEND_FUNCTION_1. For other per-cpu leaves except CPUID_TRACE,
+ * CPUID_PCONFIG, it retrieves CPUID leaf data directly from platform CPUID execution results.
+ * CPUID_TRACE, CPUID_PCONFIG and CPUID_HRESET are not supported so reset CPUID entry data.
+ *
+ * Normal case behaviors:
+ * - Get the vCPUID data identified by leaf/subleaf in eax/ecx
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the vCPUID data
+ * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
+ * @param[out] ebx Pointer to a variable to hold EBX
+ * @param[inout] ecx Pointer to hold input CPUID subleaf and output CPUID ECX value
+ * @param[out] edx Pointer to a variable to hold EDX
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre eax != NULL && ebx != NULL && ecx != NULL && edx != NULL
+ *
+ * @post N/A
+ */
 void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	uint32_t leaf = *eax;
@@ -862,3 +1340,7 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 	}
 
 }
+
+/**
+ * @}
+ */
