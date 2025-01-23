@@ -792,9 +792,73 @@ class BreatheRenderer:
             return res + node_list
         return []
 
+    def visit_variable(self, node) -> List[Node]:
+        """
+        This patch was intended to add bitfield to one field.
+        union {
+            uint32_t value;
+            struct {
+                uint32_t offset_15_0:16;// original version can't render the bitfield 16.
+                uint32_t seg_sel:16;
+            } bits;
+        } low32;
+        """
+        names = self.get_qualification()
+        names.append(node.name)
+        name = self.join_nested_name(names)
+        bitfield = "".join(n.astext() for n in self.render(node.get_bitfield()))  # bitfield is required now
+        dom = self.get_domain()
+        options = {}
+        if dom == "py":
+            declaration = name
+            initializer = self.make_initializer(node).strip().lstrip("=").strip()
+            if len(initializer) != 0:
+                options["value"] = initializer
+        elif dom == "cs":
+            declaration = " ".join(
+                [
+                    self.create_template_prefix(node),
+                    "".join(n.astext() for n in self.render(node.get_type())),
+                    name,
+                    node.get_argsstring(),
+                ]
+            )
+            if node.get_gettable() or node.get_settable():
+                declaration += "{"
+                if node.get_gettable():
+                    declaration += "get;"
+                if node.get_settable():
+                    declaration += "set;"
+                declaration += "}"
+            declaration += self.make_initializer(node)
+        else:
+            elements = [self.create_template_prefix(node)]
+            if node.static == "yes":
+                elements.append("static")
+            if node.mutable == "yes":
+                elements.append("mutable")
+            typename = "".join(n.astext() for n in self.render(node.get_type()))
+            # Doxygen sometimes leaves 'static' in the type,
+            # e.g., for "constexpr static int i"
+            typename = typename.replace("static ", "")
+            if dom == "c" and "::" in typename:
+                typename = typename.replace("::", ".")
+            elements.append(typename)
+            elements.append(name)
+            if bitfield:  # deal with c code only
+                elements.append(f": {bitfield}")
+            elements.append(node.get_argsstring())
+            elements.append(self.make_initializer(node))
+            declaration = " ".join(elements)
+        if not dom or dom in ("c", "cpp", "py", "cs"):
+            return self.handle_declaration(node, declaration, options=options)
+        else:
+            return self.render_declaration(node, declaration)
+
     # some methods should be modified and not be contained in `methods`
     meth = {
-        "visit_define": visit_define
+        "visit_define": visit_define,
+        "visit_variable": visit_variable
     }
 
     # some methods should be modified and be contained in `methods`
