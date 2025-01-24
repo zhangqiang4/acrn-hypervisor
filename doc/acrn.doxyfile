@@ -799,9 +799,12 @@ WARN_LOGFILE           =
 INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/e820.c \
                           ../hypervisor/arch/x86/tsc.c \
+                          ../hypervisor/arch/x86/security.c \
                           ../hypervisor/common/delay.c \
                           ../hypervisor/common/ticks.c \
                           ../hypervisor/dm/mmio_dev.c \
+                          ../hypervisor/lib/stack_protector.c \
+                          ../hypervisor/arch/x86/lib/retpoline-thunk.S \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
                           ../hypervisor/include/arch/x86/asm/e820.h \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
@@ -810,6 +813,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
+                          ../hypervisor/include/arch/x86/asm/security.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm.h \
                           ../hypervisor/include/arch/x86/asm/idt.h \
                           ../hypervisor/include/arch/x86/asm/guest/virq.h \
@@ -946,7 +950,7 @@ EXCLUDE_PATTERNS       =
 # Exclude internal names (starting with an _) and doxygen-added __unnamed__
 # names given to unnamed nested unions
 
-EXCLUDE_SYMBOLS        = _* *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
+EXCLUDE_SYMBOLS        = *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
                         version_info per_cpu_data
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
@@ -2153,6 +2157,9 @@ PREDEFINED             = "__attribute__(x)=" \
                          "__unused=" \
                          "__printf_like(x, y)=" \
                          "CONFIG_IVSHMEM_ENABLED=" \
+                         "STACK_PROTECTOR=" \
+                         "CONFIG_RETPOLINE=" \
+                         "CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED=" \
 
 # Macros in module libs.bit
 PREDEFINED             += "build_bitmap_testandclear(name, op_len, op_type, lock)= \
