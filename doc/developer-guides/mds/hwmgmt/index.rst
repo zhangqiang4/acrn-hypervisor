@@ -6,7 +6,7 @@ Design of Component `hwmgmt`
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    hwmgmt_apic
    hwmgmt_cpu

@@ -6,7 +6,7 @@ Design of Component `vp-base`
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    vp-base_guest-mem
    vp-base_hv-main

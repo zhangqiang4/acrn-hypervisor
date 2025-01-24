@@ -6,7 +6,7 @@ Design of Component `lib`
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    lib_bits
    lib_lock

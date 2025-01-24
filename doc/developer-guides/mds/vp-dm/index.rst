@@ -6,7 +6,7 @@ Design of Component `vp-dm`
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    vp-dm_io-req
    vp-dm_mmio-dev

@@ -13,7 +13,7 @@ This section contains the documentation automatically extracted
 from the code.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    boot/index
    config-data/index
