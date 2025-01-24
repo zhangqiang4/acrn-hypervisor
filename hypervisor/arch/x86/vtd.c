@@ -389,14 +389,10 @@ static void dmar_enable_translation(struct dmar_drhd_rt *dmar_unit)
 		iommu_write32(dmar_unit, DMAR_GCMD_REG, dmar_unit->gcmd);
 		/* 32-bit register */
 		dmar_wait_completion(dmar_unit, DMAR_GSTS_REG, DMA_GSTS_TES, 0U, &status);
-#if DBG_IOMMU
-		status = iommu_read32(dmar_unit, DMAR_GSTS_REG);
-#endif
 	}
-
 	spinlock_release(&(dmar_unit->lock));
 
-	dev_dbg(DBG_LEVEL_IOMMU, "%s: gsr:0x%x", __func__, status);
+	pr_info("%s: gsr:0x%x, TE enabled:%d", __func__, status, (status & DMA_GSTS_TES) ? 1 : 0);
 }
 
 static void dmar_disable_intr_remapping(struct dmar_drhd_rt *dmar_unit)
@@ -416,7 +412,7 @@ static void dmar_disable_intr_remapping(struct dmar_drhd_rt *dmar_unit)
 
 static void dmar_disable_translation(struct dmar_drhd_rt *dmar_unit)
 {
-	uint32_t status;
+	uint32_t status = 0;
 
 	spinlock_obtain(&(dmar_unit->lock));
 	if ((dmar_unit->gcmd & DMA_GCMD_TE) != 0U) {
@@ -425,8 +421,9 @@ static void dmar_disable_translation(struct dmar_drhd_rt *dmar_unit)
 		/* 32-bit register */
 		dmar_wait_completion(dmar_unit, DMAR_GSTS_REG, DMA_GSTS_TES, DMA_GSTS_TES, &status);
 	}
-
 	spinlock_release(&(dmar_unit->lock));
+
+	pr_info("%s: gsr:0x%x, TE enabled:%d", __func__, status, (status & DMA_GSTS_TES) ? 1 : 0);
 }
 
 static int32_t dmar_register_hrhd(struct dmar_drhd_rt *dmar_unit)
@@ -1073,8 +1070,8 @@ static int32_t iommu_attach_device(const struct iommu_domain *domain, uint8_t bu
 			context_entry->lo_64 = lo_64;
 			iommu_flush_cache(context_entry, sizeof(struct dmar_entry));
 
-			pr_info("attach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
-			 	bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
+			pr_info("VM[%d] attach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
+			 	domain->vm_id, bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
 				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_TT_MASK, CTX_ENTRY_LOWER_TT_POS),
 				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_P_MASK, CTX_ENTRY_LOWER_P_POS));
 
@@ -1137,8 +1134,8 @@ static int32_t iommu_detach_device(const struct iommu_domain *domain, uint8_t bu
 			dmar_invalid_iotlb(dmar_unit, vmid_to_domainid(domain->vm_id), 0UL, 0U, false,
 							DMAR_IIRG_DOMAIN);
 
-			pr_info("detach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
-				bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
+			pr_info("VM[%d], detach device:%02x:%02x.%x, SSPTPTR:%016lx, Translation Type:%lu, Present:%lu",
+				domain->vm_id, bus, sid.bits.d, sid.bits.f, domain->trans_table_ptr,
 				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_TT_MASK, CTX_ENTRY_LOWER_TT_POS),
 				dmar_get_bitslice(context_entry->lo_64, CTX_ENTRY_LOWER_P_MASK, CTX_ENTRY_LOWER_P_POS));
 		}
