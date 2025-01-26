@@ -689,7 +689,7 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 	struct shared_buf *sbuf;
 	uint64_t magic;
 	uint32_t size;
-	int ret = -1;
+	int ret = -EINVAL;
 
 	if ((copy_from_gpa(vm, &asp, param2, sizeof(asp)) == 0) &&
 	    (asp.gpa != 0U) && mem_aligned_check(asp.gpa, PAGE_SIZE) &&
@@ -707,7 +707,9 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 
 			/* Check from the next page of header locates */
 			if (size > PAGE_SIZE) {
-				ret = !ept_is_valid_mr(vm, asp.gpa + PAGE_SIZE, (uint64_t)(size - PAGE_SIZE));
+				if (!ept_is_valid_mr(vm, asp.gpa + PAGE_SIZE, (uint64_t)(size - PAGE_SIZE))) {
+					ret = -EINVAL;
+				}
 			}
 
 			if (ret == 0) {

@@ -277,7 +277,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 	for (temp_gpa = (gpa + PAGE_SIZE); temp_gpa < (gpa + size); temp_gpa += PAGE_SIZE) {
 		if ((uint64_t)gpa2hva(vm, temp_gpa) != hva) {
 			pr_err("sbuf: gpa 0x%016lx is not mapped to continous hva", temp_gpa);
-			ret = -1;
+			ret = -EINVAL;
 			break;
 		}
 		hva += PAGE_SIZE;
@@ -300,6 +300,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 				break;
 #endif
 			default:
+				ret = -EINVAL;
 				pr_err("sbuf: unsupported sbuf_id %u", sbuf_id);
 				break;
 		}
