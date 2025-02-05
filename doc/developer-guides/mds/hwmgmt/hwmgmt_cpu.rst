@@ -5,7 +5,9 @@ Design of Module `hwmgmt.cpu`
 
 This section contains the documentation of the module `hwmgmt.cpu`.
 
-
+.. doxygengroup:: hwmgmt_cpu
+   :project: Project ACRN
+   :desc-only:
 
 .. contents::
    :local:
@@ -21,6 +23,9 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 
 [File] arch/x86/rdt.c
 ======================================================================
+
+.. doxygenfile:: rdt.c
+   :project: Project ACRN
 
 [File] include/arch/x86/asm/cpu.h
 ======================================================================
@@ -39,6 +44,9 @@ This section contains the documentation of the module `hwmgmt.cpu`.
 
 [File] include/arch/x86/asm/rdt.h
 ======================================================================
+
+.. doxygenfile:: rdt.h
+   :project: Project ACRN
 
 [File] include/arch/x86/asm/cpuid.h
 ======================================================================

@@ -1,56 +1,75 @@
 /*
- * Copyright (C) 2020-2022 Intel Corporation.
+ * Copyright (C) 2020-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef RDT_H
 #define RDT_H
+/**
+ * @addtogroup hwmgmt_cpu
+ *
+ * @{
+ */
+/**
+ * @file
+ * @brief Defines macros, data structures and APIs related to support Intel Resource Director Technology (RDT).
+ */
 
+/**
+ * @brief Enumeration representing the resource types of Resource Director Technology (RDT).
+ */
 enum {
-	RDT_RESOURCE_L3,
-	RDT_RESOURCE_L2,
-	RDT_RESOURCE_MBA,
+	RDT_RESOURCE_L3, /**< Resource type representing L3 Cache Allocation Technology (CAT). */
+	RDT_RESOURCE_L2, /**< Resource type representing L2 Cache Allocation Technology (CAT). */
+	RDT_RESOURCE_MBA, /**< Resource type representing Memory Bandwidth Allocation (MBA). */
+	RDT_NUM_RESOURCES /**< Number of resource types, must be the last. */
+};;
 
-	/* Must be the last */
-	RDT_NUM_RESOURCES,
-};
+#define RDT_RESID_L3    1U /**< Macro representing the resource ID of L3 Cache Allocation Technology (CAT). */
+#define RDT_RESID_L2    2U /**< Macro representing the resource ID of L2 Cache Allocation Technology (CAT). */
+#define RDT_RESID_MBA   3U /**< Macro representing the resource ID of Memory Bandwidth Allocation (MBA). */
 
-#define RDT_RESID_L3    1U
-#define RDT_RESID_L2    2U
-#define RDT_RESID_MBA   3U
-
+/* External constant representing the hypervisor CLOS (Class of Service). */
 extern const uint16_t hv_clos;
 
-/* The instance of one RES_ID */
+/**
+ * @brief Structure representing the instance of Resource Director Technology (RDT).
+ */
 struct rdt_ins {
 	union {
-		struct {
-			uint32_t bitmask;	/* A bitmask where each set bit indicates the corresponding cache way
-						   may be used by other entities in the platform (e.g. GPU) */
-			uint16_t cbm_len;	/* Length of Cache mask in bits */
-			bool is_cdp_enabled;	/* True if support CDP */
-		} cache;
-		struct rdt_membw {
-			uint16_t mba_max;	/* Max MBA delay throttling value supported */
-			bool delay_linear;	/* True if memory B/W delay is in linear scale */
-		} membw;
-	} res;
-	uint16_t num_closids;	/* Number of CLOSIDs available, 0 indicates resource is not supported.*/
+		struct  {
+			uint32_t bitmask;	/**< A bitmask where each set bit indicates the corresponding cache way may be used by
+						     other entities in the platform (e.g., GPU). */
+			uint16_t cbm_len;	/**< Length of the capability bitmask. */
+			bool is_cdp_enabled;	/**< True if CDP is supported. */
+		} cache;			/**< Cache-specific information. */
+		struct  {
+			uint16_t mba_max;	/**< Maximum MBA delay throttling value supported. */
+			bool delay_linear;	/**< True if memory bandwidth delay is in linear scale. */
+		} membw;			/**< Memory bandwidth-specific information. */
+	} res;					/**< Resource-specific information. */
 
-	uint32_t num_clos_config; /* Number of element in clos_config_array */
-	union clos_config *clos_config_array;
-	uint64_t cpu_mask; /* the CPUs this RDT applies */
+	uint16_t num_closids;			/**< Number of CLOSIDs available, 0 indicates resource is not
+						     supported. */
+	uint32_t num_clos_config;		/**< Number of elements in the clos_config_array. */
+	union clos_config *clos_config_array;	/**< Pointer to an array of CLOS configuration structures. */
+	uint64_t cpu_mask;			/**< Bitmask of CPUs to which this RDT applies. */
 };
 
-/* The intel Resource Director Tech(RDT) based Allocation Tech support */
+/**
+ * @brief Structure representing the information to support Resource Director Technology (RDT).
+ */
 struct rdt_type {
-	uint32_t res_id; /* RDT_RESID_L3/RDT_RESID_L2/RDT_RESID_MBA */
-	uint32_t msr_qos_cfg;	/* MSR addr to IA32_L3/L2_QOS_CFG */
-	uint32_t msr_base;	/* MSR base to program clos value */
-
-	uint32_t num_ins; /* Number of element in ins_array */
-	struct rdt_ins *ins_array;
+	uint32_t res_id;		/**< Resource identifier for the RDT type. Possible values are:
+					     * - RDT_RESID_L3
+					     * - RDT_RESID_L2
+					     * - RDT_RESID_MBA
+					*/
+	uint32_t msr_qos_cfg;		/**< MSR address for the IA32_L3/L2_QOS_CFG register. */
+	uint32_t msr_base;		/**< Base MSR address used to program the CLOS (Class of Service) value. */
+	uint32_t num_ins;		/**< Number of element in ins_array */
+	struct rdt_ins *ins_array;	/**< Pointer to an array of RDT instance structures. */
 };
 
 void setup_clos(uint16_t pcpu_id);
@@ -59,3 +78,6 @@ bool is_platform_rdt_capable(void);
 const struct rdt_ins *get_rdt_res_ins(int res, uint16_t pcpu_id);
 
 #endif	/* RDT_H */
+/**
+ * @}
+ */

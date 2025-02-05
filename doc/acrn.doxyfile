@@ -853,8 +853,10 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../devicemodel/include/public/hsm_ioctl_defs.h \
                           ../hypervisor/arch/x86/cpu_caps.c \
                           ../hypervisor/arch/x86/cpu.c \
+                          ../hypervisor/arch/x86/rdt.c \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpuid.h \
+                          ../hypervisor/include/arch/x86/asm/rdt.h \
                           ../hypervisor/include/arch/x86/asm/per_cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
@@ -964,7 +966,7 @@ EXCLUDE_PATTERNS       =
 # names given to unnamed nested unions
 
 EXCLUDE_SYMBOLS        = *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
-                        version_info per_cpu_data
+                        version_info per_cpu_data hv_clos
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -2173,6 +2175,7 @@ PREDEFINED             = "__attribute__(x)=" \
                          "STACK_PROTECTOR=" \
                          "CONFIG_RETPOLINE=" \
                          "CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED=" \
+                         "CONFIG_RDT_ENABLED=" \
 
 PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
