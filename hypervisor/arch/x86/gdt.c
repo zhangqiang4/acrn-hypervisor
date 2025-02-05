@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -8,6 +8,31 @@
 #include <asm/gdt.h>
 #include <asm/per_cpu.h>
 
+/**
+ * @addtogroup hwmgmt_cpu
+ *
+ * @{
+ */
+/**
+ * @file
+ * @brief This file implements APIs to set TSS descriptor and load GDTR and TR.
+ */
+
+/**
+ * @brief Set up a Task State Segment (TSS) descriptor.
+ *
+ * This function initializes a TSS descriptor with the provided TSS base address, limit, and type.
+ *
+ * @param[inout] desc Pointer to the TSS descriptor to be initialized.
+ * @param[in] tss The base address of the TSS.
+ * @param[in] tss_limit The limit of the TSS.
+ * @param[in] type The type of the TSS descriptor.
+ *
+ * @return None
+ *
+ * @pre desc != NULL
+ * @post N/A
+ */
 static void set_tss_desc(struct tss_64_descriptor *desc,
 		uint64_t tss, size_t tss_limit, uint32_t type)
 {
@@ -25,11 +50,51 @@ static void set_tss_desc(struct tss_64_descriptor *desc,
 	desc->high32_value = u2 | (type << 8U) | 0x8000U | u3;
 }
 
+/**
+ * @brief Loads the Global Descriptor Table (GDT) register with the specified descriptor.
+ *
+ * This function uses the `lgdt` instruction to load the GDT register with the provided descriptor, which contains the
+ * base address and limit of the GDT.
+ *
+ * @param[in] gdtr Pointer to a `host_gdt_descriptor` structure containing the GDT descriptor.
+ *
+ * @return None
+ *
+ * @pre gdtr != NULL
+ * @post N/A
+ */
 static inline void load_gdt(struct host_gdt_descriptor *gdtr)
 {
 	asm volatile ("lgdt %0" ::"m"(*gdtr));
 }
 
+/**
+ * @brief Load Global Descriptor Table Register (GDTR) and Task Register (TR)
+ *
+ * This function initializes and loads the Global Descriptor Table (GDT) and Task State Segment (TSS) for the current
+ * CPU. It sets up the GDT entries for the code and data segments, initializes the Interrupt Stack Table (IST) pointers
+ * in the TSS, and configures the TSS descriptor in the GDT. Finally, it loads the GDTR and the Task Register (TR) with
+ * the appropriate values.
+ *
+ * The GDT entries are configured as follows:
+ * - The first entry is reserved and unused.
+ * - The second entry is the ring 0 code segment descriptor.
+ * - The third entry is the ring 0 data segment descriptor.
+ *
+ * The TSS IST pointers are set to the tops of the respective stacks:
+ * - IST1 is set to the top of the machine check stack.
+ * - IST2 is set to the top of the double fault stack.
+ * - IST3 is set to the top of the stack fault stack.
+ * - IST4 is reserved and set to 0.
+ *
+ * The TSS descriptor is then set in the GDT, and the GDTR is loaded with the address and size of the GDT.
+ * The Task Register (TR) is loaded with the selector for the ring 0 TSS.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void load_gdtr_and_tr(void)
 {
 	struct host_gdt *gdt = &get_cpu_var(gdt);
@@ -59,3 +124,6 @@ void load_gdtr_and_tr(void)
 
 	CPU_LTR_EXECUTE(HOST_GDT_RING0_CPU_TSS_SEL);
 }
+/**
+ * @}
+ */
