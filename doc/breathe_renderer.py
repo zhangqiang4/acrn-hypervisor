@@ -446,9 +446,8 @@ class BreatheASTBracedInitList:
                 first = False
             signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
             e.describe_signature(signode, mode, env, symbol)
-        if self.trailingComma:
-            signode += addnodes.desc_sig_punctuation(',', ',')
-            signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+        if self.trailingComma:  # hide tailingComma whether existed or not
+            signode += addnodes.desc_sig_punctuation(',', '')
         signode += addnodes.desc_sig_punctuation('\n', '<br/>')
         DEPTH -= 1
         signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
