@@ -36,7 +36,7 @@ from sphinx.environment import BuildEnvironment
 
 from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 
-from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE, SECTIONS_SORTING_SEQUENCE
+from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE, SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
@@ -95,10 +95,10 @@ class BreatheASTNestedName:
             if self.rooted:
                 prefix += '.'
                 if mode == 'lastIsName' and len(names) == 0:
-                    # signode += addnodes.desc_sig_punctuation('.', '.')
+                    signode += addnodes.desc_sig_punctuation('.', '.')
                     signode += addnodes.desc_sig_punctuation('.', '')
                 else:
-                    # dest += addnodes.desc_sig_punctuation('.', '.')
+                    dest += addnodes.desc_sig_punctuation('.', '.')
                     dest += addnodes.desc_sig_punctuation('.', '')
 
             for i in range(len(names)):
@@ -373,7 +373,7 @@ class BreatheHTML5Translator:
         # It implemented in _html_base.py by translate through a dictionary called special_characters
         # I found it hard to offer a function called decode to reverse the process
         # So I just tackled two special cases here
-        if text in ['<br/>'] + ['&nbsp;' * 4 * i for i in range(1, 100)]:
+        if text in ['<br/>'] + ['&nbsp;' * 4 * i for i in range(1, MAX_INDENTATION_NUMBERS + 1)]:
             encoded = text
         else:  # general situation
             encoded = self.encode(text)

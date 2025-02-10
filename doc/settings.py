@@ -20,6 +20,11 @@ SKIPPED_ITEMS = [
 TAB = '\t'
 TAB_SIZE = 2
 
+#  MAX_INDENTATION_NUMBERS tag determines the maximum number of indentations
+#  that the depth of embedded components can have for it to appear in
+#  the initializer.
+MAX_INDENTATION_NUMBERS = 100
+
 # sorting sections according to the list SECTIONS_SORTING_SEQUENCE
 # which items are retrieved from the first component of selected tuples
 # you can look up the tuples from UPDATED_SECTION_NAMES & breathe's global variable: sections
