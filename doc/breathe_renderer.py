@@ -36,7 +36,7 @@ from sphinx.environment import BuildEnvironment
 
 from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 
-from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE
+from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE, SECTIONS_SORTING_SEQUENCE
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
@@ -477,6 +477,8 @@ class BreatheRenderer:
         self.context = cast(RenderContext, self.context)
         options = self.context.directive_args[2]
         section_order = None
+        if not "sections" in options:  # sorting sections by the given sequence
+            options['sections'] = ' '.join(SECTIONS_SORTING_SEQUENCE)
         if "sections" in options:
             section_order = {sec: i for i, sec in enumerate(options["sections"].split(" "))}
         membergroup_order = None
