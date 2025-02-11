@@ -798,9 +798,29 @@ struct acrn_vdev {
 #define SBUF_MAX_SIZE	(1UL << 22U)
 #define SBUF_HEAD_SIZE	64U
 
-/* sbuf flags */
-#define OVERRUN_CNT_EN	(1U << 0U) /* whether overrun counting is enabled */
-#define OVERWRITE_EN	(1U << 1U) /* whether overwrite is enabled */
+/**
+ * @brief sbuf flags.
+ *
+ * These flags are used to configure the behavior of the shared buffer (sbuf).
+ * They control features such as overrun counting and overwrite capability.
+ */
+
+/**
+ * @brief Enable overrun counting.
+ *
+ * This flag is used to enable overrun counting in the shared buffer (sbuf).
+ * When this flag is set, the buffer will count the number of times it has
+ * been overrun.
+ */
+#define OVERRUN_CNT_EN	(1U << 0U)
+
+/**
+ * @brief Enable overwrite.
+ *
+ * This flag is used to enable the overwrite capability in the shared buffer (sbuf).
+ * When this flag is set, the buffer will overwrite the oldest data when it becomes full.
+ */
+#define OVERWRITE_EN	(1U << 1U)
 
 /**
  * (sbuf) head + buf (store (ele_num - 1) elements at most)
@@ -818,29 +838,44 @@ struct acrn_vdev {
  * struct shared_buf *buf
  */
 
+/**
+ * @brief Enumeration of shared buffer (sbuf) IDs.
+ *
+ * This enumeration defines the IDs for different types of shared buffers (sbufs) used in the system.
+ * Some sbufs (whose ID is less than ACRN_SBUF_PER_PCPU_ID_MAX) are created for each physical CPU (pcpu),
+ * while others are created for specific purposes such as asynchronous I/O or VM events.
+ */
 enum {
-	ACRN_TRACE = 0U,
-	ACRN_HVLOG,
-	ACRN_SEP,
-	ACRN_SOCWATCH,
+	ACRN_TRACE = 0U,          	/**< ID for trace buffer */
+	ACRN_HVLOG,               	/**< ID for hypervisor log buffer */
+	ACRN_SEP,                 	/**< ID for SEP (System Event Processor) buffer */
+	ACRN_SOCWATCH,            	/**< ID for SOCWATCH buffer */
 	/* The sbuf with above ids are created each pcpu */
-	ACRN_SBUF_PER_PCPU_ID_MAX,
-	ACRN_ASYNCIO = 64,
-	ACRN_VM_EVENT,
+	ACRN_SBUF_PER_PCPU_ID_MAX,	/**< Maximum ID for per-pcpu sbufs */
+	ACRN_ASYNCIO = 64,		/**< ID for asynchronous I/O buffer, which is 64. */
+	ACRN_VM_EVENT, 			/**< ID for VM event buffer */
 };
 
-/* Make sure sizeof(struct shared_buf) == SBUF_HEAD_SIZE */
+/**
+ * @brief Structure representing a shared buffer.
+ *
+ * This structure defines a shared buffer (sbuf) used for communication between
+ * Service VM and hypervisor. It includes metadata about the buffer, such as the number
+ * and size of elements, head and tail pointers, flags, and overrun count.
+ *
+ * @remark Make sure sizeof(struct shared_buf) == SBUF_HEAD_SIZE
+ */
 struct shared_buf {
-	uint64_t magic;
-	uint32_t ele_num;	/* number of elements */
-	uint32_t ele_size;	/* sizeof of elements */
-	uint32_t head;		/* offset from base, to read */
-	uint32_t tail;		/* offset from base, to write */
-	uint32_t flags;
-	uint32_t reserved;
-	uint32_t overrun_cnt;	/* count of overrun */
-	uint32_t size;		/* ele_num * ele_size */
-	uint32_t padding[6];
+	uint64_t magic;        /**< Magic number to identify the buffer */
+	uint32_t ele_num;      /**< Number of elements in the buffer */
+	uint32_t ele_size;     /**< Size of each element in the buffer */
+	uint32_t head;         /**< Offset from base to read (head pointer) */
+	uint32_t tail;         /**< Offset from base to write (tail pointer) */
+	uint32_t flags;        /**< Flags for buffer configuration and status */
+	uint32_t reserved;     /**< Reserved for future use */
+	uint32_t overrun_cnt;  /**< Count of buffer overruns */
+	uint32_t size;         /**< Total size of the buffer (ele_num * ele_size) */
+	uint32_t padding[6];   /**< Padding to align the structure size */
 };
 
 /**
