@@ -341,6 +341,7 @@
   <vm id="0">
     <vm_type>STANDARD_VM</vm_type>
     <console_vuart>COM Port 1</console_vuart>
+    <mcbanks_bitmask>0x3fffff</mcbanks_bitmask>
     <memory>
       <size>1024</size>
     </memory>
