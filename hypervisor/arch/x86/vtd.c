@@ -934,6 +934,7 @@ static void enable_dmar(struct dmar_drhd_rt *dmar_unit)
 	dmar_invalid_iotlb_global(dmar_unit);
 	dmar_invalid_iec_global(dmar_unit);
 	dmar_enable_translation(dmar_unit);
+	dmar_enable_intr_remapping(dmar_unit);
 }
 
 static void disable_dmar(struct dmar_drhd_rt *dmar_unit)
@@ -970,7 +971,6 @@ static void resume_dmar(struct dmar_drhd_rt *dmar_unit)
 	}
 	prepare_dmar(dmar_unit);
 	enable_dmar(dmar_unit);
-	dmar_enable_intr_remapping(dmar_unit);
 }
 
 static inline bool is_dmar_unit_ignored(const struct dmar_drhd_rt *dmar_unit)
@@ -1328,14 +1328,12 @@ int32_t dmar_assign_irte(const struct intr_source *intr_src, union dmar_ir_entry
 	}
 
 	if (is_dmar_unit_valid(dmar_unit, sid)) {
-		dmar_enable_intr_remapping(dmar_unit);
-
-		ir_table = (union dmar_ir_entry *)hpa2hva(dmar_unit->ir_table_addr);
 		*idx_out = idx_in;
 		if (idx_in == INVALID_IRTE_ID) {
 			*idx_out = alloc_irtes(dmar_unit, 1U);
 		}
 		if (*idx_out < MAX_IR_ENTRIES) {
+			ir_table = (union dmar_ir_entry *)hpa2hva(dmar_unit->ir_table_addr);
 			ir_entry = ir_table + *idx_out;
 
 			if (intr_src->pid_paddr != 0UL) {
@@ -1367,8 +1365,10 @@ int32_t dmar_assign_irte(const struct intr_source *intr_src, union dmar_ir_entry
 			}
 			iommu_flush_cache(ir_entry, sizeof(union dmar_ir_entry));
 			dmar_invalid_iec(dmar_unit, *idx_out, 0U, false);
+			ret = 0;
+		} else {
+			pr_err("Failed to allocate DMAR Interrupt Remapping Table Entry.");
 		}
-		ret = 0;
 	}
 
 	return ret;
