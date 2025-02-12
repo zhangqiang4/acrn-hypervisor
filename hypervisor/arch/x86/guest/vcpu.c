@@ -237,6 +237,7 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	int32_t i;
+	uint64_t vmx_rev_id;
 
 	vcpu->launched = false;
 	vcpu->arch.nr_sipi = 0U;
@@ -244,7 +245,19 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vcpu->arch.exception_info.exception = VECTOR_INVALID;
 	vcpu->arch.irq_window_enabled = false;
 	vcpu->arch.emulating_lock = false;
+
 	(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
+	/*
+	 * Obtain the VM Rev ID from HW and populate VMCS page with it so that VMCS can be
+	 * loaded when scheduling to the vCPU thread.
+	 */
+	vmx_rev_id = msr_read(MSR_IA32_VMX_BASIC);
+	(void)memcpy_s(vcpu->arch.vmcs, 4U, (void *)&vmx_rev_id, 4U);
+	/*
+	 * Execute VMCLEAR VMCS to initialize parts of the VMCS region (e.g. it sets the
+	 * launch state of the VMCS to clear).
+	 */
+	clear_va_vmcs(vcpu->arch.vmcs);
 
 	/* vcpu init reset won't change local apic state */
 	if (mode != VCPU_INIT_RESET) {

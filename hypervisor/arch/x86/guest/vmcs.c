@@ -558,22 +558,8 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
  */
 void init_vmcs(struct acrn_vcpu *vcpu)
 {
-	uint64_t vmx_rev_id;
-	void **vmcs_ptr = &get_cpu_var(vmcs_run);
-
 	/* Log message */
 	pr_dbg("Initializing VMCS");
-
-	/* Obtain the VM Rev ID from HW and populate VMCS page with it */
-	vmx_rev_id = msr_read(MSR_IA32_VMX_BASIC);
-	(void)memcpy_s(vcpu->arch.vmcs, 4U, (void *)&vmx_rev_id, 4U);
-
-	/* Execute VMCLEAR VMCS of this vcpu */
-	clear_va_vmcs(vcpu->arch.vmcs);
-
-	/* Load VMCS pointer */
-	load_va_vmcs(vcpu->arch.vmcs);
-	*vmcs_ptr = (void *)vcpu->arch.vmcs;
 
 	/* Initialize the Virtual Machine Control Structure (VMCS) */
 	init_host_state();
@@ -594,7 +580,7 @@ void load_vmcs(const struct acrn_vcpu *vcpu)
 {
 	void **vmcs_ptr = &get_cpu_var(vmcs_run);
 
-	if (vcpu->launched && (*vmcs_ptr != (void *)vcpu->arch.vmcs)) {
+	if (*vmcs_ptr != (void *)vcpu->arch.vmcs) {
 		load_va_vmcs(vcpu->arch.vmcs);
 		*vmcs_ptr = (void *)vcpu->arch.vmcs;
 	}
