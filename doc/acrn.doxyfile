@@ -863,6 +863,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \
+                          ../hypervisor/arch/x86/guest/virq.c \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/arch/x86/irq.c \
@@ -964,7 +965,7 @@ EXCLUDE_PATTERNS       =
 # names given to unnamed nested unions
 
 EXCLUDE_SYMBOLS        = *.__unnamed__ platform_caps vpci_ivshmem_ops irq_static_mappings \
-                        version_info per_cpu_data
+                        version_info per_cpu_data exception_type
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

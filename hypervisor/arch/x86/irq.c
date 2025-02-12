@@ -321,7 +321,7 @@ void post_irq_arch(const struct irq_desc *desc)
  * To dispatch an interrupt, an action callback will be called if registered.
  * If no irq is registered for the vector, it is handled as a spurious interrupt by sending EOI
  * and calling the registered spurious interrupt handler if it is available.
- * Otherwise, call the generic IRQ handling routine to invoke regsitered irq actions and handle
+ * Otherwise, call the generic IRQ handling routine to invoke regitered irq actions and handle
  * pending softirqs.
  *
  * @param[in] ctx Pointer to interrupt exception context

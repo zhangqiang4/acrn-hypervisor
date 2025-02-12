@@ -20,66 +20,81 @@
 #include <asm/irq.h>
 #include <asm/mce.h>
 
-#define EXCEPTION_ERROR_CODE_VALID  8U
+/**
+ * @defgroup vp-base_virq vp-base.virq
+ * @ingroup vp-base
+ * @brief The definition and implementation of Interrupt Virtualization
+ *
+ * @{
+ */
 
-#define DBG_LEVEL_INTR	6U
+/**
+ * @file
+ *
+ * @brief Implementation for Interrupt Virtualization
+ */
 
-#define EXCEPTION_CLASS_BENIGN	1
-#define EXCEPTION_CLASS_CONT	2
-#define EXCEPTION_CLASS_PF	3
-
-/* Exception types */
-#define EXCEPTION_FAULT		0U
-#define EXCEPTION_TRAP		1U
-#define EXCEPTION_ABORT		2U
-#define EXCEPTION_INTERRUPT	3U
-
-/* RFLAGS */
-#define HV_ARCH_VCPU_RFLAGS_TF              (1UL<<8U)
-#define HV_ARCH_VCPU_RFLAGS_IF              (1UL<<9U)
-#define HV_ARCH_VCPU_RFLAGS_RF              (1UL<<16U)
-
-/* Interruptability State info */
-
-#define HV_ARCH_VCPU_BLOCKED_BY_NMI         (1UL<<3U)
-#define HV_ARCH_VCPU_BLOCKED_BY_MOVSS       (1UL<<1U)
-#define HV_ARCH_VCPU_BLOCKED_BY_STI         (1UL<<0U)
-
+/**
+ * @brief An array of exceptions types whose vector is smaller than 32
+ *
+ * Refer to SDM Vol3 6.15 Exception and Interrupt Reference
+ */
 static const uint16_t exception_type[32] = {
-	[0] = VMX_INT_TYPE_HW_EXP,
-	[1] = VMX_INT_TYPE_HW_EXP,
-	[2] = VMX_INT_TYPE_HW_EXP,
-	[3] = VMX_INT_TYPE_HW_EXP,
-	[4] = VMX_INT_TYPE_HW_EXP,
-	[5] = VMX_INT_TYPE_HW_EXP,
-	[6] = VMX_INT_TYPE_HW_EXP,
-	[7] = VMX_INT_TYPE_HW_EXP,
-	[8] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[9] = VMX_INT_TYPE_HW_EXP,
-	[10] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[11] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[12] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[13] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[14] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[15] = VMX_INT_TYPE_HW_EXP,
-	[16] = VMX_INT_TYPE_HW_EXP,
-	[17] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,
-	[18] = VMX_INT_TYPE_HW_EXP,
-	[19] = VMX_INT_TYPE_HW_EXP,
-	[20] = VMX_INT_TYPE_HW_EXP,
-	[21] = VMX_INT_TYPE_HW_EXP,
-	[22] = VMX_INT_TYPE_HW_EXP,
-	[23] = VMX_INT_TYPE_HW_EXP,
-	[24] = VMX_INT_TYPE_HW_EXP,
-	[25] = VMX_INT_TYPE_HW_EXP,
-	[26] = VMX_INT_TYPE_HW_EXP,
-	[27] = VMX_INT_TYPE_HW_EXP,
-	[28] = VMX_INT_TYPE_HW_EXP,
-	[29] = VMX_INT_TYPE_HW_EXP,
-	[30] = VMX_INT_TYPE_HW_EXP,
-	[31] = VMX_INT_TYPE_HW_EXP
+	[0] = VMX_INT_TYPE_HW_EXP,			/**< Divide Error Exception (DE) */
+	[1] = VMX_INT_TYPE_HW_EXP,			/**< Debug Exception (DB) */
+	[2] = VMX_INT_TYPE_HW_EXP,			/**< NMI Interrupt */
+	[3] = VMX_INT_TYPE_HW_EXP,			/**< Breakpoint Exception (BP) */
+	[4] = VMX_INT_TYPE_HW_EXP,			/**< Overflow Exception (OF) */
+	[5] = VMX_INT_TYPE_HW_EXP,			/**< Bound range Exceeded Exception (BR) */
+	[6] = VMX_INT_TYPE_HW_EXP,			/**< Invalid Opcode Exception (UD) */
+	[7] = VMX_INT_TYPE_HW_EXP,			/**< Device Not Available Exception (NM) */
+	[8] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Double Fault Exception (DF),
+								  with error code */
+	[9] = VMX_INT_TYPE_HW_EXP,			/**< Coprocessor Segment Overrun */
+	[10] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Invalid TSS Exception (TS),
+									  with error code */
+	[11] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Segment Not Present (NP),
+									  with error code */
+	[12] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Stack Fault Exception (SS),
+									  with error code */
+	[13] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< General Protection Exception (GP),
+									  with error code */
+	[14] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Page-Fault Exception (PF),
+									  with error code */
+	[15] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[16] = VMX_INT_TYPE_HW_EXP,			/**< x87 FPU Floating-Point Error (MF) */
+	[17] = VMX_INT_TYPE_HW_EXP | EXCEPTION_ERROR_CODE_VALID,	/**< Alignment Check Exception (AC),
+									  with error code */
+	[18] = VMX_INT_TYPE_HW_EXP,			/**< Machine-Check Exception (MC) */
+	[19] = VMX_INT_TYPE_HW_EXP,			/**< SIMD Floating-Point Exception (XM) */
+	[20] = VMX_INT_TYPE_HW_EXP,			/**< Virtualization Exception (VE) */
+	[21] = VMX_INT_TYPE_HW_EXP,			/**< Control Protection Exception (CP) */
+	[22] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[23] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[24] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[25] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[26] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[27] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[28] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[29] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[30] = VMX_INT_TYPE_HW_EXP,			/**< Reserved */
+	[31] = VMX_INT_TYPE_HW_EXP			/**< Reserved */
 };
 
+/**
+ * @brief Get the exception type of a vector
+ *
+ * Vectors > 31 and IDT_NMI are for interrupts. DB, BP and OF are traps. DF and MC are
+ * aborts. Other exceptions with vector <= 31 are faults.
+ *
+ * @param[in] vector     Vector of the exception
+ *
+ * @return Exception type
+ * @retval EXCEPTION_INTERRUPT Given exception is a kind of interrupt
+ * @retval EXCEPTION_TRAP Given exception is a kind of trap
+ * @retval EXCEPTION_ABORT Given exception is a kind of abort
+ * @retval EXCEPTION_FAULT Given exception is a kind of fault
+ */
 static uint8_t get_exception_type(uint32_t vector)
 {
 	uint8_t type;
@@ -98,6 +113,24 @@ static uint8_t get_exception_type(uint32_t vector)
 	return type;
 }
 
+/**
+ * @brief Check whether local interrupt of a vCPU is blocked
+ *
+ * Check if the vCPU can response to pending interrupts. CPU local interrupt is blocked if
+ * RFLAGS.IF is 0. Besides, following special situations also blocked local interrupt even if
+ * RFLAGS.IF is 1.
+ * - Previous instruction is STI with RFLAGS.IF=0, local interrupt is blocked even current
+ *   RFLAGS.IF=1
+ * - Previous instruction is a MOV to SS or a POP to SS.
+ *
+ * @param[in] vcpu     Pointer to a vCPU structure against which we check the local interrupt
+ *
+ * @return A boolean indicating whether local interrupt of a vCPU is enabled
+ * @retval true The vCPU can response to pending interrupts
+ * @retval false The vCPU can not response to pending interrupts
+ *
+ * @pre vcpu != NULL
+ */
 static bool is_guest_irq_enabled(struct acrn_vcpu *vcpu)
 {
 	uint64_t guest_rflags, guest_state;
@@ -119,6 +152,16 @@ static bool is_guest_irq_enabled(struct acrn_vcpu *vcpu)
 	return status;
 }
 
+/**
+ * @brief Check whether current vCPU can accept NMI
+ *
+ * Current vCPU can accept NMI unless local interrupt is not blocked by STI, MOVSS or NMI.
+ * RFLAGS.IF=0 can't block NMI handling.
+ *
+ * @return A boolean indicating whether current vCPU can accept NMI
+ * @retval true The vCPU can accept an NMI
+ * @retval false The vCPU can not accept an NMI
+ */
 static inline bool is_nmi_injectable(void)
 {
 	uint64_t guest_state;
@@ -128,13 +171,49 @@ static inline bool is_nmi_injectable(void)
 	return ((guest_state & (HV_ARCH_VCPU_BLOCKED_BY_STI |
 		HV_ARCH_VCPU_BLOCKED_BY_MOVSS | HV_ARCH_VCPU_BLOCKED_BY_NMI)) == 0UL);
 }
+
+/**
+ * @brief Request a vCPU thread to handle a event
+ *
+ * The event is handled in vCPU thread in VMX root operation before next VM enter. To ensure the
+ * request will be handled as soon as possible, this function will kick pCPU for the vCPU to force
+ * a VM exit if it's current running in VMX non root operation. It doesn't matter if the vCPU is
+ * already in VMX root operation, the vCPU thread will handle the request before next VM enter. To
+ * avoid the race condition that request is raised in between vCPU thread checking pending requests
+ * and VM enter, vCPU thread must disable local interrupt before checking request and VM enter.
+ * The kick signal will be blocked in that window and then cause a VM exit after VM enter.
+ * If the caller is running on the pCPU for target vCPU, kick can be omitted since it's already in
+ * VMX root operation.
+ *
+ * @param[inout] vcpu     Pointer to a vCPU structure to which the request is submitted
+ * @param[in] eventid  Event to request
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_make_request(struct acrn_vcpu *vcpu, uint16_t eventid)
 {
 	bitmap_set_lock(eventid, &vcpu->arch.pending_req);
 	kick_vcpu(vcpu);
 }
 
-/* SDM Vol3 -6.15, Table 6-4 - interrupt and exception classes */
+/**
+ * @brief Get class of an exception
+ *
+ * DE, TS, NP, SS, GP exceptions are contributory exceptions.
+ * PF and VE exceptions are page fault class exceptions.
+ * Others are benigh exceptions.
+ *
+ * @param[in] vector     Vector number of the exception
+ *
+ * @return The class of the exception
+ * @retval EXCEPTION_CLASS_BENIGN It's a Benigh Exception
+ * @retval EXCEPTION_CLASS_CONT It's a Contributory Exception
+ * @retval EXCEPTION_CLASS_PF It's a Page Fault Class Exception
+ *
+ * @pre vector < 32
+ */
 static int32_t get_excep_class(uint32_t vector)
 {
 	int32_t ret;
@@ -151,6 +230,29 @@ static int32_t get_excep_class(uint32_t vector)
 	return ret;
 }
 
+/**
+ * @brief Queue an exception to guest.
+ *
+ * If there is already an exception pending to be injected, current exception may be upgraded to a
+ * more serious one according to following rules:
+ * - If previous exception is DF, and current exception is not benigh class, upgrade it to triple
+ *   fault and make a ACRN_REQUEST_TRP_FAULT request which will shutdown the VM.
+ * - If both previous and current exceptions are contributory, or previous is page fault and new
+ *   is benigh, upgrade to DF exception.
+ * - Otherwise, new exception override previous one.
+ * Except triple fault, make a ACRN_REQUEST_EXCP request to inject exceptions. The err_code_arg is
+ * used if the exception needs an error code.
+ *
+ * @param[inout] vcpu     Pointer to a vCPU to which an exception is queued
+ * @param[in] vector_arg   Vector of the exception.
+ * @param[in] err_code_arg Error Code to be injected.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval -EINVAL on error that vector is invalid.
+ *
+ * @pre vcpu != NULL
+ */
 int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32_t err_code_arg)
 {
 	struct acrn_vcpu_arch *arch = &vcpu->arch;
@@ -172,7 +274,7 @@ int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32
 		prev_class = get_excep_class(prev_vector);
 		new_class = get_excep_class(vector);
 		if ((prev_vector == IDT_DF) && (new_class != EXCEPTION_CLASS_BENIGN)) {
-			/* triple fault happen - shutdwon mode */
+			/* triple fault happen - shutdown mode */
 			vcpu_make_request(vcpu, ACRN_REQUEST_TRP_FAULT);
 		} else {
 			if (((prev_class == EXCEPTION_CLASS_CONT) && (new_class == EXCEPTION_CLASS_CONT)) ||
@@ -200,7 +302,19 @@ int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32
 	return ret;
 }
 
-/*
+/**
+ * @brief Inject pending exception to a vCPU
+ *
+ * Populate the pending exception information (vector number, error code) to the VMCS and update
+ * RIP and RFLAGS for the vCPU.
+ * For fault exceptions, the length of current instruction will be forced to be 0 so that current
+ * instruction will be re-executed after next VM enter, RFLAGS.RF is set as well.
+ *
+ * @param[inout] vcpu     Pointer to a vCPU to which an exception is injected
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
  * @pre vcpu->arch.exception_info.exception < 0x20U
  */
 static void vcpu_inject_exception(struct acrn_vcpu *vcpu)
@@ -231,52 +345,141 @@ static void vcpu_inject_exception(struct acrn_vcpu *vcpu)
 	}
 }
 
-/* Inject NMI to guest */
+/**
+ * @brief Inject NMI to a vCPU
+ *
+ * Make a NMI injection request to the vCPU thread. The NMI will be injected if no temporarily
+ * blocked, before next VM enter. If NMI is currently blocked, the request will be retained and
+ * handled once it's not blocked.
+ * NMI is a kind of interrupt. So signal a VCPU_EVENT_VIRTUAL_INTERRUPT to wake up vCPU if it's
+ * waiting on interrupts.
+ *
+ * @param[inout] vcpu Pointer to vCPU to which an NMI is injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_nmi(struct acrn_vcpu *vcpu)
 {
 	vcpu_make_request(vcpu, ACRN_REQUEST_NMI);
 	signal_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
 }
 
-/* Inject general protection exception(#GP) to guest */
+/**
+ * @brief Inject general protection exception(GP) to a vCPU
+ *
+ * Queue a GP exception with given error code to a vCPU
+ *
+ * @param[inout] vcpu     Pointer to vCPU to which a GP exception is injected.
+ * @param[in] err_code Error Code along with the GP to be injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_gp(struct acrn_vcpu *vcpu, uint32_t err_code)
 {
 	(void)vcpu_queue_exception(vcpu, IDT_GP, err_code);
 }
 
-/* Inject page fault exception(#PF) to guest */
+/**
+ * @brief Inject page fault exception(PF) to a vCPU
+ *
+ * Set the fault guest virtual address to Virtual CR2 and Queue a PF exception with given error
+ * code to the vCPU.
+ *
+ * @param[inout] vcpu  Pointer to a vCPU to which a PF exception is injected.
+ * @param[in] addr     Guest Virtual Address that result in PF.
+ * @param[in] err_code Error Code to be injected.
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_pf(struct acrn_vcpu *vcpu, uint64_t addr, uint32_t err_code)
 {
 	vcpu_set_cr2(vcpu, addr);
 	(void)vcpu_queue_exception(vcpu, IDT_PF, err_code);
 }
 
-/* Inject invalid opcode exception(#UD) to guest */
+/**
+ * @brief Inject invalid opcode exception(UD) to a vCPU
+ *
+ * Queue a UD exception to a vCPU
+ *
+ * @param[inout] vcpu Pointer to a vCPU to which a UD exception is injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_ud(struct acrn_vcpu *vcpu)
 {
 	(void)vcpu_queue_exception(vcpu, IDT_UD, 0);
 }
 
-/* Inject stack fault exception(#SS) to guest */
+/**
+ * @brief Inject stack fault exception(SS) to a vCPU
+ *
+ * Queue a SS exception to a vCPU
+ *
+ * @param[inout] vcpu Pointer to a vCPU to which a SS exception is injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_ss(struct acrn_vcpu *vcpu)
 {
 	(void)vcpu_queue_exception(vcpu, IDT_SS, 0);
 }
 
-/* Inject machine check exception(#MC) to guest */
+/**
+ * @brief Inject machine check exception(MC) to a vCPU
+ *
+ * Queue a MC exception to a vCPU
+ *
+ * @param[inout] vcpu Pointer to a vCPU to which a MC exception is injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_mc(struct acrn_vcpu *vcpu)
 {
 	(void)vcpu_queue_exception(vcpu, IDT_MC, 0);
 }
 
-/* Inject thermal sensor interrupt to guest */
+/**
+ * @brief Inject thermal sensor interrupt to a vCPU
+ *
+ * If the VM has Virtual Thermal Management enabled, inject a thermal LAPIC local interrupt for
+ * the vCPU. Otherwise, do nothing.
+ *
+ * @param[in] vcpu Pointer to a vCPU to which a thermal sensor interrupt is injected.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ */
 void vcpu_inject_thermal_interrupt(struct acrn_vcpu *vcpu)
 {
 	if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
 		(void)vlapic_set_local_intr(vcpu->vm, vcpu->vcpu_id, APIC_LVT_THERMAL);
-	};
+	}
 }
 
+/**
+ * @brief Handle Interrupt Window VM Exits
+ *
+ * Interrupt Window Exiting is currently used to trigger a VM exit when guest irq is enabled to
+ * inject pending interrupts (if no APICV support) and NMIs delayed in this round.
+ * This handler just disable interrupt window exiting and retain current RIP.
+ *
+ * @param[inout] vcpu Pointer to a vCPU which handles the interrupt window VM exit.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ */
 int32_t interrupt_window_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	TRACE_2L(TRACE_VMEXIT_INTERRUPT_WINDOW, 0UL, 0UL);
@@ -292,6 +495,21 @@ int32_t interrupt_window_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
+/**
+ * @brief Handle External Interrupt VM Exits
+ *
+ * If the external interrupt information is valid, fill a interrupt context and invoke interrupt
+ * handler. Otherwise return -EINVAL.
+ * Anyway, the RIP is retained.
+ *
+ * @param[inout] vcpu Pointer to a vCPU which handles the external interrupt VM exit.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval -EINVAL on error that interrupt information is invalid
+ *
+ * @pre vcpu != NULL
+ */
 int32_t external_interrupt_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	uint32_t intr_info;
@@ -321,9 +539,40 @@ int32_t external_interrupt_vmexit_handler(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-static inline void acrn_inject_pending_intr(struct acrn_vcpu *vcpu,
-		uint64_t *pending_req_bits, bool injected);
-
+/**
+ * @brief Handle pending requests for a vCPU
+ *
+ * - ACRN_REQUEST_INIT_VMCS request is the first request for a new vCPU because some VMCS fields
+ *   should be initialized in the vCPU thread context.
+ * - ACRN_REQUEST_TRP_FAULT requests the vCPU to enter zombie state.
+ * - ACRN_REQUEST_WAIT_WBINVD requests the vCPU to wait VCPU_EVENT_SYNC_WBINVD to be finished.
+ * - ACRN_REQUEST_SPLIT_LOCK requests the vCPU to wait VCPU_EVENT_SPLIT_LOCK to be finished.
+ * - ACRN_REQUEST_EPT_FLUSH requests the vCPU to invalid EPT TLB.
+ * - ACRN_REQUEST_VPID_FLUSH requests the vCPU to invalid cache for this vCPU.
+ * - ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE requests update eoi exit bitmap to VMCS.
+ * - ACRN_REQUEST_SMP_CALL requests the LAPIC pass-through vCPU to handle pending SMP call because
+ *   the IPI method can't be used for that vCPU. INIT signal is used to kick the vCPU and SMP call
+ *   request is handled here.
+ * - ACRN_REQUEST_EXCP requests the vCPU to inject queued exceptions.
+ * - ACRN_REQUEST_NMI requests the vCPU to inject pending NMI if vCPU is not in NMI blocking state.
+ *   This request will be postponed to next VM enter if ACRN_REQUEST_EXCP was handled in this round.
+ * - If no ACRN_REQUEST_EXCP or ACRN_REQUEST_NMI requests in this round, inject pending vector from
+ * last VM exit.
+ * - Then Check pending interrupts for LAPIC virtualization config (Interrupts for LAPIC PT vCPU are
+ *   blocked in VMX root operation and handled directly by the vCPU after returning to VMX non root
+ *   operation). If we have injected a vector in this round, vLAPIC without Post Interrupt support
+ *   will postpone this interrupt injection.
+ * - If an NMI or interrupt is postponed in this round, ensure Interrupt Window Exiting is enabled
+ *   so that we can inject them as soon as possible.
+ *
+ * This is called in vCPU thread, before next VM enter with local interrupt disabled.
+ *
+ * @param[inout] vcpu Pointer to vCPU which handles pending requests.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval -EINVAL on error that interrupt information is invalid
+ */
 int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 {
 	bool injected = false;
@@ -434,7 +683,9 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 		 * when emulating the split-lock.
 		 */
 		if (!is_lapic_pt_configured(vcpu->vm) && !vcpu->arch.emulating_lock) {
-			acrn_inject_pending_intr(vcpu, pending_req_bits, injected);
+			if (bitmap_test_and_clear_lock(ACRN_REQUEST_EVENT, pending_req_bits)) {
+				vlapic_inject_intr(vcpu_vlapic(vcpu), is_guest_irq_enabled(vcpu), injected);
+			}
 		}
 
 		/*
@@ -468,15 +719,21 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-static inline void acrn_inject_pending_intr(struct acrn_vcpu *vcpu,
-		uint64_t *pending_req_bits, bool injected)
-{
-	if (bitmap_test_and_clear_lock(ACRN_REQUEST_EVENT, pending_req_bits)) {
-		vlapic_inject_intr(vcpu_vlapic(vcpu), is_guest_irq_enabled(vcpu), injected);
-	}
-}
-
-/*
+/**
+ * @brief Handle Exception VM Exits
+ *
+ * Only GP, AC, MC exceptions are possibly trapped here. For GP, AC exceptions, check if they
+ * are caused by bus lock instructions. If so, emulate the bus lock, otherwise inject it back to
+ * guest. For MC exception, inject it to the governing vCPU. Note MC is trapped only on non
+ * governing vCPUs.
+ *
+ * @param[inout] vcpu Pointer to a vCPU which handles exception VM exits.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval <0 Error propagated from emulate_lock_instr or vcpu_queue_exception and refer to their
+ *	      documentation for detailed error cases.
+ *
  * @pre vcpu != NULL
  */
 int32_t exception_vmexit_handler(struct acrn_vcpu *vcpu)
@@ -532,6 +789,18 @@ int32_t exception_vmexit_handler(struct acrn_vcpu *vcpu)
 	return status;
 }
 
+/**
+ * @brief Handle NMI Window VM Exits
+ *
+ * This handler just disable interrupt window exiting and retain current RIP.
+ *
+ * @param[inout] vcpu Pointer to a vCPU which handles NMI Window VM exits.
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ *
+ * @pre vcpu != NULL
+ */
 int32_t nmi_window_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	/*
@@ -545,3 +814,7 @@ int32_t nmi_window_vmexit_handler(struct acrn_vcpu *vcpu)
 
 	return 0;
 }
+
+/**
+ * @}
+ */
