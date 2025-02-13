@@ -15,6 +15,7 @@ Design of Component `hwmgmt`
    hwmgmt_ioapic
    hwmgmt_irq
    hwmgmt_memory
+   hwmgmt_mce
    hwmgmt_page
    hwmgmt_pci
    hwmgmt_pm
@@ -22,6 +23,7 @@ Design of Component `hwmgmt`
    hwmgmt_security
    hwmgmt_smpcall
    hwmgmt_softirq
+   hwmgmt_thermal
    hwmgmt_time
    hwmgmt_timer
    hwmgmt_vmx

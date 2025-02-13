@@ -25,3 +25,6 @@ This section contains the documentation of the module `hwmgmt.schedule`.
 [File] common/event.c
 ======================================================================
 
+[File] include/common/event.h
+======================================================================
+
