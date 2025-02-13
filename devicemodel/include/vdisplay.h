@@ -136,7 +136,7 @@ struct screen_backend_ops {
 	 * is supposed to be incremented if and only if display update starts to
 	 * take effect.
 	 */
-	void (*vdpy_vblank_init)(void *backend, vblank_inject_func, void *data);
+	void (*vdpy_vblank_init)(void *backend, vblank_inject_func, void *data, int vblank_id);
 	void (*vdpy_cursor_move)(void *backend, uint32_t x, uint32_t y);
 	/**
 	 * Create a cursor from `cur`. The cursor could be moved and displayed

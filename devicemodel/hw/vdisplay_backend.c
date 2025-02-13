@@ -57,6 +57,7 @@ static struct display {
 	struct screen *scrs;
 	int scrs_num;
 	int pipe_num;
+	int vblank[VSCREEN_MAX_NUM];
 	int vfid;
 	uint32_t dgpu_crtc_bitmask;
 	int backlight_num;
@@ -1005,15 +1006,20 @@ vdpy_vblank_init(int scanout_id, void (*func)
 	struct screen *vscr;
 	struct display_info display;
 	vscr = vdpy.scrs + scanout_id;
+
+	if(!vdpy.vblank[scanout_id]) {
+		return;
+	}
 	if(vscr->is_timer_vblank) {
 		query_display_info(scanout_id, &display);
 		vscr->sw_vblank.refresh_rate = display.vrefresh;
+		vscr->sw_vblank.vblank_id = vdpy.vblank[scanout_id];
 		timer_vblank_init(&vscr->sw_vblank, func, data);
 		return;
 	}
 
 	if(vscr->vscreen_ops->vdpy_vblank_init)
-		vscr->vscreen_ops->vdpy_vblank_init(vscr->backend, func, data);
+		vscr->vscreen_ops->vdpy_vblank_init(vscr->backend, func, data, vdpy.vblank[scanout_id]);
 }
 
 int
@@ -1398,6 +1404,7 @@ int vdpy_parse_cmd_option(const char *opts)
 	uint32_t bitmask = 0;
 	int hz = -1;
 	struct screen *scr;
+	int pipe_num_cache;
 
 	error = 0;
 	scr = calloc(VSCREEN_MAX_NUM, sizeof(struct screen));
@@ -1412,6 +1419,7 @@ int vdpy_parse_cmd_option(const char *opts)
 	vdpy.backlight_num = 0;
 	vdpy.vfid = 0;
 	vdpy.dgpu_crtc_bitmask = 0;
+	pipe_num_cache = 0;
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
 		if (strcasestr(str, "backlight=")) {
@@ -1441,7 +1449,6 @@ int vdpy_parse_cmd_option(const char *opts)
 		subtmp = strcasestr(str, "timer-vblank");
 		if (subtmp) {
 			scr->is_timer_vblank = true;
-			scr->sw_vblank.vblank_id = 2 + vdpy.pipe_num;
 			vdpy.pipe_num++;
 		}
 		scr->vrefresh = 0;
@@ -1474,6 +1481,13 @@ int vdpy_parse_cmd_option(const char *opts)
 			pr_err("couldn't find backend for parameter %s\n", str);
 			error = -1;
 			goto out;
+		}
+
+		if(vdpy.pipe_num > pipe_num_cache && vdpy.scrs_num > 0) {
+			pipe_num_cache  = vdpy.pipe_num;
+			vdpy.vblank[vdpy.scrs_num-1] = vdpy.pipe_num + 1;
+		} else {
+			vdpy.vblank[vdpy.scrs_num] = 0;
 		}
 
 		if (scr->name)
