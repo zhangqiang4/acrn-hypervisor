@@ -53,6 +53,8 @@ struct pd_param {
 	int guest_width;
 	int guest_height;
 	char output_name[32];
+	int domain_idx;
+	int domain_cnt;
 };
 
 struct pd_plane_buffer {
@@ -91,6 +93,7 @@ struct pd_msg_hdr {
 	uint32_t padding;
 	uint64_t frame_nr;
 	uint64_t tsc;
+	uint64_t domain_index;
 };
 
 struct pd_screen {
@@ -102,17 +105,19 @@ struct pd_screen {
 	pthread_mutex_t socket_mutex;
 	uint64_t frame_nr;
 
-	uint64_t frame_to_send;
+	uint64_t frame_to_send[5];
 	int shared_memfd;
 	void *shared_addr;
 	bool connected;
-
+	uint64_t domain_index;
+	int domain_cnt;
+	uint64_t frame_to_send_shared;
 	bool thread_enable;
 	int fd;
 	pthread_t vblank_thread;
 	void *virtio_data;
 	vblank_inject_func vblank_inject;
-	int vblankq_id;
+	int vblankq_id[5];
 };
 
 static struct pd_info {
@@ -129,7 +134,7 @@ static struct pd_info {
 
 static void
 send_command(int socket, uint32_t command, void *data, int data_len,
-	     int *fds, int n_fds, uint64_t frame_nr)
+	     int *fds, int n_fds, uint64_t frame_nr, uint64_t index)
 {
 	struct msghdr msg = { 0 };
 	struct iovec io[1];
@@ -139,6 +144,7 @@ send_command(int socket, uint32_t command, void *data, int data_len,
 		.size = data != NULL ? data_len : 0,
 		.frame_nr = frame_nr,
 		.tsc = rdtsc(),
+		.domain_index = index,
 	};
 	char buf[CMSG_SPACE(n_fds * sizeof(int))];
 	int ret;
@@ -265,11 +271,10 @@ pd_server_send_update_layers(struct pd_screen *pd)
 			}
 		}
 	}
-
 	send_command(pd->data_socket_fd, PD_COMMAND_UPDATE_LAYERS,
 		     &pd->plane[0], sizeof(pd->plane[0]) * PD_PLANE_COUNT,
 		     pd->dmabuf_fd, pd->dma_cnt,
-		     pd->frame_nr++);
+		     pd->frame_nr++, pd->domain_index);
 
 	for (i = 0; i < PD_PLANE_COUNT; i++) {
 		if (pd->plane[i].is_set) {
@@ -368,7 +373,6 @@ pd_update_sprite(void *backend, int plane_id, struct surface *surf)
 static void pd_sprite_flush_sync(void *backend)
 {
 	struct pd_screen *pd = (struct pd_screen*)backend;
-
 	pd_server_send_update_layers(pd);
 }
 
@@ -444,7 +448,6 @@ pd_get_plane_info(void *backend, uint32_t *size, uint32_t *num, uint32_t *info)
 	sprite_num = 2;
 
 	memcpy(info, &plane_info, sizeof(plane_info));
-
 	*num = sprite_num;
 	*size = 60;
 }
@@ -483,6 +486,7 @@ pd_set_pixel_blend_mode(void *backend, int plane_id, uint32_t mode,
 		pr_err("plane_id %d is out of range\n", plane_id);
 		return;
 	}
+
 	pd->plane[plane_id].pixel_blend_mode = mode;
 	pd->plane[plane_id].alpha = alpha;
 	pd->plane[plane_id].is_set_blend = 1;
@@ -514,15 +518,18 @@ vblank_flip_handler(int fd, unsigned int frame, unsigned int sec,
 {
 	struct pd_screen *pd = data;
 	drmVBlank vbl;
-
+	int i;
 	// Connection with weston not established, signal all vblank event
 	// to make everyone proceed.
 	if ((flip_sequence == 0) || (flip_sequence == frame)) {
 		uint64_t *shared_frame_to_send = pd->shared_addr;
 		// TODO: Add memory barrier here?
-		pd->frame_to_send = *shared_frame_to_send;
+		for(i = 0; i < pd->domain_cnt; i++) {
+			pd->frame_to_send[i] = *(shared_frame_to_send + i);
+		}
 	}
-	pd->vblank_inject(pd->virtio_data, pd->frame_to_send, pd->vblankq_id);
+	for(i = 0; i < pd->domain_cnt; i++)
+		pd->vblank_inject(pd->virtio_data, pd->frame_to_send[i], pd->vblankq_id[i]);
 
 	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT | DRM_VBLANK_FLIP;
 	vbl.request.sequence = 1;
@@ -551,8 +558,6 @@ pd_generate_vblank(void *arg)
 	}
 
 	pd->fd = fd;
-
-	pd->vblankq_id = 2;
 
 	// Use vblank_flip event, which is basically the same as vblank event
 	// with flip sequence.
@@ -605,9 +610,8 @@ pd_enable_vblank(void *backend)
 	struct pd_screen *pd = (struct pd_screen*)backend;
 	struct sched_param params;
 	int ret;
-
-	pr_info("enable vblank\n");
-
+	if (pd->domain_index)
+		return;
 	pd->thread_enable= true;
 	pthread_create(&pd->vblank_thread, NULL, pd_generate_vblank,
 			pd);
@@ -619,12 +623,21 @@ pd_enable_vblank(void *backend)
 
 
 static void
-pd_inject_register(void *backend, vblank_inject_func func, void *data)
+pd_inject_register(void *backend, vblank_inject_func func, void *data, int vblank_id)
 {
 	struct pd_screen *pd = (struct pd_screen*)backend;
+	static struct pd_screen *master_pd = NULL;
+	static int indx = 0;
 
-	pd->vblank_inject = func;
-	pd->virtio_data = data;
+	if (!pd->domain_index) {
+		master_pd  = pd;
+		master_pd->vblankq_id[indx++] = vblank_id;
+		pd->vblank_inject = func;
+		pd->virtio_data = data;
+		return;
+	}
+	if(master_pd)
+		master_pd->vblankq_id[indx++] = vblank_id;
 }
 
 static struct screen_backend_ops pd_vscreen_ops = {
@@ -668,8 +681,7 @@ receive_memfd(int fd) {
 		pr_err("Failed to send message: %s\n", strerror(errno));
 		return -1;
 	}
-	if (dummy[0] != PD_MSG_MEMFD_MAGIC) {
-		pr_err("invalid memfd message\n");
+	if (dummy[0] != PD_MSG_MEMFD_MAGIC) { pr_err("invalid memfd message\n");
 	}
 	cmsg = CMSG_FIRSTHDR(&msg);
 	memfd = * (int *) CMSG_DATA(cmsg);
@@ -687,7 +699,7 @@ pd_server_memfd_init(struct pd_screen *pd)
 		close(pd->data_socket_fd);
 		return -1;
 	}
-	pd->shared_addr = mmap(NULL, sizeof(uint64_t),
+	pd->shared_addr = mmap(NULL, pd->domain_cnt*sizeof(uint64_t),
 			       PROT_READ | PROT_WRITE, MAP_SHARED,
 			       ret, 0);
 	if (pd->shared_addr == MAP_FAILED) {
@@ -776,6 +788,7 @@ pd_init()
 {
 	struct pd_screen *pd = NULL;
 	struct pd_screen **pd_array = NULL;
+	struct pd_screen *master_pd = NULL;
 	int ret = 0;
 	int i, j;
 
@@ -790,6 +803,7 @@ pd_init()
 	}
 	global_pd_info.pd_screen_array = pd_array;
 
+
 	for (i = 0; i < global_pd_info.num; ++i) {
 		pd = calloc(1, sizeof(struct pd_screen));
 		if (!pd) {
@@ -801,9 +815,17 @@ pd_init()
 		pd->data_socket_fd = -1;
 		pthread_mutex_init(&pd->socket_mutex, NULL);
 
-		ret = pd_server_init(pd);
-		if (ret < 0)
-			goto error;
+		pd->domain_index = pd->param->domain_idx;
+		pd->domain_cnt = pd->param->domain_cnt;
+		if (!pd->domain_index) {
+			master_pd = pd;
+			ret = pd_server_init(pd);
+			if (ret < 0)
+				goto error;
+		} else {
+			if(master_pd != NULL)
+				pd->data_socket_fd = master_pd->data_socket_fd;
+		}
 
 		global_pd_info.pd_screen_array[i] = pd;
 	}
@@ -815,7 +837,8 @@ error:
 		pd = global_pd_info.pd_screen_array[j];
 		if (pd) {
 			global_pd_info.pd_screen_array[j] = NULL;
-			pd_server_destroy(pd);
+			if (!pd->domain_index)
+				pd_server_destroy(pd);
 			free(pd);
 		}
 	}
@@ -853,8 +876,11 @@ pd_deinit()
 			global_pd_info.pd_screen_array[i] = NULL;
 			send_command(pd->data_socket_fd,
 					PD_COMMAND_FINISH, NULL, 0,
-					NULL, 0, pd->frame_nr++);
-			pd_server_destroy(pd);
+					NULL, 0, pd->frame_nr++, 0);
+
+			if (!pd->domain_index)
+				pd_server_destroy(pd);
+
 			free(pd);
 		}
 	}
@@ -881,8 +907,10 @@ pd_parse_cmd(char *tmp)
 {
 	int snum;
 	char *curr;
+	static int at;
 	struct pd_param *cmd_param =
 		&global_pd_info.window_param[global_pd_info.num];
+	struct pd_param *cmd_param_master;
 
 	snum = sscanf(tmp, PD_BACKEND_NAME"=%dx%d+%d+%d",
 			&cmd_param->guest_width, &cmd_param->guest_height,
@@ -906,6 +934,12 @@ pd_parse_cmd(char *tmp)
 			continue;
 		}
 
+		if (strncmp(curr, "share", 5) == 0) {
+			cmd_param_master =
+				&global_pd_info.window_param[at];
+			cmd_param->domain_idx = cmd_param_master->domain_cnt++;
+			continue;
+		}
 		if (strncmp(curr, "port=", strlen("port=")) == 0) {
 			const int start = strlen("port=");
 			const int end = strlen(curr);
@@ -917,6 +951,10 @@ pd_parse_cmd(char *tmp)
 			} else {
 				strncpy(cmd_param->output_name, curr + start,
 					end - start);
+
+				cmd_param->domain_idx = 0;
+				at = global_pd_info.num;
+				cmd_param->domain_cnt = 1;
 			}
 			continue;
 		}
