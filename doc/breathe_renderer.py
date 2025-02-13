@@ -476,8 +476,8 @@ class BreatheRenderer:
         self.context = cast(RenderContext, self.context)
         options = self.context.directive_args[2]
         section_order = None
-        if not "sections" in options:  # sorting sections by the given sequence
-            options['sections'] = ' '.join(SECTIONS_SORTING_SEQUENCE)
+        # if not "sections" in options:  # sorting sections by the given sequence
+        #     options['sections'] = ' '.join(SECTIONS_SORTING_SEQUENCE)
         if "sections" in options:
             section_order = {sec: i for i, sec in enumerate(options["sections"].split(" "))}
         membergroup_order = None
