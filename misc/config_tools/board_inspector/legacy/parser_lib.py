@@ -10,11 +10,13 @@ BIOS_INFO_KEY = ['BIOS Information', 'Vendor:', 'Version:', 'Release Date:', 'BI
 
 BASE_BOARD_KEY = ['Base Board Information', 'Manufacturer:', 'Product Name:', 'Version:']
 
-
 def check_dmi():
     """Check if this tool run on native os"""
-    return os.path.exists("/sys/firmware/dmi")
-
+    dmi_valid = os.path.exists("/dev/mem") or os.path.exists("/sys/firmware/dmi")
+    if not dmi_valid:
+        print("Unable to execute dmidecode: DMI information is missing, which may block the boot process.\
+               Please enable CONFIG_DMI or CONFIG_DEVMEM.")
+    return dmi_valid
 
 def print_yel(msg, warn=False, end=True):
     """Output the message with the color of yellow
