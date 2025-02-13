@@ -14,6 +14,7 @@
 #include <logmsg.h>
 #include <asm/boot/ld_sym.h>
 #include <boot.h>
+#include <dmi.h>
 
 /**
  * @addtogroup init
@@ -212,6 +213,10 @@ void init_primary_pcpu(void)
 	if (sanitize_acrn_boot_info(get_acrn_boot_info()) != 0) {
 		panic("Sanitize boot info failed!");
 	}
+
+#ifdef CONFIG_DMI_CHECK_ENABLED
+	check_board_dmi_info(get_acrn_boot_info());
+#endif
 
 	init_pcpu_pre(true);
 

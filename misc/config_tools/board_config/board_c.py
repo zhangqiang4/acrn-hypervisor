@@ -24,6 +24,7 @@ INCLUDE_HEADER = """
 #include <asm/rdt.h>
 #include <pci.h>
 #include <misc_cfg.h>
+#include <dmi.h>
 """
 
 MSR_IA32_L2_MASK_BASE = 0x00000D10
@@ -430,6 +431,16 @@ def gen_cpufreq_limits(config):
             print("\t},", file=config)
     print("};", file=config)
 
+def gen_smbios_info(config):
+    print("\n#ifdef CONFIG_DMI_CHECK_ENABLED", file=config)
+    print("\nstatic struct smbios_board_info static_smbios_info = {", file=config)
+    bios_version = board_cfg_lib.get_bios_version()
+
+    print(f"\t.bios_version = \"{bios_version}\",", file=config)
+    print("};\n", file=config)
+    print("struct smbios_board_info* get_smbios_info_from_board() {\n\treturn &static_smbios_info;\n}", file=config)
+    print("#endif\n", file=config)
+
 def generate_file(config):
     """
     Start to generate board.c
@@ -457,5 +468,7 @@ def generate_file(config):
     gen_known_caps_pci_devs(config)
 
     gen_cpufreq_limits(config)
+
+    gen_smbios_info(config)
 
     return err_dic

@@ -234,6 +234,9 @@ endif
 ifeq ($(CONFIG_VMEVENT_ENABLED),y)
 HW_C_SRCS += common/vm_event.c
 endif
+ifeq ($(CONFIG_DMI_CHECK_ENABLED),y)
+HW_C_SRCS += common/dmi.c
+endif
 ifeq ($(CONFIG_SCHED_NOOP),y)
 HW_C_SRCS += common/sched_noop.c
 endif

@@ -154,6 +154,11 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Enable MCS9900 PCI UART controller emulation</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="DMI_CHECK_ENABLED" type="Boolean" default="y">
+      <xs:annotation acrn:title="Enable DMI boot check" acrn:views="advanced">
+        <xs:documentation>Enable boot check between runtime and buildtime DMI info </xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="VUART_RX_BUF_SIZE" default="256">
       <xs:annotation acrn:title="vuart rx buffer size (bytes)" acrn:views="advanced"
                      acrn:errormsg="'required': 'must config the max rx buffer size of vuart in byte'">

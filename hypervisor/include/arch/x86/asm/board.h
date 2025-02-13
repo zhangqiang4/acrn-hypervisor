@@ -29,6 +29,7 @@
 #include <pci.h>
 #include <misc_cfg.h>
 #include <asm/rdt.h>
+#include <dmi.h>
 
 /* forward declarations */
 struct acrn_vm;
@@ -86,6 +87,10 @@ extern struct acrn_cpufreq_limits cpufreq_limits[MAX_PCPU_NUM];
  * An array of BDFs of physical devices to be hidden.
  */
 extern const union pci_bdf plat_hidden_pdevs[MAX_HIDDEN_PDEVS_NUM];
+
+#ifdef CONFIG_DMI_CHECK_ENABLED
+struct smbios_board_info* get_smbios_info_from_board();
+#endif
 
 #endif /* BOARD_H */
 

@@ -299,6 +299,14 @@ def get_total_mem():
     return total_mem_mb
 
 
+def get_bios_version():
+    bios_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<BIOS_INFO>", "</BIOS_INFO>")
+    ret = ""
+    for bios_line in bios_lines:
+        if bios_line.split(':', 1)[0].strip() == "Version":
+            ret = bios_line.split(':', 1)[1].strip()
+    return ret
+
 def get_pci_info(board_info):
     pci_bdf_vpid = {}
     pci_vid_start = False
