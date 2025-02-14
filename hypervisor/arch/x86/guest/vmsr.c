@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -23,13 +23,41 @@
 #include <trace.h>
 #include <logmsg.h>
 
-#define INTERCEPT_DISABLE		(0U)
-#define INTERCEPT_READ			(1U << 0U)
-#define INTERCEPT_WRITE			(1U << 1U)
-#define INTERCEPT_READ_WRITE		(INTERCEPT_READ | INTERCEPT_WRITE)
+/**
+ * @defgroup vp-base_vmsr vp-base.vmsr
+ *
+ * @ingroup vp-base
+ *
+ * @brief Implement MSR related interfaces and data structures
+ *
+ * This module provides interface to configure VMCS MSR-Bitmap fields to control guest MSRs read/write operations.
+ * For those MSRs which need ACRN Hypervisor emulation, this module also provides interfaces to emulate these MSRs
+ * read/write operations.
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Implement guest MSR related functions
+ *
+ * This file implements MSR related operations such as enable/disable MSR interception, emulate MSR read/write
+ * and handle guest MSR read/write induced VM-Exit etc.
+ */
+
+#define INTERCEPT_DISABLE		(0U) /**< Disable MSR intercept */
+#define INTERCEPT_READ			(1U << 0U) /**< Intercept MSR read */
+#define INTERCEPT_WRITE 		(1U << 1U) /**< Intercept MSR write */
+#define INTERCEPT_READ_WRITE		(INTERCEPT_READ | INTERCEPT_WRITE) /**< Intercept MSR read and write */
 
 static void set_tsc_msr_interception(struct acrn_vcpu *vcpu, bool interception);
 
+/**
+ * @brief Guest MSRs emulated by HV
+ *
+ * These MSRs are intercepted and emulated by HV. Writing or reading the MSRs from guest shall cause
+ * VM-Exit and HV shall emulate the behavior of corresponding operation.
+ */
 static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	/*
 	 * This may include MSR_IA32_STAR, MSR_IA32_LSTAR, MSR_IA32_FMASK,
@@ -87,6 +115,12 @@ static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	MSR_IA32_ARCH_CAPABILITIES,
 };
 
+/**
+ * @brief MTRR related MSRs exclusive of Fixed Range and System-Management Range MTRRs
+ *
+ * This array is used when HV initializes emulated MSRs to the default interception mode.
+ * For MSRs in this array, they're initialized to read and write intercepted.
+ */
 static const uint32_t mtrr_msrs[] = {
 	MSR_IA32_MTRR_CAP,
 	MSR_IA32_MTRR_DEF_TYPE,
@@ -114,7 +148,15 @@ static const uint32_t mtrr_msrs[] = {
 	MSR_IA32_MTRR_PHYSMASK_9,
 };
 
-/* Performance Counters and Events: CPUID.0AH.EAX[15:8] */
+/**
+ * @brief Performance monitoring related MSRs
+ *
+ * These MSRs include:
+ * - Fixed counter MSRs: MSR_IA32_PMC{0,1,2,3,4,5,6,7} and their aliases MSR_IA32_A_PMC{0,1,2,3,4,5,6,7}.
+ * - General purpose counter MSRs: MSR_IA32_PERFEVTSEL(0,1,2,3}.
+ * - Performance monitoring status/control MSRs: MSR_IA32_PERF_GLOBAL_{STATUS, CTRL, OVF_CTRL, STATUS_SET, INUSE),
+ *   MSR_IA32_FIXED_{CTR_CTL, CTR0, CTR1, CTR2}, MSR_IA32_PERF_CAPABILITIES, MSR_IA32_DS_AREA and MSR_IA32_PEBS_ENABLE.
+ */
 static const uint32_t pmc_msrs[] = {
 	MSR_IA32_PMC0,
 	MSR_IA32_PMC1,
@@ -158,7 +200,13 @@ static const uint32_t pmc_msrs[] = {
 	MSR_IA32_PEBS_ENABLE
 };
 
-/* Following MSRs are intercepted, but it throws GPs for any guest accesses */
+/**
+ * @brief MSRs not supported
+ *
+ * These MSRs are not supported in current HV design, leave them for future.
+ * They're intercepted but not emulated by HV, instead HV shall inject \#GP
+ * for guest access.
+ */
 static const uint32_t unsupported_msrs[] = {
 
 	/* Fixed MTRRs are not supported */
@@ -343,7 +391,29 @@ static const uint32_t unsupported_msrs[] = {
 	MSR_IA32_BARRIER,
 };
 
-/* emulated_guest_msrs[] shares same indexes with array vcpu->arch->guest_msrs[] */
+/**
+ * @brief Get MSR index of the emulated MSR array
+ *
+ * This function translates MSR encoding to corresponding index of the emulated MSR array.
+ * If the MSR is not in the array, NUM_EMULATED_MSRS is returned as an invalid index. The
+ * caller shall check the return value before access the array slot.
+ *
+ * Normal case behaviors:
+ * - Return array index of the emulated MSR.
+ *
+ * Error case behaviors:
+ * - Return NUM_EMULATED_MSRS as an invalid index.
+ *
+ * @param[in] msr Target MSR encoding
+ *
+ * @return Emulated MSR array index if target MSR is found, otherwise NUM_EMULATED_MSRS.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark The caller shall check whether the return value is valid before use it.
+ */
 uint32_t vmsr_get_guest_msr_index(uint32_t msr)
 {
 	uint32_t index;
@@ -361,6 +431,26 @@ uint32_t vmsr_get_guest_msr_index(uint32_t msr)
 	return index;
 }
 
+/**
+ * @brief Enable or disable MSR interception
+ *
+ * This function is used to set VMCS MSR-Bitmap. For MSR in range [0, 0x1fffU] and
+ * [0xc0000000U, 0xc0001fffU], update read bitmaps and write bitmaps according to the interception
+ * mode. Read or write to the MSR in guest is intercepted if corresponding bit is set in the bitmaps,
+ * otherwise guest accesses the MSR directly. If input MSR is out of the range, skip bitmap update
+ * and print an error message.
+ * Refer to 25.6.9 MSR-Bitmap Address, SDM Vol. 3 325462-078US for details.
+ *
+ * @param[inout] bitmap Target MSR interception bitmap
+ * @param[in] msr_arg Target MSR to configure in bitmap
+ * @param[in] mode Interception mode for target MSR
+ *
+ * @return None
+ *
+ * @pre bitmap != NULL
+ *
+ * @post N/A
+ */
 static void enable_msr_interception(uint8_t *bitmap, uint32_t msr_arg, uint32_t mode)
 {
 	uint32_t read_offset = 0U;
@@ -395,7 +485,24 @@ static void enable_msr_interception(uint8_t *bitmap, uint32_t msr_arg, uint32_t 
 	}
 }
 
-/* Enable write thermal msr interception per vm configure */
+/**
+ * @brief Set thermal related MSR interception
+ *
+ * This function is used to initialize thermal related MSR interception per VM configuration.
+ * If per-core thermal monitor is not passed through, intercept read/write to MSR_IA32_CLOCK_MODULATION
+ * and MSR_IA32_THERM_INTERRUPT. And if VM virtual HWP is not set, also intercept read/write to
+ * MSR_IA32_THERM_STATUS. If package thermal monitor is not passed through, intercept read/write to
+ * MSR_IA32_PACKAGE_THERM_STATUS and MSR_IA32_PACKAGE_THERM_INTERRUPT.
+ *
+ * @param[inout] vcpu Target vCPU to configure thermal MSR interception
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ * @pre vcpu->arch.msr_bitmap != NULL
+ *
+ * @post N/A
+ */
 static void init_thermal_msrs(struct acrn_vcpu *vcpu)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
@@ -412,7 +519,25 @@ static void init_thermal_msrs(struct acrn_vcpu *vcpu)
 	}
 }
 
-/* Enable LBR MSRs interception */
+/**
+ * @brief Set LBR MSR interception
+ *
+ * This function is used to configure interception for LBR related MSRs. If LBR feature is not passed
+ * through to guest, the function performs below configuration:
+ *  - Intercept read and write to the LBR MSRs.
+ *  - If PMU is not passed through to guest, intercept read and write to MSR_IA32_DEBUGCTL.
+ *
+ * Otherwise pass through LBR MSRs and MSR_IA32_DEBUGCTL to guest.
+ * Refer to 19.2 MSRS, SDM Vol. 3 325462-078US for details.
+ *
+ * @param[inout] vcpu Target vCPU to set MSR interception
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_lbr_msrs(struct acrn_vcpu *vcpu)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
@@ -451,8 +576,20 @@ static void init_lbr_msrs(struct acrn_vcpu *vcpu)
 	}
 }
 
-/*
- * Enable read and write msr interception for x2APIC MSRs
+/**
+ * @brief Set x2APIC MSR interception
+ *
+ * This function is used to configure interception for x2APIC related MSRs, i.e., MSRs in range:
+ * [0x800U, 0x900U]. It iterates x2APIC MSR range and set corresponding bit per interception mode.
+ *
+ * @param[inout] msr_bitmap_arg Target bitmap to configure x2APIC MSR interception
+ * @param[in] mode Target MSR interception mode to set
+ *
+ * @return None
+ *
+ * @pre msr_bitmap_arg != NULL
+ *
+ * @post N/A
  */
 static void intercept_x2apic_msrs(uint8_t *msr_bitmap_arg, uint32_t mode)
 {
@@ -464,6 +601,32 @@ static void intercept_x2apic_msrs(uint8_t *msr_bitmap_arg, uint32_t mode)
 	}
 }
 
+
+/**
+ * @brief Initialize x2APIC MSR interception
+ *
+ * This function is used to configure read and write interception to x2APIC MSRs.
+ * If LAPIC is passed through to VM, the function performs below configuration:
+ * 1. Intercept read to MSR_IA32_EXT_XAPICID and MSR_IA32_EXT_APIC_LDR.
+ * 2. Intercept write to MSR_IA32_EXT_APIC_ICR.
+ * 3. Disable interception to other x2APIC MSRs.
+ * 4. Intercept read/write to MSR_IA32_EXT_APIC_LVT_THERMAL if per-core thermal monitor is not passed through.
+ * 5. Intercept TSC related MSRs according to current VMCS VMX_TSC_OFFSET_FULL field value.
+ *
+ * Otherwise it performs:
+ * 1. Intercept write to x2APIC MSRs.
+ * 2. If IPI virtualization is enabled, disabled interception to MSR_IA32_EXT_APIC_ICR.
+ * 3. Intercept read to MSR_IA32_EXT_APIC_CUR_COUNT, MSR_IA32_EXT_APIC_EOI and MSR_IA32_EXT_APIC_SELF_IPI.
+ * 4. Disable interception for MSR_IA32_EXT_APIC_TPR.
+ *
+ * @param[inout] vcpu Target vCPU to set x2APIC MSR interception
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
@@ -510,8 +673,20 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 }
 
 /**
- * @pre vcpu != NULL && vcpu->vm != NULL && vcpu->vm->vm_id < CONFIG_MAX_VM_NUM
- * @pre (is_platform_rdt_capable() == false()) || (is_platform_rdt_capable() && get_vm_config(vcpu->vm->vm_id)->pclosids != NULL)
+ * @brief Prepare save/restore MSR lists
+ *
+ * This function is used to set up MSR lists (auto-MSR lists) which shall be automatically saved/restored
+ * at VM-Exit/VM-Entry. If VM PMU passthrough is set, add MSR_IA32_PERF_GLOBAL_CTRL to the auto-MSR lists
+ * for guest and host side. If RDT is available on the platform and guest/host have different settings,
+ * add MSR_IA32_PQR_ASSOC to auto-MSR lists for guest and host. Currently max auto-MSR list size is 2.
+ *
+ * @param[inout] vcpu Target vCPU to configure auto-MSR lists
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void prepare_auto_msr_area(struct acrn_vcpu *vcpu)
 {
@@ -554,7 +729,19 @@ static void prepare_auto_msr_area(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief Initialize emulated MSRs
+ *
+ * This function sets up initial values for emulated MSRs. Currently only IA32_FEATURE_CONTROL MSR is
+ * initialized here. MSR_IA32_FEATURE_CONTROL_LOCK bit is always set for guest. If VM virtual SGX is set,
+ * bit 18(SGX Global Enable bit) shall be set in IA32_FEATURE_CONTROL.
+ *
+ * @param[inout] vcpu Target vCPU to initialize the emulated MSRs
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void init_emulated_msrs(struct acrn_vcpu *vcpu)
 {
@@ -570,6 +757,22 @@ static void init_emulated_msrs(struct acrn_vcpu *vcpu)
 	vcpu_set_guest_msr(vcpu, MSR_IA32_FEATURE_CONTROL, val64);
 }
 
+/**
+ * @brief Set Machine-Check(MC) MSR interception for one bank
+ *
+ * This function sets MSR interception mode for one MC bank, i.e., MSR_IA32_MC_{CTL, STATUS, ADDR, MISC}_x.
+ * If pCPU support CMCI, it also configures interception for MSR_IA32_MC_CTL2_x.
+ *
+ * @param[inout] vcpu Target vCPU to set MC MSR interception
+ * @param[in] bank_idx Target MC bank IDi
+ * @param[in] mode Interception mode
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void enable_mc_bank_interception(struct acrn_vcpu *vcpu, uint16_t bank_idx, uint32_t mode)
 {
 	uint8_t *msr_bitmap = vcpu->arch.msr_bitmap;
@@ -584,16 +787,59 @@ static void enable_mc_bank_interception(struct acrn_vcpu *vcpu, uint16_t bank_id
 	}
 }
 
+/**
+ * @brief Pass through one Machine-Check(MC) bank
+ *
+ * This function disables MSR interception for one MC bank per the bank index.
+ *
+ * @param[inout] vcpu Target vCPU to pass through the MC bank
+ * @param[in] bank_idx Target MC bank's index
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void mc_bank_pt_by_idx(struct acrn_vcpu *vcpu, uint16_t bank_idx)
 {
 	enable_mc_bank_interception(vcpu, bank_idx, INTERCEPT_DISABLE);
 }
 
+/**
+ * @brief Hide one Machine-Check(MC) bank
+ *
+ * This function enables MSR read/write interception for one MC bank per the bank index.
+ *
+ * @param[inout] vcpu Target vCPU to hide MC bank
+ * @param[in] bank_idx Target MC bank's index
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void mc_bank_hide_by_idx(struct acrn_vcpu *vcpu, uint16_t bank_idx)
 {
 	enable_mc_bank_interception(vcpu, bank_idx, INTERCEPT_READ_WRITE);
 }
 
+/**
+ * @brief Get configured Machine-Check(MC) bank count
+ *
+ * This function returns the smaller one between VM configured machine-check bank count and
+ * pCPU supported bank count. The return value is used to synthesize MSR_IA32_MCG_CAP when
+ * guest reads the MSR.
+ *
+ * @param[in] vcpu Target vCPU to get the configured MC bank count
+ *
+ * @return Guest available MC bank count
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static uint8_t mc_bank_configured_count(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vcpu->vm->vm_id);
@@ -602,25 +848,40 @@ static uint8_t mc_bank_configured_count(struct acrn_vcpu *vcpu)
 	return min(nbanks_configured, mc_bank_count());
 }
 
-/* Passthrough/Hide MC related MSRs
+/**
+ * @brief Pass through or hide MC related MSRs
  *
- * For guest that configures MC bank pt,
- * This function passthrough all MC banks listed in mcbanks_bitmask,
- * and passthrough global status MCG_STATUS.
+ * This function firstly checks whether SER_P(Software Error Recovery support Present) or LMCE_P
+ * (Local Machine-Check Exception) feature is supported, prints warning message if either of them
+ * is available. In this case passthrough MC related MSRs to guest is not appropriate. Otherwise,
+ * it prints error messages when detects below cases:
+ * 1. Not all MC banks are passed through.
+ * 2. !(is_service_vm(vm) || vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP) || is_lapic_pt_configured(vm))
+ * 3. The number of MC banks passed through is large than HW supported MC banks.
  *
- * For guest that doesn't configure MC bank pt,
- * This function hides MC banks.
+ * For guest that configures MC bank passthrough, pass through all MC banks listed in mcbanks_bitmask
+ * and MSR_IA32_MCG_STATUS. For guest that doesn't configure MC bank passthrough, it hides all MC banks.
  *
- * Currently we support only MSR_IA32_MCG_CAP_CMCI_P and MSR_IA32_MCG_CAP_TES_P,
- * everything else is un-supported. Which means
+ * Currently we support only MSR_IA32_MCG_CAP_CMCI_P and MSR_IA32_MCG_CAP_TES_P, everything else is
+ * un-supported. Which means
  * 1. Recoverable errors are NOT supported.
  * 2. Local MCE is NOT supported.
  *
  * It is the user/config-tool's responsibility to make sure:
  * 1. P-core hyper-thread and E-core in the same core/cluster will NOT be assigned to different VMs
  * 2. Each pCPU will have exactly one "governing vcpu"
- * 3. Guests who exclusively own pCPU will claim this ownership, either by setting
- *    own_pcpu to y in scenario.xml, or set LAPIC-PT (partitioned guest)
+ * 3. Guests who exclusively own pCPU will claim this ownership, either by setting own_pcpu to y in
+ * scenario.xml, or set LAPIC-PT (partitioned guest)
+ *
+ * It also hides legacy MC registers: MSR_IA32_P5_MC_ADDR and MSR_IA32_P5_MC_TYPE.
+ *
+ * @param[inout] vcpu Target vCPU to set Machine-Check MSR interception
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void init_mc_msrs(struct acrn_vcpu *vcpu)
 {
@@ -674,7 +935,40 @@ static void init_mc_msrs(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief Initialize interception settings for MSRs
+ *
+ * This function configures guest MSR interception as below:
+ * - For Guest MSRs emulated by HV: intercept read and write.
+ * - For MTRR related MSRs exclusive of Fixed and SMRR MTRRs: intercept read and write.
+ * - For Performance monitoring related MSRs: if PMU is not passed through to VM, intercept read and write,
+ *   otherwise pass through the MSRs.
+ * - For x2APIC MSRs: set up interception according to VM LAPIC pass-through state.
+ * - For CAT Mask MSRs: intercept read and write.
+ * - For MSR_IA32_TIME_STAMP_COUNTER and MSR_IA32_XSS: intercpet write.
+ * - For Machine Check MSRs: if machine-check is not passed through to VM, intercept read and write,
+ *   otherwise pass through the MSRs.
+ * - For thermal monitor related MSRs: if the feature is not passed through to VM, intercept read and write,
+ *   otherwise pass through the MSRs.
+ * - For Last Branch Recording MSRs: if the feature is not passed through to VM, intercept read and write,
+ *   otherwise pass through the MSRs.
+ * - Other MSRs including unsupported MSRs: intercept read and write.
+ *
+ * This function also initializes guest MSR_IA32_FEATURE_CONTROL MSR and configures MSRs that are automatically
+ * switched at VM-Entry/VM-Exit for guest and host.
+ *
+ * Normal case behaviors:
+ * - Initialize guest MSR interception and set up MSR-Bitmap Address VMCS field.
+ *
+ * Error case behaviors:
+ * - None.
+ *
+ * @param[inout] vcpu Target vCPU to configure MSR interception
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void init_msr_emulation(struct acrn_vcpu *vcpu)
 {
@@ -733,6 +1027,24 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 	init_lbr_msrs(vcpu);
 }
 
+/**
+ * @brief Emulate write MSR_IA32_PAT MSR
+ *
+ * This function checks validity of MSR value before cache it. If CR0.CD is set, the new PAT value is
+ * deferred to be written to VMCS field until guest CR0.CD is cleared.
+ *
+ * @param[inout] vcpu Target vCPU to set PAT MSR value
+ * @param[in] value Target MSR data
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -EINVAL Input MSR value is invalid
+ * @retval 0 Write operation is successful
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static int32_t write_pat_msr(struct acrn_vcpu *vcpu, uint64_t value)
 {
 	uint32_t i;
@@ -764,12 +1076,22 @@ static int32_t write_pat_msr(struct acrn_vcpu *vcpu, uint64_t value)
 }
 
 /*
- * @brief get emulated IA32_PERF_STATUS reg value
- *
  * Use the base frequency state of pCPU as the emulated reg field:
- *   - IA32_PERF_STATUS[15:0] Current performance State Value
- *
+ * - IA32_PERF_STATUS[15:0] Current performance State Value
  * Assuming (base frequency ratio << 8) is a valid state value for all CPU models.
+ */
+
+/**
+ * @brief Get emulated IA32_PERF_STATUS MSR value
+ *
+ * This function queries CPUID(16H).EAX[15:0] and ECX[15:0] to emulate current CPU performance status.
+ * The emulated result is calculated by formula: ((EAX[15:0]/ECX[15:0]) & 0xFFU) << 8.
+ *
+ * @return A integer value calculated by the formula.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static uint64_t get_perf_status(void)
 {
@@ -784,7 +1106,18 @@ static uint64_t get_perf_status(void)
 }
 
 /**
+ * @brief Check if Key Locker(KL) and Internal Wrapping Key(IWKEY) backing up are supported
+ *
+ * This function queries CPUID(19H).EBX[4] to determine whether KL and IWKEY backing up features
+ * are supported. The bit is set if the features are supported.
+ *
+ * @param[in] vcpu Target vCPU to check the features
+ *
+ * @return A boolean value indicating if the features are supported
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
 {
@@ -795,7 +1128,32 @@ static bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief Handler for rdmsr-induced VM-Exit
+ *
+ * This function handles VM-Exit induced by guest MSR read to the emulated, hidden or unsupported
+ * MSRs. Refer to description of init_msr_emulation() for which MSRs are read-intercepted.
+ * For emulated MSRs, HV may return cached MSR values or synthesize values based on pCPU features and
+ * cached values. For hidden and unsupported MSRs,this function returns an error to caller.
+ *
+ * Refer to section 6.3.4 of Software Architecture Design Specification for the detailed design.
+ *
+ * Normal case behaviors:
+ * - Emulate MSR value and return it in guest RAX and RDX if the MSR is supported.
+ *
+ * Error case behaviors:
+ * - Return an error code to caller if the MSR is hidden or unsupported.
+ *
+ * @param[inout] vcpu Target vCPU to read the MSR value
+ *
+ * @return An integer to indicate whether the operation is successful.
+ *
+ * @retval -EACCES The MSR is hidden or unsupported.
+ * @retval -EPERM The target MSR cannot be accessed.
+ * @retval 0 The read operation is successful and the MSR value is updated to guest RAX and RDX.
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 {
@@ -1028,9 +1386,30 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	return err;
 }
 
-/*
- * If VMX_TSC_OFFSET_FULL is 0, no need to trap the write of IA32_TSC_DEADLINE because there is
- * no offset between vTSC and pTSC, in this case, only write to vTSC_ADJUST is trapped.
+/**
+ * @brief Set interception for Time-Stamp Counter(TSC) related MSRs
+ *
+ * This function configures interception for MSR_IA32_TSC_DEADLINE and MSR_IA32_TSC_ADJUST per current
+ * and required interception status.
+ * If VMX_TSC_OFFSET_FULL is 0, no need to trap the write of IA32_TSC_DEADLINE because there is no offset
+ * between vTSC and pTSC, in this case, only write to vTSC_ADJUST is trapped.
+ * The function handles below two cases:
+ * -# If MSR IA32_TSC_DEADLINE currently is set to be intercepted and required interception is off:
+ *    1. Disable interception for MSR_IA32_TSC_DEADLINE, enable interception for write to MSR_IA32_TSC_ADJUST.
+ *    2. If TSC_DEADLINE timer hasn't expired, sync virtual TSC_DEADLINE to physical TSC_DEADLINE MSR.
+ *    3. If TSC_DEADLINE timer has expired, write 0 to the virtual TSC_DEADLINE.
+ * -# If MSR IA32_TSC_DEADLINE currently is set to be not intercepted and required interception is on
+ *    1. Enable interception for read/write to MSR_IA32_TSC_DEADLINE and MSR_IA32_TSC_ADJUST.
+ *    2. Sync physical TSC_DEADLINE MSR to virtual TSC_DEADLINE MSR.
+ *
+ * @param[inout] vcpu Target vCPU to set the interception
+ * @param[in] interception Target interception mode
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void set_tsc_msr_interception(struct acrn_vcpu *vcpu, bool interception)
 {
@@ -1060,19 +1439,24 @@ static void set_tsc_msr_interception(struct acrn_vcpu *vcpu, bool interception)
 	}
 }
 
-/*
- * Intel SDM 17.17.3: If an execution of WRMSR to the
- * IA32_TIME_STAMP_COUNTER MSR adds (or subtracts) value X from the
- * TSC, the logical processor also adds (or subtracts) value X from
- * the IA32_TSC_ADJUST MSR.
- *
- * So, here we should update VMCS.OFFSET and vAdjust accordingly.
- *   - VMCS.OFFSET = vTSC - pTSC
- *   - vAdjust += VMCS.OFFSET's delta
- */
-
 /**
+ * @brief Emulate write MSR_IA32_TIME_STAMP_COUNTER MSR
+ *
+ * This function sets guest MSR_IA32_TSC_ADJUST MSR and VMX_TSC_OFFSET_FULL VMCS field per guest TSC value.
+ * It updates guest MSR_IA32_TSC_ADJUST MSR and VMCS VMX_TSC_OFFSET_FULL field as below:
+ * - VMCS.OFFSET = vTSC - pTSC
+ * - vAdjust += VMCS.OFFSET's delta
+ * Update interception for MSR_IA32_TSC_{DEADLINE, ADJUST} according to guest/host TSC delta.
+ * Refer to 18.17.3 Time-Stamp Counter Adjustment, SDM Vol. 3 325462-078US for details.
+ *
+ * @param[inout] vcpu Target vCPU to set the MSR and VMCS field
+ * @param[in] guest_tsc Guest TSC value
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void set_guest_tsc(struct acrn_vcpu *vcpu, uint64_t guest_tsc)
 {
@@ -1110,9 +1494,7 @@ static void set_guest_tsc(struct acrn_vcpu *vcpu, uint64_t guest_tsc)
  *   1. if vAdjust and vTSC are changed by guest, we should change
  *      VMCS.OFFSET accordingly.
  *   2. Make the assumption that the pAjust is never touched by ACRN.
- */
-
-/*
+ *
  * Intel SDM 17.17.3: "If an execution of WRMSR to the IA32_TSC_ADJUST
  * MSR adds (or subtracts) value X from that MSR, the logical
  * processor also adds (or subtracts) value X from the TSC."
@@ -1122,8 +1504,25 @@ static void set_guest_tsc(struct acrn_vcpu *vcpu, uint64_t guest_tsc)
  *   - vAdjust = new vAdjust set by guest
  */
 
+
 /**
+ * @brief Emulate write MSR_IA32_TSC_ADJUST MSR
+ *
+ * This function sets guest MSR_IA32_TSC_ADJUST MSR and VMCS VMX_TSC_OFFSET_FULL field per guest TSC adjust value.
+ * It updates guest MSR_IA32_TSC_ADJUST MSR and VMCS VMX_TSC_OFFSET_FULL field as below:
+ * - VMCS.OFFSET += vAdjust's delta
+ * - vAdjust = new vAdjust set by guest
+ * Update interception for MSR_IA32_TSC_{DEADLINE, ADJUST} according to guest TSC_offset + TSC_adjust_delta.
+ * Refer to 18.17.3 Time-Stamp Counter Adjustment, SDM Vol. 3 325462-078US for details.
+ *
+ * @param[inout] vcpu Target vCPU to set the MSR and VMCS field
+ * @param[in] tsc_adjust Guest TSC adjust value
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void set_guest_tsc_adjust(struct acrn_vcpu *vcpu, uint64_t tsc_adjust)
 {
@@ -1143,7 +1542,27 @@ static void set_guest_tsc_adjust(struct acrn_vcpu *vcpu, uint64_t tsc_adjust)
 }
 
 /**
+ * @brief Emulate write IA32_MISC_ENABLE MSR
+ *
+ * This function updates IA32_MISC_ENABLE MSR and related MSR/VMCS field. It performs below steps:
+ * 1. If MSR_IA32_MISC_ENABLE_XD_DISABLE is set, update guest EFER MSR to reset MSR_IA32_EFER_NXE_BIT.
+ * 2. If MISC_ENABLE_MONITOR_ENA is to be changed:
+ *    - Check if guest CPUID(EAX=01H).ECX[0] is clear, if it is, inject \#GP to guest per 2.1 ARCHITECTURAL MSRS
+ *      Table 2-2, SDM Vol.4, 325462-078US.
+ *    - Otherwise, if LAPIC is passed through to VM, set VMX_PROCBASED_CTLS_MONITOR and VMX_PROCBASED_CTLS_MWAIT
+ *      in vcpu->arch.proc_vm_exec_ctrls if MSR_IA32_MISC_ENABLE_MONITOR_ENA is to be cleared, otherwise clear
+ *      the two bits in vcpu->arch.proc_vm_exec_ctrls.
+ * 3. Reset MSR_IA32_MISC_ENABLE_LIMIT_CPUID bit in new MSR value.
+ * 4. Update guest MSR_IA32_MISC_ENABLE with new MSR value.
+ *
+ * @param[inout] vcpu Target vCPU to update IA32_MISC_ENABLE MSR
+ * @param[in] v Guest MSR value
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 {
@@ -1200,8 +1619,38 @@ static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 }
 
 /**
+ * @brief Handler for wrmsr-induced VM-Exit
+ *
+ * This function handles VM-Exit induced by guest MSR write to the emulated, hidden or unsupported
+ * MSRs. Refer to description of init_msr_emulation() for which MSRs are write-intercepted.
+ * For emulated MSRs, HV may cache the MSR values or synthesize values based on pCPU features
+ * and target MSR values then update the physical MSRs or VMCS fields. For MSRs that write is not
+ * supported, the written value shall be ignored. For hidden and unsupported MSRs, this function
+ * returns an error to caller.
+ *
+ * Refer to section 6.3.4 of Software Architecture Design Specification for the detailed design.
+ *
+ * Normal case behaviors:
+ * - Cache the MSR value or write a synthesized value to physical MSR if the MSR is supported.
+ * - Ignore the value if the MSR is read-only or HV doesn't support write to the MSR.
+ *
+ * Error case behaviors:
+ * - Return an error code to caller if the MSR is hidden or unsupported.
+ *
+ * @param[inout] vcpu Target vCPU to write MSR value.
+ *
+ * @return An integer to indicate whether the operation is successful.
+ *
+ * @retval -EACCES The MSR is hidden or unsupported.
+ * @retval -EINVAL The target MSR value is invalid.
+ * @retval -EPERM The target MSR cannot be accessed
+ * @retval 0 Otherwise
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
+
 int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	int32_t err = 0;
@@ -1470,3 +1919,6 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	return err;
 }
 
+/**
+ * @}
+ */

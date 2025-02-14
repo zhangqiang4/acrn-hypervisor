@@ -844,6 +844,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/guest/vcpu.h \
                           ../hypervisor/include/arch/x86/asm/guest/virtual_cr.h \
                           ../hypervisor/include/arch/x86/asm/guest/vmcs.h \
+                          ../hypervisor/include/arch/x86/asm/guest/ucode.h \
                           ../hypervisor/include/arch/x86/asm/lib/bits.h \
                           ../hypervisor/include/arch/x86/asm/lib/atomic.h \
                           ../hypervisor/include/arch/x86/asm/lib/spinlock.h \
@@ -926,8 +927,11 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/vtd.c \
                           ../hypervisor/arch/x86/vmx.c \
                           ../hypervisor/arch/x86/guest/vcpuid.c \
+                          ../hypervisor/arch/x86/guest/vmsr.c \
+                          ../hypervisor/arch/x86/guest/ucode.c \
                           ../hypervisor/include/arch/x86/asm/pgtable.h \
                           ../hypervisor/include/arch/x86/asm/page.h \
+                          ../hypervisor/include/arch/x86/asm/msr.h \
                           ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
                           ../hypervisor/include/dm/vpic.h \
