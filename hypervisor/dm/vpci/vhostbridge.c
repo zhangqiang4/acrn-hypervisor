@@ -52,21 +52,23 @@
  * callbacks in the global variable "struct pci_vdev_ops vhostbridge_ops".
  */
 
-/*
-The chart below shows the hostbridge DID high-byte of the platform later than broadwell, whose PCIEXBAR are always
-located in the PCI hostbridge config space at the offset 0x60. This chart may need further extension in the future
---------------------------------------------------------------------------------------
-	platform			|	hostbridge DID high-byte
---------------------------------------------------------------------------------------
-	SKL(6-gen)			|	0x19
-	APL(6-gen Atom)			|	0x5a
-	KBL(7/8-gen)			|	0x59
-	CFL/CFL-R(8/9-gen)		|	0x3e
-	ICL(10-gen)			|	0x9b
-	EHL(11-gen)			|	0x45
-	TGL(11-gen)			|	0x9a
---------------------------------------------------------------------------------------
-*/
+/**
+ * @brief Array of hostbridge DID high-byte.
+ *
+ * This array stores the DID high-byte of the platform later than broadwell, whose PCIEXBAR are always located in the
+ * PCI hostbridge config space at the offset 0x60. This array may need further extension in the future. Below chart
+ * shows the platform and its corresponding hostbridge DID high-byte.
+ *
+ * |	platform			|	hostbridge DID high-byte		|
+ * | ---------------------------------- | --------------------------------------------- |
+ * |	SKL(6-gen)			|	0x19					|
+ * |	APL(6-gen Atom)			|	0x5a					|
+ * |	KBL(7/8-gen)			|	0x59					|
+ * |	CFL/CFL-R(8/9-gen)		|	0x3e					|
+ * |	ICL(10-gen)			|	0x9b					|
+ * |	EHL(11-gen)			|	0x45					|
+ * |	TGL(11-gen)			|	0x9a					|
+ */
 static const uint32_t hostbridge_did_highbytes[] = {0x19U, 0x5aU, 0x59U, 0x3eU, 0x9aU, 0x45U, 0x9bU};
 
 /*
