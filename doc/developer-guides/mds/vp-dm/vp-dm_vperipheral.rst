@@ -18,12 +18,6 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 .. doxygenfile:: ivshmem.c
    :project: Project ACRN
 
-[File] dm/vuart.c
-======================================================================
-
-.. doxygenfile:: vuart.c
-   :project: Project ACRN
-
 [File] dm/vrtc.c
 ======================================================================
 
@@ -46,12 +40,6 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 ======================================================================
 
 .. doxygenfile:: ivshmem.h
-   :project: Project ACRN
-
-[File] include/dm/vuart.h
-======================================================================
-
-.. doxygenfile:: vuart.h
    :project: Project ACRN
 
 [File] include/dm/mc146818rtc.h
