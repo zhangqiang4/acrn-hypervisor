@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Intel Corporation.
+ * Copyright (C) 2020-2024 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -9,59 +9,128 @@
 #include <schedule.h>
 #include <ticks.h>
 
+/**
+ * @addtogroup hwmgmt_schedule
+ *
+ * @{
+ */
+
+/**
+ * @file
+ *
+ * @brief Implementation of BVT scheduler.
+ *
+ * This file provides implementation of BVT scheduler.
+ * BVT (Borrowed virtual time) scheduler is used to schedule threads on pCPU.
+ * It has the concept of virtual time, thread with earliest virtual time is
+ * dispatched first.
+ *
+ * Main concepts:
+ *
+ *  - tick timer:
+ *     a period tick is used to measure the physical time in units of MCU
+ *     (minimum charging unit).
+ *  - runqueue:
+ *     thread in the runqueue is ordered by virtual time.
+ *  - weight:
+ *     each thread receives a share of the pCPU in proportion to its
+ *     weight.
+ *  - context switch allowance:
+ *     the physical time by which the current thread is allowed to advance
+ *     beyond the next runnable thread.
+ *  - warp:
+ *     a thread with warp enabled will have a change to minus a value (Wi)
+ *     from virtual time to achieve higher priority.
+ *  - virtual time:
+ *     - AVT: actual virtual time, advance in proportional to weight.
+ *     - EVT: effective virtual time.
+ *          EVT <- AVT - ( warp ? Wi : 0 )
+ *     - SVT: scheduler virtual time, the minimum AVT in the runqueue.
+ */
+
+/**
+ * @brief Defines value of MCU in milliseconds.
+ */
 #define BVT_MCU_MS		1U
-/* context switch allowance */
+/**
+ * @brief Defines value of CSA in MCUs.
+ */
 #define BVT_CSA_MCU		5U
 
-/*
- * limit the weight range to [1, 128]. It's enough to allocate CPU resources
- * for different types of vCPUs
+/**
+ * @brief Defines minimal weight we can set to the thread.
  */
 #define BVT_WEIGHT_MIN		1U
+/**
+ * @brief Defines max weight we can set to the thread.
+ *
+ * Limit the weight range to [1, 128]. It's enough to allocate pCPU resources
+ * for different types of vCPUs.
+ */
 #define BVT_WEIGHT_MAX		128U
 
-/*
+/**
+ * @brief Defines the minimal VT ratio value.
+ *
  * the VT (Virtual Time) ratio is proportional to 1 / weight and making the VT
  * ratio an integer will ease translation between virtual time and physical
  * time.
+ *
  * Max (theoretical VT ratio - actual VT ratio) is
  *   1 (< 1 because of integer round down).
+ *
  * The minimum total VT ratios of VCPUs (at least two) is
  *   2 * 8 (Min per-vcpu VT ratio)
+ *
  * So the max VT ratio share error is about 1/16.
  * To reduce it, we can enlarge the BVT_VT_RATIO_MIN.
  * However increasing VT ratio will reduce the total time needed to overflow
  * AVT. AVT is of type int64_t. The max VT ratio is 1024. MCU is 1 ms.
  * So the time to overflow AVT is about:
  *   2^63  / (1024 * 1000) s, i.e. ~= 9 * 10^12(s) ~= 10^8 day
+ *
  * It's so large that we can ignore the AVT overflow case.
  */
 #define BVT_VT_RATIO_MIN	8U
+
+/**
+ * @brief Defines the max VT ratio value.
+ *
+ * Max VT ratio is the ratio at max weight.
+ */
 #define BVT_VT_RATIO_MAX	(BVT_WEIGHT_MAX * BVT_VT_RATIO_MIN / BVT_WEIGHT_MIN)
 
+/**
+ * @brief Struct that stores BVT data for each thread object.
+ */
 struct sched_bvt_data {
-	/* keep list as the first item */
-	struct list_head list;
-	/* minimum charging unit in cycles */
-	uint64_t mcu;
-	/* a thread receives a share of cpu in proportion to its weight */
-	uint8_t weight;
-	/* virtual time advance variable, proportional to 1 / weight */
-	uint64_t vt_ratio;
-	bool warp_on;
-	int32_t warp_value;
-	uint32_t warp_limit;
-	uint32_t unwarp_period;
-	/* actual virtual time in units of mcu */
-	int64_t avt;
-	/* effective virtual time in units of mcu */
-	int64_t evt;
-	uint64_t residual;
+	struct list_head list; /**< Link thread objects in queues. Keep it as the first item */
+	uint64_t mcu; /**< Minimum charging unit in cycles */
+	uint8_t weight;  /**< A thread receives a share of pCPU time in proportion to its weight */
+	uint64_t vt_ratio; /**< Virtual time advance variable, proportional to 1 / weight */
+	bool warp_on; /**< Whether warp is on for latency-sensitive purpose */
+	int32_t warp_value; /**< The value reduced to EVT when warp, boost the thread's priority */
+	uint32_t warp_limit; /**< Max time for thread to run warped. Becomes unwarped afterwards */
+	uint32_t unwarp_period; /**< Min unwarp time before next warp */
+	int64_t avt; /**< Actual virtual time in units of mcu */
+	int64_t evt; /**< Effective virtual time in units of mcu */
+	uint64_t residual; /**< Remaining VT that a thread has after it has borrowed time */
 
-	uint64_t start_tsc;
+	uint64_t start_tsc; /**< TSC time stamp when a thread starts to run */
 };
 
-/*
+/**
+ * @brief Check if the thread object has been put into a queue.
+ *
+ * By checking if its list head is empty (next points to itself).
+ *
+ * @param[in] obj Pointer to the thread object to be checked.
+ *
+ * @return Bool value of whether thread object is in any queue.
+ *
+ * @retval true The thread object is in a queue.
+ * @retval false The thread object is not in a queue.
+ *
  * @pre obj != NULL
  * @pre obj->data != NULL
  */
@@ -71,7 +140,15 @@ static bool is_inqueue(struct thread_object *obj)
 	return !list_empty(&data->list);
 }
 
-/*
+/**
+ * @brief Update SVT value of the schedule control.
+ *
+ * Updated SVT with the AVT value of first thread object in its run queue.
+ *
+ * @param[inout] bvt_ctl Pointer to thread control of one pCPU.
+ *
+ * @return None.
+ *
  * @pre bvt_ctl != NULL
  */
 static void update_svt(struct sched_bvt_control *bvt_ctl)
@@ -86,7 +163,16 @@ static void update_svt(struct sched_bvt_control *bvt_ctl)
 	}
 }
 
-/*
+/**
+ * @brief Add a thread object to the run queue.
+ *
+ * This function goes through the thread objects in the run queue, and insert the
+ * given thread object in a incremental order of the EVT value.
+ *
+ * @param[inout] obj Pointer to the thread object to be added.
+ *
+ * @return None.
+ *
  * @pre obj != NULL
  * @pre obj->data != NULL
  * @pre obj->sched_ctl != NULL
@@ -123,7 +209,13 @@ static void runqueue_add(struct thread_object *obj)
 	}
 }
 
-/*
+/**
+ * @brief Remove a thread object from the run queue.
+ *
+ * @param[inout] obj Pointer to the thread object to be removed.
+ *
+ * @return None.
+ *
  * @pre obj != NULL
  * @pre obj->data != NULL
  */
@@ -134,15 +226,20 @@ static void runqueue_remove(struct thread_object *obj)
 	list_del_init(&data->list);
 }
 
-/*
- * @brief Get the SVT (scheduler virtual time) which indicates the
- * minimum AVT of any runnable threads.
+/**
+ * @brief Get the SVT value from schedule control associated with the given thread object.
+ *
+ * The SVT value indicates the minimum AVT of any runnable threads.
+ *
+ * @param[in] obj Pointer to the thread object.
+ *
+ * @return SVT value.
+ *
  * @pre obj != NULL
  * @pre obj->data != NULL
  * @pre obj->sched_ctl != NULL
  * @pre obj->sched_ctl->priv != NULL
  */
-
 static int64_t get_svt(struct thread_object *obj)
 {
 	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)obj->sched_ctl->priv;
@@ -150,6 +247,22 @@ static int64_t get_svt(struct thread_object *obj)
 	return bvt_ctl->svt;
 }
 
+/**
+ * @brief The schedule timer tick handler.
+ *
+ * This schedule tick handler will make schedule request when non-idle thread is running,
+ * or when there is some thread enqueued. The scheduler will decide what to do based
+ * on its BVT algorithm at the schedule point before next vm entry.
+ *
+ * However now ACRN has adopted tickless approach. Even though it is still called tick
+ * handler, it only interrupts when the thread runs out its time budget.
+ *
+ * @param[in] param Pointer to the priv data passed to the handler.
+ *
+ * @return None.
+ *
+ * @pre param != NULL
+ */
 static void sched_tick_handler(void *param)
 {
 	struct sched_control  *ctl = (struct sched_control *)param;
@@ -174,8 +287,23 @@ static void sched_tick_handler(void *param)
 	release_schedule_lock(pcpu_id, rflags);
 }
 
-/*
- *@pre: ctl->pcpu_id == get_pcpu_id()
+/**
+ * @brief Initialize the BVT scheduler on current pCPU.
+ *
+ * This function initializes the BVT scheduler by:
+ *  - Set schedule control's priv data to &per_cpu(sched_bvt_ctl, ctl->pcpu_id).
+ *  - Initialize BVT runqueue.
+ *  - Setup BVT schedule timer, which will be armed when a thread is given a due time
+ *    when it is scheduled to run next (in sched_bvt_pick_next()).
+ *    The timer's handler is sched_tick_handler.
+ *
+ * @param[inout] ctl Pointer to the schedule control struct on current pCPU. BVT scheduler
+ * will be initialized and associated to the schedule control.
+ *
+ * @return Always 0 to indicate success.
+ *
+ * @pre ctl != NULL
+ * @pre ctl->pcpu_id == get_pcpu_id()
  */
 static int sched_bvt_init(struct sched_control *ctl)
 {
@@ -193,12 +321,46 @@ static int sched_bvt_init(struct sched_control *ctl)
 	return ret;
 }
 
+/**
+ * @brief Deinitialize the BVT scheduler on current pCPU.
+ *
+ * This function deinitializes the BVT scheduler by deleting the schedule timer.
+ *
+ * @param[inout] ctl Pointer to the schedule control on which the BVT scheduler will be deinitialized.
+ *
+ * @return None.
+ *
+ * @pre ctl != NULL
+ */
 static void sched_bvt_deinit(struct sched_control *ctl)
 {
 	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)ctl->priv;
 	del_timer(&bvt_ctl->tick_timer);
 }
 
+/**
+ * @brief Initialize BVT schedule data for a thread object.
+ *
+ * BVT schedule data is stored in thread object's data section.
+ * Those members are initialized with the given parameters:
+ *  - weight
+ *  - warp_value
+ *  - warp_limit
+ *  - unwarp_period
+ * Those are initialized with default value:
+ *  - mcu = BVT_MCU_MS * TICKS_PER_MS
+ *  - warp_on = false
+ *  - residual = 0
+ * vt_ratio is calculated with BVT_VT_RATIO_MAX / weight
+ *
+ * @param[inout] obj Pointer to the schedule object whose BVT scheduler data will be initialized.
+ * @param[in] params Parameters for the BVT scheduler.
+ *
+ * @return None.
+ *
+ * @pre obj != NULL
+ * @pre params != NULL
+ */
 static void sched_bvt_init_data(struct thread_object *obj, struct sched_params * params)
 {
 	struct sched_bvt_data *data;
@@ -215,21 +377,68 @@ static void sched_bvt_init_data(struct thread_object *obj, struct sched_params *
 	data->residual = 0U;
 }
 
+/**
+ * @brief Suspend the BVT scheduler.
+ *
+ * The scheduler is suspended by stopping its timer. In ACRN we just delete the timer.
+ * That is what sched_bvt_deinit() does.
+ *
+ * @param[inout] ctl Pointer to the schedule control on which the BVT scheduler is suspended.
+ *
+ * @return None.
+ *
+ * @pre ctl != NULL
+ */
 static void sched_bvt_suspend(struct sched_control *ctl)
 {
 	sched_bvt_deinit(ctl);
 }
 
+
+/**
+ * @brief Convert virtual time to physical time in unit of MCU.
+ *
+ * phys_time = virt_time/ratio
+ *
+ * @param[in] virt_time Virtual time to be converted.
+ * @param[in] ratio Convert ratio.
+ *
+ * @return Physical time in MCU.
+ */
 static uint64_t v2p(uint64_t virt_time, uint64_t ratio)
 {
 	return (uint64_t)(virt_time / ratio);
 }
 
+/**
+ * @brief Convert physical time to virtual time in unit of MCU.
+ *
+ * virt_time = phys_time * ratio
+ *
+ * @param[in] phy_time Physical time to be converted.
+ * @param[in] ratio Convert ratio.
+ *
+ * @return Virtual time in MCU.
+ */
 static uint64_t p2v(uint64_t phy_time, uint64_t ratio)
 {
 	return (uint64_t)(phy_time * ratio);
 }
 
+/**
+ * @brief Update VT for a thread object.
+ *
+ * AVT is incremented with the actual time spent by the thread since last update.
+ * EVT is updated with the AVT value as warp is not implemented.
+ * Then this function adjusts the thread object's place in run queue with the updated VT value
+ * by removing and re-adding it to the run queue.
+ *
+ * @param[inout] obj Pointer to the thread object whose VT is to be updated.
+ *
+ * @return None.
+ *
+ * @pre obj != NULL
+ */
 static void update_vt(struct thread_object *obj)
 {
 	struct sched_bvt_data *data;
@@ -254,6 +463,25 @@ static void update_vt(struct thread_object *obj)
 	}
 }
 
+/**
+ * @brief Pick the next thread object in run queue.
+ *
+ * This function is called to decide which thread to run next when the pCPU is scheduling its tasks.
+ * The first one in run queue is picked as it has the least AVT after update.
+ * Additionally, it does update the BVT scheduler by:
+ *  - Update VT for current non-idle thread with the time it spent, and the thread object's place in run queue is
+ *    updated according to the new VT value.
+ *  - Update SVT value with the AVT value of current thread. SVT keeps to be the minimum AVT in the runqueue.
+ *  - Decide how much time the next thread can run for.
+ *  - Setup a timer to interrupt when the next thread runs out its budget.
+ * If run queue is empty, idle thread will be picked as the next thread.
+ *
+ * @param[inout] ctl Pointer to the thread control of one pCPU.
+ *
+ * @return Pointer to the next thread object.
+ *
+ * @pre ctl != NULL
+ */
 static struct thread_object *sched_bvt_pick_next(struct sched_control *ctl)
 {
 	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)ctl->priv;
@@ -309,11 +537,37 @@ static struct thread_object *sched_bvt_pick_next(struct sched_control *ctl)
 	return next;
 }
 
+/**
+ * @brief Put a thread object to sleep.
+ *
+ * Put a thread object to sleep by removing it from run queue.
+ * The pCPU then reschedules to switch to the next thread.
+ *
+ * @param[inout] obj Pointer to the thread object to be put to sleep.
+ *
+ * @return None.
+ *
+ * @pre obj != NULL
+ */
 static void sched_bvt_sleep(struct thread_object *obj)
 {
 	runqueue_remove(obj);
 }
 
+
+/**
+ * @brief Wake a thread object.
+ *
+ * The thread object is waked by re-adding it to run queue.
+ * As its AVT/EVT stops updating when it is sleeping. They are updated
+ * to SVT if they are too outdated (< SVT - BVT_CSA_MCU).
+ *
+ * @param[inout] obj Pointer to the thread object to wake up.
+ *
+ * @return None.
+ *
+ * @pre obj != NULL
+ */
 static void sched_bvt_wake(struct thread_object *obj)
 {
 	struct sched_bvt_data *data;
@@ -331,6 +585,11 @@ static void sched_bvt_wake(struct thread_object *obj)
 
 }
 
+/**
+ * @brief The BVT scheduler.
+ *
+ * Provides with BVT schedule methods for schedule control.
+ */
 struct acrn_scheduler sched_bvt = {
 	.name		= "sched_bvt",
 	.init		= sched_bvt_init,
@@ -340,8 +599,12 @@ struct acrn_scheduler sched_bvt = {
 	.wake		= sched_bvt_wake,
 	.deinit		= sched_bvt_deinit,
 	/* Now suspend is just to do del_timer and add_timer will be delayed to
-	 * shedule after resume.
+	 * schedule after resume.
 	 * So no need to add .resume now.
 	 */
 	.suspend	= sched_bvt_suspend,
 };
+
+/**
+ * @}
+ */

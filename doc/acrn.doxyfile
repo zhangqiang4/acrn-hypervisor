@@ -944,6 +944,13 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/dm/vpci/vsriov.c \
                           ../hypervisor/dm/vpci/vmsi.c \
                           ../hypervisor/dm/vpci/vmsix.c \
+                          ../hypervisor/common/schedule.c \
+                          ../hypervisor/common/sched_bvt.c \
+                          ../hypervisor/arch/x86/sched.S \
+                          ../hypervisor/include/common/schedule.h \
+                          ../hypervisor/common/event.c \
+                          ../hypervisor/include/common/event.h \
+
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -2227,6 +2234,7 @@ PREDEFINED             = "__attribute__(x)=" \
                          "CONFIG_RDT_ENABLED=" \
                          "CONFIG_ACPI_PARSE_ENABLED=" \
                          "CONFIG_ACRNTRACE_ENABLED=" \
+                         "CONFIG_SCHED_BVT=" \
 
 PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
