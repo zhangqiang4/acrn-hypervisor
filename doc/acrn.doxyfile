@@ -805,6 +805,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/sbuf.c \
                           ../hypervisor/common/timer.c \
                           ../hypervisor/common/hypercall.c \
+                          ../hypervisor/common/thermal.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/lib/stack_protector.c \
                           ../hypervisor/arch/x86/lib/retpoline-thunk.S \
@@ -848,6 +849,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/ptdev.h \
                           ../hypervisor/include/common/sbuf.h \
                           ../hypervisor/include/common/hypercall.h \
+                          ../hypervisor/include/common/thermal.h \
+                          ../hypervisor/include/hw/hw_thermal.h \
                           ../hypervisor/include/hw/hw_timer.h \
                           ../hypervisor/include/public/acrn_common.h \
                           ../hypervisor/include/public/acrn_hv_defs.h \
@@ -888,6 +891,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/irq.c \
                           ../hypervisor/arch/x86/exception.c \
                           ../hypervisor/arch/x86/tsc_deadline_timer.c \
+                          ../hypervisor/arch/x86/hw_thermal.c \
                           ../hypervisor/arch/x86/nmi.c \
                           ../hypervisor/arch/x86/notify.c \
                           ../hypervisor/arch/x86/idt.S \
