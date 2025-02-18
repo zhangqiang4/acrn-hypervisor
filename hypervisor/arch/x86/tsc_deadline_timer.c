@@ -49,11 +49,6 @@ static void timer_expired_handler(__unused uint32_t irq, __unused void *data)
 	fire_softirq(SOFTIRQ_TIMER);
 }
 
-void set_hw_timeout(uint64_t timeout)
-{
-	msr_write(MSR_IA32_TSC_DEADLINE, timeout);
-}
-
 /**
  * @brief Initialize APIC timer.
  *

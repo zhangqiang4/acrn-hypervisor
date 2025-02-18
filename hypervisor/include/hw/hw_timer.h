@@ -23,7 +23,6 @@
  * initializing hardware timers.
  */
 
-void set_hw_timeout(uint64_t timeout);
 void init_hw_timer(void);
 
 #endif
