@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -19,7 +19,49 @@
 #include <asm/guest/vmexit.h>
 #include <logmsg.h>
 
-/* rip, rsp, ia32_efer and rflags are written to VMCS in start_vcpu */
+/**
+ * @addtogroup vp-base_hv-main
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Virtual Machine Control Structure (VMCS)
+ *
+ * This file contains functions for initializing and managing the Virtual Machine Control Structure (VMCS)
+ * for vCPUs in the ACRN hypervisor. It includes functions for initializing VMCS fields, loading VMCS, and
+ * manipulating VMCS fields.
+ */
+
+/**
+ * @brief Initialize the guest-area for a given vCPU.
+ *
+ * This function sets up the initial state of the fields contained in the guest-state area of the VMCS for a specified
+ * vCPU. It includes setting up guest register state.
+ *
+ * Guest register state contains:
+ * - Control registers CR0, CR3 and CR4.
+ * - Debug register DR7.
+ * - RSP, RIP, and RFLAGS.
+ * - CS, SS, DS, ES, FS, GS, LDTR, and TR.
+ * - GDTR and IDTR.
+ * - MSRs: IA32_SYSENTER_CS, IA32_SYSENTER_ESP, IA32_SYSENTER_EIP, IA32_DEBUGCTL, IA32_PAT, IA32_PERF_CTL,
+ *   and IA32_MISC_ENABLE.
+ *
+ * rip, rsp, ia32_efer and rflags are written to VMCS in start_vcpu().
+ *
+ * @param[inout] vcpu The pointer to the specified vCPU.
+ * @param[in] cr0 The value of the CR0 register.
+ * @param[in] cr3 The value of the CR3 register.
+ * @param[in] cr4 The value of the CR4 register.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	uint64_t cr4)
 {
@@ -77,6 +119,20 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	exec_vmwrite(VMX_GUEST_DR7, DR7_INIT_VALUE);
 }
 
+/**
+ * @brief Initialize fields contained in the guest-state area of the VMCS for a given vCPU.
+ *
+ * This function initializes the fields contained in the guest-state area of the VMCS for a specified vCPU by
+ * calling init_guest_vmx function with the control register values in the guest CPU context.
+ *
+ * @param[inout] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_guest_state(struct acrn_vcpu *vcpu)
 {
 	struct guest_cpu_context *ctx = &vcpu->arch.contexts;
@@ -88,6 +144,24 @@ static void init_guest_state(struct acrn_vcpu *vcpu)
 			ctx->run_ctx.cr4 & ~(CR4_VMXE | CR4_SMXE | CR4_MCE));
 }
 
+/**
+ * @brief Initialize host-state area.
+ *
+ * This function initializes the fields contained in the host-state area of the VMCS.
+ *
+ * Initialization in the host-state area correspond to processor registers:
+ * - CR0, CR3, and CR4.
+ * - RSP and RIP.
+ * - Selector fields for the segment registers CS, SS, DS, ES, FS, GS, and TR.
+ * - Base-address fields for the FS, GS, TR, GDTR and IDTR.
+ * - MSRs: IA32_SYSENTER_CS, IA32_SYSENTER_ESP, IA32_SYSENTER_EIP, IA32_PAT, and IA32_EFER.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void init_host_state(void)
 {
 	uint16_t value16;
@@ -219,6 +293,24 @@ static void init_host_state(void)
 	exec_vmwrite32(VMX_HOST_IA32_SYSENTER_CS, msr_read(ACRN_PSEUDO_PCPUID_MSR));
 }
 
+/**
+ * @brief Check VM-execution control for request capabilities.
+ *
+ * This function checks VM-execution control capability MSRs for pin-based VM-execution controls, the primary
+ * processor-based VM-execution controls and the secondary processor-based VM-execution controls. It performs a bitwise
+ * AND operation with the high 32 bits of the MSR value and the requested control settings, and a bitwise OR operation
+ * with the low 32 bits. This ensures that only the supported control bits are set. If the requested control settings
+ * are not fully supported, an informational message is logged.
+ *
+ * @param[in] msr The MSR address to read the VMX capabilities from.
+ * @param[in] ctrl_req The requested VMX control settings.
+ *
+ * @return The validated control value that can be set to the VMX control fields.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static uint32_t check_vmx_ctrl(uint32_t msr, uint32_t ctrl_req)
 {
 	uint64_t vmx_msr;
@@ -246,6 +338,23 @@ static uint32_t check_vmx_ctrl(uint32_t msr, uint32_t ctrl_req)
 
 }
 
+/**
+ * @brief Check VM-execution control for request capabilities.
+ *
+ * This function checks VM-execution control capability MSRs for tertiary processor-based VM-execution controls,
+ * It performs a bitwise AND operation with the MSR value and the requested control settings to ensure that only
+ * the supported control bits are set. If the requested control settings are not fully supported, an informational
+ * message is logged.
+ *
+ * @param[in] msr The MSR address to read the VMX capabilities from.
+ * @param[in] ctrl_req The requested 64-bit VMX control settings.
+ *
+ * @return The validated control value that can be set to the VMX control fields.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
 {
 	uint64_t vmx_msr;
@@ -264,6 +373,84 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
 	return ctrl;
 }
 
+/**
+ * @brief Initialize VM-execution controls for a given vCPU.
+ *
+ * The VM-execution control fields govern VMX non-root operation.
+ *
+ * This initialization includes:
+ * - Pin-based VM-execution controls (Refer to Table 25-5 Definitions of Pin-Based VM-Execution Controls,
+ *   Vol. 3, SDM 325462-078):
+ *   - External-interrupt exiting (bit 0)
+ *   - Process posted interrupts (bit 7)
+ * - Primary Processor-Based VM-execution controls (Refer to Table 25-6 Definitions of Primary Processor-Based
+ *   VM-Execution Controls, Vol. 3, SDM 325462-078):
+ *   - Use TSC offsetting (bit 3)
+ *   - HLT exiting (bit 7)
+ *   - Disable INVLPG exiting (bit 9)
+ *   - Disable CR3-load exiting (bit 15)
+ *   - Disable CR3-store exiting (bit 16)
+ *   - Activate tertiary controls (bit 17)
+ *   - Disable CR8-load exiting (bit 19)
+ *   - Disable CR8-store exiting (bit 20)
+ *   - Use TPR shadow (bit 21)
+ *   - Use I/O bitmaps (bit 25)
+ *   - Use I/O MST bitmaps (bit 28)
+ *   - Activate secondary controls (bit 31)
+ * - Secondary Processor-Based VM-execution controls (Refer to Table 25-7 Definitions of Secondary Processor-Based
+ *   VM-Execution Controls, Vol. 3, SDM 325462-078):
+ *   - Virtualize APIC accesses (bit 0)
+ *   - Enable EPT (bit 1)
+ *   - Enable RDTSCP (bit 3)
+ *   - Enable VPID (bit 5)
+ *   - WBINVD exiting (bit 6)
+ *   - Unrestricted guest (bit 7)
+ *   - APIC-register virtualization (bit 8)
+ *   - Virtual-interrupt delivery (bit 9)
+ *   - PAUSE-loop exiting (bit 10)
+ *   - Enable INVPCID (bit 12)
+ *   - Enable XSAVES/XRSTORS (bit 20)
+ *   - Enable user wait and pause (bit 26)
+ *   - Disable PCONFIG (bit 27)
+ * - Tertiary Processor-Based VM-execution controls (Refer to Table 25-8 Definitions of Tertiary Processor-Based
+ *  VM-Execution Controls, Vol. 3, SDM 325462-078):
+ *   - LOADIWKEY exiting (bit 0)
+ * - Exception bitmap
+ * - I/O-bitmap addresses
+ * - Time-stamp counter offset and multiplier
+ * - Guest/host masks and read shadows for CR0 and CR4
+ * - CR3-target controls:
+ *   - CR3-target values
+ *   - CR3-target count
+ * - Controls for APIC virtualization:
+ *   - APIC-access address
+ *   - Virtual-APIC address
+ *   - TPR threshold
+ *   - EOI-exit bitmap
+ *   - Posted-interrupt notification vector
+ *   - Posted-interrupt descriptor address
+ *   - PID-pointer table address
+ *   - Last PID-pointer index
+ * - MSR-bitmap address
+ *   - Read bitmap for low MSRs
+ *   - Read bitmap for high MSRs
+ *   - Write bitmap for low MSRs
+ *   - Write bitmap for high MSRs
+ * - Executive-VMCS pointer
+ * - Extended-Page-Table pointer(EPTP)
+ * - Controls for PAUSE-loop exiting
+ *   - PLE_Gap
+ *   - PLE_Window
+
+ *
+ * @param[inout] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
@@ -274,7 +461,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	pr_dbg("Initialize execution control ");
 
 	/* Set up VM Execution control to enable Set VM-exits on external
-	 * interrupts preemption timer - pg 2899 24.6.1
+	 * interrupts preemption timer - pg 3950 25.6.1
 	 */
 	/* enable external interrupt VM Exit */
 	value32 = check_vmx_ctrl(MSR_IA32_VMX_PINBASED_CTLS, VMX_PINBASED_CTLS_IRQ_EXIT);
@@ -286,8 +473,8 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	exec_vmwrite32(VMX_PIN_VM_EXEC_CONTROLS, value32);
 	pr_dbg("VMX_PIN_VM_EXEC_CONTROLS: 0x%x ", value32);
 
-	/* Set up primary processor based VM execution controls - pg 2900
-	 * 24.6.2. Set up for:
+	/* Set up primary processor based VM execution controls - pg 3950
+	 * 25.6.2. Set up for:
 	 * Enable TSC offsetting
 	 * Enable TSC exiting
 	 * guest access to IO bit-mapped ports causes VM exit
@@ -323,8 +510,8 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, value32);
 	pr_dbg("VMX_PROC_VM_EXEC_CONTROLS: 0x%x ", value32);
 
-	/* Set up secondary processor based VM execution controls - pg 2901
-	 * 24.6.2. Set up for: * Enable EPT * Eable VPID * Enable RDTSCP *
+	/* Set up secondary processor based VM execution controls - pg 3952
+	 * 25.6.2. Set up for: * Enable EPT * Enable VPID * Enable RDTSCP *
 	 * Enable Unrestricted guest (optional)
 	 */
 	value32 = check_vmx_ctrl(MSR_IA32_VMX_PROCBASED_CTLS2,
@@ -332,7 +519,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 			VMX_PROCBASED_CTLS2_RDTSCP | VMX_PROCBASED_CTLS2_UNRESTRICT | VMX_PROCBASED_CTLS2_XSVE_XRSTR |
 			VMX_PROCBASED_CTLS2_PAUSE_LOOP | VMX_PROCBASED_CTLS2_UWAIT_PAUSE);
 
-	/* SDM Vol3, 25.3,  setting "enable INVPCID" VM-execution to 1 with "INVLPG exiting" disabled,
+	/* SDM Vol3, 26.3,  setting "enable INVPCID" VM-execution to 1 with "INVLPG exiting" disabled,
 	 * passes-through INVPCID instruction to guest if the instruction is supported.
 	 */
 	if (pcpu_has_cap(X86_FEATURE_INVPCID)) {
@@ -351,7 +538,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 		 * VM-execution control.
 		 *
 		 * Set up TPR threshold for virtual interrupt delivery
-		 * - pg 2904 24.6.8
+		 * - pg 3955 25.6.8
 		 */
 		exec_vmwrite32(VMX_TPR_THRESHOLD, 0U);
 	}
@@ -410,14 +597,14 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	exec_vmwrite64(VMX_EPT_POINTER_FULL, value64);
 	pr_dbg("VMX_EPT_POINTER: 0x%016lx ", value64);
 
-	/* Set up page fault error code mask - second paragraph * pg 2902
-	 * 24.6.3 - guest page fault exception causing * vmexit is governed by
+	/* Set up page fault error code mask - second paragraph * pg 3953
+	 * 25.6.3 - guest page fault exception causing * vmexit is governed by
 	 * both VMX_EXCEPTION_BITMAP and * VMX_PF_ERROR_CODE_MASK
 	 */
 	exec_vmwrite32(VMX_PF_ERROR_CODE_MASK, 0U);
 
-	/* Set up page fault error code match - second paragraph * pg 2902
-	 * 24.6.3 - guest page fault exception causing * vmexit is governed by
+	/* Set up page fault error code match - second paragraph * pg 3953
+	 * 25.6.3 - guest page fault exception causing * vmexit is governed by
 	 * both VMX_EXCEPTION_BITMAP and * VMX_PF_ERROR_CODE_MATCH
 	 */
 	exec_vmwrite32(VMX_PF_ERROR_CODE_MATCH, 0U);
@@ -429,7 +616,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	 */
 	exec_vmwrite32(VMX_CR3_TARGET_COUNT, 0U);
 
-	/* Set up IO bitmap register A and B - pg 2902 24.6.4 */
+	/* Set up IO bitmap register A and B - pg 3954 25.6.4 */
 	value64 = hva2hpa(vm->arch_vm.io_bitmap);
 	exec_vmwrite64(VMX_IO_BITMAP_A_FULL, value64);
 	pr_dbg("VMX_IO_BITMAP_A: 0x%016lx ", value64);
@@ -440,7 +627,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	init_msr_emulation(vcpu);
 
 	/* Set up guest exception mask bitmap setting a bit * causes a VM exit
-	 * on corresponding guest * exception - pg 2902 24.6.3
+	 * on corresponding guest * exception - pg 3953 25.6.3
 	 * enable VM exit on MC for VMs that does NOT enable MC PT
 	 * enable AC for split-lock emulation when split-lock detection is enabled on physical platform.
 	 */
@@ -453,10 +640,10 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	}
 	exec_vmwrite32(VMX_EXCEPTION_BITMAP, value32);
 
-	/* Set up executive VMCS pointer - pg 2905 24.6.10 */
+	/* Set up executive VMCS pointer - pg 3956 25.6.10 */
 	exec_vmwrite64(VMX_EXECUTIVE_VMCS_PTR_FULL, 0UL);
 
-	/* Setup Time stamp counter offset - pg 2902 24.6.5
+	/* Setup Time stamp counter offset - pg 3954 25.6.5
 	 * VMCS.OFFSET = vAdjust - pAdjust
 	 */
 	value64 = vcpu_get_guest_msr(vcpu, MSR_IA32_TSC_ADJUST) - cpu_msr_read(MSR_IA32_TSC_ADJUST);
@@ -480,11 +667,39 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	exec_vmwrite(VMX_CR3_TARGET_2, 0UL);
 	exec_vmwrite(VMX_CR3_TARGET_3, 0UL);
 
-	/* Setup PAUSE-loop exiting - 24.6.13 */
+	/* Setup PAUSE-loop exiting - 25.6.13 */
 	exec_vmwrite(VMX_PLE_GAP, 128U);
 	exec_vmwrite(VMX_PLE_WINDOW, 4096U);
 }
 
+/**
+ * @brief Initialize VM-entry controls for a given vCPU.
+ *
+ * VM-entry control fields govern the behavior of VM entries. These controls include:
+ *
+ * - A 32-bit vector that governs the basic operations of VM entries. (Refer to Chapter 25.8.1 VM-Entry Controls,
+ *   Vol. 3, SDM 325462-078):
+ *   - IA-32e mode guest (bit 9)
+ *   - Load IA32_PAT (bit 14)
+ *
+ * - VM-entry controls for MSRs. (Refer to Chapter 25.8.2 VM-Entry Controls for MSRs, Vol. 3, SDM 325462-078):
+ *   - VM-entry MSR-load count.
+ *   - VM-entry MSR_load address.
+ *
+ * - VM-Entry controls for event injection. (Refer to Chapter 25.8.3 VM-Entry Controls for Event Injection,
+ *   Vol. 3, SDM 325462-078):
+ *   - VM-entry interrupt information field.
+ *   - VM-entry exception error code.
+ *   - VM-entry instruction length.
+ *
+ * @param[in] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_entry_ctrl(const struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
@@ -492,7 +707,7 @@ static void init_entry_ctrl(const struct acrn_vcpu *vcpu)
 	/* Log messages to show initializing VMX entry controls */
 	pr_dbg("Initialize Entry control ");
 
-	/* Set up VMX entry controls - ISDM 24.8.1 */
+	/* Set up VMX entry controls - ISDM 25.8.1 */
 	value32 = VMX_ENTRY_CTLS_LOAD_PAT;
 
 	if (get_vcpu_mode(vcpu) == CPU_MODE_64BIT) {
@@ -504,23 +719,46 @@ static void init_entry_ctrl(const struct acrn_vcpu *vcpu)
 	exec_vmwrite32(VMX_ENTRY_CONTROLS, value32);
 	pr_dbg("VMX_ENTRY_CONTROLS: 0x%x ", value32);
 
-	/* Set up VMX entry MSR load count - pg 2908 24.8.2 Tells the number of
+	/* Set up VMX entry MSR load count - pg 3964 25.8.2 Tells the number of
 	 * MSRs on load from memory on VM entry from mem address provided by
 	 * VM-entry MSR load address field
 	 */
 	exec_vmwrite32(VMX_ENTRY_MSR_LOAD_COUNT, vcpu->arch.msr_area.count);
 	exec_vmwrite64(VMX_ENTRY_MSR_LOAD_ADDR_FULL, hva2hpa((void *)vcpu->arch.msr_area.guest));
 
-	/* Set up VM entry interrupt information field pg 2909 24.8.3 */
+	/* Set up VM entry interrupt information field pg 3964 25.8.3 */
 	exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, 0U);
 
-	/* Set up VM entry exception error code - pg 2910 24.8.3 */
+	/* Set up VM entry exception error code - pg 3965 25.8.3 */
 	exec_vmwrite32(VMX_ENTRY_EXCEPTION_ERROR_CODE, 0U);
 
-	/* Set up VM entry instruction length - pg 2910 24.8.3 */
+	/* Set up VM entry instruction length - pg 3965 25.8.3 */
 	exec_vmwrite32(VMX_ENTRY_INSTR_LENGTH, 0U);
 }
 
+/**
+ * @brief Initialize VM-exit controls for a given vCPU.
+ *
+ * VM-exit control fields govern the behavior of VM exits. These controls include:
+ * - VM-exit controls:
+ *   - Host address-space size (bit 9)
+ *   - Acknowledge interrupt on exit (bit 15)
+ *   - Save IA32_PAT (bit 18)
+ *   - Load IA32_PAT (bit 19)
+ * - VM-exit controls for MSRs:
+ *   - VM-exit MSR-store count
+ *   - VM-exit MSR-store address
+ *   - VM-exit MSR-load count
+ *   - VM-exit MSR-load address
+ *
+ * @param[in] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
@@ -528,7 +766,7 @@ static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 	/* Log messages to show initializing VMX entry controls */
 	pr_dbg("Initialize Exit control ");
 
-	/* Set up VM exit controls - pg 2907 24.7.1 for: Host address space
+	/* Set up VM exit controls - pg 3960 25.7.1 for: Host address space
 	 * size is 64 bit Set up to acknowledge interrupt on exit, if 1 the HW
 	 * acks the interrupt in VMX non-root and saves the interrupt vector to
 	 * the relevant VM exit field for further processing by Hypervisor
@@ -541,7 +779,7 @@ static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 	exec_vmwrite32(VMX_EXIT_CONTROLS, value32);
 	pr_dbg("VMX_EXIT_CONTROL: 0x%x ", value32);
 
-	/* Set up VM exit MSR store and load counts pg 2908 24.7.2 - tells the
+	/* Set up VM exit MSR store and load counts pg 3962 25.7.2 - tells the
 	 * HW number of MSRs to stored to mem and loaded from mem on VM exit.
 	 * The 64 bit VM-exit MSR store and load address fields provide the
 	 * corresponding addresses
@@ -553,8 +791,21 @@ static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 }
 
 static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
+
 /**
+ * @brief VMCS initialization for a given vCPU.
+ *
+ * This function initializes the VMCS for the given vCPU. It sets up the host and guest states, execution controls,
+ * entry controls, and exit controls. Now ACRN Hypervisor locks guest in x2apic mode, so would use virtualize x2APIC
+ * mode instead of virtualize APIC accesses in secondary processor-based VM-execution controls for default.
+ *
+ * @param[inout] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void init_vmcs(struct acrn_vcpu *vcpu)
 {
@@ -574,7 +825,19 @@ void init_vmcs(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief Load VMCS for a given vCPU.
+ *
+ * This function is to load the VMCS of the given vCPU on the current physical CPU. It checks if the vCPU is launched
+ * and if the current VMCS pointer is different from the vCPU's VMCS. If so, it calls load_va_vmcs() function to
+ * load the target VMCS to current VMCS and updates the VMCS pointer. Otherwise, it does nothing.
+ *
+ * @param[in] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
  * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 void load_vmcs(const struct acrn_vcpu *vcpu)
 {
@@ -586,49 +849,72 @@ void load_vmcs(const struct acrn_vcpu *vcpu)
 	}
 }
 
+/**
+ * @brief Switch APICv mode to x2APIC for a given vCPU.
+ *
+ * This function switches the APICv mode to x2APIC. Step by step:
+ * - If the LAPIC passthrough is configured:
+ *   - Disable external interrupt exiting.
+ *   - Disable posted interrupt processing if APICv advanced features are supported.
+ *   - Disable IRQ acknowledgment on VM exits.
+ *   - Disable TPR shadow and HLT exiting.
+ *   - Set TPR threshold to zero.
+ *   - Disable pause loop exiting and virtual APIC.
+ *   - Disable Register Virtualization and virtual interrupt delivery if APICv advanced features are supported.
+ *
+ * - If the LAPIC passthrough is not configured:
+ *   - Enable x2APIC mode in the VMX_PROC_VM_EXEC_CONTROLS2.
+ *   - If IPI virtualization can be enabled, set up tertiary processor based VM execution controls.
+ *
+ * @param[inout] vcpu The pointer to the specified vCPU.
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
 	uint64_t value64;
 	if (is_lapic_pt_configured(vcpu->vm)) {
 		dev_dbg(DBG_LEVEL_LAPICPT, "%s: switching to x2apic and passthru", __func__);
-		/*
-		 * Disable external interrupt exiting and irq ack
-		 * Disable posted interrupt processing
-		 * update x2apic msr bitmap for pass-thru
-		 * enable inteception only for ICR
-		 * disable pre-emption for TSC DEADLINE MSR
-		 * Disable Register Virtualization and virtual interrupt delivery
-		 * Disable "use TPR shadow"
-		 */
 
+		/* Disable external interrupt exiting */
 		value32 = exec_vmread32(VMX_PIN_VM_EXEC_CONTROLS);
 		value32 &= ~VMX_PINBASED_CTLS_IRQ_EXIT;
 		if (is_apicv_advanced_feature_supported()) {
+			/* Disable posted interrupt processing */
 			value32 &= ~VMX_PINBASED_CTLS_POST_IRQ;
 		}
 
 		exec_vmwrite32(VMX_PIN_VM_EXEC_CONTROLS, value32);
 
+		/* Disable IRQ acknowledge on VM exits */
 		value32 = exec_vmread32(VMX_EXIT_CONTROLS);
 		value32 &= ~VMX_EXIT_CTLS_ACK_IRQ;
 		exec_vmwrite32(VMX_EXIT_CONTROLS, value32);
 
+		/* Disable TPR shadow and HLT exiting */
 		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_TPR_SHADOW;
 		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_HLT;
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
-
+		/* Set TPR threshold to zero */
 		exec_vmwrite32(VMX_TPR_THRESHOLD, 0U);
 
+		/* Disable pause loop exiting and virtual APIC */
 		value32 = exec_vmread32(VMX_PROC_VM_EXEC_CONTROLS2);
 		value32 &= ~VMX_PROCBASED_CTLS2_PAUSE_LOOP;
 		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC;
 		if (is_apicv_advanced_feature_supported()) {
+			/* Disable Register Virtualization and virtual interrupt delivery */
 			value32 &= ~VMX_PROCBASED_CTLS2_VIRQ;
 			value32 &= ~VMX_PROCBASED_CTLS2_VAPIC_REGS;
 		}
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
 	} else {
+		/* Enable x2apic mode */
 		value32 = exec_vmread32(VMX_PROC_VM_EXEC_CONTROLS2);
 		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC;
 		value32 |= VMX_PROCBASED_CTLS2_VX2APIC;
@@ -647,3 +933,7 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 		}
 	}
 }
+
+/**
+ * @}
+ */

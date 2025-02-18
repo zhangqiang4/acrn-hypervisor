@@ -829,6 +829,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/guest/assign.h \
                           ../hypervisor/include/arch/x86/asm/guest/vcpu.h \
                           ../hypervisor/include/arch/x86/asm/guest/virtual_cr.h \
+                          ../hypervisor/include/arch/x86/asm/guest/vmcs.h \
                           ../hypervisor/include/arch/x86/asm/lib/bits.h \
                           ../hypervisor/include/arch/x86/asm/lib/atomic.h \
                           ../hypervisor/include/arch/x86/asm/lib/spinlock.h \
@@ -877,6 +878,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/guest_memory.c \
                           ../hypervisor/arch/x86/guest/vm.c \
                           ../hypervisor/arch/x86/guest/vmcall.c \
+                          ../hypervisor/arch/x86/guest/vmcs.c \
                           ../hypervisor/arch/x86/cpu_state_tbl.c \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \

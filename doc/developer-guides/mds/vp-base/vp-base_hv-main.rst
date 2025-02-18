@@ -5,7 +5,9 @@ Design of Module `vp-base.hv-main`
 
 This section contains the documentation of the module `vp-base.hv-main`.
 
-
+.. doxygengroup:: vp-base_hv-main
+   :project: Project ACRN
+   :desc-only:
 
 .. contents::
    :local:
@@ -19,8 +21,8 @@ This section contains the documentation of the module `vp-base.hv-main`.
 [File] arch/x86/guest/vmcs.c
 ======================================================================
 
-[File] arch/x86/guest/vmx_asm.S
-======================================================================
+.. doxygenfile:: vmcs.c
+   :project: Project ACRN
 
 [File] include/arch/x86/asm/guest/vmexit.h
 ======================================================================
@@ -28,3 +30,5 @@ This section contains the documentation of the module `vp-base.hv-main`.
 [File] include/arch/x86/asm/guest/vmcs.h
 ======================================================================
 
+.. doxygenfile:: vmcs.h
+   :project: Project ACRN
