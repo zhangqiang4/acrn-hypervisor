@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -8,12 +8,22 @@
 #include <util.h>
 #include <sprintf.h>
 
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
+/**
+ * @addtogroup lib_util
+ *
+ * @{
+ */
 
+/**
+ * @file
+ * @brief Implementation of printing and formatting data interfaces.
+ *
+ * This file implements all the APIs to format and print various type of data, such as string, number.
+ */
+
+/** maximum length for a string that can be printed */
 #define PRINT_STRING_MAX_LEN		4096U
-
+/** The length of the digits translation table */
 #define HEX_DIGITS_LEN			17U
 
 /** Use upper case letters for hexadecimal format. */
@@ -75,17 +85,36 @@ static const char lower_hex_digits[] = {
 	'a', 'b', 'c', 'd', 'e', 'f', 'x'
 };
 
+/**
+ * @brief Parse a number from a given string.
+ *
+ * This function parses an unsigned integer (uint32_t) from a given string.
+ *
+ * - If the first character is a minus sign (-), it is ignored. The function moves to the next character to process.
+ * - It launches a loop to parse the number in the string until a non-numeric char is found. The parsed number is
+ * stored in \p x. For example, if a string "-456zzz" is given, the parsed number 456 will be stored in \p x.
+ *
+ * @param[in] s_arg       A pointer to the input string to parse the number from
+ * @param[inout] x        A pointer to a uint32_t variable where the parsed number will be stored
+ *
+ * @return A pointer to the character in the string where parsing stopped
+ *
+ * @pre s_arg != NULL
+ * @pre x != NULL
+ *
+ * @post N/A
+ */
 static const char *get_param(const char *s_arg, uint32_t *x)
 {
 	const char *s = s_arg;
 	*x = 0U;
 
-	/* ignore '-' for negative numbers, it will be handled in flags*/
+	/** ignore '-' for negative numbers, it will be handled in flags*/
 	if (*s == '-') {
 		++s;
 	}
 
-	/* parse uint32_teger */
+	/** parse uint32_teger */
 	while ((*s >= '0') && (*s <= '9')) {
 		char delta = *s - '0';
 		*x = ((*x) * 10U) + (uint32_t)delta;
@@ -95,23 +124,46 @@ static const char *get_param(const char *s_arg, uint32_t *x)
 	return s;
 }
 
+/**
+ * @brief Parse specific formatting flags from a string.
+ *
+ * This function parses specific formatting flags from a string and output corresponding flags.
+ *
+ * - It launches a loop to iterates over each character in the input string s_arg, and it checks if it matches one of
+ * the flag characters in "#0- +". If a match is found, the corresponding flag value is applied using a bitwise OR
+ * operation, the loop moves to the next character. The loop continues until no matching flag character is found.
+ *
+ * - If the left justification flag (PRINT_FLAG_LEFT_JUSTIFY) is set, the pad-zero flag (PRINT_FLAG_PAD_ZERO) is cleared
+ *
+ * - If the sign flag (PRINT_FLAG_SIGN) is set, the space flag (PRINT_FLAG_SPACE) is cleared
+ *
+ * @param[in] s_arg           A pointer to the input string that contains flags
+ * @param[inout] flags        A pointer to a uint32_t variable where the parsed flags will be stored
+ *
+ * @return A pointer to the character in the string where flag parsing stopped
+ *
+ * @pre s_arg != NULL
+ * @pre flags != NULL
+ *
+ * @post N/A
+ */
 static const char *get_flags(const char *s_arg, uint32_t *flags)
 {
 	const char *s = s_arg;
-	/* contains the flag characters */
+	/** contains the flag characters */
 	static const char flagchars[5] = "#0- +";
-	/* contains the numeric flags for the characters above */
+	/** contains the numeric flags for the characters above */
 	static const uint32_t fl[sizeof(flagchars)] = {
-		PRINT_FLAG_ALTERNATE_FORM,	/* # */
-		PRINT_FLAG_PAD_ZERO,	/* 0 */
-		PRINT_FLAG_LEFT_JUSTIFY,	/* - */
-		PRINT_FLAG_SPACE,	/* ' ' */
-		PRINT_FLAG_SIGN		/* + */
+		PRINT_FLAG_ALTERNATE_FORM,	/**<  # */
+		PRINT_FLAG_PAD_ZERO,	/**< 0 */
+		PRINT_FLAG_LEFT_JUSTIFY,	/**< - */
+		PRINT_FLAG_SPACE,	/**< ' ' */
+		PRINT_FLAG_SIGN		/**< + */
 	};
 	uint32_t i;
 	bool found;
 
-	/* parse multiple flags */
+	/** parse multiple flags */
 	while ((*s) != '\0') {
 		/*
 		 * Get index of flag.
@@ -128,17 +180,17 @@ static const char *get_flags(const char *s_arg, uint32_t *flags)
 			break;
 		}
 
-		/* apply matching flags and continue with the next character */
+		/** apply matching flags and continue with the next character */
 		++s;
 		*flags |= fl[i];
 	}
 
-	/* Spec says that '-' has a higher priority than '0' */
+	/** Spec says that '-' has a higher priority than '0' */
 	if ((*flags & PRINT_FLAG_LEFT_JUSTIFY) != 0U) {
 		*flags &= ~PRINT_FLAG_PAD_ZERO;
 	}
 
-	/* Spec says that '+' has a higher priority than ' ' */
+	/** Spec says that '+' has a higher priority than ' ' */
 	if ((*flags & PRINT_FLAG_SIGN) != 0U) {
 		*flags &= ~PRINT_FLAG_SPACE;
 	}
@@ -146,12 +198,37 @@ static const char *get_flags(const char *s_arg, uint32_t *flags)
 	return s;
 }
 
+/**
+ * @brief Parse length modifiers from a given string.
+ *
+ * This function checks for the presence of the h or l length modifiers and adjusts the flags and mask accordingly.
+ *
+ * - If the characters are hh, it sets the PRINT_FLAG_CHAR flag (indicating a char type) and sets the mask to
+ * 0x000000FFU and return
+ * - If the character is h, it sets the PRINT_FLAG_SHORT flag (indicating a short type) and sets the mask to 0x0000FFFFU
+ * and return
+ * - If the characters are ll, it sets the PRINT_FLAG_LONG_LONG flag, and return
+ * - If the character is l, it sets the PRINT_FLAG_LONG flag, and return
+ * - If above conditions are not satisfied, the function returns without any further operation
+ *
+ * @param[in] s_arg       A pointer to the input string containing the format specifier
+ * @param[inout] flags    A pointer to a uint32_t variable where flags related to the length modifier are stored
+ * @param[inout] mask     A pointer to a uint64_t variable where a mask related to the length modifier is stored
+ *
+ * @return A pointer to the character in the string where parsing stopped
+ *
+ * @pre s_arg != NULL
+ * @pre flags != NULL
+ * @pre mask != NULL
+ *
+ * @post N/A
+ */
 static const char *get_length_modifier(const char *s_arg,
 			uint32_t *flags, uint64_t *mask)
 {
 	const char *s = s_arg;
 	if (*s == 'h') {
-		/* check for h[h] (char/short) */
+		/** check for h[h] (char/short) */
 		s++;
 		if (*s == 'h') {
 			*flags |= PRINT_FLAG_CHAR;
@@ -162,7 +239,7 @@ static const char *get_length_modifier(const char *s_arg,
 			*mask = 0x0000FFFFU;
 		}
 	} else if (*s == 'l') {
-		/* check for l[l] (long/long long) */
+		/** check for l[l] (long/long long) */
 		s++;
 		if (*s == 'l') {
 			*flags |= PRINT_FLAG_LONG_LONG;
@@ -171,12 +248,41 @@ static const char *get_length_modifier(const char *s_arg,
 			*flags |= PRINT_FLAG_LONG;
 		}
 	} else {
-		/* No length modifiers found. */
+		/** No length modifiers found. */
 	}
 
 	return s;
 }
 
+/**
+ * @brief Format a number according to given parameters.
+ *
+ * This function formats a number according to various formatting parameters and prints it to buffer.
+ *
+ * - If the precision is greater than the total width (value length + prefix length), additional zero-padding for
+ * precision is calculated.
+ *
+ * - If the width specified is greater than the total width (including precision padding), the remaining width is
+ * calculated.
+ *
+ * - If the value is not left-justified, the padding character is set to a space ' '. If zero-padding
+ * (PRINT_FLAG_PAD_ZERO) is specified, the padding character is changed to '0'. The prefix is emitted first.
+ * Then, the function fills the width with the chosen padding character.
+ *
+ * - The prefix (e.g., "+" or "-") is emitted before the number itself and insert additional 0's for precision
+ * and emit the actual value.
+ *
+ * - If left justification (PRINT_FLAG_LEFT_JUSTIFY) is specified, the function emits the required number of
+ * spaces after the value to fill the remaining width.
+ *
+ * @param[inout] param    A pointer to a print_param structure that holds the formatting options
+ *
+ * @return None
+ *
+ * @pre param != NULL
+ *
+ * @post N/A
+ */
 static void format_number(struct print_param *param)
 {
 	/* contains the character used for padding */
@@ -250,6 +356,25 @@ static void format_number(struct print_param *param)
 
 }
 
+/**
+ * @brief Format a number into a power-of-2-based number
+ *
+ * This function Formats a number in a specific base (either octal, hexadecimal, etc.) after performing
+ * bitwise shifts. It does so by first applying a bit mask, converting the number to the desired base,
+ * and then formatting it according to the specified parameters (e.g., width, precision, flags). Parses an
+ * unsigned integer (uint32_t) from a given string.
+ *
+ * @param[inout]  param    A pointer to a print_param structure, which holds the formatting parameters and data.
+ * @param[in] v_arg        The value to be formatted and printed
+ * @param[in] shift        The number of bits to shift, which determines the numeral base. 1 indicates binary,
+ *                         3 indicates octal, 4 indicates hexadecimal
+ *
+ * @return None
+ *
+ * @pre param != NULL
+ *
+ * @post N/A
+ */
 static void print_pow2(struct print_param *param,
 		uint64_t v_arg, uint32_t shift)
 {
@@ -303,6 +428,29 @@ static void print_pow2(struct print_param *param,
 
 }
 
+/**
+ * @brief Format a signed or unsigned 64-bit integer value in decimal format
+ *
+ * This function formats a number in a decimal base with correct sign handling
+ *
+ * - If the number is negative and is treated as a signed number by checking the flag PRINT_FLAG_UINT32, then prefix "-"
+ * is set as a minus sign.
+ *
+ * - If a sign is explicitly requested by param, it updates the prefix accordingly (either +, a space, or nothing).
+ *
+ * - Two loops are launched to process the higher 32 bits and lower 32 bits respectively to determine digits from
+ * right to left by using division by 10 and modulo and then calls function format_number() to do the final format,
+ * refer to function format_number() for details.
+ *
+ * @param[inout] param    A pointer to a print_param structure, which holds the formatting parameters and data.
+ * @param[in] value       The value to be printed
+ *
+ * @return None
+ *
+ * @pre param != NULL
+ *
+ * @post N/A
+ */
 static void print_decimal(struct print_param *param, int64_t value)
 {
 	/* max. required buffer for uint64_t long in decimal format */
@@ -371,9 +519,32 @@ static void print_decimal(struct print_param *param, int64_t value)
 
 }
 
+/**
+ * @brief Format and print a string.
+ *
+ * This function handles the formatting and printing of a string based on given param.
+ *
+ * - It truncates the precision for the string with given param, and then if the width given by param is greater
+ * than the length of the string, extra characters will be added to the output to fill the width.
+ *
+ * - If the PRINT_FLAG_LEFT_JUSTIFY flag is not set, the function first emits spaces to fill the left side of
+ * the string, then, prints the string.
+ *
+ * - If the PRINT_FLAG_LEFT_JUSTIFY flag is set, the function prints the string first, then emits spaces to the right.
+ *
+ * @param[inout] param    A pointer to a print_param structure that holds the formatting options
+ * @param[in] s           The string to be printed
+ *
+ * @return None
+ *
+ * @pre param != NULL
+ * @pre s != NULL
+ *
+ * @post N/A
+ */
 static void print_string(const struct print_param *param, const char *s)
 {
-	/* the length of the string (-1) if unknown */
+	/** the length of the string (-1) if unknown */
 	uint32_t len;
 	/* the number of additional characters to insert to reach the required
 	 * width
@@ -382,7 +553,7 @@ static void print_string(const struct print_param *param, const char *s)
 
 	len = strnlen_s(s, PRINT_STRING_MAX_LEN);
 
-	/* precision gives the max. number of characters to emit. */
+	/** precision gives the max. number of characters to emit. */
 	if ((param->vars.precision != 0U) && (len > param->vars.precision)) {
 		len = param->vars.precision;
 	}
@@ -412,19 +583,41 @@ static void print_string(const struct print_param *param, const char *s)
 
 }
 
+/**
+ * @brief Print data given format string
+ *
+ * This function processes a format string and emits data based on that format
+ *
+ * - The function starts by iterating through the format string. For each non-format character, it emit it.
+ * Upon encountering a format specifier indicated by %, the function processes it by parsing the flags, width,
+ * precision, and length modifiers, and retrieving the corresponding argument from args. Then it calls the
+ * appropriate helper function (print_decimal(), print_pow2(), print_string()) to print the argument according
+ * to the format. After processing all characters in the format string, the function completes.
+ *
+ * @param[in] fmt_arg     A pointer to the format string containing format specifiers
+ * @param[inout] param    A pointer to a print_param structure, which contains configuration details
+ * @param[in] args        A variable argument list that contains the values to be printed
+ *
+ * @return None
+ *
+ * @pre fmt_arg != NULL
+ * @pre param != NULL
+ *
+ * @post N/A
+ */
 void do_print(const char *fmt_arg, struct print_param *param,
 		__builtin_va_list args)
 {
 	const char *fmt = fmt_arg;
 
-	/* temp. storage for the next character */
+	/** temp. storage for the next character */
 	char ch;
-	/* temp. pointer to the start of an analysed character sequence */
+	/** temp. pointer to the start of an analysed character sequence */
 	const char *start;
 
-	/* main loop: analyse until there are no more characters */
+	/** main loop: analyse until there are no more characters */
 	while ((*fmt) != '\0') {
-		/* mark the current position and search the next '%' */
+		/** mark the current position and search the next '%' */
 		start = fmt;
 
 		while (((*fmt) != '\0') && (*fmt != '%')) {
@@ -438,17 +631,17 @@ void do_print(const char *fmt_arg, struct print_param *param,
 			param->emit(PRINT_CMD_COPY, start, fmt - start,
 				param->data);
 
-		/* continue only if the '%' character was found */
+		/** continue only if the '%' character was found */
 		if (*fmt == '%') {
-			/* mark current position in the format string */
+			/** mark current position in the format string */
 			start = fmt;
 			fmt++;
 
-			/* initialize the variables for the next argument */
+			/** initialize the variables for the next argument */
 			(void)memset(&(param->vars), 0U, sizeof(param->vars));
 			param->vars.mask = 0xFFFFFFFFFFFFFFFFUL;
 
-			/*
+			/**
 			 * analyze the format specification:
 			 *   - get the flags
 			 *   - get the width
@@ -468,12 +661,12 @@ void do_print(const char *fmt_arg, struct print_param *param,
 			ch = *fmt;
 			fmt++;
 
-			/* a single '%'? => print out a single '%' */
+			/** a single '%'? => print out a single '%' */
 			if (ch == '%') {
 				param->emit(PRINT_CMD_COPY, &ch, 1U,
 						param->data);
 			} else if ((ch == 'd') || (ch == 'i')) {
-			/* decimal number */
+			/** decimal number */
 				if ((param->vars.flags &
 					PRINT_FLAG_LONG_LONG) != 0U) {
 					print_decimal(param,
@@ -483,7 +676,7 @@ void do_print(const char *fmt_arg, struct print_param *param,
 						__builtin_va_arg(args, int32_t));
 				}
 			}
-			/* unsigned decimal number */
+			/** unsigned decimal number */
 			else if (ch == 'u') {
 				param->vars.flags |= PRINT_FLAG_UINT32;
 				if ((param->vars.flags &
@@ -497,7 +690,7 @@ void do_print(const char *fmt_arg, struct print_param *param,
 						uint32_t));
 				}
 			}
-			/* hexadecimal number */
+			/** hexadecimal number */
 			else if ((ch == 'X') || (ch == 'x')) {
 				if (ch == 'X') {
 					param->vars.flags |= PRINT_FLAG_UPPER;
@@ -513,13 +706,13 @@ void do_print(const char *fmt_arg, struct print_param *param,
 						uint32_t), 4U);
 				}
 			}
-			/* pointer */
+			/** pointer */
 			else if (ch == 'p') {
 				print_pow2(param,
 					   (uint64_t)__builtin_va_arg(args, void *),
 					   4U);
 			}
-			/* string argument */
+			/** string argument */
 			else if (ch == 's') {
 				const char *s = __builtin_va_arg(args, char *);
 
@@ -528,7 +721,7 @@ void do_print(const char *fmt_arg, struct print_param *param,
 				}
 				print_string(param, s);
 			}
-			/* single character argument */
+			/** single character argument */
 			else if (ch == 'c') {
 				char c[2];
 
@@ -536,7 +729,7 @@ void do_print(const char *fmt_arg, struct print_param *param,
 				c[1] = 0;
 				print_string(param, c);
 			}
-			/* default: print the format specifier as it is */
+			/** default: print the format specifier as it is */
 			else {
 				param->emit(PRINT_CMD_COPY, start,
 						fmt - start, param->data);
@@ -546,16 +739,43 @@ void do_print(const char *fmt_arg, struct print_param *param,
 
 }
 
+/**
+ * @brief Copy or fill data to a buffer
+ *
+ * This function handles two modes of writing data to a buffer, copy mode and fill mode, using a source string
+ * and a destination buffer.
+ *
+ * - If the command is PRINT_CMD_COPY, The function checks if sz is greater than 0. If true, it enters a loop
+ * that copies characters from the source string into the destination buffer provided by param. The loop continues
+ * until either the source string ends or the number of characters copied reaches the specified size sz.
+ * param->wrtn is updated with the addition to copied bytes.
+ *
+ * - If the command is anything other than PRINT_CMD_COPY, the function writes the first byte of the string s_arg
+ * repeatedly into the destination buffer, up to the size specified by sz. param->wrtn is updated with the addition
+ * to filled bytes.
+ *
+ * @param[in] cmd         Value to specify the operation to perform
+ * @param[in] s_arg       A pointer to the source string or data used for writing
+ * @param[in] sz          The number of characters to write
+ * @param[inout] param    A pointer to a print_param structure that holds the destination buffer information
+ *
+ * @return None
+ *
+ * @pre s_arg != NULL
+ * @pre param != NULL
+ *
+ * @post N/A
+ */
 static void
 charmem(size_t cmd, const char *s_arg, uint32_t sz, struct snprint_param *param)
 {
 	const char *s = s_arg;
-	/* pointer to the destination */
+	/** pointer to the destination */
 	char *p = param->dst + param->wrtn;
-	/* characters actually written */
+	/** characters actually written */
 	uint32_t n = 0U;
 
-	/* copy mode ? */
+	/** copy mode ? */
 	if (cmd == PRINT_CMD_COPY) {
 		if (sz > 0U) {
 			while (((*s) != '\0') && (n < sz)) {
@@ -570,7 +790,7 @@ charmem(size_t cmd, const char *s_arg, uint32_t sz, struct snprint_param *param)
 
 		param->wrtn += n;
 	}
-	/* fill mode */
+	/** fill mode */
 	else {
 		n = (sz < (param->sz - param->wrtn)) ? sz : 0U;
 		param->wrtn += sz;
@@ -579,6 +799,28 @@ charmem(size_t cmd, const char *s_arg, uint32_t sz, struct snprint_param *param)
 
 }
 
+/**
+ * @brief Format a string with a list of arguments
+ *
+ * This function formats and write a string to a buffer with a list of arguments. It call the function
+ * do_print() to do the actual formatting.
+ *
+ * - If there is enough space in the buffer, the written string is null-terminated. Otherwise, it null-terminates
+ * at the last valid position in the buffer and the output is truncated.
+ *
+ * @param[inout] dst_arg  A pointer to destination buffer
+ * @param[in] sz_arg      The buffer size
+ * @param[in] fmt         A pointer to format string
+ * @param[in] args        A list of arguments
+ *
+ * @return The number of characters written to the output (excluding the terminating null byte).
+ * A return value of \p sz_arg or more indicates that the output is truncated.
+ *
+ * @pre dst_arg != NULL
+ * @pre fmt != NULL
+ *
+ * @post N/A
+ */
 size_t vsnprintf(char *dst_arg, size_t sz_arg, const char *fmt, va_list args)
 {
 	char *dst = dst_arg;
@@ -586,13 +828,13 @@ size_t vsnprintf(char *dst_arg, size_t sz_arg, const char *fmt, va_list args)
 	size_t res = 0U;
 
 
-	/* struct to store all necessary parameters */
+	/** struct to store all necessary parameters */
 	struct print_param param;
 
-	/* struct to store snprintf specific parameters */
+	/** struct to store snprintf specific parameters */
 	struct snprint_param snparam;
 
-	/* initialize parameters */
+	/** initialize parameters */
 	(void)memset(&snparam, 0U, sizeof(snparam));
 	snparam.dst = dst;
 	snparam.sz = sz;
@@ -603,7 +845,7 @@ size_t vsnprintf(char *dst_arg, size_t sz_arg, const char *fmt, va_list args)
 	/* execute the printf()*/
 	do_print(fmt, &param, args);
 
-	/* ensure the written string is NULL terminated */
+	/** ensure the written string is NULL terminated */
 	if (snparam.wrtn < sz) {
 		snparam.dst[snparam.wrtn] = '\0';
 	}
@@ -611,28 +853,50 @@ size_t vsnprintf(char *dst_arg, size_t sz_arg, const char *fmt, va_list args)
 		snparam.dst[sz - 1] = '\0';
 	}
 
-	/* return the number of chars which would be written */
+	/** return the number of chars which would be written */
 	res = snparam.wrtn;
 
-	/* done */
+	/** done */
 	return res;
 }
 
+/**
+ * @brief Format a string with variable arguments
+ *
+ * This function formats the string into dest, with a specified buffer size (sz), using the format string fmt and
+ * the variable arguments provided. It initializes the argument list and call function vsnprintf() to do the formatting
+ * and then returns the number of characters that would have been written to the output.
+ *
+ * @param[inout] dest        A pointer to destination buffer
+ * @param[in] sz             The buffer size
+ * @param[in] fmt            A pointer to format string
+ * @param ... varargs
+ *
+ * @return A number of characters written to the output
+ *
+ * @pre dest != NULL
+ * @pre fmt != NULL
+ *
+ * @post N/A
+ */
 size_t snprintf(char *dest, size_t sz, const char *fmt, ...)
 {
-	/* variable argument list needed for do_print() */
+	/** variable argument list needed for do_print() */
 	va_list args;
-	/* the result of this function */
+	/** the result of this function */
 	size_t res;
 
 	va_start(args, fmt);
 
-	/* execute the printf() */
+	/** execute the printf() */
 	res = vsnprintf(dest, sz, fmt, args);
 
-	/* destroy parameter list */
+	/** destroy parameter list */
 	va_end(args);
 
-	/* done */
+	/** done */
 	return res;
 }
+/**
+ * @}
+ */

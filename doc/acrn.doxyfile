@@ -897,6 +897,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/lib/errno.h \
                           ../hypervisor/hw/pci.c \
                           ../hypervisor/include/hw/pci.h \
+                          ../hypervisor/include/lib/sprintf.h \
+                          ../hypervisor/lib/sprintf.c \
 
 
 # This tag can be used to specify the character encoding of the source files

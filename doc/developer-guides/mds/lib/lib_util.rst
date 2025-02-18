@@ -12,14 +12,17 @@ This section contains the documentation of the module `lib.util`.
 .. contents::
    :local:
 
-[File] lib/sprintf.c
-======================================================================
-
-
 [File] lib/string.c
 ======================================================================
 
 .. doxygenfile:: string.c
+   :project: Project ACRN
+
+
+[File] lib/sprintf.c
+======================================================================
+
+.. doxygenfile:: sprintf.c
    :project: Project ACRN
 
 
@@ -74,4 +77,5 @@ This section contains the documentation of the module `lib.util`.
 [File] include/lib/sprintf.h
 ======================================================================
 
-
+.. doxygenfile:: sprintf.h
+   :project: Project ACRN
