@@ -839,6 +839,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/ioapic.h \
                           ../hypervisor/include/arch/x86/asm/lapic.h \
+                          ../hypervisor/include/arch/x86/asm/board.h \
                           ../hypervisor/include/dm/mmio_dev.h \
                           ../hypervisor/include/dm/vioapic.h \
                           ../hypervisor/include/dm/io_req.h \
