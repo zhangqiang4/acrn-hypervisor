@@ -918,6 +918,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/ve820.c \
                           ../hypervisor/arch/x86/guest/virq.c \
 			  ../hypervisor/arch/x86/trampoline.c \
+                          ../hypervisor/arch/x86/guest/assign.c \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/arch/x86/irq.c \
@@ -938,6 +939,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/dm/ivshmem.h \
                           ../hypervisor/common/irq.c \
                           ../hypervisor/common/softirq.c \
+                          ../hypervisor/common/ptdev.c \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
                           ../hypervisor/dm/vpic.c \

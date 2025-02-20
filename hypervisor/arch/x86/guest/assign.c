@@ -14,14 +14,31 @@
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 
-/*
- * Check if the IRQ is single-destination and return the destination vCPU if so.
+/**
+ * @addtogroup vp-dm_ptirq vp-dm.ptirq
+ *
+ * @{
+ */
+
+/**
+ * @file
+ *
+ * @brief Implementations of passthrough device interrupt assignment
+ */
+
+/**
+ * @brief Check if the IRQ can be posted to a single vCPU and return the destination vCPU
  *
  * VT-d PI (posted mode) cannot support multicast/broadcast IRQs.
  * If returns NULL, this means it is multicast/broadcast IRQ and
  * we can only handle it in remapped mode.
  * If returns non-NULL, the destination vCPU is returned, which means it is
  * single-destination IRQ and we can handle it in posted mode.
+ *
+ * @param[in] vm The VM to receive the MSI
+ * @param[in] info MSI address and data information
+ *
+ * @return The exact vCPU to received the MSI for a posted single-destination MSI or NULL
  *
  * @pre (vm != NULL) && (info != NULL)
  */
@@ -49,6 +66,19 @@ static struct acrn_vcpu *is_single_destination(struct acrn_vm *vm, const struct 
 	return vcpu;
 }
 
+/**
+ * @brief Sanitize physical CPU destination mask
+ *
+ * The physical CPU mask translated from vCPU mask may not be in the same x2APIC cluster and
+ * interrupts can not be distributed to all of those physical CPUs. Instead, we choose the first
+ * one of target clusters as the real destination. PCPU ids in pdmask should be smaller than
+ * MAX_PCPU_NUM if VM is configured correctly. Otherwise CPU with logical id 0 in cluster 0 is
+ * chosen as destination.
+ *
+ * @param[in] pdmask Original physical CPU destination mask
+ *
+ * @return Sanitized physical CPU destination mask
+ */
 static uint32_t calculate_logical_dest_mask(uint64_t pdmask)
 {
 	uint32_t dest_cluster_id = 0U, cluster_id, logical_id_mask = 0U;
@@ -83,6 +113,14 @@ static uint32_t calculate_logical_dest_mask(uint64_t pdmask)
 }
 
 /**
+ * @brief Free IRTE entry associated with a ptirq_remapping_info
+ *
+ * It was allocated when building the IRTE for physical IOAPIC RTE or MSI/MSI-x registers.
+ *
+ * @param[in] entry ptirq_remapping_info for a remapped interrupt
+ *
+ * @return None
+ *
  * @pre entry != NULL
  */
 static void ptirq_free_irte(const struct ptirq_remapping_info *entry)
@@ -99,11 +137,28 @@ static void ptirq_free_irte(const struct ptirq_remapping_info *entry)
 	dmar_free_irte(&intr_src, entry->irte_idx);
 }
 
-/*
- * pid_paddr = 0: invalid address, indicate that remapped mode shall be used
+/**
+ * @brief Build physical MSI address and data for a remapped MSI/MSI-x interrupt
  *
- * pid_paddr != 0: physical address of posted interrupt descriptor, indicate
- * that posted mode shall be used
+ * - Calculate destination vCPU mask and corresponding pCPU mask according to virtual MSI address
+ *   register
+ * - Set DMAR Interrupt Remapping Table Entry (IRTE) to posted mode or remapped mode according to
+ *   pid_paddr and update the IRTE index in physical MSI address which will be written to MSI
+ *   address register later.
+ * - For device without IOMMU or there is no available IRTE entry, the physical MSI address
+ *   and data fall back to compatibility mode values which goes the trap and inject path.
+ *
+ * @param[in] vm VM the interrupt is remapped to
+ * @param[inout] entry The ptirq_remapping_info for this interrupt
+ * @param[in] vector Virtual vector in virtual MSI data register for posted interrupt or physical
+ *      vector for directly remapped interrupt.
+ * @param[in] pid_paddr 0 means on PID available, thus using remapped mode. Otherwise, this is
+ *      physical address of a PID for posted interrupt.
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre entry != NULL
  */
 static void ptirq_build_physical_msi(struct acrn_vm *vm,
 	struct ptirq_remapping_info *entry, uint32_t vector, uint64_t pid_paddr)
@@ -180,6 +235,27 @@ static void ptirq_build_physical_msi(struct acrn_vm *vm,
 		entry->pmsi.addr.full, entry->pmsi.data.full);
 }
 
+/**
+ * @brief Build physical IOAPIC RTE for a remapped interrupt according to vRTE in vIOAPIC
+ *
+ * - Get the vRTE from vGSI and vIOAPIC
+ * - Set initial vIOAPIC pin state to inactive per polarity in vRTE
+ * - Calculate destination vCPU mask and corresponding pCPU mask from vRTE
+ * - Set DMAR Interrupt Remapping Table Entry (IRTE) and update the IRTE index in physical IOAPIC
+ *   RTE. INTx interrupts always goes interrupt remapping instead of posted interrupt. The
+ *   remapped vector matches the physical vector. If no available IRET entry, the interrupt is
+ *   just masked.
+ *   For IOAPIC without IOMMU or there is no available IRTE entry, just use unmapped format RTE
+ *   to route interrupt to hypervisor and let it inject interrupt to the VM.
+ *
+ * @param[in] vm VM to which the interrupt is remapped
+ * @param[in] entry The ptirq_remapping_info to describe the remapped interrupt
+ *
+ * @return A physical IOAPIC RTE to be set
+ *
+ * @pre vm != NULL
+ * @pre entry != NULL
+ */
 static union ioapic_rte
 ptirq_build_physical_rte(struct acrn_vm *vm, struct ptirq_remapping_info *entry)
 {
@@ -282,10 +358,23 @@ ptirq_build_physical_rte(struct acrn_vm *vm, struct ptirq_remapping_info *entry)
 	return rte;
 }
 
-/* add msix entry for a vm, based on msi id (phys_bdf+msix_index)
- * - if the entry not be added by any vm, allocate it
- * - if the entry already be added by Service VM, then change the owner to current vm
- * - if the entry already be added by other vm, return NULL
+/**
+ * @brief Remap a MSI/MSI-x interrupt to a VM
+ *
+ * - If the physical interrupt have not been remapped, create a new ptirq remapping info entry for
+ *   it and activate the entry. If no free entries available, return NULL.
+ * - Otherwise return the existing entry.
+ *
+ * @param[in] vm VM to add the MSI/MSI-x interrupt remapping
+ * @param[in] virt_bdf PCI bdf for virtual device representation within vm
+ * @param[in] phys_bdf PCI bdf for the physical device
+ * @param[in] entry_nr Vector index for the MSI/MSI-x interrupt
+ *
+ * @return A pointer to the created ptirq_remapping_info entry or NULL
+ * @retval pointer_to_created_entry When the remap is added successfully.
+ * @retval NULL No free ptirq_remapping_info entry or activation failed
+ *
+ * @pre vm != NULL
  */
 static struct ptirq_remapping_info *add_msix_remapping(struct acrn_vm *vm,
 	uint16_t virt_bdf, uint16_t phys_bdf, uint32_t entry_nr)
@@ -316,7 +405,20 @@ static struct ptirq_remapping_info *add_msix_remapping(struct acrn_vm *vm,
 	return entry;
 }
 
-/* deactive & remove mapping entry of vbdf:entry_nr for vm */
+/**
+ * @brief Deactivate and remove mapping entry for given MSI/MSI-x of a PCI device
+ *
+ * If such a mapping entry exists and it's for the given vm, deactivate this mapping, free DMAR
+ * IRTE and release ptirq_remapping_info entry.
+ *
+ * @param[in] vm VM to remove the MSI/MSI-x interrupt remapping
+ * @param[in] phys_bdf PCI bdf of the physical device
+ * @param[in] entry_nr MSI/MSI-x interrupt vector index
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ */
 static void
 remove_msix_remapping(const struct acrn_vm *vm, uint16_t phys_bdf, uint32_t entry_nr)
 {
@@ -343,10 +445,24 @@ remove_msix_remapping(const struct acrn_vm *vm, uint16_t phys_bdf, uint32_t entr
 
 }
 
-/* add intx entry for a vm, based on intx id (phys_pin)
- * - if the entry not be added by any vm, allocate it
- * - if the entry already be added by Service VM, then change the owner to current vm
- * - if the entry already be added by other vm, return NULL
+/**
+ * @brief add intx entry for a vm, based on intx id (phys_pin)
+ *
+ * - If both the physical interrupt and the virtual interrupt of vm are not remapped, allocate a
+ *   ptirq_remapping_info and activate it.
+ * - If the physical interrupt has been remapped to other VM, return NULL.
+ * - If the physical interrupt has been remapped to the VM, just return existing entry
+ *
+ * @param[in] vm Pointer to VM for which the INTx interrupt is remapped
+ * @param[in] virt_gsi Virtual GSI number in VM vIOAPIC context
+ * @param[in] phys_gsi Physical GSI number of the interrupt
+ *
+ * @return A pointer to the created ptirq_remapping_info entry or NULL
+ * @retval NULL No free ptirq entries for new remap or the physical interrupt has been remapped to
+ *         another VM or activation failed
+ * @retval pointer_to_added_entry When the INTx interrupt is remapped successfully.
+ *
+ * @pre vm != NULL
  */
 static struct ptirq_remapping_info *add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi,
 		uint32_t phys_gsi)
@@ -397,7 +513,25 @@ static struct ptirq_remapping_info *add_intx_remapping(struct acrn_vm *vm, uint3
 	return entry;
 }
 
-/* deactivate & remove mapping entry of vpin for vm */
+/**
+ * @brief Deactivate and remove an INTx remapping
+ *
+ * The INTx remapping can be determined by a physical GSI or a virtual GSI in a VM.
+ * If the remapping exists, deactivate it first in following steps:
+ * - Mask the physical IOAPIC interrupt
+ * - Deactivate the ptirq entry by unregister the irq handler
+ * - Free DMAR interrupt remapping table entry whose index is recorded in the remapping info
+ * After that, free the ptirq remapping info entry.
+ *
+ * @param[in] vm VM from which the remapping is removed
+ * @param[in] gsi A virtual GSI or physical GSI depending on is_phy_gsi
+ * @param[in] is_phy_gsi True if gsi is for a physical interrupt, False if virtual interrupt
+ *            within the vm
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ */
 static void remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool is_phy_gsi)
 {
 	uint32_t phys_irq;
@@ -437,6 +571,21 @@ static void remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool i
 	}
 }
 
+/**
+ * @brief Handle INTx injection for a passthrough device
+ *
+ * INTx interrupts are not posted and routed to hypervisor by interrupt remapping or unmapped
+ * IOAPIC RTE. The interrupt handler finally reach here to update vIOAPIC pin and inject interrupts
+ * if virtual interrupt are not masked.
+ *
+ * @param[in] vm VM to receive the interrupt
+ * @param[in] entry ptirq_remapping_info for the remapped interrupt
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre entry != NULL
+ */
 static void ptirq_handle_intx(struct acrn_vm *vm,
 		const struct ptirq_remapping_info *entry)
 {
@@ -471,6 +620,20 @@ static void ptirq_handle_intx(struct acrn_vm *vm,
 		rte.full);
 }
 
+/**
+ * @brief Handler of softirq to remap interrupts
+ *
+ * When hypervisor receive a physical interrupt from passthrough device, it
+ * will enqueue a ptirq_remapping_info entry and raise softirq SOFTIRQ_PTDEV. This function
+ * is the handler of the softirq. If the ptirq_remapping_info entry is active, it handles the
+ * interrupt and injects the virtual interrupt into VM.
+ * The handler is registered by calling @ref ptdev_init during hypervisor
+ * initialization.
+ *
+ * @param[in]    pcpu_id physical cpu id of the soft irq
+ *
+ * @return None
+ */
 void ptirq_softirq(uint16_t pcpu_id)
 {
 	while (true) {
@@ -506,6 +669,20 @@ void ptirq_softirq(uint16_t pcpu_id)
 	}
 }
 
+/**
+ * @brief Acknowledge a virtual INTx interrupt for passthrough device.
+ *
+ * If the virtual interrupt is remapped, update the line state in vIOAPIC according to interrupt
+ * polarity and then unmask the physical interrupt.
+ *
+ * @param[in] vm The VM the virt_gsi is from
+ * @param[in] virt_gsi virtual GSI number associated with the passthrough device
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ *
+ */
 void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
 {
 	uint32_t phys_irq;
@@ -531,11 +708,28 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
 	}
 }
 
-/* Main entry for PCI device assignment with MSI and MSI-X
- * MSI can up to 8 vectors and MSI-X can up to 1024 Vectors
- * We use entry_nr to indicate coming vectors
- * entry_nr = 0 means first vector
- * user must provide bdf and entry_nr
+/**
+ * @brief MSI/MSI-x remapping for passthrough device.
+ *
+ * Main entry for PCI device interrupt assignment with MSI and MSI-X.
+ * MSI can up to 8 vectors and MSI-X can up to 1024 Vectors.
+ * This function first add a ptirq_remapping_info for this interrupt and then update physical MSI
+ * address and data registers according to the virtual MSI address and data register values and
+ * whether the interrupt can be posted or not.
+ *
+ * @param[in] vm VM the interrupt is remapped to
+ * @param[in] virt_bdf Virtual bdf within vm for the passthrough device
+ * @param[in] phys_bdf Physical bdf of the passthrough device
+ * @param[in] entry_nr MSI/MSI-x vector index of the interrupt, 0 means first vector
+ * @param[inout] info Virtual MSI address and data
+ *
+ * @return Error code or 0 on success
+ * @retval 0 On success
+ * @retval -ENODEV For Service VM, the entry already be held by others. For User VM, no pre-hold mapping found.
+ *
+ * @pre vm != NULL
+ * @pre info != NULL
+ *
  */
 int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf, uint16_t phys_bdf,
 				uint16_t entry_nr, struct msi_info *info)
@@ -586,6 +780,23 @@ int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf, uint16_t
 	return ret;
 }
 
+/**
+ * @brief Activate an remapped interrupt by setting up physical IOAPIC RTE
+ *
+ * - Mask the physical IOAPIC interrupt
+ * - Build the remapped physical IOAPIC RTE from virtual RTE programmed in vIOAPIC.
+ * - Set trigger mode of the physical interrupt according to virtual RTE
+ * - Set the remapped physical IOAPIC RTE, with mask bit set.
+ * - If the virtual RTE was unmasked, unmask the physical RTE as well.
+ *
+ * @param[in] vm VM the interrupt is remapped to
+ * @param[in] entry The ptirq_remapping_info to describe the remapped interrupt
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre entry != NULL
+ */
 static void activate_ioapic_rte(struct acrn_vm *vm,
 		struct ptirq_remapping_info *entry)
 {
@@ -616,7 +827,22 @@ static void activate_ioapic_rte(struct acrn_vm *vm,
 	}
 }
 
-/* Main entry for PCI/Legacy device assignment with INTx, calling from vIOAPIC
+/**
+ * @brief INTx interrupt remapping for passthrough device.
+ *
+ * This is called to add identical INTx remapping for Service VM when it unmasks vIOAPIC RTE for
+ * a vGSI at the first time. This function also activates the remapping first time the interrupt
+ * is unmasked. Later masking operations will mask the physical interrupt.
+ *
+ * @param[in] vm The VM to check and remap
+ * @param[in] virt_gsi Virtual as well as physical GSI number associated with the passthrough device
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval -ENODEV For Service VM, the entry already be held by others. For User VM, no pre-hold mapping found.
+ * @retval -EINVAL The virt_gsi is not for a passthrough device
+ *
+ * @pre vm != NULL
  */
 int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 {
@@ -674,13 +900,22 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 	return status;
 }
 
-/* @pre vm != NULL
- * except Service VM, Device Model should call this function to pre-hold ptdev intx
- * entries:
- * - the entry is identified by phys_pin:
- *   one entry vs. one phys_pin
- * - currently, one phys_pin can only be held by one pin source (vPIC or
- *   vIOAPIC)
+/**
+ * @brief Add an interrupt remapping entry for INTx as pre-hold mapping.
+ *
+ * Except Service VM, this function is called to build INTx remapping during VM creation.
+ * The entry is identified by phys_pin, one entry vs. one phys_pin.
+ * Currently, one phys_pin can only be held by one pin source (vPIC or vIOAPIC).
+ *
+ * @param[in] vm The VM the virt_gsi is in, for the interrupt remapping
+ * @param[in] virt_gsi virtual pin number associated with the passthrough device
+ * @param[in] phys_gsi physical pin number associated with the passthrough device
+ *
+ * @return Error code or 0 on success
+ * @retval 0 on success
+ * @retval -ENODEV failed to add the remapping entry
+ *
+ * @pre vm != NULL
  */
 int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t phys_gsi)
 {
@@ -693,8 +928,20 @@ int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t
 	return (entry != NULL) ? 0 : -ENODEV;
 }
 
-/*
+/**
+ * @brief Remove an interrupt remapping entry for INTx.
+ *
+ * Deactivate & remove mapping entry of the given virt gsi for given vm or
+ * phys gsi assigned to this vm.
+ *
+ * @param[in] vm The VM the gsi is in if is_phy_gsi is False, or NULL if is_phy_gsi is True
+ * @param[in] gsi virtual gsi number or physical gsi number associated with the passthrough device
+ * @param[in] is_phy_gsi true if gsi is physical, false if gsi is virtual for the vm
+ *
+ * @return None
+ *
  * @pre vm != NULL
+ *
  */
 void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool is_phy_gsi)
 {
@@ -703,8 +950,19 @@ void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool is
 	spinlock_release(&ptdev_lock);
 }
 
-/*
+/**
+ * @brief Remove interrupt remapping entries for MSI/MSI-x.
+ *
+ * Remove the mapping of given number of vectors of the given physical BDF for the given vm.
+ *
+ * @param[in] vm The VM from which we remove the MSI-x remappings
+ * @param[in] phys_bdf Physical BDF associated with the passthrough device
+ * @param[in] vector_count Number of vector remappings to remove
+ *
+ * @return None
+ *
  * @pre vm != NULL
+ *
  */
 void ptirq_remove_msix_remapping(const struct acrn_vm *vm, uint16_t phys_bdf,
 		uint32_t vector_count)
@@ -718,7 +976,15 @@ void ptirq_remove_msix_remapping(const struct acrn_vm *vm, uint16_t phys_bdf,
 	}
 }
 
-/*
+/**
+ * @brief Remove all interrupt remappings for INTx which are defined in VM config.
+ *
+ * Deactivate & remove all mapping entries of the virt_gsis defined in VM config for given vm.
+ *
+ * @param[in] vm The VM we remove the INTx remappings from
+ *
+ * @return None
+ *
  * @pre vm != NULL
  */
 void ptirq_remove_configured_intx_remappings(const struct acrn_vm *vm)
@@ -730,3 +996,7 @@ void ptirq_remove_configured_intx_remappings(const struct acrn_vm *vm)
 		ptirq_remove_intx_remapping(vm, vm_config->pt_intx[i].virt_gsi, false);
 	}
 }
+
+/**
+  * @}
+  */
