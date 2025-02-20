@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,18 +13,70 @@
 #include <asm/vtd.h>
 #include <acpi.h>
 
+/**
+ * @addtogroup hwmgmt_hw-caps
+ *
+ * @{
+ */
+/**
+ * @file
+ * @brief DMAR (DMA Remapping) parsing implementation for the ACRN hypervisor.
+ *
+ * This file contains the data structures and functions to parse ACPI DMAR tables and extract relevant information.
+ */
+
+/**
+ * @brief Counter for the number of DMAR units.
+ *
+ * This static variable keeps track of the number of DMAR (DMA Remapping) units detected or processed by the ACPI
+ * parser. It is used internally within the DMAR parsing logic to maintain a count of these units.
+ */
 static uint32_t dmar_unit_cnt;
+
+/**
+ * @brief Array to store DRHD (DMA Remapping Hardware Unit Definition) information.
+ *
+ * This array holds the information for each DRHD unit parsed from the ACPI DMAR table.
+ * The size of the array is defined by the MAX_DRHDS macro.
+ */
 static struct dmar_drhd drhd_info_array[MAX_DRHDS];
+
+/**
+ * @brief 2D array to store device scope entries for DRHD structures.
+ *
+ * This array is used to store the device scope entries for each DRHD (DMA Remapping Hardware Unit Definition)
+ * structure. Each DRHD can have multiple device scope entries, which are stored in this 2D array.
+ *
+ * The maximum number of DRHD structures is defined by the MAX_DRHDS macro.
+ * The maximum number of device scope entries per DRHD structure is defined by the MAX_DRHD_DEVSCOPES macro.
+ */
 static struct dmar_dev_scope drhd_dev_scope[MAX_DRHDS][MAX_DRHD_DEVSCOPES];
 
-/*
- * @post return != NULL
+/**
+ * @brief Internal function to retrieve the DMAR (DMA Remapping) table.
+ *
+ * This function calls `get_acpi_tbl` with the signature `DMAR` to obtain the DMAR table, which contains information
+ * about DMA remapping hardware in the system.
+ *
+ * @return A pointer to the DMAR table if found, otherwise NULL.
  */
 static void *get_dmar_table(void)
 {
 	return get_acpi_tbl(ACPI_SIG_DMAR);
 }
 
+/**
+ * @brief Internal function to retrieve the secondary bus number for a given PCI device.
+ *
+ * This function reads the secondary bus number from the PCI configuration space of a specified PCI device using
+ * Programmed Input/Output (PIO) interfaces.
+ *
+ * @param[in] bus The bus number of the PCI device.
+ * @param[in] dev The device number on the specified bus.
+ * @param[in] func The function number of the specified device.
+ *
+ * @return The secondary bus number.
+ */
 static uint8_t get_secondary_bus(uint8_t bus, uint8_t dev, uint8_t func)
 {
 	uint32_t data;
@@ -37,6 +89,19 @@ static uint8_t get_secondary_bus(uint8_t bus, uint8_t dev, uint8_t func)
 	return (data >> 8U) & 0xffU;
 }
 
+/**
+ * @brief Internal function to parse the DMAR path and return the PCI Bus/Device/Function (BDF) address.
+ *
+ * This function takes the length of the path, the initial bus number, and a pointer to the ACPI DMAR PCI path
+ * structure. It iterates through the path to determine the BDF address by updating the bus number using the
+ * secondary bus number obtained from the current BDF.
+ *
+ * @param[in] path_len Length of the DMAR path.
+ * @param[in] busno Initial bus number.
+ * @param[in] path Pointer to the ACPI DMAR PCI path structure.
+ *
+ * @return The final PCI BDF address as a union pci_bdf.
+ */
 static union pci_bdf dmar_path_bdf(int32_t path_len, uint8_t busno, const struct acpi_dmar_pci_path *path)
 {
 	int32_t i;
@@ -54,7 +119,21 @@ static union pci_bdf dmar_path_bdf(int32_t path_len, uint8_t busno, const struct
 	return dmar_bdf;
 }
 
-
+/**
+ * @brief Internal function to handle the DMAR device scope and extracts relevant information.
+ *
+ * This function processes the DMAR (DMA Remapping) device scope structure and extracts the bus, device,
+ * and function information from the given address. It also updates the provided `dev_scope` structure
+ * with the extracted information. If the remaining length is less than the size of the DMAR device scope
+ * structure or less than the length specified in the DMAR device scope header, the function will return -1
+ * to indicate a failure.
+ *
+ * @param[inout] dev_scope Pointer to the structure where the extracted device scope information will be stored.
+ * @param[in] addr Pointer to the address containing the DMAR device scope structure.
+ * @param[in] remaining The remaining length of the data to be processed.
+ *
+ * @return The length of the DMAR device scope structure if successful, otherwise -1.
+ */
 static int32_t handle_dmar_devscope(struct dmar_dev_scope *dev_scope, void *addr, int32_t remaining)
 {
 	int32_t path_len, ret = -1;
@@ -79,6 +158,18 @@ static int32_t handle_dmar_devscope(struct dmar_dev_scope *dev_scope, void *addr
 	return ret;
 }
 
+/**
+ * @brief Internal function to count the device scopes in a given DRHD (DMA Remapping Hardware Unit) structure.
+ *
+ * This function calculates the number of device scopes present in the specified DRHD structure. It iterates
+ * through the device scopes within the DRHD structure and counts those that are valid (i.e., not of type
+ * ACPI_DMAR_SCOPE_TYPE_NOT_USED and less than ACPI_DMAR_SCOPE_TYPE_RESERVED). For more details, refer to
+ * section 8.3.1 of the Intel Virtualization Technology for Directed I/O Architecture Specification Revision 5.0.
+ *
+ * @param[in] drhd Pointer to the DRHD structure to be parsed.
+ *
+ * @return The number of valid device scopes in the given DRHD structure.
+ */
 static uint32_t get_drhd_dev_scope_cnt(struct acpi_dmar_hardware_unit *drhd)
 {
 	struct acpi_dmar_device_scope *scope;
@@ -101,8 +192,24 @@ static uint32_t get_drhd_dev_scope_cnt(struct acpi_dmar_hardware_unit *drhd)
 }
 
 /**
- * @Application constraint: The dedicated DMAR unit for Intel integrated GPU
- * shall be available on the physical platform.
+ * @brief Internal function to handle a single DMA Remapping Hardware Unit (DRHD) structure.
+ *
+ * This function processes an ACPI DMAR hardware unit structure and populates the corresponding
+ * DMAR DRHD structure. It also handles device scopes within the DRHD and applies platform-specific
+ * constraints.
+ * For more details, refer to Section 8.3 of the Intel Virtualization Technology for Directed
+ * I/O (VT-d) Architecture Specification, Revision 5.0.
+ *
+ * @param[in] acpi_drhd Pointer to the ACPI DMAR hardware unit structure.
+ * @param[inout] drhd Pointer to the DMAR DRHD structure to be populated.
+ *
+ * @return Always returns 0.
+ *
+ * @pre (acpi_drhd != NULL) && (drhd != NULL)
+ *
+ * @remark Application constraint: The dedicated DMAR unit for Intel integrated GPU shall be available
+ * on the physical platform. This function disables GPU IOMMU on APL platforms as GVT-d is not enabled
+ * on APL yet.
  */
 static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct dmar_drhd *drhd)
 {
@@ -157,6 +264,28 @@ static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct
 	return 0;
 }
 
+/**
+ * @brief Interface to parse the DMAR (DMA Remapping) table and populate platform DMAR information.
+ *
+ * This function parses the DMAR table to extract DMA Remapping Hardware Unit (DRHD) information and populates
+ * the provided `dmar_info` structure with the parsed data. For more details, refer to Section 8.1 of the Intel
+ * Virtualization Technology for Directed I/O (VT-d) Architecture Specification, Revision 5.0.
+ *
+ * The following invalid cases are handled to ensure the integrity of the DMAR table and its entries:
+ * - DMAR table is NULL: The function will assert and halt execution.
+ * - The length value in the DMAR table header is less than the size of the DMAR table header: The function will
+ *   assert and halt execution.
+ * - DRHD entry with a zero base address: The function will assert and halt execution.
+ * - Multiple PCI segments: The function will panic and halt execution.
+ * - DMAR table with more than MAX_DRHDS DRHD entries: The function will assert and halt execution.
+ * - More than one DRHD with the INCLUDE_PCI_ALL flag: The function will log an error message.
+ *
+ * @param[inout] plat_dmar Pointer to the structure where the parsed DMAR information will be stored.
+ *
+ * @return Always returns 0.
+ *
+ * @pre plat_dmar != NULL
+ */
 int32_t parse_dmar_table(struct dmar_info *plat_dmar)
 {
 	struct acpi_table_dmar *dmar_tbl;
@@ -211,3 +340,6 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar)
 
 	return 0;
 }
+/**
+ * @}
+ */

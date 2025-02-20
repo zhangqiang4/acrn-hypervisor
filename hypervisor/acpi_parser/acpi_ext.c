@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2003 John Baldwin <jhb@FreeBSD.org>
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2025 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,37 +35,74 @@
 #include <pci.h>
 #include <acrn_common.h>
 
-/* Per ACPI spec:
- * There are two fundamental types of ACPI tables:
+/**
+ * @addtogroup hwmgmt_hw-caps
  *
- * Tables that contain AML code produced from the ACPI Source Language (ASL).
- * These include the DSDT, any SSDTs, and sometimes OEM-specific tables (OEMx).
- *
- * Tables that contain simple data and no AML byte code. These types of tables
- * are known as ACPI Data Tables. They include tables such as the FADT, MADT,
- * ECDT, SRAT, etc. -essentially any table other than a DSDT or SSDT.
- *
- * The second type of table, the ACPI Data Table, could be parsed here.
- *
- * When ACRN go FuSa, the platform ACPI data should be fixed and this file is not needed.
+ * @{
  */
 
-/* get a dword value from given table and its offset */
+/**
+ * @file
+ * @brief Implementation for parsing ACPI data tables and fixing up configuration data.
+ *
+ * According to the ACPI specification, there are two fundamental types of ACPI tables:
+ *
+ * 1. Tables that contain AML code produced from the ACPI Source Language (ASL). These include the DSDT, any SSDTs,
+ *    and sometimes OEM-specific tables (OEMx).
+ *
+ * 2. Tables that contain simple data and no AML byte code. These are known as ACPI Data Tables. They include tables
+ *    such as the FADT, MADT, ECDT, SRAT, etc. Essentially, any table other than a DSDT or SSDT.
+ *
+ * The second type of table, the ACPI Data Table, can be parsed here.
+ *
+ * The fixed data include Power Management Sx states, PCI Memory Mapped Regions, and Reset Register.
+ */
+
+/**
+ * @brief Internal function to retrieve a DWORD (32-bit) value from a given ACPI table at a specified offset.
+ *
+ * This function takes a pointer to an ACPI table and an offset and returns the DWORD value located at that offset
+ * within the table.
+ *
+ * @param[in] dt_addr Pointer to the base address of the ACPI table.
+ * @param[in] dt_offset Offset within the ACPI table where the DWORD value is located.
+ *
+ * @return The 32-bit DWORD value at the specified offset within the ACPI table.
+ */
 static inline uint32_t get_acpi_dt_dword(const uint8_t *dt_addr, uint32_t dt_offset)
 {
 	return *(uint32_t *)(dt_addr + dt_offset);
 }
 
-/* get a qword value from given table and its offset */
+/**
+ * @brief Internal function to retrieve a QWORD (64-bit) value from a given ACPI table at a specified offset.
+ *
+ * This function takes a pointer to an ACPI table and an offset and returns the QWORD value located at that offset
+ * within the table.
+ *
+ * @param[in] dt_addr Pointer to the base address of the ACPI table.
+ * @param[in] dt_offset Offset within the ACPI table where the QWORD value is located.
+ *
+ * @return The 64-bit QWORD value at the specified offset within the ACPI table.
+ */
 static inline uint64_t get_acpi_dt_qword(const uint8_t *dt_addr, uint32_t dt_offset)
 {
 	return *(uint64_t *)(dt_addr + dt_offset);
 }
 
-/* get a GAS struct from given table and its offset.
- * ACPI table stores packed gas, but it is not guaranteed that
- * struct acrn_acpi_generic_address is packed, so do not use memcpy in function.
- * @pre dt_addr != NULL && gas != NULL
+/**
+ * @brief Internal function to get a GAS structure from a given table and its offset.
+ *
+ * This function retrieves a Generic Address Structure (GAS) from an ACPI table at a specified offset. The ACPI
+ * table stores the GAS in a packed format, but the struct acrn_acpi_generic_address is not guaranteed to be packed,
+ * so memcpy should not be used in this function.
+ *
+ * @param[in] dt_addr Pointer to the base address of the ACPI table.
+ * @param[in] dt_offset Offset within the ACPI table where the GAS is located.
+ * @param[inout] gas Pointer to the struct acrn_acpi_generic_address to be filled with the GAS data.
+ *
+ * @pre dt_addr != NULL
+ * @pre gas != NULL
  */
 static inline void get_acpi_dt_gas(const uint8_t *dt_addr, uint32_t dt_offset, struct acrn_acpi_generic_address *gas)
 {
@@ -78,7 +115,21 @@ static inline void get_acpi_dt_gas(const uint8_t *dt_addr, uint32_t dt_offset, s
 	gas->address = dt_gas->address;
 }
 
-/* @pre facp_addr != NULL */
+/**
+ * @brief Internal function to retrieve the Firmware ACPI Control Structure (FACS) table address.
+ *
+ * This function retrieves the address of the FACS table from the provided FACP (Fixed ACPI Description Table)
+ * address. It first checks the 32-bit FACS address and then, if the FACP revision is 2 or higher, it checks the
+ * 64-bit FACS address. The function verifies that the FACS signature is 'FACS' and that the length is not less
+ * than 64 bytes to ensure the table is valid.
+ *
+ * @param[in] facp_addr Pointer to the FACP table.
+ *
+ * @return Pointer to the FACS table if found and valid, otherwise NULL.
+ *
+ * @pre facp_addr != NULL
+ */
+
 static void *get_facs_table(const uint8_t *facp_addr)
 {
 	uint8_t *facs_addr, *facs_x_addr;
@@ -111,7 +162,20 @@ static void *get_facs_table(const uint8_t *facp_addr)
 	return (void *)facs_addr;
 }
 
-/* @pre mcfg_addr != NULL */
+/**
+ * @brief Internal function to parse the MCFG allocation tables from the given address.
+ *
+ * This function parses the MCFG (Memory-Mapped Configuration Space Base Address Description Table) allocation tables
+ * from the provided address. It retrieves the length of the MCFG table and checks if multiple PCI segment groups are
+ * present. If multiple PCI segment groups are detected, an error message is logged. Otherwise, it returns a pointer to
+ * the MCFG allocation table.
+ *
+ * @param[in] mcfg_addr Pointer to the MCFG table address.
+ *
+ * @return Pointer to the parsed MCFG allocation table, or NULL if multiple PCI segment groups are detected.
+ *
+ * @pre mcfg_addr != NULL
+ */
 static struct acpi_mcfg_allocation *parse_mcfg_allocation_tables(const uint8_t *mcfg_addr)
 {
 	struct acpi_mcfg_allocation *mcfg_table = NULL;
@@ -125,7 +189,28 @@ static struct acpi_mcfg_allocation *parse_mcfg_allocation_tables(const uint8_t *
 	return mcfg_table;
 }
 
-/* put all ACPI fix up code here */
+/**
+ * @brief Parse ACPI data tables to update related data structures.
+ *
+ * This function processes ACPI tables (FADT, FACS, MCFG) to update ACPI-related data structures used by the
+ * hypervisor, including Power Management Sx states, PCI Memory Mapped regions, and reset registers.
+ *
+ * This function performs the following tasks:
+ * - Retrieves the system state data structure using get_host_sstate_data(), then retrieves the Fixed ACPI
+ *   Description Table (FADT) and extracts power management event and control registers as defined in section 5.2.9
+ *   of the ACPI Specification Release 6.5. It updates the system state data structure with the extracted registers.
+ * - If the FADT revision is 2 or higher, retrieves the host reset registers data structure using
+ *   get_host_reset_reg_data(), and updates it with data from the FADT.
+ * - Retrieves the Firmware ACPI Control Structure (FACS) as defined in section 5.2.10 of the ACPI Specification
+ *   Release 6.5 and sets wake vectors in the system state data structure.
+ * - Retrieves the Memory Mapped Configuration Space Base Address Description Table (MCFG) as defined in section 4.1.2
+ *   of the PCI Firmware Specification Revision 3.3 and parses the memory configuration allocation tables. Uses the
+ *   parsed MCFG table to set the memory-mapped configuration region using set_mmcfg_region().
+ *
+ * @return int32_t indicating success or failure.
+ * @retval 0 on success
+ * @retval -1 on failure (if any required ACPI table is not found or processed correctly)
+ */
 int32_t acpi_fixup(void)
 {
 	uint8_t *facp_addr = NULL, *facs_addr = NULL, *mcfg_addr = NULL;
@@ -174,3 +259,6 @@ int32_t acpi_fixup(void)
 
 	return ret;
 }
+/**
+ * @}
+ */

@@ -867,6 +867,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/default_acpi_info.h \
                           ../hypervisor/boot/include/acpi.h \
                           ../hypervisor/boot/acpi_base.c \
+                          ../hypervisor/acpi_parser/dmar_parse.c \
+                          ../hypervisor/acpi_parser/acpi_ext.c \
                           ../hypervisor/arch/x86/guest/vm.c \
                           ../hypervisor/arch/x86/guest/vmcall.c \
                           ../hypervisor/arch/x86/cpu_state_tbl.c \

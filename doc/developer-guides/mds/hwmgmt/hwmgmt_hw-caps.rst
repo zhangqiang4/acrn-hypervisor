@@ -15,8 +15,14 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 [File] acpi_parser/acpi_ext.c
 ======================================================================
 
+.. doxygenfile:: acpi_ext.c
+   :project: Project ACRN
+
 [File] acpi_parser/dmar_parse.c
 ======================================================================
+
+.. doxygenfile:: dmar_parse.c
+   :project: Project ACRN
 
 [File] boot/acpi_base.c
 ======================================================================

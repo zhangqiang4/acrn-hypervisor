@@ -249,7 +249,6 @@ HW_C_SRCS += hw/pci.c
 HW_C_SRCS += arch/x86/configs/vm_config.c
 HW_C_SRCS += boot/acpi_base.c
 # ACPI parsing component
-# This part should be isolated from FuSa Cert
 ifeq ($(CONFIG_ACPI_PARSE_ENABLED),y)
 HW_C_SRCS += acpi_parser/dmar_parse.c
 HW_C_SRCS += acpi_parser/acpi_ext.c
