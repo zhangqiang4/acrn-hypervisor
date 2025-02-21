@@ -200,6 +200,7 @@ void init_pcpu_model_name(void);
 int32_t detect_hardware_support(void);
 uint16_t mc_bank_count(void);
 struct cpuinfo_x86 *get_pcpu_info(void);
+uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req);
 
 /**
  * @brief The bit enumerates whether the CPU supports generating \#AC (Alignment Check) exception when a split lock is

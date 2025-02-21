@@ -339,41 +339,6 @@ static uint32_t check_vmx_ctrl(uint32_t msr, uint32_t ctrl_req)
 }
 
 /**
- * @brief Check VM-execution control for request capabilities.
- *
- * This function checks VM-execution control capability MSRs for tertiary processor-based VM-execution controls,
- * It performs a bitwise AND operation with the MSR value and the requested control settings to ensure that only
- * the supported control bits are set. If the requested control settings are not fully supported, an informational
- * message is logged.
- *
- * @param[in] msr The MSR address to read the VMX capabilities from.
- * @param[in] ctrl_req The requested 64-bit VMX control settings.
- *
- * @return The validated control value that can be set to the VMX control fields.
- *
- * @pre N/A
- *
- * @post N/A
- */
-uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
-{
-	uint64_t vmx_msr;
-	uint32_t ctrl = ctrl_req;
-
-	vmx_msr = msr_read(msr);
-
-	/* 64 bits are allowed 1-setting */
-	ctrl &= vmx_msr;
-
-	if ((ctrl_req & ~ctrl) != 0U) {
-		pr_info("VMX ctrl 0x%x not fully enabled: current capabilities are 0x%x (full capabilities are 0x%lx)\n",
-						msr, ctrl, ctrl_req);
-	}
-
-	return ctrl;
-}
-
-/**
  * @brief Initialize VM-execution controls for a given vCPU.
  *
  * The VM-execution control fields govern VMX non-root operation.

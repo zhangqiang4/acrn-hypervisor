@@ -586,10 +586,6 @@ void exec_vmwrite64(uint32_t field_full, uint64_t value);
 void clear_va_vmcs(const uint8_t *vmcs_va);
 void load_va_vmcs(const uint8_t *vmcs_va);
 
-void init_cr0_cr4_flexible_bits(void);
-
-uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req);
-
 #define POSTED_INTR_ON  0U	/**< Outstanding notification bit index of pi_desc.control field. */
 #endif /* VMX_H_ */
 

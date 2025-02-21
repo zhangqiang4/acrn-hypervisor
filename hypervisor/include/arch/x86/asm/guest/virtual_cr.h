@@ -16,6 +16,7 @@ uint64_t get_cr4_reserved_bits(struct acrn_vm *vm);
 void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm);
 void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm);
 bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4);
+void init_cr0_cr4_flexible_bits(void );
 
 /**
  * @brief vCR from vcpu
