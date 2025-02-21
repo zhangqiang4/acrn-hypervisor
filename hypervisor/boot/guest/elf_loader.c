@@ -297,7 +297,7 @@ int32_t elf_loader(struct acrn_vm *vm)
 		clac();
 		if (mb_hdr != NULL) {
 			uint32_t mmap_length = 0U;
-			struct multiboot_info mb_info;
+			struct multiboot_info mb_info = { 0 };
 
 			stac();
 			if ((mb_hdr->flags & MULTIBOOT_HEADER_NEED_MEMINFO) != 0U) {
