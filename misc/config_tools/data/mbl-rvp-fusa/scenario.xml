@@ -36,6 +36,7 @@
         </IVSHMEM_REGION>
       </IVSHMEM>
       <RELOC_ENABLED>n</RELOC_ENABLED>
+      <VUART_TX_BUF_SIZE>16384</VUART_TX_BUF_SIZE>
       <SCHEDULER>SCHED_BVT</SCHEDULER>
       <MULTIBOOT2_ENABLED>n</MULTIBOOT2_ENABLED>
       <SPLIT_LOCK_DETECTION_ENABLED>n</SPLIT_LOCK_DETECTION_ENABLED>
@@ -95,7 +96,7 @@
       <MAX_PT_IRQ_ENTRIES>256</MAX_PT_IRQ_ENTRIES>
       <MAX_MSIX_TABLE_NUM>130</MAX_MSIX_TABLE_NUM>
       <MAX_EMULATED_MMIO>16</MAX_EMULATED_MMIO>
-      <MAX_VM_NUM>5</MAX_VM_NUM>
+      <MAX_VM_NUM>6</MAX_VM_NUM>
       <MAX_IOAPIC_NUM>1</MAX_IOAPIC_NUM>
       <MAX_IOAPIC_LINES>120</MAX_IOAPIC_LINES>
     </CAPACITIES>
@@ -325,6 +326,18 @@
           <TYPE>Unified</TYPE>
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
+        <POLICY>
+          <VM>VM5</VM>
+          <VCPU>0</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
+          <VM>VM5</VM>
+          <VCPU>1</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
       </CACHE_ALLOCATION>
     </CACHE_REGION>
     <BUILD_TYPE>debug</BUILD_TYPE>
@@ -346,6 +359,10 @@
       <size>1024</size>
     </memory>
     <cpu_affinity>
+      <pcpu>
+        <pcpu_id>17</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
       <pcpu>
         <pcpu_id>18</pcpu_id>
         <real_time_vcpu>n</real_time_vcpu>
@@ -585,4 +602,29 @@
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
   </vm>
+  <vm id="5">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <os_type>Non-Windows OS</os_type>
+    <own_pcpu>n</own_pcpu>
+    <vuart0>n</vuart0>
+    <memory>
+      <size>1024</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>0</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>1</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <load_order>POST_LAUNCHED_VM</load_order>
+    <name>VM5</name>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
+  </vm>
+
 </acrn-config>
