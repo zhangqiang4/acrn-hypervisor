@@ -1217,6 +1217,9 @@ int32_t detect_hardware_support(void)
 	} else if (!pcpu_has_cap(X86_FEATURE_ARCH_CAP)){
 		printf("%s, IA32_ARCH_CAPABILITIES MSR is not supported\n", __func__);
 		ret = -ENODEV;
+	} else if ((msr_read(MSR_IA32_ARCH_CAPABILITIES) & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) == 0UL) {
+		printf("%s, vulnerable to Machine Check Error on Page Size Change\n", __func__);
+		ret = -ENODEV;
 	} else {
 		ret = check_essential_vmx_caps();
 	}

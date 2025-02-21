@@ -210,8 +210,6 @@ struct pgtable {
 	 */
 	bool (*large_page_support)(enum _page_table_level level, uint64_t prot);
 	void (*clflush_pagewalk)(const void *p); /**< Function to flush a page table entry from the cache. */
-	void (*tweak_exe_right)(uint64_t *entry); /**< Function to tweak execution rights for an entry. */
-	void (*recover_exe_right)(uint64_t *entry); /**< Function to recover execution rights for an entry. */
 };
 
 /**

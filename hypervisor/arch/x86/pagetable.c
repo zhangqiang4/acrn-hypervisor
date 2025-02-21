@@ -188,7 +188,6 @@ static void split_large_page(uint64_t *pte, enum _page_table_level level,
 		paddrinc = PTE_SIZE;
 		ref_prot = (*pte) & ~PDE_PFN_MASK;
 		ref_prot &= ~PAGE_PSE;
-		table->recover_exe_right(&ref_prot);
 		break;
 	}
 
@@ -482,8 +481,7 @@ static void modify_or_del_pdpte(const uint64_t *pml4e, uint64_t vaddr_start, uin
  * the corresponding mapping and it continues the operation.
  * - If any PDPTE/PDE in the specified address range maps a large page and the large page address exceeds the specified
  * address range, the function splits the large page into next level page to allow for the modification or deletion of
- * the mappings and the execute right will be recovered by the callback function table->recover_exe_right() when a 2MB
- * page is split to 4KB pages.
+ * the mappings.
  * - If the 'type' is MR_MODIFY, the function modifies the properties of the existing mapping to match the specified
  * properties.
  * - If the 'type' is MR_DEL, the function will set corresponding page table entries to point to the sanitized page.
@@ -642,7 +640,6 @@ static void add_pde(const uint64_t *pdpte, uint64_t paddr_start, uint64_t vaddr_
 					mem_aligned_check(paddr, PDE_SIZE) &&
 					mem_aligned_check(vaddr, PDE_SIZE) &&
 					(vaddr_next <= vaddr_end)) {
-					table->tweak_exe_right(&local_prot);
 					set_pgentry(pde, paddr | (local_prot | PAGE_PSE), table);
 					if (vaddr_next < vaddr_end) {
 						paddr += (vaddr_next - vaddr);
@@ -712,7 +709,6 @@ static void add_pdpte(const uint64_t *pml4e, uint64_t paddr_start, uint64_t vadd
 					mem_aligned_check(paddr, PDPTE_SIZE) &&
 					mem_aligned_check(vaddr, PDPTE_SIZE) &&
 					(vaddr_next <= vaddr_end)) {
-					table->tweak_exe_right(&local_prot);
 					set_pgentry(pdpte, paddr | (local_prot | PAGE_PSE), table);
 					if (vaddr_next < vaddr_end) {
 						paddr += (vaddr_next - vaddr);
@@ -743,8 +739,6 @@ static void add_pdpte(const uint64_t *pml4e, uint64_t paddr_start, uint64_t vadd
  *
  * - If any subrange within [vaddr_base, vaddr_base + size) is already mapped, there is no change to the corresponding
  * mapping and it continues the operation.
- * - When a new 1GB or 2MB mapping is established, the callback function table->tweak_exe_right() is invoked to tweak
- * the execution bit.
  * - When a new page table referenced by a new PDPTE/PDE is created, all entries in the page table are initialized to
  * point to the sanitized page by default.
  * - Finally, the new mappings are established and initialized according to the specified address range and properties.

@@ -129,48 +129,13 @@ static inline bool ept_large_page_support(enum _page_table_level level, __unused
 	return support;
 }
 
-/*
- * Pages without execution right, such as MMIO, can always use large page
- * base on hardware capability, even if the VM is an RTVM. This can save
- * page table page # and improve TLB hit rate.
- */
-static inline bool use_large_page(enum _page_table_level level, uint64_t prot)
-{
-	bool ret = false;	/* for code page */
-
-	if ((prot & EPT_EXE) == 0UL) {
-		ret = ept_large_page_support(level, prot);
-	}
-
-	return ret;
-}
-
 static inline void ept_clflush_pagewalk(const void* etry)
 {
 	iommu_flush_cache(etry, sizeof(uint64_t));
 }
 
-static inline void ept_nop_tweak_exe_right(uint64_t *entry __attribute__((unused))) {}
-static inline void ept_nop_recover_exe_right(uint64_t *entry __attribute__((unused))) {}
-
-/* The function is used to disable execute right for (2MB / 1GB)large pages in EPT */
-static inline void ept_tweak_exe_right(uint64_t *entry)
-{
-	*entry &= ~EPT_EXE;
-}
-
-/* The function is used to recover the execute right when large pages are breaking into 4KB pages
- * Hypervisor doesn't control execute right for guest memory, recovers execute right by default.
- */
-static inline void ept_recover_exe_right(uint64_t *entry)
-{
-	*entry |= EPT_EXE;
-}
-
 void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 {
-	struct acrn_vm *vm = get_vm_from_vmid(vm_id);
-
 	ept_page_pool[vm_id].start_page = ept_pages[vm_id];
 	ept_page_pool[vm_id].bitmap_size = get_ept_page_num() / 64;
 	ept_page_pool[vm_id].bitmap = ept_page_bitmap[vm_id];
@@ -185,19 +150,6 @@ void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 	table->pgentry_present_mask = EPT_RWX;
 	table->clflush_pagewalk = ept_clflush_pagewalk;
 	table->large_page_support = ept_large_page_support;
-
-	/* Mitigation for issue "Machine Check Error on Page Size Change" */
-	if (is_ept_force_4k_ipage()) {
-		table->tweak_exe_right = ept_tweak_exe_right;
-		table->recover_exe_right = ept_recover_exe_right;
-		/* For RTVM, build 4KB page mapping in EPT for code pages */
-		if (is_rt_vm(vm)) {
-			table->large_page_support = use_large_page;
-		}
-	} else {
-		table->tweak_exe_right = ept_nop_tweak_exe_right;
-		table->recover_exe_right = ept_nop_recover_exe_right;
-	}
 }
 /*
  * To enable the identical map and support of legacy devices/ACPI method in Service VM,

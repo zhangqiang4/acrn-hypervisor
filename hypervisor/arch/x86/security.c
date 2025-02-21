@@ -499,50 +499,6 @@ void set_fs_base(void)
 	msr_write(MSR_IA32_FS_BASE, (uint64_t)psc);
 }
 #endif
-
-#ifndef CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED
-bool is_ept_force_4k_ipage(void)
-{
-	return false;
-}
-#else
-/**
- * @brief Detect if the current physical processor is affected by unintended machine check on page size changes
- *
- * It is a known issue of the processor that unintended machine check exceptions will be raised under certain conditions
- * when the size of a memory page containing code is changed without flushing TLB. In order to avoid such unintended
- * exceptions, the hypervisor will enforce the usage of 4-Kbyte pages for entries with executable permission in EPT if
- * the physical processor is vulnerable to this issue.
- *
- * This function detects the applicability of the issue on the current physical processor by the family and model IDs
- * as well as the value in MSR_ARCH_CAPABILITIES. Only non-Atom cores without bit 6 in MSR_ARCH_CAPABILITIES set is
- * considered vulnerable.
- *
- * @return A boolean indicating whether 4-Kbyte executable pages shall be enforced in EPT
- *
- * @retval true 4-Kbyte executable pages shall be enforced in EPT
- * @retval false 4-Kbyte executable pages no need be enforced in EPT
- *
- * @pre N/A
- *
- * @post N/A
- */
-bool is_ept_force_4k_ipage(void)
-{
-	bool force_4k_ipage = true;
-	uint64_t x86_arch_capabilities;
-
-	x86_arch_capabilities = msr_read(MSR_IA32_ARCH_CAPABILITIES);
-	/** If bit 6 of x86_arch_capabilities is 1, indicating that the physical processor is not affected by
-	 *  the issue
-	 */
-	if ((x86_arch_capabilities & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) != 0UL) {
-		/** Set force_4k_ipage to false */
-		force_4k_ipage = false;
-	}
-	return force_4k_ipage;
-}
-#endif
 /**
  * @}
  */
