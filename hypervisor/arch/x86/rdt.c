@@ -50,7 +50,7 @@ static void setup_res_clos_msr(uint16_t pcpu_id, struct rdt_type *info, struct r
 	uint32_t res = info->res_id;
 	union clos_config *cfg = ins->clos_config_array;
 
-	if (res != RDT_RESID_MBA && ins->res.cache.is_cdp_enabled) {
+	if ((res != RDT_RESID_MBA) && ins->res.cache.is_cdp_enabled) {
 		/* enable CDP before setting COS to simplify CAT mask remapping
 		 * and prevent unintended behavior.
 		 */
