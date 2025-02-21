@@ -907,6 +907,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/configs/pci_dev.c \
                           ../hypervisor/arch/x86/configs/vacpi.c \
                           ../hypervisor/arch/x86/configs/vm_config.c \
+                          ../hypervisor/arch/x86/guest/virtual_cr.c \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \

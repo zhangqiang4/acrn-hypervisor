@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -21,94 +21,188 @@
 #include <trace.h>
 #include <logmsg.h>
 
-/*
- * Physical CR4 bits in VMX operation may be either flexible or fixed.
- * Guest CR4 bits may be operatable or reserved.
+/**
+ * @defgroup vp-base_vcr vp-base.vcr
  *
- * All the guest reserved bits should be TRAPed and EMULATed by HV
- * (inject #GP).
+ * @ingroup vp-base
+ *
+ * @brief Implement vCR related functions and bits definitions
+ *
+ * This module provides external APIs to check, set/get CR{0,2,4} related virtual control registers.
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Implement functions to initialize, check and get/set control registers.
+ *
+ * When handle guest CR4 access, the function follows below rules:
+ * Guet CR4 bits in VMX operation can be either flexible or fixed. All the guest
+ * reserved bits shall be trapped and emulated by HV to inject a \#GP to guest.
  *
  * For guest operatable bits, it may be:
- * CR4_PASSTHRU_BITS:
- *	Bits that may be passed through to guest. The actual passthru bits
- *	should be masked by flexible bits.
+ * - CR4_PASSTHRU_BITS:
+ *	Bits that may be passed through to guest. The actual pass-through bits shall
+ *	be masked by flexible bits.
  *
- * CR4_TRAP_AND_PASSTHRU_BITS:
- *	The bits are trapped by HV and HV emulation will eventually write
- *	the guest value to physical CR4 (GUEST_CR4) too. The actual bits
- *	should be masked by flexible bits.
+ * - CR4_TRAP_AND_PASSTHRU_BITS:
+ *	The bits are trapped by HV and HV emulation shall eventually write the guest
+ *	value to VMCS GUEST_CR4 field. The actual bits shall be masked by flexible bits.
  *
- * CR4_TRAP_AND_EMULATE_BITS:
- *	The bits are trapped by HV and emulated, but HV updates vCR4 only
- *	(no update to physical CR4), i.e. pure software emulation.
+ * - CR4_TRAP_AND_EMULATE_BITS:
+ *	The bits are trapped by HV and emulated, but HV updates virtual CR4 only
+ *	(no update to VMCS GUEST_CR4 field), i.e. pure software emulation.
  *
- * CR4_EMULATED_RESERVE_BITS:
- *	The bits are trapped, but are emulated by injecting a #GP.
+ * - CR4_EMULATED_RESERVE_BITS:
+ *	The bits are trapped, but are emulated by injecting a \#GP.
  *
  * NOTE: Above bits should not overlap.
  *
+ * CR0 follows the same rule of CR4, except it won't inject \#GP for reserved bits violation
+ * for the low 32 bits. Instead it ignores software write to those reserved bits. Attempting
+ * to set any reserved bits in CR0[63:32] results in a general-protection exception, \#GP(0).
+ */
+
+/**
+ * @brief Macro to define CR4 bits that can be passed through to guest.
+ *
+ * The actual passthrough bits shall be masked by flexible bits.
  */
 #define CR4_PASSTHRU_BITS	(CR4_VME | CR4_PVI | CR4_TSD | CR4_DE | \
 				CR4_PGE | CR4_PCE | CR4_OSFXSR | CR4_PCIDE | \
 				CR4_OSXSAVE | CR4_FSGSBASE | CR4_OSXMMEXCPT | \
 				CR4_UMIP | CR4_LA57)
-static uint64_t cr4_passthru_mask = CR4_PASSTHRU_BITS;	/* bound to flexible bits */
 
+/**
+ * @brief Variable to hold CR4 bits that can be written through to guest CR4 register without VM-Exit
+ */
+static uint64_t cr4_passthru_mask = CR4_PASSTHRU_BITS;
+
+/**
+ * @brief Macro to define CR4 bits that can be written through to guest CR4 register but need VM-Exit
+ */
 #define CR4_TRAP_AND_PASSTHRU_BITS	(CR4_PSE | CR4_PAE | CR4_SMEP | CR4_SMAP | CR4_KL)
+
+/**
+ * @brief Variable to hold CR4 bits that can be written through to guest CR4 by HV with VM-Exit.
+ */
 static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* bound to flexible bits */
 
-/* For CR4.MCE, we follow below policy:
- * CR4.MCE should always be enabled in physical CR4, regardless of values of vCR4.
- * Physically turning off CR4.MCE will suppress #MC and this will result in logical processor
- * to enter shutdown state when the machine check event happens. (SDM 29.8, Machine-Check
- * Events During VM Exit)
+/**
+ * @brief Macro to hold CR4 bits that are trapped and are always emulated by HV.
+ *
+ * For CR4.MCE, we follow below policy:
+ * CR4.MCE should always be enabled in guest CR4, regardless of values of vCR4. Physically turning off CR4.MCE will
+ * suppress \#MC and this will result in logical processor to enter shutdown state when the machine check event
+ * happens. Refer to 28.8 Machine-Check Events During VM Exit, SDM Vol.3 325462-078US for details.
  */
-#define CR4_TRAP_AND_EMULATE_BITS	CR4_MCE /* software emulated bits even if host is fixed */
+#define CR4_TRAP_AND_EMULATE_BITS	CR4_MCE
 
-/* Physical initial value for pure emulated bits */
+/**
+ * @brief CR4 feature bits that are always set in guest CR4
+ */
 #define CR4_EM_BITS_INITIAL_PHYS_VALUE	CR4_MCE
 
-/* No EM_BITS_INITIAL_VIRT_VALUE defined as that will be zero */
-
-/* Change of these bits should change vcpuid too */
+/**
+ * @brief CR4 feature bits that are hidden by HV as reserved bits
+ */
 #define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE | CR4_PKE | CR4_PKS)
 
-/* The physical CR4 value for bits of CR4_EMULATED_RESERVE_BITS */
+/**
+ * @brief CR4 emulated feature bits set to guest CR4
+ */
 #define CR4_EMRSV_BITS_PHYS_VALUE	CR4_VMXE
 
-/*
- * Initial value or reset value of GUEST_CR4, i.e. physical value.
- * They are likely zeros, but some reserved bits may be not.
+/**
+ * @brief Initial value or reset value of GUEST_CR4, i.e. initial guest value.
  */
 static uint64_t initial_guest_cr4;
 
-/*
- * Bits not in cr4_passthru_mask/cr4_trap_and_passthru_mask/cr4_trap_and_emulate_mask
- * are reserved bits, includes at least CR4_EMULATED_RESERVE_BITS
+/**
+ * @brief Bits not in cr4_passthru_mask/cr4_trap_and_passthru_mask/CR4_TRAP_AND_EMULATE_BITS
+ * are reserved bits.
  */
 static uint64_t cr4_reserved_bits_mask;
 
-/*
- * CR0 follows the same rule of CR4, except it won't inject #GP for reserved bits violation
- * for the low 32 bits. Instead, it ignores the software write to those reserved bits.
+/**
+ * @brief Macro to define CR0 bits that can be passed through to guest
+ *
+ * CR0 follows the same rule of CR4, except it won't inject \#GP for reserved bits violation
+ * for the low 32 bits. Instead, it ignores software write to those reserved bits.
  */
 #define CR0_PASSTHRU_BITS	(CR0_MP | CR0_EM | CR0_TS | CR0_ET | CR0_NE | CR0_AM)
-static uint64_t cr0_passthru_mask = CR0_PASSTHRU_BITS;	/* bound to flexible bits */
 
+/**
+ * @brief Variable to hold CR0 bits that can be passed through to guest.
+ */
+static uint64_t cr0_passthru_mask = CR0_PASSTHRU_BITS;
+
+/**
+ * @brief Macro to define CR0 bits that can be written through to guest CR0 register but need VM-Exit.
+ */
 #define CR0_TRAP_AND_PASSTHRU_BITS	(CR0_PE | CR0_PG | CR0_WP)
-static uint64_t	cr0_trap_and_passthru_mask = CR0_TRAP_AND_PASSTHRU_BITS;/* bound to flexible bits */
-/* software emulated bits even if host is fixed */
+
+/**
+ * @brief Variable to hold CR0 bits that can be written through to guest CR0 by HV with VM-Exit.
+ */
+static uint64_t	cr0_trap_and_passthru_mask = CR0_TRAP_AND_PASSTHRU_BITS;
+
+/**
+ @brief Macro to hold CR4 bits that are trapped and are always emulated by HV.
+*/
 #define CR0_TRAP_AND_EMULATE_BITS	(CR0_CD | CR0_NW)
 
-/* These bits may be part of flexible bits but reserved to guest */
+/**
+ * @brief CR0 feature bits that are emulated by HV
+ */
 #define CR0_EMULATED_RESERVE_BITS	0UL
-#define CR0_EMRSV_BITS_PHYS_VALUE	0UL
-static uint64_t initial_guest_cr0;		/* Initial value of GUEST_CR0 */
+
+/**
+ * @brief CR0 emulated feature bits set to guest CR0
+ */
+#define	CR0_EMRSV_BITS_PHYS_VALUE	0UL
+
+/**
+ * @brief Initial value or reset value of GUEST_CR0, i.e. initial guest value.
+ */
+static uint64_t initial_guest_cr0;
+
+/**
+ * @brief Bits not in cr0_passthru_mask/cr0_trap_and_passthru_mask/CR0_TRAP_AND_EMULATE_BITS
+ * are reserved bits.
+ */
 static uint64_t cr0_reserved_bits_mask;
 
-/* PAE PDPTE bits 1 ~ 2, 5 ~ 8 are always reserved */
+/**
+ * @brief PAE PDPTE reserved bits[2:1], bits[8:5].
+ */
 #define PAE_PDPTE_FIXED_RESVD_BITS	0x00000000000001E6UL
 
+/**
+ * @brief Check and load PDPTR registers
+ *
+ * This function checks validity of guest PDPTR registers and updates VMCS PDPTR fields. When guest tries
+ * to update CR0/CR4 to enable PAE paging mode, HV traps the operation and checks whether guest PDPTR
+ * register settings are correct for PAE paging, injects \#GP to guest if the setting is not qualified.
+ * It returns error in below conditions:
+ * - Fail to copy PDPTR registers with copy_from_gpa().
+ * - PAGE_PRESENT bit in PDPTR register is clear.
+ * - PTPTR registers have reserved bits set.
+ *
+ * It updates VMCS PDPTR fields with that of guest settings if above conditions pass.
+ *
+ * @param[in] vcpu Target vCPU to enable PAE paging
+ *
+ * @return A integer value to indicate the operation result
+ *
+ * @retval -EFAULT There's error while enabling PAE paging.
+ * @retval 0 Enable PAE paging successfully.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static int32_t load_pdptrs(const struct acrn_vcpu *vcpu)
 {
 	uint64_t guest_cr3 = exec_vmread(VMX_GUEST_CR3);
@@ -150,16 +244,46 @@ static int32_t load_pdptrs(const struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-/*
- * Whether the value changes the reserved bits.
+/**
+ * @brief Check whether CR0 value is valid
+ *
+ * This function checks whether there's any reserved bit set in CR0 value, if no reserved bit is set,
+ * it's a valid value, otherwise, invalid value.
+ *
+ * @param[in] cr0 Target CR0 value to check
+ *
+ * @return true if target CR0 value is valid, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static inline bool is_valid_cr0(uint64_t cr0)
 {
 	return (cr0 & cr0_reserved_bits_mask) == 0UL;
 }
 
-/*
- * Certain combination of CR0 write may lead to #GP.
+/**
+ * @brief Check whether guest CR0 write value is valid.
+ *
+ * This function checks below invalid cases:
+ * - The value includes bits in its high 32 bits.
+ * - CR0.PG == 1, CR4.PAE == 0 and IA32_EFER.LME == 1.
+ * - CR0.PE == 0 and CR0.PG == 1.
+ * - CR0.CD == 0 and CR0.NW == 1.
+ * - CR0.PG == 0 and cpu_mode == CPU_MODE_64BIT.
+ * - CR0.PG == 0 and CR4.PCIDE == 1
+ *
+ * If these invalid cases are not detected, then the write value is valid, otherwise invalid.
+ *
+ * @param[in] vcpu Target vCPU to check the CR0 value
+ * @param[in] cr0 Target CR0 value to check
+ *
+ * @return true if the value is valid, otherwise false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 {
@@ -222,26 +346,39 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 	return ret;
 }
 
-/*
- * Handling of CR0:
- * Assume "unrestricted guest" feature is supported by vmx.
- * For mode switch, hv only needs to take care of enabling/disabling long mode,
- * thanks to "unrestricted guest" feature.
+/**
+ * @brief Emulate write to guest CR0
  *
- *   - PE (0)  Trapped to track cpu mode.
- *             Set the value according to the value from guest.
- *   - MP (1)  Flexible to guest
- *   - EM (2)  Flexible to guest
- *   - TS (3)  Flexible to guest
- *   - ET (4)  Flexible to guest
- *   - NE (5)  must always be 1
- *   - WP (16) Trapped to get if it inhibits supervisor level procedures to
- *             write into ro-pages.
- *   - AM (18) Flexible to guest
- *   - NW (29) Trapped to emulate cache disable situation
- *   - CD (30) Trapped to emulate cache disable situation
- *   - PG (31) Trapped to track cpu/paging mode.
- *             Set the value according to the value from guest.
+ * Guest CR0 bits shall be treated as below:
+ *   - PE(0): Trapped to track cpu mode.
+ *   - MP(1), EM(2), TS(3), ET(4), AM(18): Flexible bits to guest.
+ *   - CD(3), NW(29): Trapped to emulate cache disable situation.
+ *   - NE(5): Fixed-1 bit, always set by HV.
+ *   - WP(16): Trapped to get if it inhibits supervisor level procedures to write into ro-pages.
+ *   - PG(31): Trapped to track cpu/paging mode.
+ *   - Other bits are reserved to guest.
+ *
+ * This function emulates guest CR0 write in below steps:
+ * - Check whether the target CR0 value is valid, if not, inject \#GP to guest.
+ * - Otherwise check paging mode as below:
+ *   - If CR0.PG == 1 and MSR EFER.LME_BIT == 1, enable long-mode paging.
+ *   - If CR0.PG == 1 and MSR EFER.LME_BIT == 0, enable PAE paging.
+ *   - If CR0.PG == 0 and MSR EFER.LME_BIT == 1, disable long-mode paging.
+ *
+ * - Try to reload guest PAT if CR0.CD is changed. If CR0.CD == 1, set guest PAT VMCS field with all UC entries,
+ *   otherwise set PAT field with guest value.
+ * - If guest PG/WP/CD is to be changed, issue vCPU request to flush EPT cache.
+ * - Re-calculate and set values for guest CR0 and shadow CR0 in VMCS.
+ * - Finally clear CPU_REG_CR0 bit in vcpu->reg_cached.
+ *
+ * @param[inout] vcpu Target vCPU to write the CR0 value
+ * @param[in] value Target CR0 value
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 {
@@ -336,19 +473,72 @@ static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 	}
 }
 
+/**
+ * @brief Check whether target CR4 value is valid
+ *
+ * This function checks whether there's any CR4 reserved bit is set for target VM. If no reserved bit is set,
+ * it's a valid value, otherwise invalid value.
+ *
+ * @param[in] vm Target VM to check CR4
+ * @param[in] cr4 Target CR4 value to check
+ *
+ * @return true if target CR4 value is valid, false otherwise.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static inline bool is_valid_cr4(struct acrn_vm *vm, uint64_t cr4)
 {
 	return (cr4 & vm->cfg.cr4_reserved_bits_mask) == 0UL;
 }
 
-/*
- * TODO: Implement more comprhensive check here.
+/**
+ * @brief Check whether both CR0 and CR4 values are valid
+ *
+ * This function checks whether any the reserved bit of CR0/CR4 register is set, if not, valid
+ * register value, otherwise, invalid value.
+ *
+ * Normal case behaviors:
+ * - Return a boolean value to indicate whether both register values are valid.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vm Target VM to check CR0/CR4
+ * @param[in] cr0 Target CR0 value to check
+ * @param[in] cr4 Target CR4 value to check
+ *
+ * @return true if both register values are valid, false if either of the values is invalid.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4)
 {
 	return is_valid_cr4(vm, cr4) & is_valid_cr0(cr0);
 }
 
+/**
+ * @brief Check whether guest CR4 write value is valid
+ *
+ * This function checks below invalid cases:
+ * - Any guest CR4 reserved bit is set.
+ * - EFER.MSR_IA32_EFER_LMA_BIT is set but CR4.PAE is not.
+ * - CR4.MCE is set but Machine-Check is not passed through to guest.
+ *
+ * If these invalid cases are not detected, the target write value is valid, otherwise invalid.
+ *
+ * @param[in] vcpu Target vCPU to check CR4 value
+ * @param[in] cr4 Target CR4 value to check
+ *
+ * @return true if the CR4 value is valid, false otherwise.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
 {
 	bool ret = true;
@@ -364,13 +554,40 @@ static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
 	return ret;
 }
 
-/*
- * Handling of CR4:
- * Assume "unrestricted guest" feature is supported by vmx.
+/**
+ * @brief Emulate write to guest CR4
  *
- * For CR4, if a guest attempts to change the reserved bits, a #GP fault is injected.
- * This includes hardware reserved bits in VMX operation (not flexible bits),
- * and CR4_EMULATED_RESERVE_BITS, or check with cr4_reserved_bits_mask.
+ * Guest CR4 bits shall be treated as below:
+ *   - VME(0), PVI(1), TSD(2), DE(3), PGE(7), PCE(8), OSFXSR(9), OSXMMEXCPT(10), UMIP(11), LA57(12),
+ *     FSGSBASE(16), PCIDE(17), OSXSAVE(18): Flexible bits to guest.
+ *   - PSE(4), SMEP(20), SMAP(21): Trapped to flush EPT cache.
+ *   - PAE(5): Trapped to enable guest PAE paging and flush EPT cache.
+ *   - MCE(6): Always set for guest.
+ *   - VMXE(13): Fixed-1 bit, always set by HV.
+ *   - KL(19): Trapped to flush EPT cache and load IWKey for vCPU if set.
+ *   - Other bits are reserved to guest.
+ *
+ * This function first checks if the target CR4 value is valid, if not, inject \#GP to guest. Otherwise
+ * it performs below checks:
+ * - If guest PSE/PAE/SMEP/SMAP/KL is to be changed:
+ *   - If guest PAE paging is enabled, then load guest PDPTRs.
+ *   - Send vCPU request to flush EPT cache.
+ * - If CR4.PCIDE == 1, check whether guest MSR EFER.LMA and CR3[11:0] are properly set, if not, inject \#GP. Refer to
+ *   4.10.1 Process-Context Identifiers (PCIDs), SDM Vol.3 325462-078US for details.
+ *
+ * If it passes above checks, then the function performs below steps:
+ * - If CR4.KL == 1, set arch.cr4_kl_enabled to true and load Key-Lock IWKEY, otherwise set the flag to false.
+ * - Re-calculate and set guest CR4 and shadow CR4 in VMCS.
+ * - Clear CPU_REG_CR4 bit flag in vcpu->reg_cached.
+ *
+ * @param[inout] vcpu Target vCPU to write the CR4 value
+ * @param[in] cr4 Target CR4 value
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 {
@@ -445,6 +662,27 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 	}
 }
 
+/**
+ * @brief Initialize CR0 and CR4 related guest masks
+ *
+ * This function uses CR0/CR4 fixed-1 bits, flexible bits and pre-defined macros to initialize global CR0/CR4
+ * passthrough and trap_and_passthrough masks, initial guest CR0/CR4 values and CR0/CR4 reserved bit masks.
+ * passthrough and trap_and_passtrough masks are filtered by flexible bit mask. Initial guest CR0/CR4
+ * values include the fixed-1 bits and HV managed bit, but exclude emulated reserved feature bits.
+ * Reserved bit masks include all bits not in passthrough, trap_and_passthrough and trap_and_emulated masks.
+ *
+ * Normal case behaviors:
+ * - Set the initial values for guest masks.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 void init_cr0_cr4_flexible_bits(void)
 {
 	uint64_t cr0_flexible_bits, cr0_fixed1_bits;
@@ -516,6 +754,25 @@ void init_cr0_cr4_flexible_bits(void)
 	pr_dbg("cr4_reserved_bits_mask:0x%lx, initial_guest_cr4:0x%lx.\n", cr4_reserved_bits_mask, initial_guest_cr4);
 }
 
+/**
+ * @brief Fix up VM CR0/CR4 passthrough and reserved bit masks
+ *
+ * This function is used to fix up VM cr0/cr4 reserved bit mask and passthrough bit mask according to VM feature
+ * configuration. If PMU is not passed through to VM, add CR4.PCE bit as VM CR4 reserved bit mask and remove it
+ * from VM CR4 pass-through bit mask. Otherwise reuse the initialized guest CR0/CR4 masks for target VM.
+ *
+ * Normal case behaviors:
+ * - Fix up VM CR0/CR4 reserved bit mask and passthrough bit mask.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm)
 {
 	if (is_pmu_pt_configured(vm)) {
@@ -527,6 +784,25 @@ void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm)
 	}
 }
 
+/**
+ * @brief Set CR0/CR4 guest/host masks
+ *
+ * This function uses cr0_passthru_mask and cr4_passthru_mask for a VM to set CR0/CR4 guest_host masks in
+ * VMCS fields. Refer to 25.6.6 Guest/Host Masks and Read Shadows for CR0 and CR4, SDM Vol.3 325462-078US
+ * for details.
+ *
+ * Normal case behaviors:
+ * - Set the initial values for VMCS fields.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm)
 {
 	/*
@@ -540,6 +816,27 @@ void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm)
 	pr_dbg("CR4 guest-host mask value: 0x%016lx", ~vm->cfg.cr4_passthru_mask);
 }
 
+/**
+ * @brief Get vCPU CR0
+ *
+ * This function returns vCPU CR0 value. VM-Exit doesn't cache vCPU CR0, this function needs to read
+ * related VMCS fields and synthesize a vCPU CR0 value, then set CR0 bit in vcpu->reg_cached so that
+ * following read to vCPU CR0 can return the cached data directly.
+ *
+ * Normal case behaviors:
+ * - Read VMCS fields and synthesize a CR0 value or get the value from memory cache.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to get the CR0 value
+ *
+ * @return Target vCPU CR0 value
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_cr0(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -551,23 +848,105 @@ uint64_t vcpu_get_cr0(struct acrn_vcpu *vcpu)
 	return ctx->cr0;
 }
 
+/**
+ * @brief Set vCPU CR0
+ *
+ * This function writes CR0 value to corresponding VMCS field. It's called in below cases:
+ * - The cached CR0 is updated before VM-Entry.
+ * - Guest CR0 write is trapped and HV tries to update VMCS with guest value.
+ * - HV gets ACRN_REQUEST_INIT_VMCS request to initialize guest VMCS fields.
+ *
+ * Normal case behaviors:
+ * - Update CR0 VMCS field with target value
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set the CR0 value
+ * @param[in] val The CR0 value to set
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_cr0(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	pr_dbg("%s, value: 0x%016lx rip: %016lx", __func__, val, vcpu_get_rip(vcpu));
 	vmx_write_cr0(vcpu, val);
 }
 
+/**
+ * @brief Get vCPU CR2
+ *
+ * This function returns cached vCPU CR2 value from vCPU run-context.
+ *
+ * Normal case behaviors:
+ * - Return cached CR2 value
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[in] vcpu Target vCPU to get the CR2 value
+ *
+ * @return Cached CR2 value
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_cr2(const struct acrn_vcpu *vcpu)
 {
 	return vcpu->arch.contexts.run_ctx.cr2;
 }
 
+/**
+ * @brief Set vCPU CR2
+ *
+ * This function sets CR2 value to vCPU run-context.
+ *
+ * Normal case behaviors:
+ * - Set CR2 value to vCPU run-context
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set the CR2 value
+ * @param[in] val Target CR2 value to set
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_cr2(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	vcpu->arch.contexts.run_ctx.cr2 = val;
 }
 
-/* This API shall be called after vCPU is created. */
+/**
+ * @brief Get vCPU CR4
+ *
+ * This function returns vCPU CR4 value. VM-Exit doesn't cache vCPU CR4, this function needs to read
+ * related VMCS fields and synthesize a vCPU CR4 value, then set CR4 bit in vcpu->reg_cached so that
+ * following read to vCPU CR4 can return the cached data directly.
+ *
+ * Normal case behaviors:
+ * - Read VMCS fields and synthesize a CR4 value or get the value from memory cache directly.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to get the CR4 value
+ *
+ * @return Target vCPU CR4 value
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 uint64_t vcpu_get_cr4(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
@@ -579,12 +958,60 @@ uint64_t vcpu_get_cr4(struct acrn_vcpu *vcpu)
 	return ctx->cr4;
 }
 
+/**
+ * @brief Set vCPU CR4
+ *
+ * This function writes CR4 value to corresponding VMCS field. It's called in below cases:
+ * - The cached CR4 is updated before VM-Entry.
+ * - Guest CR4 write is trapped and HV tries to update VMCS with guest value.
+ * - HV gets ACRN_REQUEST_INIT_VMCS request to initialize guest VMCS fields.
+ *
+ * Normal case behaviors:
+ * - Update CR4 VMCS field with target value
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @param[inout] vcpu Target vCPU to set the CR4 value
+ * @param[in] val The CR4 value to set
+ *
+ * @return None
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 void vcpu_set_cr4(struct acrn_vcpu *vcpu, uint64_t val)
 {
 	pr_dbg("%s, value: 0x%016lx rip: %016lx", __func__, val, vcpu_get_rip(vcpu));
 	vmx_write_cr4(vcpu, val);
 }
 
+/**
+ * @brief Handler for control register access induced VM-Exit
+ *
+ * This function handles VM-Exit induced by guest access to control registers. It parses target control register
+ * index and value from VM-Exit qualification and set the value to target control register. CR0 and CR4 are the
+ * only valid target control registers for this handler, other access targets are invalid.
+ * Refer to 26.1.3 Instructions That Cause VM Exits Conditionally, SDM Vol.3 325462-078US for details.
+ *
+ * Normal case behaviors:
+ * - Emulate guest CR0/CR4 write.
+ *
+ * Error case behaviors:
+ * - Return an error for invalid control register access.
+ *
+ * @param[inout] vcpu Target vCPU to handle the VM-Exit
+ *
+ * @return A integer value to indicate the handling result
+ *
+ * @retval -EINVAL Access to an invalid control register.
+ * @retval 0 Write to guest CR0/CR4 is handled successfully.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
 int32_t cr_access_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	uint64_t reg;
@@ -620,7 +1047,26 @@ int32_t cr_access_vmexit_handler(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
+/**
+ * @brief Get VM CR4 reserved bit mask
+ *
+ * Normal case behaviors:
+ * - Return a uint64_t value containing VM CR4 reserved bit mask.
+ *
+ * Error case behaviors:
+ * - N/A
+ *
+ * @return VM CR4 reserved bit mask
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 uint64_t get_cr4_reserved_bits(struct acrn_vm *vm)
 {
 	return vm->cfg.cr4_reserved_bits_mask;
 }
+
+/**
+ * @}
+ */

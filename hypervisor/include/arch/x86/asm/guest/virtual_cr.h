@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -8,9 +8,14 @@
 #define VCR_H
 
 /**
- * @file virtual_cr.h
+ * @addtogroup vp-base_vcr
  *
- * @brief public APIs for vCR operations
+ * @{
+*/
+
+/**
+ * @file
+ * @brief This file declares external APIs to operate on guest CR0, CR2 and CR4 registers.
  */
 uint64_t get_cr4_reserved_bits(struct acrn_vm *vm);
 void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm);
@@ -18,81 +23,21 @@ void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm);
 bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4);
 void init_cr0_cr4_flexible_bits(void );
 
-/**
- * @brief vCR from vcpu
- *
- * @defgroup vCR ACRN
- * @{
- */
-
-/**
- * @brief get vcpu CR0 value
- *
- * Get & cache target vCPU's CR0 in run_context.
- *
- * @param[in] vcpu pointer to vcpu data structure
- *
- * @return the value of CR0.
- */
 uint64_t vcpu_get_cr0(struct acrn_vcpu *vcpu);
 
-/**
- * @brief set vcpu CR0 value
- *
- * Update target vCPU's CR0 in run_context.
- *
- * @param[inout] vcpu pointer to vcpu data structure
- * @param[in] val the value set CR0
- */
 void vcpu_set_cr0(struct acrn_vcpu *vcpu, uint64_t val);
 
-/**
- * @brief get vcpu CR2 value
- *
- * Get & cache target vCPU's CR2 in run_context.
- *
- * @param[in] vcpu pointer to vcpu data structure
- *
- * @return the value of CR2.
- */
 uint64_t vcpu_get_cr2(const struct acrn_vcpu *vcpu);
 
-/**
- * @brief set vcpu CR2 value
- *
- * Update target vCPU's CR2 in run_context.
- *
- * @param[inout] vcpu pointer to vcpu data structure
- * @param[in] val the value set CR2
- */
 void vcpu_set_cr2(struct acrn_vcpu *vcpu, uint64_t val);
 
-/**
- * @brief get vcpu CR4 value
- *
- * Get & cache target vCPU's CR4 in run_context.
- *
- * @param[in] vcpu pointer to vcpu data structure
- *
- * @return the value of CR4.
- */
 uint64_t vcpu_get_cr4(struct acrn_vcpu *vcpu);
 
-/**
- * @brief set vcpu CR4 value
- *
- * Update target vCPU's CR4 in run_context.
- *
- * @param[inout] vcpu pointer to vcpu data structure
- * @param[in] val the value set CR4
- */
 void vcpu_set_cr4(struct acrn_vcpu *vcpu, uint64_t val);
+
+int32_t cr_access_vmexit_handler(struct acrn_vcpu *vcpu);
 
 /**
  * @}
  */
-/* End of vCR */
-
-int32_t cr_access_vmexit_handler(struct acrn_vcpu *vcpu);
-
 #endif /* VCR_H */
