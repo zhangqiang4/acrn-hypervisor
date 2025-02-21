@@ -1101,7 +1101,7 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		uint16_t i;
 		for (i = 0U; i < vm_config->pt_intx_num; i++) {
 			status = ptirq_add_intx_remapping(vm, vm_config->pt_intx[i].virt_gsi,
-								vm_config->pt_intx[i].phys_gsi, false);
+								vm_config->pt_intx[i].phys_gsi);
 			if (status != 0) {
 				ptirq_remove_configured_intx_remappings(vm);
 				break;

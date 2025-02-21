@@ -1233,11 +1233,7 @@ static void get_entry_info(const struct ptirq_remapping_info *entry, char *type,
 			uint32_t phys_irq = entry->allocated_pirq;
 			union ioapic_rte rte;
 
-			if (entry->virt_sid.intx_id.ctlr == INTX_CTLR_IOAPIC) {
-				(void)strncpy_s(type, 16U, "IOAPIC", 16U);
-			} else {
-				(void)strncpy_s(type, 16U, "PIC", 16U);
-			}
+			(void)strncpy_s(type, 16U, "IOAPIC", 16U);
 			ioapic_get_rte(phys_irq, &rte);
 			*dest = rte.bits.dest_field;
 			if (rte.bits.trigger_mode == IOAPIC_RTE_TRGRMODE_LEVEL) {

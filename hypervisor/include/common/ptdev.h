@@ -12,9 +12,6 @@
 #include <vacpi.h>
 
 
-enum intx_ctlr {
-	INTX_CTLR_IOAPIC	= 0U,
-};
 
 #define PTDEV_INTR_MSI		(1U << 0U)
 #define PTDEV_INTR_INTX		(1U << 1U)
@@ -29,8 +26,8 @@ enum intx_ctlr {
 #define DEFINE_MSI_SID(name, a, b)	\
 union source_id (name) = {.msi_id = {.bdf = (a), .entry_nr = (b)} }
 
-#define DEFINE_INTX_SID(name, a, b)	\
-union source_id (name) = {.intx_id = {.gsi = (a), .ctlr = (b)} }
+#define DEFINE_INTX_SID(name, a)	\
+union source_id (name) = {.intx_id = {.gsi = (a)} }
 
 union irte_index {
 	uint16_t index;
@@ -53,7 +50,6 @@ union source_id {
 	 * pin indicates the pin number of interrupt controller determined by ctlr
 	 */
 	struct {
-		enum intx_ctlr ctlr;
 		uint32_t gsi;
 	} intx_id;
 };

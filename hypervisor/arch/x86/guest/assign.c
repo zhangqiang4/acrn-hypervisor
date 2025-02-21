@@ -353,11 +353,11 @@ remove_msix_remapping(const struct acrn_vm *vm, uint16_t phys_bdf, uint32_t entr
  * - if the entry already be added by other vm, return NULL
  */
 static struct ptirq_remapping_info *add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi,
-		uint32_t phys_gsi, enum intx_ctlr vgsi_ctlr)
+		uint32_t phys_gsi)
 {
 	struct ptirq_remapping_info *entry = NULL;
-	DEFINE_INTX_SID(phys_sid, phys_gsi, INTX_CTLR_IOAPIC);
-	DEFINE_INTX_SID(virt_sid, virt_gsi, vgsi_ctlr);
+	DEFINE_INTX_SID(phys_sid, phys_gsi);
+	DEFINE_INTX_SID(virt_sid, virt_gsi);
 	uint32_t phys_irq = ioapic_gsi_to_irq(phys_gsi);
 
 	entry = find_ptirq_entry(PTDEV_INTR_INTX, &phys_sid, NULL);
@@ -402,20 +402,20 @@ static struct ptirq_remapping_info *add_intx_remapping(struct acrn_vm *vm, uint3
 }
 
 /* deactivate & remove mapping entry of vpin for vm */
-static void remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, enum intx_ctlr gsi_ctlr, bool is_phy_gsi)
+static void remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool is_phy_gsi)
 {
 	uint32_t phys_irq;
 	struct ptirq_remapping_info *entry;
 	struct intr_source intr_src;
 
 	if (is_phy_gsi) {
-		DEFINE_INTX_SID(sid, gsi, INTX_CTLR_IOAPIC);
+		DEFINE_INTX_SID(sid, gsi);
 		entry = find_ptirq_entry(PTDEV_INTR_INTX, &sid, NULL);
 		if ((entry != NULL) && (entry->vm != vm)) {
 			entry = NULL;
 		}
 	} else {
-		DEFINE_INTX_SID(sid, gsi, gsi_ctlr);
+		DEFINE_INTX_SID(sid, gsi);
 		entry = find_ptirq_entry(PTDEV_INTR_INTX, &sid, vm);
 	}
 
@@ -431,8 +431,7 @@ static void remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, enum i
 
 			dmar_free_irte(&intr_src, entry->irte_idx);
 			dev_dbg(DBG_LEVEL_IRQ,
-				"deactivate %s intx entry:pgsi=%d, pirq=%d ",
-				(entry->virt_sid.intx_id.ctlr == INTX_CTLR_IOAPIC) ? "vIOAPIC" : "vPIC",
+				"deactivate vIOAPIC intx entry:pgsi=%d, pirq=%d ",
 				entry->phys_sid.intx_id.gsi, phys_irq);
 			dev_dbg(DBG_LEVEL_IRQ, "from vm%d vgsi=%d\n",
 				entry->vm->vm_id, entry->virt_sid.intx_id.gsi);
@@ -511,11 +510,11 @@ void ptirq_softirq(uint16_t pcpu_id)
 	}
 }
 
-void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ctlr vgsi_ctlr)
+void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
 {
 	uint32_t phys_irq;
 	struct ptirq_remapping_info *entry;
-	DEFINE_INTX_SID(virt_sid, virt_gsi, vgsi_ctlr);
+	DEFINE_INTX_SID(virt_sid, virt_gsi);
 
 	entry = find_ptirq_entry(PTDEV_INTR_INTX, &virt_sid, vm);
 	if (entry != NULL) {
@@ -623,11 +622,11 @@ static void activate_ioapic_rte(struct acrn_vm *vm,
 
 /* Main entry for PCI/Legacy device assignment with INTx, calling from vIOAPIC
  */
-int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ctlr vgsi_ctlr)
+int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 {
 	int32_t status = 0;
 	struct ptirq_remapping_info *entry = NULL;
-	DEFINE_INTX_SID(virt_sid, virt_gsi, vgsi_ctlr);
+	DEFINE_INTX_SID(virt_sid, virt_gsi);
 
 	/*
 	 * virt pin could come from primary vPIC, secondary vPIC or vIOAPIC
@@ -649,7 +648,7 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ct
 			if (is_service_vm(vm)) {
 				uint32_t phys_gsi = virt_gsi;
 
-				entry = add_intx_remapping(vm, virt_gsi, phys_gsi, vgsi_ctlr);
+				entry = add_intx_remapping(vm, virt_gsi, phys_gsi);
 				if (entry == NULL) {
 					pr_err("%s, add intx remapping failed",
 							__func__);
@@ -683,13 +682,12 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi, enum intx_ct
  * - currently, one phys_pin can only be held by one pin source (vPIC or
  *   vIOAPIC)
  */
-int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t phys_gsi, __unused bool pic_pin)
+int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t phys_gsi)
 {
 	struct ptirq_remapping_info *entry;
-	enum intx_ctlr vgsi_ctlr = INTX_CTLR_IOAPIC;
 
 	spinlock_obtain(&ptdev_lock);
-	entry = add_intx_remapping(vm, virt_gsi, phys_gsi, vgsi_ctlr);
+	entry = add_intx_remapping(vm, virt_gsi, phys_gsi);
 	spinlock_release(&ptdev_lock);
 
 	return (entry != NULL) ? 0 : -ENODEV;
@@ -698,12 +696,10 @@ int32_t ptirq_add_intx_remapping(struct acrn_vm *vm, uint32_t virt_gsi, uint32_t
 /*
  * @pre vm != NULL
  */
-void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, __unused bool pic_pin, bool is_phy_gsi)
+void ptirq_remove_intx_remapping(const struct acrn_vm *vm, uint32_t gsi, bool is_phy_gsi)
 {
-	enum intx_ctlr vgsi_ctlr = INTX_CTLR_IOAPIC;
-
 	spinlock_obtain(&ptdev_lock);
-	remove_intx_remapping(vm, gsi, vgsi_ctlr, is_phy_gsi);
+	remove_intx_remapping(vm, gsi, is_phy_gsi);
 	spinlock_release(&ptdev_lock);
 }
 
@@ -731,6 +727,6 @@ void ptirq_remove_configured_intx_remappings(const struct acrn_vm *vm)
 	uint16_t i;
 
 	for (i = 0; i < vm_config->pt_intx_num; i++) {
-		ptirq_remove_intx_remapping(vm, vm_config->pt_intx[i].virt_gsi, false, false);
+		ptirq_remove_intx_remapping(vm, vm_config->pt_intx[i].virt_gsi, false);
 	}
 }

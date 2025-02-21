@@ -253,7 +253,7 @@ vioapic_indirect_read(struct acrn_single_vioapic *vioapic, uint32_t addr)
 				 */
 				struct ptirq_remapping_info *entry = NULL;
 				union ioapic_rte phys_rte = {};
-				DEFINE_INTX_SID(virt_sid, vioapic->rtbl[pin].bits.vector, INTX_CTLR_IOAPIC);
+				DEFINE_INTX_SID(virt_sid, vioapic->rtbl[pin].bits.vector);
 
 				entry = find_ptirq_entry(PTDEV_INTR_INTX, &virt_sid, vioapic->vm);
 				if (entry != NULL) {
@@ -348,7 +348,7 @@ static void vioapic_indirect_write(struct acrn_single_vioapic *vioapic, uint32_t
 			/* VM enable intr */
 			/* NOTE: only support max 256 pin */
 
-			(void)ptirq_intx_pin_remap(vioapic->vm, vioapic->chipinfo.gsi_base + pin, INTX_CTLR_IOAPIC);
+			(void)ptirq_intx_pin_remap(vioapic->vm, vioapic->chipinfo.gsi_base + pin);
 		}
 
 		/*
@@ -431,7 +431,7 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
 			continue;
 		}
 
-		ptirq_intx_ack(vioapic->vm, vioapic->chipinfo.gsi_base + pin, INTX_CTLR_IOAPIC);
+		ptirq_intx_ack(vioapic->vm, vioapic->chipinfo.gsi_base + pin);
 	}
 
 	/*
