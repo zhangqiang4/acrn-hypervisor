@@ -447,6 +447,8 @@ static void ivshmem_vbar_unmap(struct pci_vdev *vdev, uint32_t idx)
 		ept_del_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, vbar->base_gpa, vbar->size);
 	} else if (((idx == IVSHMEM_MMIO_BAR) || (idx == IVSHMEM_MSIX_BAR)) && (vbar->base_gpa != 0UL)) {
 		unregister_mmio_emulation_handler(vm, vbar->base_gpa, (vbar->base_gpa + vbar->size));
+	} else {
+		/* do nothing */
 	}
 }
 
@@ -497,6 +499,8 @@ static void ivshmem_vbar_map(struct pci_vdev *vdev, uint32_t idx)
 			(vbar->base_gpa + vbar->size), vdev, false);
 		ept_del_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, vbar->base_gpa, vbar->size);
 		vdev->msix.mmio_gpa = vbar->base_gpa;
+	} else {
+		/* do nothing */
 	}
 }
 
@@ -590,7 +594,10 @@ static void init_ivshmem_bar(struct pci_vdev *vdev, uint32_t bar_idx)
 		size = VMSIX_ENTRY_TABLE_PBA_BAR_SIZE;
 	} else if (bar_idx == IVSHMEM_MMIO_BAR) {
 		size = IVSHMEM_MMIO_BAR_SIZE;
+	} else {
+		/* do nothing */
 	}
+
 	if (size != 0UL) {
 		vbar->size = size;
 		vbar->mask = (uint32_t) (~(size - 1UL));
