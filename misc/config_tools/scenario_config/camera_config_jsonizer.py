@@ -14,6 +14,7 @@ import json
 import textwrap
 from defusedxml.lxml import parse
 from copy import deepcopy
+from collections import defaultdict
 
 from pathlib import Path
 
@@ -74,6 +75,8 @@ class GenerateJson:
     def add_phy_cameras(self):
         self.phy_camera = {'phy_camera': []}
         self.phy_cam_list = self.get_phy_camera_node_list_from_board()
+        # add output_format to instance for saving query in add_vms()
+        self.phy_id_format_mapping = defaultdict(lambda: [])
         phy_camera_list = self.get_phy_camera_node_list()
         for cam_node in phy_camera_list:
             self.add_each_cam(cam_node)
@@ -90,6 +93,8 @@ class GenerateJson:
         else:
             logging.error("The color format is not supported or the name is illegal.")
             return 2
+
+        self.phy_id_format_mapping[phy_cam_id].append(format)  # phy_cam_id -> [format]
 
         sensor_name = cam_node.find("sensor_name").text
         devnode = cam_node.find("devnode").text
@@ -159,7 +164,8 @@ class GenerateJson:
             phy_id = int(phy_id_) if phy_id_ else ""
             cam_tmp['camera'].update({
                 'id': id_,
-                'phy_id': phy_id
+                'phy_id': phy_id,
+                'output_format': self.phy_id_format_mapping[str(phy_id)][0],  # normally only one format
             })
             configs["SERVICE_VM"].append(deepcopy(cam_tmp))
         self.doc.content(configs)
@@ -190,7 +196,8 @@ class GenerateJson:
                         continue
                     cam_tmp['camera'].update({
                         'id': id_,
-                        'phy_id': phy_id
+                        'phy_id': phy_id,
+                        'output_format': self.phy_id_format_mapping[str(phy_id)][0],  # normally only one format
                     })
                     configs[vm_name].append(deepcopy(cam_tmp))
                 self.doc.content(configs)
