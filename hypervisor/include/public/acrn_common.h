@@ -864,8 +864,7 @@ struct acrn_vm_config_header {
  *
  * Configuration passed to hypervisor when adding a virtual root port which is used as PTM root.
  */
-struct vrp_config
-{
+struct vrp_config {
 	uint16_t phy_bdf;    /**< The physical BDF of the root port */
 	uint8_t max_payload; /**< The maximum payload size for the device */
 	uint8_t primary_bus; /**< The primary bus number for the root port */

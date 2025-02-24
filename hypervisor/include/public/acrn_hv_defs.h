@@ -42,7 +42,7 @@
  *
  * @post N/A
  */
-#define BASE_HC_ID(x, y) (((x)<<24U)|(y))
+#define BASE_HC_ID(x, y) (((x) << 24U) | (y))
 
 /**
  * @brief Extract the index part of a hypercall ID.
@@ -57,7 +57,7 @@
  *
  * @post N/A
  */
-#define HC_IDX(id) ((id)&(0xFFUL))
+#define HC_IDX(id) ((id) & (0xFFUL))
 
 #define HC_ID 0x80UL  /**< Base ID for hypercalls */
 
