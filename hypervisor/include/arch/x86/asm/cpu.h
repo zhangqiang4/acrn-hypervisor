@@ -1296,6 +1296,31 @@ static inline void msr_write(uint32_t reg_num, uint64_t value64)
 }
 
 /**
+ * @brief Write a value to a Model-Specific Register (MSR) safely.
+ *
+ * This function attempts to write a 64-bit value to the specified MSR register. It first checks if the value to be
+ * written does not have any bits set that are also set in the reserved mask. If the check passes, the value is written
+ * to the MSR. Otherwise, an error code is returned.
+ *
+ * @param[in] reg_num The MSR register number to write to.
+ * @param[in] value64 The 64-bit value to write to the MSR.
+ * @param[in] rsvd_mask A 64-bit mask of reserved bits that must not be set.
+ *
+ * @return 0 on success, -EACCES if the value64 contains reserved bits.
+ */
+static inline int32_t msr_write_safe(uint32_t reg_num, uint64_t value64, uint64_t rsvd_mask)
+{
+	int32_t err = 0;
+
+	if ((value64 & rsvd_mask) == 0) {
+		msr_write(reg_num, value64);
+	} else {
+		err = -EACCES;
+	}
+	return err;
+}
+
+/**
  * @brief Structure to hold MSR (Model-Specific Register) data for SMP cross-call.
  *
  * This structure is used to store the index and values associated with a specific MSR. It contains fields for the MSR
