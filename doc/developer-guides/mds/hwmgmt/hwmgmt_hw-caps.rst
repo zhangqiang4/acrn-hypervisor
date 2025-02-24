@@ -21,6 +21,9 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 [File] boot/acpi_base.c
 ======================================================================
 
+.. doxygenfile:: acpi_base.c
+   :project: Project ACRN
+
 [File] arch/x86/cpu_caps.c
 ======================================================================
 
@@ -42,8 +45,14 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 [File] boot/include/acpi.h
 ======================================================================
 
+.. doxygenfile:: acpi.h
+   :project: Project ACRN
+
 [File] include/arch/x86/asm/default_acpi_info.h
 ======================================================================
+
+.. doxygenfile:: default_acpi_info.h
+   :project: Project ACRN
 
 [File] include/arch/x86/asm/cpu_caps.h
 ======================================================================

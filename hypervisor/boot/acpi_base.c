@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2003 John Baldwin <jhb@FreeBSD.org>
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2025 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,9 +35,39 @@
 #include <util.h>
 #include <asm/e820.h>
 #include <boot.h>
+/**
+ * @addtogroup hwmgmt_hw-caps
+ * @{
+ */
+/**
+ * @file
+ * @brief ACPI (Advanced Configuration and Power Interface) management implementation for the hwmgmt.hw-caps module.
+ *
+ * This file contains data structures and functions to retrieve hardware capabilities from ACPI and provide interfaces
+ * to other modules.
+ */
 
+/**
+ * @brief Pointer to the ACPI Root System Description Pointer (RSDP) structure.
+ *
+ * This static variable holds a pointer to the ACPI RSDP structure, which is used to locate the ACPI tables in memory.
+ * The RSDP structure contains information about the ACPI tables and their locations, which are essential for the ACPI
+ * subsystem to function correctly.
+ */
 static struct acpi_table_rsdp *acpi_rsdp;
 
+/**
+ * @brief Search for the Root System Description Pointer (RSDP) in a memory region.
+ *
+ * This function searches for the ACPI RSDP structure within a specified memory region. Once the signature "RSD PTR "
+ * is found, it validates the checksum of the RSDP structure. If it is correct, the RSDP structure is returned.
+ * Otherwise, the function continues searching. The search is performed on 16-byte boundaries.
+ *
+ * @param[in] base The base address of the memory region to search.
+ * @param[in] length The length of the memory region to search.
+ *
+ * @return A pointer to the found RSDP structure, or NULL if not found.
+ */
 static struct acpi_table_rsdp *found_rsdp(char *base, uint64_t length)
 {
 	struct acpi_table_rsdp *rsdp, *ret = NULL;
@@ -58,14 +88,35 @@ static struct acpi_table_rsdp *found_rsdp(char *base, uint64_t length)
 	return ret;
 }
 
-/* RSDP parsed from BIOS region should exist.
- * If it is NULL, the hypervisor can't be booted
+/**
+ * @brief Retrieve the Root System Description Pointer (RSDP).
+ *
+ * This function returns the RSDP parsed from the BIOS region (stored in the global variable acpi_rsdp).
+ *
+ * @return Pointer to the ACPI RSDP structure.
  */
 static struct acpi_table_rsdp *get_rsdp(void)
 {
 	return acpi_rsdp;
 }
 
+/**
+ * @brief Initialize the ACPI sub-system.
+ *
+ * This function locates the Root System Description Pointer (RSDP) which is essential for ACPI initialization. It
+ * attempts to find the RSDP in several locations:
+ * 1. The address provided by the ACRN boot information.
+ * 2. The Extended BIOS Data Area (EBDA).
+ * 3. The upper memory BIOS space (0xE0000 - 0xFFFFF).
+ * 4. The ACPI Reclaim memory regions as specified by the E820 memory map.
+ *
+ * This function is critical for the proper initialization of the ACPI subsystem. If the RSDP is not found in any of
+ * these locations, the function will trigger a panic. Once the RSDP is found, it is assigned to the global variable
+ * `acpi_rsdp`.
+ *
+ * @pre N/A
+ * @post acpi_rsdp!=NULL
+ */
 void init_acpi(void)
 {
 	struct acpi_table_rsdp *rsdp = NULL;
@@ -108,6 +159,17 @@ void init_acpi(void)
 	acpi_rsdp = rsdp;
 }
 
+/**
+ * @brief Probe an ACPI table at a given address for a specific signature.
+ *
+ * This function checks if the ACPI table located at the specified physical address matches the provided signature.
+ *
+ * @param[in] address The physical address of the ACPI table to probe.
+ * @param[in] signature The expected signature of the ACPI table.
+ *
+ * @return true if the table's signature matches the provided signature,
+ *         false otherwise.
+ */
 static bool probe_table(uint64_t address, const char *signature)
 {
 	void *va =  hpa2hva(address);
@@ -123,6 +185,18 @@ static bool probe_table(uint64_t address, const char *signature)
 	return ret;
 }
 
+/**
+ * @brief Retrieve the ACPI table with the specified signature.
+ *
+ * This function searches for an ACPI table with the given signature by examining the Root System Description Pointer
+ * (RSDP). If the RSDP revision is version 2.0 (or higher) and the address of the XSDT is not zero, the table will be
+ * found in the Extended System Description Table (XSDT). Otherwise, the table will be found in the Root System
+ * Description Table (RSDT).
+ *
+ * @param[in] signature A pointer to a string containing the ACPI table signature.
+ *
+ * @return A pointer to the ACPI table in the host virtual address space if found, or NULL if the table is not found.
+ */
 void *get_acpi_tbl(const char *signature)
 {
 	struct acpi_table_rsdp *rsdp;
@@ -167,6 +241,22 @@ void *get_acpi_tbl(const char *signature)
 	return hpa2hva(addr);
 }
 
+/**
+ * @brief Parses the MADT (Multiple APIC Description Table) to extract Local APIC and x2APIC processor IDs.
+ *
+ * This function iterates through the entries in the provided MADT table to extract Local APIC and x2APIC
+ * processor IDs, storing them in the provided array. It counts the number of processors found and returns this
+ * count. The ACPI specification allows the MADT to include both Local APIC and x2APIC structures for compatibility.
+ * The BIOS should ensure that the MADT table is well-formed and contains only unique processor IDs. The ACRN
+ * hypervisor does not perform further checks here.
+ * Refer to section 5.2.12 of the ACPI specification 6.5.2 for more information on the MADT table.
+ *
+ * @param[in] madt Pointer to the ACPI MADT table.
+ * @param[out] lapic_id_array Array to store the extracted Local APIC and x2APIC processor IDs. The array must have a
+ *                            size of at least MAX_PCPU_NUM.
+ *
+ * @return The number of processors found and stored in the lapic_id_array.
+ */
 static uint16_t
 local_parse_madt(struct acpi_table_madt *madt, uint32_t lapic_id_array[MAX_PCPU_NUM])
 {
@@ -212,7 +302,18 @@ local_parse_madt(struct acpi_table_madt *madt, uint32_t lapic_id_array[MAX_PCPU_
 	return pcpu_num;
 }
 
-/* The lapic_id info gotten from madt will be returned in lapic_id_array */
+/**
+ * @brief Parses the MADT (Multiple APIC Description Table) to retrieve Local APIC and x2APIC processor IDs.
+ *
+ * This function retrieves the MADT from the ACPI tables and parses it to extract Local APIC and x2APIC processor
+ * IDs, storing them in the provided array. If the MADT is not found, the function returns 0, which could cause
+ * ACRN hypervisor initialization to fail.
+ *
+ * @param[out] lapic_id_array An array to store the Local APIC and x2APIC processor IDs. The array size should be at
+ *                            least MAX_PCPU_NUM.
+ *
+ * @return The number of LAPIC IDs parsed and stored in the array.
+ */
 uint16_t parse_madt(uint32_t lapic_id_array[MAX_PCPU_NUM])
 {
 	uint16_t ret = 0U;
@@ -225,6 +326,19 @@ uint16_t parse_madt(uint32_t lapic_id_array[MAX_PCPU_NUM])
 	return ret;
 }
 
+/**
+ * @brief Parses the MADT (Multiple APIC Description Table) to extract IOAPIC information.
+ *
+ * This function parses the ACPI MADT to locate IOAPIC entries and stores the relevant information (ID, address, and
+ * GSI base) in the provided ioapic_id_array. If the MADT is not found, the function returns 0, which could cause ACRN
+ * hypervisor initialization to fail.
+ * Refer to section 5.2.12 of the ACPI specification 6.5.2 for more information on the MADT table.
+ *
+ * @param[out] ioapic_id_array Pointer to an array of ioapic_info structures where the parsed IOAPIC information will
+ *                             be stored.
+ *
+ * @return The number of IOAPIC entries found and stored in the ioapic_id_array.
+ */
 uint8_t parse_madt_ioapic(struct ioapic_info *ioapic_id_array)
 {
 	uint8_t ioapic_idx = 0U;
@@ -252,6 +366,14 @@ uint8_t parse_madt_ioapic(struct ioapic_info *ioapic_id_array)
 	return ioapic_idx;
 }
 
+/**
+ * @brief Parses the HPET (High Precision Event Timer) ACPI table.
+ *
+ * This function retrieves the HPET ACPI table using the ACPI signature for HPET, extracts the address from the table,
+ * and converts it from a host physical address to a host virtual address.
+ *
+ * @return A pointer to the HPET table in the host virtual address space, or NULL if the table is not found.
+ */
 void *parse_hpet(void)
 {
 	const struct acpi_table_hpet *hpet = (const struct acpi_table_hpet *)get_acpi_tbl(ACPI_SIG_HPET);
@@ -263,3 +385,7 @@ void *parse_hpet(void)
 
 	return hpa2hva(addr);
 }
+
+/**
+ * @}
+ */

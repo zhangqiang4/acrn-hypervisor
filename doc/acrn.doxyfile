@@ -862,6 +862,9 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/per_cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
+                          ../hypervisor/include/arch/x86/asm/default_acpi_info.h \
+                          ../hypervisor/boot/include/acpi.h \
+                          ../hypervisor/boot/acpi_base.c \
                           ../hypervisor/arch/x86/guest/vm.c \
                           ../hypervisor/arch/x86/cpu_state_tbl.c \
                           ../hypervisor/arch/x86/platform_caps.c \
