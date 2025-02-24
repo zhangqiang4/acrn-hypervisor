@@ -30,7 +30,13 @@ void arch_fire_hsm_interrupt(void)
 	service_vm = get_service_vm();
 	vcpu = vcpu_from_vid(service_vm, BSP_CPU_ID);
 
-	vlapic_set_intr(vcpu, get_hsm_notification_vector(), LAPIC_TRIG_EDGE);
+	if (is_lapic_pt_configured(service_vm)) {
+		uint32_t papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(vcpu));
+		msr_write(MSR_IA32_EXT_APIC_ICR, (((uint64_t)papic_id) << 32U) | get_hsm_notification_vector());
+	} else {
+		vlapic_set_intr(vcpu, get_hsm_notification_vector(), LAPIC_TRIG_EDGE);
+	}
+
 }
 
 /**
