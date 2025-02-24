@@ -747,7 +747,7 @@ emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req)
 		 * ACRN insert request to HSM and inject upcall.
 		 */
 		aio_desc = get_asyncio_desc(vcpu, io_req);
-		if (aio_desc) {
+		if (aio_desc != NULL) {
 			status = acrn_insert_asyncio(vcpu, aio_desc->asyncio_info.fd);
 		} else {
 			status = acrn_insert_request(vcpu, io_req);

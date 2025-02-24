@@ -426,7 +426,7 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 		}
 
 		if (is_pci_io_bar(vbar)) {
-			if (lo & ~IO_SPACE_BITMASK) {
+			if ((lo & ~IO_SPACE_BITMASK) != 0U) {
 				/* 
 				 * Some buggy x86 BIOS may program an invalid I/O BAR whose upper 16 bits are not zero.
 				 * Such I/O BAR is not addressable on x86 platforms. Skip it when initializing the

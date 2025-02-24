@@ -99,7 +99,7 @@ static int32_t write_vrp_cfg(__unused struct pci_vdev *vdev, __unused uint32_t o
 static void init_ptm(struct pci_vdev *vdev, struct vrp_config *vrp_config)
 {
 	/* ptm capability register */
-	if (vrp_config->ptm_capable)
+	if ((vrp_config->ptm_capable) != 0U)
 	{
 		pci_vdev_write_vcfg(vdev, PTM_CAP_VPOS, PCI_PTM_CAP_LEN, 0x0001001f);
 

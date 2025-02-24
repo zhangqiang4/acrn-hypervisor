@@ -71,14 +71,14 @@ void vcpu_thread(struct thread_object *obj)
 		}
 
 		profiling_post_vmexit_handler(vcpu);
-	} while (1);
+	} while (true);
 }
 
 void default_idle(__unused struct thread_object *obj)
 {
 	uint16_t pcpu_id = get_pcpu_id();
 
-	while (1) {
+	while (true) {
 		if (need_reschedule(pcpu_id)) {
 			schedule();
 		} else if (need_offline(pcpu_id)) {

@@ -679,7 +679,7 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
 
 	cap = pci_pdev_read_cfg(pdev->bdf, pos + PCIR_PTM_CAP, PCI_PTM_CAP_LEN);
 
-	if (cap & PCIM_PTM_CAP_ROOT_CAPABLE) {
+	if ((cap & PCIM_PTM_CAP_ROOT_CAPABLE) != 0U) {
 		ctrl = PCIM_PTM_CTRL_ENABLED | PCIM_PTM_CTRL_ROOT_SELECTED;
 
 		pci_pdev_write_cfg(pdev->bdf, pos + PCIR_PTM_CTRL, 4, ctrl);

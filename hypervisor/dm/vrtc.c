@@ -276,7 +276,7 @@ static int32_t rtcget(const struct rtcdev *rtc, uint8_t val, uint32_t *retval)
 	uint8_t upper, lower;
 	int32_t errno = 0;
 
-	if (rtc->reg_b & RTCSB_BCD) {
+	if ((rtc->reg_b & RTCSB_BCD) != 0U) {
 		*retval = val;
 	} else {
 		lower = val & 0xfU;
@@ -452,7 +452,7 @@ static time_t rtc_to_secs(const struct acrn_vrtc *vrtc)
 		pm = 0;
 		hour = rtc->hour;
 		if ((rtc->reg_b & RTCSB_24HR) == 0) {
-			if (hour & 0x80U) {
+			if ((hour & 0x80U) != 0U) {
 				hour &= ~0x80U;
 				pm = 1;
 			}
@@ -476,7 +476,7 @@ static time_t rtc_to_secs(const struct acrn_vrtc *vrtc)
 				if (ct.hour == 12) {
 					ct.hour = 0;
 				}
-				if (pm) {
+				if (pm != 0U) {
 					ct.hour += 12;
 				}
 			} else {
@@ -541,7 +541,7 @@ static void secs_to_rtc(time_t rtctime, struct acrn_vrtc *vrtc)
 		rtc->sec = rtcset(rtc, ct.sec);
 		rtc->min = rtcset(rtc, ct.min);
 
-		if (rtc->reg_b & RTCSB_24HR) {
+		if ((rtc->reg_b & RTCSB_24HR) != 0U) {
 			hour = ct.hour;
 		} else {
 			/*

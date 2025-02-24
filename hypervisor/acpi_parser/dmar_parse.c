@@ -191,7 +191,7 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar_info)
 				}
 			}
 
-			if (acpi_drhd->flags & DRHD_FLAG_INCLUDE_PCI_ALL_MASK) {
+			if ((acpi_drhd->flags & DRHD_FLAG_INCLUDE_PCI_ALL_MASK) != 0U) {
 				/* Check more than one DRHD with INCLUDE_PCI_ALL flag ? */
 				include_all_idx = dmar_unit_cnt;
 			}

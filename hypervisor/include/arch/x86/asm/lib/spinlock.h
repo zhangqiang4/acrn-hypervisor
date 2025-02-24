@@ -176,7 +176,7 @@ static inline void spinlock_release(spinlock_t *lock)
 	do {						\
 		CPU_INT_ALL_DISABLE(p_rflags);		\
 		spinlock_obtain(lock);			\
-	} while (0)
+	} while (false)
 
 
 /**
@@ -197,7 +197,7 @@ static inline void spinlock_release(spinlock_t *lock)
 	do {						\
 		spinlock_release(lock);			\
 		CPU_INT_ALL_RESTORE(rflags);		\
-	} while (0)
+	} while (false)
 #endif /* SPINLOCK_H */
 
 /**

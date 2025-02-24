@@ -477,7 +477,7 @@ static void ptirq_handle_intx(struct acrn_vm *vm,
 
 void ptirq_softirq(uint16_t pcpu_id)
 {
-	while (1) {
+	while (true) {
 		struct ptirq_remapping_info *entry = ptirq_dequeue_softirq(pcpu_id);
 		struct msi_info *vmsi;
 

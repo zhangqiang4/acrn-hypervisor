@@ -271,7 +271,7 @@ void reset_host(bool warm)
 	}
 
 	pr_fatal("%s(): can't reset host.", __func__);
-	while (1) {
+	while (true) {
 		asm_pause();
 	}
 }
