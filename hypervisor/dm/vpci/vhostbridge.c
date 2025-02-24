@@ -37,6 +37,7 @@
 #include <pci.h>
 #include "vpci_priv.h"
 #include <vacpi.h>
+#include <logmsg.h>
 
 /**
  * @addtogroup vp-dm_vperipheral
@@ -249,11 +250,7 @@ static int32_t read_vhostbridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 /**
  * @brief Write to the virtual host bridge configuration space.
  *
- * This function writes to the configuration space of the specified virtual PCI device that is configured as a host
- * bridge. It is used to update specific configuration settings based on the provided parameters.
- *
- * For the non-BAR configuration space, it writes the provided value to the configuration space of the virtual host
- * bridge. For the BAR configuration space, it is read-only and the write operation is ignored.
+ * There is no write to virtual host bridge in fact.
  *
  * @param[inout] vdev Pointer to the virtual PCI device whose configuration space is to be written.
  * @param[in] offset Offset within the configuration space to start writing to.
@@ -269,9 +266,9 @@ static int32_t read_vhostbridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 static int32_t write_vhostbridge_cfg(struct pci_vdev *vdev, uint32_t offset,
 	uint32_t bytes, uint32_t val)
 {
-	if (!is_bar_offset(PCI_BAR_COUNT, offset) && (offset != PCIR_BIOS)) {
-		pci_vdev_write_vcfg(vdev, offset, bytes, val);
-	}
+	pr_info("%s: Ignore write to dev %x:%x.%x reg 0x%x bytes %d val 0x%x.\n",
+		__func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f,
+		offset, bytes, val);
 	return 0;
 }
 
