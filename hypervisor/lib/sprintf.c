@@ -258,8 +258,6 @@ static void print_pow2(struct print_param *param,
 	char digitbuff[22];
 	/* Insert position for the next character+1 */
 	char *pos = digitbuff + sizeof(digitbuff);
-	/* buffer for the 0/0x/0X prefix */
-	char prefix[2];
 	/* pointer to the digits translation table */
 	const char (*digits)[HEX_DIGITS_LEN];
 	/* mask to extract next character */
@@ -277,13 +275,13 @@ static void print_pow2(struct print_param *param,
 	/* determine prefix for alternate form */
 	if ((v == 0UL) &&
 		((param->vars.flags & PRINT_FLAG_ALTERNATE_FORM) != 0U)) {
-		prefix[0] = '0';
-		param->vars.prefix = prefix;
-		param->vars.prefixlen = 1U;
 
 		if (shift == 4U) {
 			param->vars.prefixlen = 2U;
-			prefix[1] = (*digits)[16];
+			param->vars.prefix = (((*digits)[16] == 'x') ? "0x" : "0X");
+		} else {
+			param->vars.prefixlen = 1U;
+			param->vars.prefix = "0";
 		}
 	}
 
