@@ -182,10 +182,8 @@ void disable_rrsba(void) {
 	uint64_t v, x86_arch_caps;
 	bool rrsba_behavior = false;
 
-	if (pcpu_has_cap(X86_FEATURE_ARCH_CAP)) {
-		x86_arch_caps = msr_read(MSR_IA32_ARCH_CAPABILITIES);
-		rrsba_behavior = ((x86_arch_caps & IA32_ARCH_CAP_RESTRICTED_RSBA) != 0UL);
-	}
+	x86_arch_caps = msr_read(MSR_IA32_ARCH_CAPABILITIES);
+	rrsba_behavior = ((x86_arch_caps & IA32_ARCH_CAP_RESTRICTED_RSBA) != 0UL);
 
 	if (rrsba_behavior && pcpu_has_cap(X86_FEATURE_RRSBA_CTRL)) {
 		v = msr_read(MSR_IA32_SPEC_CTRL);
@@ -269,22 +267,20 @@ bool check_cpu_security_cap(void)
 	uint64_t x86_arch_capabilities = 0UL;
 
 	detect_ibrs();
-	if (pcpu_has_cap(X86_FEATURE_ARCH_CAP)) {
-		x86_arch_capabilities = msr_read(MSR_IA32_ARCH_CAPABILITIES);
-		/** Set skip_l1dfl_vmentry to false if flushing L1D is required(false)
-		 *  or true if flush L1D is not required on VM entry.
-		 */
-		skip_l1dfl_vmentry = ((x86_arch_capabilities
-			& IA32_ARCH_CAP_SKIP_L1DFL_VMENTRY) != 0UL);
 
-		/** Set mds_no to true if IA32_ARCH_CAP_MDS_NO bit in x86_arch_capabilities is set. */
-		mds_no = ((x86_arch_capabilities & IA32_ARCH_CAP_MDS_NO) != 0UL);
+	x86_arch_capabilities = msr_read(MSR_IA32_ARCH_CAPABILITIES);
+	/** Set skip_l1dfl_vmentry to false if flushing L1D is required(false)
+	 *  or true if flush L1D is not required on VM entry.
+	 */
+	skip_l1dfl_vmentry = ((x86_arch_capabilities & IA32_ARCH_CAP_SKIP_L1DFL_VMENTRY) != 0UL);
 
-		/** Set ssb_no to true if IA32_ARCH_CAP_SSB_NO bit in x86_arch_capabilities is set,
-		 *  which means Processor is not susceptble to Speculative Store Bypass(SSB).
-		 */
-		ssb_no = ((x86_arch_capabilities & IA32_ARCH_CAP_SSB_NO) != 0UL);
-	}
+	/** Set mds_no to true if IA32_ARCH_CAP_MDS_NO bit in x86_arch_capabilities is set. */
+	mds_no = ((x86_arch_capabilities & IA32_ARCH_CAP_MDS_NO) != 0UL);
+
+	/** Set ssb_no to true if IA32_ARCH_CAP_SSB_NO bit in x86_arch_capabilities is set,
+	 *  which means Processor is not susceptble to Speculative Store Bypass(SSB).
+	 */
+	ssb_no = ((x86_arch_capabilities & IA32_ARCH_CAP_SSB_NO) != 0UL);
 
 	/** If L1D flush on VM entry is required, but L1D_FLUSH command is not
 	 *  supported by physical platform.
@@ -534,51 +530,15 @@ bool is_ept_force_4k_ipage(void)
 bool is_ept_force_4k_ipage(void)
 {
 	bool force_4k_ipage = true;
-	const struct cpuinfo_x86 *info = get_pcpu_info();
 	uint64_t x86_arch_capabilities;
 
-	if (info->displayfamily == 0x6U) {
-		switch (info->displaymodel) {
-		case 0x26U:
-		case 0x27U:
-		case 0x35U:
-		case 0x36U:
-		case 0x37U:
-		case 0x86U:
-		case 0x1CU:
-		case 0x4AU:
-		case 0x4CU:
-		case 0x4DU:
-		case 0x5AU:
-		case 0x5CU:
-		case 0x5DU:
-		case 0x5FU:
-		case 0x6EU:
-		case 0x7AU:
-			/** Set force_4k_ipage to false, as Atom processors are not affected by the issue "Machine Check
-			 *  Error on Page Size Change"
-			 */
-			force_4k_ipage = false;
-			break;
-		default:
-			/** Set force_4k_ipage to true, as non-Atom processors are affected by the issue */
-			force_4k_ipage = true;
-			break;
-		}
-	}
-
-	/** If a call to pcpu_has_cap with X86_FEATURE_ARCH_CAP being the parameter returns true, indicating that
-	 *  MSR_IA32_ARCH_CAPABILITIES register is present
+	x86_arch_capabilities = msr_read(MSR_IA32_ARCH_CAPABILITIES);
+	/** If bit 6 of x86_arch_capabilities is 1, indicating that the physical processor is not affected by
+	 *  the issue
 	 */
-	if (pcpu_has_cap(X86_FEATURE_ARCH_CAP)) {
-		x86_arch_capabilities = msr_read(MSR_IA32_ARCH_CAPABILITIES);
-		/** If bit 6 of x86_arch_capabilities is 1, indicating that the physical processor is not affected by
-		 *  the issue
-		 */
-		if ((x86_arch_capabilities & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) != 0UL) {
-			/** Set force_4k_ipage to false */
-			force_4k_ipage = false;
-		}
+	if ((x86_arch_capabilities & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) != 0UL) {
+		/** Set force_4k_ipage to false */
+		force_4k_ipage = false;
 	}
 	return force_4k_ipage;
 }

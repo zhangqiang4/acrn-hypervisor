@@ -924,9 +924,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_ARCH_CAPABILITIES:
 	{
-		if (pcpu_has_cap(X86_FEATURE_ARCH_CAP)) {
-			v =  msr_read(MSR_IA32_ARCH_CAPABILITIES);
-		}
+		v =  msr_read(MSR_IA32_ARCH_CAPABILITIES);
 		/* always emulate the IA32_XAPIC_DISABLE_STATUS MSR exists */
 		v |= IA32_ARCH_CAP_XAPIC_DIS_STATUS;
 		break;

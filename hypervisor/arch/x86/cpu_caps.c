@@ -1214,6 +1214,9 @@ int32_t detect_hardware_support(void)
 	} else if (!pcpu_has_cap(X86_FEATURE_RDRAND)) {
 		printf("%s, RDRAND is not supported\n", __func__);
 		ret = -ENODEV;
+	} else if (!pcpu_has_cap(X86_FEATURE_ARCH_CAP)){
+		printf("%s, IA32_ARCH_CAPABILITIES MSR is not supported\n", __func__);
+		ret = -ENODEV;
 	} else {
 		ret = check_essential_vmx_caps();
 	}
