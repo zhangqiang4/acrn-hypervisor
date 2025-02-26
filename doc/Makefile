@@ -75,9 +75,18 @@ html: content doxy
 	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
+mds_singlehtml: mdscontent doxy
+	@echo now making single HTML content only for MDS
+	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
+	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
+
 singlehtml: content doxy
 	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
+
+mdspdf: mds_singlehtml
+	@echo now making $(BUILDDIR)/acrn_mds.pdf
+	$(Q)wkhtmltopdf --javascript-delay 3000 --enable-local-file-access --disable-javascript $(BUILDDIR)/html/index.html $(BUILDDIR)/acrn_mds.pdf
 
 pdf: html
 	@echo now making $(BUILDDIR)/latex/acrn.pdf
