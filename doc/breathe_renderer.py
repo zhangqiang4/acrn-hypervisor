@@ -14,17 +14,19 @@ from sphinx.domains.c import (
     ASTAssignmentExpr,
     ASTExpression,
     _expression_assignment_ops,
-    ASTBracedInitList
+    ASTBracedInitList,
+    _keywords
 )
 from sphinx.util.cfamily import (
-    StringifyTransform
+    StringifyTransform,
+    identifier_re
 )
 from sphinx.writers.html5 import HTML5Translator
 from breathe.renderer import RenderContext
 from breathe.renderer.sphinxrenderer import SphinxRenderer, \
     intersperse, NodeFinder
 
-from typing import (Callable, Dict, List, Optional, Tuple, Union, cast)
+from typing import (Callable, Dict, List, Optional, Tuple, Union, cast, Any)
 
 from docutils import nodes
 from docutils.nodes import Element, Node, TextElement, Text
@@ -36,7 +38,11 @@ from sphinx.environment import BuildEnvironment
 
 from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 
-from settings import UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE, SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS
+from settings import (
+    UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
+    SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
+    NEW_LINE, NL_REPL, NL, PERIOD
+)
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
@@ -358,7 +364,39 @@ class BreatheDefinitionParser:
                 break
         return ASTAssignmentExpr(exprs, ops)  # lval = rval
 
+    def _parse_nested_name(self) -> ASTNestedName:
+        names: List[Any] = []
+
+        self.skip_ws()
+        rooted = False
+        if self.skip_string('.'):
+            rooted = True
+        while 1:
+            self.skip_ws()
+            self.skip_string_and_ws(PERIOD)
+            if not self.match(identifier_re):
+                self.fail("Expected identifier in nested name.")
+            identifier = self.matched_text
+            # make sure there isn't a keyword
+            if identifier in _keywords:
+                self.fail("Expected identifier in nested name, "
+                          "got keyword: %s" % identifier)
+            if self.matched_text in self.config.c_extra_keywords:
+                msg = "Expected identifier, got user-defined keyword: %s." \
+                      + " Remove it from c_extra_keywords to allow it as identifier.\n" \
+                      + "Currently c_extra_keywords is %s."
+                self.fail(msg % (self.matched_text,
+                                 str(self.config.c_extra_keywords)))
+            ident = ASTIdentifier(identifier)
+            names.append(ident)
+
+            self.skip_ws()
+            if not self.skip_string('.'):
+                break
+        return ASTNestedName(names, rooted)
+
     meth = {
+        '_parse_nested_name': _parse_nested_name,
         '_parse_inner_initializer_or_expression': _parse_inner_initializer_or_expression,
         '_parse_initializer_list': _parse_initializer_list,
         '_parse_initializer_or_expression': _parse_initializer_or_expression,
@@ -435,22 +473,30 @@ class BreatheASTBracedInitList:
         DEPTH += 1
         verify_description_mode(mode)
         signode += addnodes.desc_sig_punctuation('{', '{')
-        signode += addnodes.desc_sig_punctuation('\n', '<br/>')
         first = True
-        for e in self.exprs:
+        new_line = False
+        for i, e in enumerate(self.exprs):
             if not first:
-                signode += addnodes.desc_sig_punctuation(',', ',')
+                if str(self.exprs[i-1]) == NL_REPL:
+                    signode += addnodes.desc_sig_punctuation(',', '')
+                else:
+                    signode += addnodes.desc_sig_punctuation(',', ',')
                 signode += addnodes.desc_sig_space()
-                signode += addnodes.desc_sig_punctuation('\n', '<br/>')
             else:
                 first = False
-            signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
-            e.describe_signature(signode, mode, env, symbol)
+            if new_line:
+                signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
+                new_line = False
+            if str(e) == NL_REPL:
+                new_line = True
+                signode += addnodes.desc_sig_punctuation('\n', '<br/>')
+            else:
+                e.describe_signature(signode, mode, env, symbol)
         if self.trailingComma:  # hide tailingComma whether existed or not
             signode += addnodes.desc_sig_punctuation(',', '')
-        signode += addnodes.desc_sig_punctuation('\n', '<br/>')
         DEPTH -= 1
-        signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
+        if new_line:
+            signode += addnodes.desc_sig_punctuation('\t', '&nbsp;' * 4 * DEPTH)
         signode += addnodes.desc_sig_punctuation('}', '}')
 
     meth = {
@@ -856,8 +902,45 @@ class BreatheRenderer:
         else:
             return self.render_declaration(node, declaration)
 
+    def make_initializer(self, node) -> str:
+        initializer = node.initializer
+        signature: List[Node] = []
+        if initializer:
+            render_nodes = self.render(initializer)
+            # Do not append separators for paragraphs.
+            if not isinstance(render_nodes[0], nodes.paragraph):
+                separator = " "
+                assert isinstance(render_nodes[0], nodes.Text)
+                if not render_nodes[0].startswith("="):
+                    separator += "= "
+                signature.append(nodes.Text(separator))
+            signature.extend(render_nodes)
+
+        temp = []
+        # extract all <ref> contents contained in <initializer> and clean texts
+        # <ref> generated by doxygen
+        # <ref> not appeared always
+        pos = -2
+        for i, n in enumerate(signature):
+            if isinstance(n, pending_xref):
+                t = temp.pop()
+                t += n.astext()
+                temp.append(t)
+                pos = i
+            elif n.astext() != " " and i != pos+1:
+                temp.append(n.astext())
+            elif n.astext() != " " and i == pos+1:
+                t = temp.pop()
+                t += n.astext()
+                temp.append(t)
+
+        len_ = len(temp)
+        raw_ = temp[0] if len_ == 1 else "\n".join(temp)
+        return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
+
     # some methods should be modified and not be contained in `methods`
     meth = {
+        "make_initializer": make_initializer,
         "visit_define": visit_define,
         "visit_variable": visit_variable
     }

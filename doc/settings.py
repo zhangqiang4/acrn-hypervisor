@@ -39,3 +39,9 @@ SECTIONS_SORTING_SEQUENCE = [
     'func',
     'public-attrib',  # should be added or no contents of structs/unions will be shown
 ]
+
+# modify initializer's rendering style & make it closer to c code
+NL = '\n'
+PERIOD = ','
+NL_REPL = '__NL__'
+NEW_LINE = PERIOD + NL_REPL+PERIOD
