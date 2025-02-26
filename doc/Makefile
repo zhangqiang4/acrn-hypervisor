@@ -50,6 +50,11 @@ doxy:
 # including rst content and xsd files from the /misc folder that we'll
 # use to generate config option documentation
 
+mdscontent:
+	$(Q)mkdir -p $(SOURCEDIR)
+	$(Q)rsync -rt --exclude=$(BUILDDIR) --exclude-from=mds_only_exclude_list.txt . $(SOURCEDIR)
+	$(Q)mv $(SOURCEDIR)/mds_only_index.txt $(SOURCEDIR)/index.rst
+
 content:
 	$(Q)mkdir -p $(SOURCEDIR)
 	$(Q)rsync -rt --exclude=$(BUILDDIR) . $(SOURCEDIR)
@@ -58,6 +63,11 @@ content:
 	$(Q)rsync -rt ../misc/config_tools/schema/*.xsd $(SOURCEDIR)/misc/config_tools/schema
 	$(Q)xsltproc $(XSLTPARAM) -xinclude ./scripts/configdoc.xsl $(SOURCEDIR)/misc/config_tools/schema/config.xsd > $(SOURCEDIR)/reference/configdoc.txt
 
+mdshtml: mdscontent doxy
+	@echo making HTML content only for MDS
+	$(Q)./scripts/show-versions.py
+	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
+	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
 html: content doxy
 	@echo making HTML content
