@@ -100,6 +100,8 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	if (!is_pmu_pt_configured(vcpu->vm)) {
 		/* DS is not supported, set BTS and PEBS unavailable */
 		misc_en |= (MSR_IA32_MISC_ENABLE_BTS_UNAVAIL | MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL);
+		/* PMA disabled */
+		misc_en &= ~MSR_IA32_MISC_ENABLE_PMA;
 	}
 	vcpu_set_guest_msr(vcpu, MSR_IA32_MISC_ENABLE, misc_en);
 

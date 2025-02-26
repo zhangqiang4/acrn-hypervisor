@@ -153,6 +153,9 @@ static const uint32_t pmc_msrs[] = {
 
 	/* Debug Store disabled: CPUID.01H.EDX[21] X86_FEATURE_DTES */
 	MSR_IA32_DS_AREA,
+
+	/* PEBS facility */
+	MSR_IA32_PEBS_ENABLE
 };
 
 /* Following MSRs are intercepted, but it throws GPs for any guest accesses */
