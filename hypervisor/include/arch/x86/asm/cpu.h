@@ -963,27 +963,6 @@ static inline void asm_safe_hlt(void)
 }
 
 /**
- * @brief The inline function to set the stack pointer (RSP).
- *
- * This function sets the stack pointer (RSP) to the specified value after aligning it to the CPU stack alignment
- * boundary.
- *
- * @param[in] stack_ptr Pointer to the new stack location.
- *
- * @return None
- *
- * @pre stack_ptr != NULL
- * @post N/A
- */
-static inline void cpu_sp_write(uint64_t *stack_ptr)
-{
-	uint64_t rsp = (uint64_t)stack_ptr & ~(CPU_STACK_ALIGN - 1UL);
-
-	asm volatile ("movq %0, %%rsp" : : "r"(rsp));
-}
-
-
-/**
  * @brief The inline function to synchronize all write accesses to memory.
  *
  * This function executes SFENCE instruction, which is a memory barrier that ensures the ordering of store operations.
@@ -1124,29 +1103,6 @@ static inline void clflushopt(const volatile void *p)
 }
 
 /**
- * @brief The inline function to read the time-stamp counter and the CPU ID.
- *
- * This function uses the RDTSCP instruction to read the current value of the time-stamp counter and the CPU ID.
- *
- * @param[inout] timestamp_ptr Pointer to a variable where the time-stamp counter value will be stored to.
- * @param[inout] cpu_id_ptr Pointer to a variable where the processor ID will be stored.
- *
- * @return None
- *
- * @pre timestamp_ptr != NULL
- * @pre cpu_id_ptr != NULL
- * @post N/A
- */
-static inline void
-cpu_rdtscp_execute(uint64_t *timestamp_ptr, uint32_t *cpu_id_ptr)
-{
-	uint32_t tsl, tsh;
-
-	asm volatile ("rdtscp":"=a"(tsl), "=d"(tsh), "=c"(*cpu_id_ptr));
-	*timestamp_ptr = ((uint64_t)tsh << 32U) | tsl;
-}
-
-/**
  * @brief Macro to save RFLAGS register the specified memory address.
  *
  * Use pushf instruction to save the content of the RFLAGS register to the stack, and then pop the value from the stack
@@ -1241,42 +1197,6 @@ cpu_rdtscp_execute(uint64_t *timestamp_ptr, uint32_t *cpu_id_ptr)
 static inline uint16_t get_pcpu_id(void)
 {
 	return (uint16_t)cpu_msr_read(ACRN_PSEUDO_PCPUID_MSR);
-}
-
-/**
- * @brief Retrieve the current value of the RSP register.
- *
- * This function uses inline assembly to move the value of the RSP register into a uint64_t variable and returns it.
- *
- * @return The current value of the RSP register.
- *
- * @pre N/A
- * @post N/A
- */
-static inline uint64_t cpu_rsp_get(void)
-{
-	uint64_t ret;
-
-	asm volatile("movq %%rsp, %0" :  "=r"(ret));
-	return ret;
-}
-
-/**
- * @brief Retrieve the current value of the RBP register.
- *
- * This function uses inline assembly to move the value of the RBP register into a uint64_t variable and returns it.
- *
- * @return The current value of the RBP register.
- *
- * @pre N/A
- * @post N/A
- */
-static inline uint64_t cpu_rbp_get(void)
-{
-	uint64_t ret;
-
-	asm volatile("movq %%rbp, %0" :  "=r"(ret));
-	return ret;
 }
 
 /**
