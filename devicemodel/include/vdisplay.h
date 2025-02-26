@@ -14,7 +14,7 @@
 #include "dm.h"
 #include "backlight.h"
 
-#define VDPY_MAX_NUM 4
+#define VDPY_MAX_NUM 8
 
 typedef void (*bh_task_func)(void *data);
 typedef void (*vblank_inject_func)(void *data, unsigned int frame, int i);
