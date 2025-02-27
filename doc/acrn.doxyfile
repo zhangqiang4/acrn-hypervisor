@@ -797,7 +797,10 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  =  custom-doxygen/mainpage.md \
+                          ../hypervisor/arch/x86/boot/cpu_primary.S \
+                          ../hypervisor/arch/x86/boot/trampoline.S \
                           ../hypervisor/arch/x86/e820.c \
+                          ../hypervisor/arch/x86/init.c \
                           ../hypervisor/arch/x86/tsc.c \
                           ../hypervisor/arch/x86/security.c \
                           ../hypervisor/common/delay.c \
@@ -818,6 +821,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/vtd.h \
                           ../hypervisor/include/arch/x86/asm/notify.h \
+                          ../hypervisor/include/arch/x86/asm/init.h \
                           ../hypervisor/include/arch/x86/asm/irq.h \
                           ../hypervisor/include/arch/x86/asm/tsc.h \
                           ../hypervisor/include/arch/x86/asm/security.h \

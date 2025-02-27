@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,7 +13,7 @@
  * with a comment tracking the original expression from which the magic
  * number is calculated. As an example:
  *
- *    /* 0x00000668 =
+ *    /\* 0x00000668 =
  *     *    (CR4_DE | CR4_PAE | CR4_MCE | CR4_OSFXSR | CR4_OSXMMEXCPT) *\/
  *    movl    $0x00000668, %eax
  *
