@@ -1,0 +1,378 @@
+
+# Exclude the internals only used inside each module.
+# It is used when generating the interface design for SAS.
+# Exclude internals of boot (22)
+EXCLUDE_SYMBOLS += _DYNAMIC acrn_bi boot_from_multiboot cpu_boot_page_tables_ptr \
+                   cpu_boot_page_tables_start get_hv_image_delta init_multiboot_info ld_entry_end \
+                   ld_ram_end ld_ram_start ld_trampoline_load multiboot_module \
+                   multiboot_to_acrn_bi trampoline_fixup_cs trampoline_fixup_ip trampoline_fixup_target \
+                   trampoline_gdt_ptr trampoline_pdpt_addr trampoline_relo_addr trampoline_start16_paddr \
+                   trampoline_start64_fixup update_trampoline_code_refs \
+# Exclude internals of lib.util (24)
+EXCLUDE_SYMBOLS += charmem do_print format_number get_flags \
+                   get_length_modifier get_param hex_digit_value list_del_node \
+                   list_splice list_splice_init list_splice_node lower_hex_digits \
+                   memcpy_erms_backwards memset_erms print_decimal print_param \
+                   print_pow2 print_string snprint_param strchr \
+                   strtoul_hex u_qword upper_hex_digits uuid_is_equal \
+# Exclude internals of lib.sbuf (3)
+EXCLUDE_SYMBOLS += flush_temp_log sbuf_next_ptr sbuf_share_setup \
+# Exclude internals of lib.public (10)
+EXCLUDE_SYMBOLS += acpi_sx_pkg acrn_descriptor_ptr acrn_hw_info acrn_vm_config_header \
+                   profiling_cmd_type reset_mode_vcpu2vlapic reset_mode_vm2vcpu vcpu2vlapci \
+                   vlapic_reset_mode vm2vcpu \
+# Exclude internals of lib.bits (9)
+EXCLUDE_SYMBOLS += bitmap32_set_lock bitmap32_test_and_clear_nolock bitmap32_test_and_set_nolock build_bitmap_clear \
+                   build_bitmap_set build_bitmap_testandclear build_bitmap_testandset clz \
+                   clz64 \
+# Exclude internals of lib.lock (26)
+EXCLUDE_SYMBOLS += atomic_add64_return atomic_add_return atomic_cmpxchg32 atomic_dec16 \
+                   atomic_dec32 atomic_dec64 atomic_dec64_return atomic_dec_return \
+                   atomic_inc16 atomic_inc32 atomic_inc64 atomic_inc64_return \
+                   atomic_readandclear64 atomic_sub64_return atomic_sub_return atomic_swap32 \
+                   atomic_swap64 atomic_xadd16 atomic_xadd32 atomic_xadd64 \
+                   build_atomic_cmpxchg build_atomic_dec build_atomic_inc build_atomic_swap \
+                   build_atomic_xadd struct_spinlock \
+# Exclude internals of hwmgmt.hw-caps (75)
+EXCLUDE_SYMBOLS += acpi_dmar_device_scope acpi_dmar_hardware_unit acpi_dmar_header acpi_dmar_pci_path \
+                   acpi_madt_ioapic acpi_madt_local_apic acpi_madt_local_apic_nmi acpi_madt_x2apic \
+                   acpi_mcfg_allocation acpi_rsdp acpi_subtable_header acpi_table_dmar \
+                   acpi_table_fadt acpi_table_header acpi_table_hpet acpi_table_madt \
+                   acpi_table_mcfg acpi_table_rsdt acpi_table_tpm2 acpi_table_xsdt \
+                   boot_cpu_data check_essential_vmx_caps check_vmx_mmu_cap cpu_capability \
+                   cpu_caps cpu_pm_state_info cpu_state_tbl cx_bxt \
+                   cx_i78650 detect_apicv_cap detect_core_caps detect_ept_cap \
+                   detect_mcg_caps detect_pcpu_cap detect_vmx_mmu_cap detect_xsave_cap \
+                   dmar_path_bdf dmar_unit_cnt drhd_dev_scope found_rsdp \
+                   get_acpi_dt_dword get_acpi_dt_gas get_acpi_dt_qword get_acpi_tbl \
+                   get_address_mask get_dmar_table get_drhd_dev_scope_cnt get_facs_table \
+                   get_rsdp get_secondary_bus get_state_tbl_idx handle_dmar_devscope \
+                   handle_one_drhd is_apicv_basic_feature_supported is_apl_platform is_ctrl_setting_allowed \
+                   is_ept_supported is_fast_string_erms_supported_and_enabled is_vmx_cap_supported is_vmx_disabled \
+                   load_cpu_state_info local_parse_madt packed_gas parse_mcfg_allocation_tables \
+                   pcpu_has_vmx_unrestricted_guest_cap pcpu_vmx_set_32bit_addr_width platform_caps_x86 probe_table \
+                   px_a3950 px_a3960 px_i78650 px_j3455 \
+                   px_n3350 vmx_capability vmx_caps \
+# Exclude internals of hwmgmt.io (2)
+EXCLUDE_SYMBOLS += mmio_read8 mmio_write8 \
+# Exclude internals of hwmgmt.security (7)
+EXCLUDE_SYMBOLS += __stack_chk_fail cpu_l1d_flush cpu_md_clear detect_ibrs \
+                   ibrs_type skip_l1dfl_vmentry verw_buffer_overwriting \
+# Exclude internals of hwmgmt.cpu (48)
+EXCLUDE_SYMBOLS += CPU_LTR_EXECUTE CPU_XMM_READ CPU_XMM_WRITE asm_hlt \
+                   asm_monitor asm_mwait asm_safe_hlt cpu_msr_write \
+                   cpu_rbp_get cpu_rdtscp_execute cpu_regs_t cpu_rsp_get \
+                   cpu_sp_write descriptor_table enable_ac_for_splitlock enable_gp_for_uclock \
+                   get_pcpu_id_from_lapic_id get_rdt_res_ins host_gdt host_gdt_descriptor \
+                   init_keylocker init_pcpu_xsave init_percpu_lapic_id is_rdt_type_capable \
+                   load_gdt max_lapic_id msr_data_struct msr_read_pcpu \
+                   msr_write_pcpu pcpu_active_bitmap pcpu_set_current_state pcpu_sync \
+                   per_cpu_region phys_cpu_num print_hv_banner set_current_pcpu_id \
+                   set_tss_desc setup_clos setup_res_clos_msr smpcall_read_msr_func \
+                   smpcall_write_msr_func start_pcpu start_tick startup_paddr \
+                   tss_64 tss_64_descriptor version_info xsave_header \
+# Exclude internals of hwmgmt.time (11)
+EXCLUDE_SYMBOLS += cpu_tickrate hpet_calibrate_tsc hpet_hva hpet_read \
+                   is_hpet_capable native_calculate_tsc_cpuid_0x15 native_calculate_tsc_cpuid_0x16 pit_calibrate_tsc \
+                   pit_hpet_calibrate_tsc tsc_khz tsc_read_hpet \
+# Exclude internals of hwmgmt.timer (8)
+EXCLUDE_SYMBOLS += init_hw_timer init_percpu_timer local_add_timer run_timer \
+                   tick_mode timer_expired_handler timer_softirq update_physical_timer \
+# Exclude internals of hwmgmt.page (24)
+EXCLUDE_SYMBOLS += add_pde add_pdpte add_pte alloc_page \
+                   construct_pgentry free_page get_pgentry local_modify_or_del_pte \
+                   modify_or_del_pde modify_or_del_pdpte modify_or_del_pte pde_index \
+                   pde_page_vaddr pdpte_index pdpte_page_vaddr pml4e_index \
+                   pml4e_page_vaddr pte_index sanitize_pte sanitize_pte_entry \
+                   sanitized_page_hpa set_pgentry split_large_page try_to_free_pgtable_page \
+# Exclude internals of hwmgmt.memory (31)
+EXCLUDE_SYMBOLS += alloc_hv_memory alloc_mods_memory asm_invept asm_invvpid \
+                   calculate_e820_top_address flush_cacheline flush_tlb flush_tlb_range \
+                   get_ppt_page_num hv_e820 hv_e820_entries_nr hv_e820_top_address \
+                   init_e820_from_efi_mmap init_e820_from_mmap insert_e820_entry invept_desc \
+                   invvpid_operand local_invept local_invvpid mem_range \
+                   ppt_clflush_pagewalk ppt_large_page_support ppt_mmu_pml4_addr ppt_page_pool \
+                   ppt_pgtable reserve_e820_region round_pde_down round_pde_up \
+                   sanitized_page set_paging_nx set_paging_x \
+# Exclude internals of hwmgmt.irq (38)
+EXCLUDE_SYMBOLS += HOST_IDT HOST_IDTR alloc_irq_num disable_pic_irqs \
+                   dispatch_exception do_irq fixup_idt free_irq_arch \
+                   free_irq_num free_irq_vector handle_irq handle_nmi \
+                   handle_spurious_interrupt host_idt host_idt_descriptor idt_64_descriptor \
+                   init_interrupt_arch init_irq_descs init_irq_descs_arch irq_alloc_bitmap \
+                   irq_alloc_spinlock irq_data irq_desc irq_desc_array \
+                   irq_need_mask irq_need_unmask irq_rsvd_bitmap irq_static_mapping \
+                   irq_static_mappings post_irq_arch pre_irq_arch request_irq_arch \
+                   set_idt setup_irqs_arch spurious_handler vector_to_irq \
+                   x86_irq_data x86_irq_spinlock \
+# Exclude internals of hwmgmt.softirq (2)
+EXCLUDE_SYMBOLS += do_softirq_internal softirq_handlers \
+# Exclude internals of hwmgmt.apic (10)
+EXCLUDE_SYMBOLS += LAPIC_REGISTERS clear_lapic_isr ioapic lapic_base_msr \
+                   restore_lapic save_lapic saved_lapic_base_msr saved_lapic_regs \
+                   send_dest_ipi_mask send_single_init \
+# Exclude internals of hwmgmt.ioapic (23)
+EXCLUDE_SYMBOLS += create_rte_for_gsi_irq create_rte_for_legacy_irq get_ioapic_base get_max_nr_gsi \
+                   get_pic_pin_from_ioapic_pin gsi_table gsi_table_data gsi_to_ioapic_base \
+                   ioapic_array ioapic_get_rte_entry ioapic_irq_gsi_mask_unmask ioapic_lock \
+                   ioapic_max_nr_gsi ioapic_nr_pins ioapic_num ioapic_read_reg32 \
+                   ioapic_set_routing ioapic_set_rte_entry ioapic_write_reg32 legacy_irq_trigger_mode \
+                   map_ioapic pic_ioapic_pin_map saved_rte \
+# Exclude internals of hwmgmt.pci (39)
+EXCLUDE_SYMBOLS += PCI_ECAP_ID PCI_ECAP_NEXT acrn_pci_cfg_ops config_pci_bridge \
+                   get_pci_bar_resource hv_owned_pci_pdevs init_all_dev_config is_pci_vendor_valid \
+                   mmcfg_off_to_address num_hv_owned_pci_pdev num_pci_pdev pci_add_bdf_from_drhd \
+                   pci_bar_resource pci_bdf_mapping_group pci_bdf_to_drhd_index_mapping pci_bus_num_to_drhd_index_mapping \
+                   pci_cfg_ops pci_check_override_drhd_index pci_enable_ptm_root pci_enumerate_cap \
+                   pci_enumerate_ext_cap pci_find_pdev pci_is_valid_access_byte pci_is_valid_access_offset \
+                   pci_mmcfg_cfg_ops pci_mmcfg_read_cfg pci_mmcfg_write_cfg pci_msix_cap \
+                   pci_parse_iommu_devscopes pci_pdev_get_nr_bars pci_pdevs pci_pio_cfg_ops \
+                   pci_pio_read_cfg pci_pio_write_cfg pci_sriov_cap pdev_save_bar \
+                   pdevs_hlist_heads phys_pci_mmcfg scan_pci_hierarchy \
+# Exclude internals of hwmgmt.schedule (31)
+EXCLUDE_SYMBOLS += acrn_scheduler deinit_thread_data get_scheduler get_svt \
+                   is_blocked is_inqueue is_running make_reschedule_request \
+                   obtain_schedule_lock p2v release_schedule_lock runqueue_add \
+                   runqueue_remove sched_bvt sched_bvt_data sched_bvt_deinit \
+                   sched_bvt_init sched_bvt_init_data sched_bvt_pick_next sched_bvt_sleep \
+                   sched_bvt_suspend sched_bvt_wake sched_iorr sched_noop \
+                   sched_prio sched_tick_handler set_thread_status thread_object_state \
+                   update_svt update_vt v2p \
+# Exclude internals of hwmgmt.vmx (4)
+EXCLUDE_SYMBOLS += exec_vmclear exec_vmptrld exec_vmxoff exec_vmxon \
+# Exclude internals of hwmgmt.vtd (139)
+EXCLUDE_SYMBOLS += DEVFUN alloc_irtes context_table ctx_tables \
+                   device_to_dmaru disable_dmar dma_ccmd_did dma_ccmd_fm \
+                   dma_ccmd_get_caig_32 dma_ccmd_sid dma_frcd_up_at dma_frcd_up_exe \
+                   dma_frcd_up_f dma_frcd_up_fr dma_frcd_up_pasid dma_frcd_up_pp \
+                   dma_frcd_up_priv dma_frcd_up_sid dma_frcd_up_t dma_fsts_afo \
+                   dma_fsts_apf dma_fsts_fri dma_fsts_ice dma_fsts_iqe \
+                   dma_fsts_ite dma_fsts_pfo dma_fsts_ppf dma_fsts_pro \
+                   dma_iec_index dma_iotlb_did dma_iotlb_get_iaig_32 dma_iotlb_invl_addr_am \
+                   dmar_cirg_type dmar_disable_intr_remapping dmar_disable_qi dmar_disable_translation \
+                   dmar_drhd_rt dmar_drhd_units dmar_enable_intr_remapping dmar_enable_qi \
+                   dmar_enable_translation dmar_entry dmar_fault_event_mask dmar_fault_event_unmask \
+                   dmar_fault_handler dmar_fault_msi_write dmar_get_bitslice dmar_iirg_type \
+                   dmar_invalid_context_cache dmar_invalid_context_cache_global dmar_invalid_iec dmar_invalid_iec_global \
+                   dmar_invalid_iotlb dmar_invalid_iotlb_global dmar_issue_qi_request dmar_register_hrhd \
+                   dmar_reserve_irte dmar_set_bitslice dmar_set_intr_remap_table dmar_set_root_table \
+                   dmar_setup_interrupt dmar_unit_get_msagw dmar_unit_support_aw dmar_ver_major \
+                   dmar_ver_minor dmar_wait_completion do_action_for_iommus enable_dmar \
+                   enable_iommu fault_record_analysis get_ctx_table get_dmar_info \
+                   get_ir_table get_qi_queue get_root_table intr_remap_table \
+                   ioapic_to_dmaru iommu_attach_device iommu_cap_afl iommu_cap_caching_mode \
+                   iommu_cap_fault_reg_offset iommu_cap_isoch iommu_cap_max_amask_val iommu_cap_max_fault_reg_offset \
+                   iommu_cap_mgaw iommu_cap_ndoms iommu_cap_num_fault_regs iommu_cap_pgsel_inv \
+                   iommu_cap_phmr iommu_cap_pi iommu_cap_plmr iommu_cap_read_drain \
+                   iommu_cap_sagaw iommu_cap_super_page_val iommu_cap_write_drain iommu_cap_zlr \
+                   iommu_detach_device iommu_domains iommu_ecap_c iommu_ecap_dis \
+                   iommu_ecap_dit iommu_ecap_dt iommu_ecap_eafs iommu_ecap_ecs \
+                   iommu_ecap_eim iommu_ecap_ers iommu_ecap_ir iommu_ecap_iro \
+                   iommu_ecap_mhmv iommu_ecap_mts iommu_ecap_nest iommu_ecap_nwfs \
+                   iommu_ecap_pasid iommu_ecap_pds iommu_ecap_prs iommu_ecap_pss \
+                   iommu_ecap_pt iommu_ecap_qi iommu_ecap_srs iommu_page_walk_coherent \
+                   iommu_read32 iommu_read64 iommu_write32 iommu_write64 \
+                   ir_tables is_dmar_unit_ignored is_dmar_unit_valid is_irte_reserved \
+                   platform_dmar_info prepare_dmar qi_queues register_hrhd_units \
+                   resume_dmar root_tables source suspend_dmar \
+                   vmid_to_domainid width_to_agaw width_to_level \
+# Exclude internals of hwmgmt.pm (12)
+EXCLUDE_SYMBOLS += acpi_gas_read acpi_gas_write cpu_ctx cpufreq_policy \
+                   do_acpi_sx host_pm_s_state host_reset_reg restore_msrs \
+                   resume_tsc suspend_tsc system_pm1a_cnt_val system_pm1b_cnt_val \
+# Exclude internals of hwmgmt.smpcall (3)
+EXCLUDE_SYMBOLS += handle_pi_notification kick_notification smp_call_mask \
+# Exclude internals of hwmgmt.mce (2)
+EXCLUDE_SYMBOLS += cmc_irq_handler cmci_softirq \
+# Exclude internals of hwmgmt.thermal (3)
+EXCLUDE_SYMBOLS += init_hw_thermal thermal_irq_handler thermal_softirq \
+# Exclude internals of vp-base.vm-config (7)
+EXCLUDE_SYMBOLS += acrn_vm_acpi_config acrn_vm_mem_config acrn_vm_os_config allocate_to_prelaunched_vm \
+                   service_vm_config target_vuart vuart_addr \
+# Exclude internals of vp-base.guest-mem (20)
+EXCLUDE_SYMBOLS += copy_gpa copy_gva ept_clflush_pagewalk ept_dummy_pages \
+                   ept_flush_guest ept_large_page_support ept_page_bitmap ept_page_pool \
+                   ept_pages get_ept_page_num get_eptp get_total_ept_4k_pages_size \
+                   get_vcpu_paging_mode local_copy_gpa local_gpa2hpa local_gva2gpa_common \
+                   local_gva2gpa_pae page_walk_info reserve_ept_bitmap vm_paging_mode \
+# Exclude internals of vp-base.vboot (34)
+EXCLUDE_SYMBOLS += BZIMG_CMDLINE_GPA BZIMG_EFIMMAP_GPA BZIMG_INITGDT_GPA BZIMG_ZEROPAGE_GPA \
+                   bzimage_loader create_zero_page create_zeropage_e820 do_load_elf32 \
+                   do_load_elf64 elf32_hdr elf32_prog_entry elf32_sec_entry \
+                   elf64_hdr elf64_prog_entry elf64_sec_entry elf_boot_para \
+                   elf_loader find_img_multiboot_header get_bzimage_kernel_load_addr get_initrd_load_addr \
+                   get_mod_by_tag init_vm_acpi_info init_vm_bootargs_info init_vm_kernel_info \
+                   init_vm_ramdisk_info init_vm_sw_load load_bzimage load_elf \
+                   load_sw_module mod_cmdline prepare_elf_cmdline prepare_loader_name \
+                   prepare_multiboot_mmap zero_page \
+# Exclude internals of vp-base.hypercall (16)
+EXCLUDE_SYMBOLS += add_vm_memory_region allocate_dynamical_vmid dispatch_hypercall emul_dev_ops \
+                   emul_dev_ops_tbl find_emul_dev_ops get_cache_shift hc_dispatch \
+                   hc_dispatch_table is_hypercall_from_ring0 is_pt_pstate nearest_pow2 \
+                   parse_target_vm set_vm_memory_region vm_id_lock write_protect_page \
+# Exclude internals of vp-base.virq (7)
+EXCLUDE_SYMBOLS += acrn_inject_pending_intr exception_type get_excep_class get_exception_type \
+                   is_guest_irq_enabled is_nmi_injectable vcpu_inject_exception \
+# Exclude internals of vp-base.vcr (18)
+EXCLUDE_SYMBOLS += cr0_passthru_mask cr0_reserved_bits_mask cr0_rsv_bits_guest_value cr0_trap_and_passthru_mask \
+                   cr4_passthru_mask cr4_reserved_bits_mask cr4_rsv_bits_guest_value cr4_trap_and_passthru_mask \
+                   initial_guest_cr0 initial_guest_cr4 is_cr0_write_valid is_cr4_write_valid \
+                   is_valid_cr0 is_valid_cr4 load_pdptrs vcpu_get_cr2 \
+                   vmx_write_cr0 vmx_write_cr4 \
+# Exclude internals of vp-base.vcpuid (20)
+EXCLUDE_SYMBOLS += find_vcpuid_entry guest_cpuid_01h guest_cpuid_06h guest_cpuid_0bh \
+                   guest_cpuid_0dh guest_cpuid_19h guest_cpuid_1fh guest_cpuid_80000001h \
+                   init_vcpuid_entry is_percpu_related local_find_vcpuid_entry pcpu_cpuids \
+                   percpu_cpuid_init percpu_cpuids set_vcpuid_cache set_vcpuid_entry \
+                   set_vcpuid_extended_function set_vcpuid_extfeat set_vcpuid_sgx set_vcpuid_thermal_power \
+# Exclude internals of vp-base.vmsr (36)
+EXCLUDE_SYMBOLS += MSR_IA32_MC_ADDR MSR_IA32_MC_CTL MSR_IA32_MC_CTL2 MSR_IA32_MC_MISC \
+                   MSR_IA32_MC_STATUS acrn_update_ucode emulated_guest_msrs enable_mc_bank_interception \
+                   enable_msr_interception get_microcode_version get_perf_status get_ucode_data_size \
+                   init_emulated_msrs init_lbr_msrs init_mc_msrs init_thermal_msrs \
+                   init_x2apic_msrs intercept_x2apic_msrs is_ecmd_supported is_iwkey_backup_support \
+                   is_pat_mem_type_invalid is_x2apic_msr mc_bank_configured_count mc_bank_hide_by_idx \
+                   mc_bank_pt_by_idx micro_code mtrr_msrs pmc_msrs \
+                   prepare_auto_msr_area set_guest_ia32_misc_enalbe set_guest_tsc set_guest_tsc_adjust \
+                   set_tsc_msr_interception ucode_header unsupported_msrs write_pat_msr \
+# Exclude internals of vp-base.vcpu (26)
+EXCLUDE_SYMBOLS += build_stack_frame context_switch_in context_switch_out create_vcpu \
+                   exec_vmentry guest_mem_dump init_iwkey init_vgdt \
+                   init_xsave msr_store_area msr_store_entry protect_mode_init_vregs \
+                   realmode_init_vregs reset_mode reset_vcpu_regs rstore_xsave_area \
+                   save_segment save_xsave_area set_vcpu_mode stack_frame \
+                   vcpu_dump vcpu_get_rsp vcpu_reset_internal vcpu_set_rsp \
+                   vcpu_set_state write_cached_registers \
+# Exclude internals of vp-base.vlapic (80)
+EXCLUDE_SYMBOLS += acrn_apicv_ops apicv_advanced_accept_intr apicv_advanced_has_pending_delivery_intr apicv_advanced_has_pending_intr \
+                   apicv_advanced_inject_intr apicv_advanced_ops apicv_advanced_x2apic_read_msr_may_valid apicv_advanced_x2apic_write_msr_may_valid \
+                   apicv_basic_accept_intr apicv_basic_has_pending_delivery_intr apicv_basic_has_pending_intr apicv_basic_inject_intr \
+                   apicv_basic_ops apicv_basic_x2apic_read_msr_may_valid apicv_basic_x2apic_write_msr_may_valid apicv_ops \
+                   apicv_set_intr_ready apicv_trigger_pi_anv is_dest_field_matched lvt_off_to_idx \
+                   prio ptapic_accept_intr ptapic_has_pending_delivery_intr ptapic_has_pending_intr \
+                   ptapic_inject_intr ptapic_invalid ptapic_ops set_dest_mask_phys \
+                   set_expiration vlapic2vcpu vlapic_accept_intr vlapic_build_x2apic_id \
+                   vlapic_calc_dest vlapic_clear_pending_intr vlapic_dump_irr vlapic_dump_isr \
+                   vlapic_enabled vlapic_find_deliverable_intr vlapic_find_highest_irr vlapic_find_isrv \
+                   vlapic_fire_lvt vlapic_get_ccr vlapic_get_deliverable_intr vlapic_get_lvt \
+                   vlapic_get_lvtptr vlapic_get_next_pending_intr vlapic_init_timer vlapic_lvtt_masked \
+                   vlapic_lvtt_oneshot vlapic_lvtt_period vlapic_lvtt_tsc_deadline vlapic_mask_lvts \
+                   vlapic_process_eoi vlapic_process_init_sipi vlapic_read vlapic_reset_timer \
+                   vlapic_reset_tmr vlapic_restore vlapic_set_error vlapic_set_tmr \
+                   vlapic_timer vlapic_timer_divisor_shift vlapic_timer_expired vlapic_trigger_lvt \
+                   vlapic_update_lvtt vlapic_update_ppr vlapic_update_tpr_threshold vlapic_write \
+                   vlapic_write_dcr vlapic_write_esr vlapic_write_icrlo vlapic_write_icrtmr \
+                   vlapic_write_ldr vlapic_write_lvt vlapic_write_svr vlapic_x2apic_pt_icr_access \
+                   vlapic_x2apic_self_ipi_handler vm_apicid2vcpu_id vm_lapic_from_vcpu_id x2apic_msr_to_regoff \
+# Exclude internals of vp-base.vm (28)
+EXCLUDE_SYMBOLS += add_ram_entry calculate_memory_size create_prelaunched_vm_e820 create_service_vm_e820 \
+                   deny_hv_owned_devices deny_pci_bar_access deny_pdevs filter_mem_from_service_vm_e820 \
+                   get_configured_bsp_pcpu_id is_ready_for_system_shutdown lapic_pt_enabled_pcpu_bitmap offline_lapic_pt_pcpus \
+                   online_lapic_pt_pcpus pid_pointer_tables pre_ve820_template pre_vm_e820 \
+                   prepare_epc_vm_memmap prepare_prelaunched_vm_memmap prepare_service_vm_memmap prepare_vm \
+                   service_vm_e820 service_vm_ptr setup_io_bitmap sort_vm_e820 \
+                   vm_arch vm_array vm_hw_info vm_pm_info \
+# Exclude internals of vp-base.hv-main (20)
+EXCLUDE_SYMBOLS += apic_access_offset apic_access_type check_vmx_ctrl default_idle \
+                   dispatch_table init_entry_ctrl init_exec_ctrl init_exit_ctrl \
+                   init_guest_state init_guest_vmx init_host_state switch_apicv_mode_x2apic \
+                   vm_exit_cr_access_lmsw_op vm_exit_cr_access_lmsw_src_date vm_exit_dispatch vm_exit_io_instruction_is_operand_encoding \
+                   vm_exit_io_instruction_is_rep_prefixed vm_exit_io_instruction_is_string vm_exit_qualification_bit_mask vmexit_handler \
+# Exclude internals of vp-base.pm (26)
+EXCLUDE_SYMBOLS += enter_s3 enter_s5 get_slp_typx handle_cf9_write \
+                   handle_common_reset_reg_write handle_kb_read handle_kb_write handle_reset_reg_read \
+                   handle_reset_reg_write init_cx_port is_s3_enabled pm1ab_io_read \
+                   pm1ab_io_write prelaunched_vm_sleep_io_read prelaunched_vm_sleep_io_write register_gas_io_handler \
+                   register_pm1ab_handler register_prelaunched_vm_sleep_handler register_rt_vm_pm1a_ctl_handler rt_vm_pm1a_io_read \
+                   rt_vm_pm1a_io_write validate_pstate vm_load_pm_s_state vm_setup_cpu_cx \
+                   vm_setup_cpu_px vm_setup_cpu_state \
+# Exclude internals of vp-base.vmtrr (14)
+EXCLUDE_SYMBOLS += fixed_mtrr_map fixed_range_mtrr_maps get_default_memory_type get_index_of_fixed_mtrr \
+                   get_subrange_size_of_fixed_mtrr get_subrange_start_of_fixed_mtrr is_fixed_range_mtrr_enabled is_mtrr_enabled \
+                   mtrr_cap_reg mtrr_def_type_reg mtrr_fixed_range_reg update_ept \
+                   update_ept_mem_type vmtrr2vcpu \
+# Exclude internals of vp-dm.ptirq (31)
+EXCLUDE_SYMBOLS += DEFINE_MSI_SID activate_ioapic_rte add_intx_remapping add_msix_remapping \
+                   calculate_logical_dest_mask irte_index is_entry_active is_single_destination \
+                   phys_sid_htable ptdev_lock ptirq_activate_entry ptirq_alloc_entry \
+                   ptirq_alloc_entry_id ptirq_build_physical_msi ptirq_build_physical_rte ptirq_deactivate_entry \
+                   ptirq_dequeue_softirq ptirq_enqueue_softirq ptirq_entries ptirq_entry_bitmaps \
+                   ptirq_free_irte ptirq_handle_intx ptirq_hash_key ptirq_interrupt_handler \
+                   ptirq_intr_delay_callback ptirq_release_entry ptirq_softirq remove_intx_remapping \
+                   remove_msix_remapping source_id virt_sid_htable \
+# Exclude internals of vp-dm.mmio-dev (0)
+EXCLUDE_SYMBOLS += \
+# Exclude internals of vp-dm.io-req (84)
+EXCLUDE_SYMBOLS += acrn_hsm_notification_vector acrn_insert_asyncio acrn_insert_request asyncio_is_conflict \
+                   build_getcc complete_ioreq decode_displacement decode_immediate \
+                   decode_modrm decode_moffset decode_op_and_addr_size decode_opcode \
+                   decode_prefixes decode_sib decode_two_byte_opcode dm_emulate_io_complete \
+                   dm_emulate_mmio_complete dm_emulate_pio_complete emulate_and emulate_bittest \
+                   emulate_cmp emulate_group1 emulate_mmio_complete emulate_mov \
+                   emulate_movs emulate_movx emulate_or emulate_pio_complete \
+                   emulate_stos emulate_sub emulate_test emulate_xchg_for_splitlock \
+                   encode_vmcs_seg_desc find_free_mmio_node find_match_mmio_node get_asyncio_desc \
+                   get_gva_di_check get_gva_si_nocheck get_hsm_notification_vector get_io_req_state \
+                   get_vmcs_field getcc getcc16 getcc32 \
+                   getcc64 getcc8 has_complete_ioreq hv_emulate_mmio \
+                   hv_emulate_pio instr_check_di instr_check_gva instr_emul_vie \
+                   instr_emul_vie_op is_desc_valid local_decode_instruction mmio_default_access_handler \
+                   one_byte_opcodes pio_default_read pio_default_write seg_desc \
+                   seg_desc_def32 seg_desc_present seg_desc_type seg_desc_unusable \
+                   segment_override size2mask two_byte_opcodes vie_advance \
+                   vie_calc_bytereg vie_calculate_gla vie_canonical_check vie_fetch_instruction \
+                   vie_init vie_mmio_read vie_mmio_write vie_peek \
+                   vie_read_bytereg vie_update_register vie_update_rflags vie_write_bytereg \
+                   vm_get_register vm_get_seg_desc vm_set_register vmcs_seg_field \
+# Exclude internals of vp-dm.vpci (84)
+EXCLUDE_SYMBOLS += assign_vdev_pt_iommu_domain cfg_hdr_perm cfg_header_access cfg_header_perm \
+                   check_pt_dev_pio_bars create_vf deinit_vdev_pt deinit_vmsi \
+                   deinit_vmsix_pt disable_vfs enable_disable_msi enable_vfs \
+                   find_available_vdev get_msix_table_entry get_vf_bus get_vf_devfun \
+                   has_msi_cap has_msix_cap has_sriov_cap in_range \
+                   init_bars init_sriov_vf_bar init_vdev_pt init_vmsi \
+                   init_vmsix_pt init_vsriov is_pci_mem32_bar is_pci_mem_bar \
+                   is_pci_mem_bar_base_valid is_quirk_ptdev is_vf_enabled is_zombie_vf \
+                   mask_one_msix_vector msicap_access msixcap msixtable_access \
+                   passthru_gpu_opregion pci_cap_sriov pci_cfg_addr_reg pci_cfgdata \
+                   pci_mmio_res pci_msi pci_msix pci_pt_dev_ops \
+                   pci_vdev_update_vbar_base pt_vmsix_handle_table_mmio_access read_cfg_header read_pt_dev_cfg \
+                   read_pt_vmsix_cap_reg read_sriov_cap_reg read_sriov_reg read_vmsix_cap_reg \
+                   remap_one_vmsix_entry remap_vmsi remove_vdev_pt_iommu_domain rw_vmsix_table \
+                   sriov_bar_offset sriovcap_access vdev_bridge_pt_restore_bus vdev_bridge_pt_restore_space \
+                   vdev_pt_allow_io_vbar vdev_pt_deny_io_vbar vdev_pt_hide_sriov_cap vdev_pt_map_mem_vbar \
+                   vdev_pt_map_msix vdev_pt_unmap_mem_vbar vdev_pt_unmap_msix vdev_pt_write_vbar \
+                   vpci_add_capability vpci_deinit_pt_dev vpci_init_pt_dev vpci_init_vdevs \
+                   vpci_mmio_cfg_access vpci_pio_cfgaddr_read vpci_pio_cfgaddr_write vpci_pio_cfgdata_read \
+                   vpci_pio_cfgdata_write vpci_read_cfg vpci_write_cfg write_cfg_header \
+                   write_pt_dev_cfg write_pt_vmsix_cap_reg write_sriov_cap_reg write_vmsi_cap_reg \
+# Exclude internals of vp-dm.vioapic (11)
+EXCLUDE_SYMBOLS += acrn_single_vioapic reset_one_vioapic vgsi_to_vioapic_and_vpin vioapic_generate_intr \
+                   vioapic_indirect_read vioapic_indirect_write vioapic_mmio_rw vioapic_need_intr \
+                   vioapic_process_eoi vioapic_set_pinstate vm_ioapics \
+# Exclude internals of vp-dm.vperipheral (44)
+EXCLUDE_SYMBOLS += RTC_DEBUG bin2bcd_data calibrate_setup_timer calibrate_timer \
+                   clk_ct_to_ts clk_ts_to_ct clktime cmos_get_reg_val \
+                   cmos_lock cmos_read cmos_set_reg_val cmos_update_in_progress \
+                   cmos_write create_ivshmem_device day_of_week days_in_month \
+                   days_in_year find_shm_region hostbridge_did_highbytes init_ivshmem_bar \
+                   ivshmem_dev ivshmem_dev_lock ivshmem_device ivshmem_doorbell \
+                   ivshmem_server_bind_peer ivshmem_server_notify_peer ivshmem_server_unbind_peer ivshmem_shm_region \
+                   leapyear mem_regions month_days rtc_to_secs \
+                   rtcdev rtcget rtcset secs_to_rtc \
+                   vrtc_get_current_time vrtc_get_physical_rtc_time vrtc_get_reg_c vrtc_is_time_register \
+                   vrtc_rebase_lock vrtc_set_basetime vrtc_set_reg_b vrtc_update_basetime \
+# Exclude internals of init (9)
+EXCLUDE_SYMBOLS += SWITCH_TO boot_regs init_debug_post init_debug_pre \
+                   init_guest_mode init_misc init_pcpu_comm_post init_primary_pcpu \
+                   init_secondary_pcpu \
+# Exclude internals of config-data (2)
+EXCLUDE_SYMBOLS += plat_hidden_pdevs vmsix_on_msi_devs \
+# Exclude internals of debug (21)
+EXCLUDE_SYMBOLS += console_getc console_log console_need_log console_putc \
+                   console_write dump_intr_excp_frame handle_dbg_cmd log_seq \
+                   mem_log mem_loglevel mem_need_log npk_log \
+                   npk_log_setup npk_log_write npk_need_log serial_dev_type \
+                   shell_kick trace_check trace_entry trace_put \
+                   vprintf \
+

@@ -44,18 +44,25 @@ help:
 # This is where we tweak the "pre" API comments into "preconditions"
 # Note that this step starts with an empty doc.log while the others append
 doxy:
-	$(Q)(cat acrn.doxyfile ; echo "OUTPUT_DIRECTORY=$(SOURCEDIR)/doxygen" ) | doxygen - > $(BUILDDIR)/doc.log 2>&1
+	$(Q)(cat $(SOURCEDIR)/acrn.doxyfile ; echo "OUTPUT_DIRECTORY=$(SOURCEDIR)/doxygen" ) | doxygen - > $(BUILDDIR)/doc.log 2>&1
 
 # Copy all the rst content (and images, etc) into the _build/rst folder
 # including rst content and xsd files from the /misc folder that we'll
 # use to generate config option documentation
 
-mdscontent:
+dscontent:
+	@echo making rst content for pure Design Spec from code
 	$(Q)mkdir -p $(SOURCEDIR)
-	$(Q)rsync -rt --exclude=$(BUILDDIR) --exclude-from=mds_only_exclude_list.txt . $(SOURCEDIR)
-	$(Q)mv $(SOURCEDIR)/mds_only_index.txt $(SOURCEDIR)/index.rst
+	$(Q)rsync -rt --exclude=$(BUILDDIR) --exclude-from=etc/mds_only_exclude_list.txt . $(SOURCEDIR)
+	$(Q)mv $(SOURCEDIR)/etc/mds_only_index.rst.txt $(SOURCEDIR)/index.rst
+
+sascontent: dscontent
+	@echo preparing rst content for SAS
+	$(Q)cat $(SOURCEDIR)/etc/sas_exclude_symbols.yml >> $(SOURCEDIR)/acrn.doxyfile
+	$(Q)mv $(SOURCEDIR)/etc/sas.rst.txt $(SOURCEDIR)/developer-guides/mds/index.rst
 
 content:
+	@echo making rst content for all documentation
 	$(Q)mkdir -p $(SOURCEDIR)
 	$(Q)rsync -rt --exclude=$(BUILDDIR) . $(SOURCEDIR)
 	$(Q)scripts/extract_content.py $(SOURCEDIR) misc
@@ -63,30 +70,51 @@ content:
 	$(Q)rsync -rt ../misc/config_tools/schema/*.xsd $(SOURCEDIR)/misc/config_tools/schema
 	$(Q)xsltproc $(XSLTPARAM) -xinclude ./scripts/configdoc.xsl $(SOURCEDIR)/misc/config_tools/schema/config.xsd > $(SOURCEDIR)/reference/configdoc.txt
 
-mdshtml: mdscontent doxy
-	@echo making HTML content only for MDS
-	$(Q)./scripts/show-versions.py
-	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
-	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
-
-html: content doxy
+gen_html:
 	@echo making HTML content
 	$(Q)./scripts/show-versions.py
 	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
-mds_singlehtml: mdscontent doxy
-	@echo now making single HTML content only for MDS
-	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
+mdshtml: dscontent doxy gen_html
+	@echo MDS HTML generated
+
+sashtml: sascontent doxy gen_html
+	@echo SAS HTML generated
+
+html: content doxy gen_html
+	@echo Full documentation HTML generated
+
+gen_singlehtml:
+	@echo making single HTML content
+	$(Q)./scripts/show-versions.py
+	$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
-singlehtml: content doxy
-	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
-	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
+mds_singlehtml: dscontent doxy gen_singlehtml
+	@echo MDS single HTML generated
 
-mdspdf: mds_singlehtml
-	@echo now making $(BUILDDIR)/acrn_mds.pdf
-	$(Q)wkhtmltopdf --javascript-delay 3000 --enable-local-file-access --disable-javascript $(BUILDDIR)/html/index.html $(BUILDDIR)/acrn_mds.pdf
+sas_singlehtml: sascontent doxy gen_singlehtml
+	@echo SAS single HTML generated
+
+singlehtml: content doxy gen_singlehtml
+	@echo Full documentation single HTML generated
+
+DS_PDF  = $(BUILDDIR)/design_spec.pdf
+MDS_PDF = $(BUILDDIR)/acrn_mds.pdf
+SAS_PDF = $(BUILDDIR)/acrn_sas.pdf
+
+dspdf:
+	@echo making $(DS_PDF)
+	$(Q)wkhtmltopdf --enable-local-file-access --disable-javascript $(BUILDDIR)/html/index.html $(DS_PDF)
+
+mdspdf: mds_singlehtml dspdf
+	@echo making $(MDS_PDF)
+	$(Q)mv $(DS_PDF) $(MDS_PDF)
+
+saspdf: sas_singlehtml dspdf
+	@echo making $(SAS_PDF)
+	$(Q)mv $(DS_PDF) $(SAS_PDF)
 
 pdf: html
 	@echo now making $(BUILDDIR)/latex/acrn.pdf
