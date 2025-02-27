@@ -718,7 +718,6 @@ struct cpu_context {
 /* Function prototypes */
 void cpu_do_idle(void);
 void cpu_dead(void);
-void trampoline_start16(void);
 void init_pcpu_pre(bool is_bsp);
 /* The function should be called on the same CPU core as specified by pcpu_id,
  * hereby, pcpu_id is actually the current physical cpu id.
