@@ -1460,33 +1460,6 @@ vlapic_reset(struct acrn_vcpu *vcpu)
 
 }
 
-void vlapic_restore(struct acrn_vlapic *vlapic, const struct lapic_regs *regs)
-{
-	struct lapic_regs *lapic;
-	int32_t i;
-
-	lapic = &(vlapic->apic_page);
-
-	lapic->tpr = regs->tpr;
-	lapic->apr = regs->apr;
-	lapic->ppr = regs->ppr;
-	lapic->ldr = regs->ldr;
-	lapic->dfr = regs->dfr;
-	for (i = 0; i < 8; i++) {
-		lapic->tmr[i].v = regs->tmr[i].v;
-	}
-	lapic->svr = regs->svr;
-	vlapic_write_svr(vlapic);
-	lapic->lvt[APIC_LVT_TIMER].v = regs->lvt[APIC_LVT_TIMER].v;
-	lapic->lvt[APIC_LVT_LINT0].v = regs->lvt[APIC_LVT_LINT0].v;
-	lapic->lvt[APIC_LVT_LINT1].v = regs->lvt[APIC_LVT_LINT1].v;
-	lapic->lvt[APIC_LVT_ERROR].v = regs->lvt[APIC_LVT_ERROR].v;
-	lapic->icr_timer = regs->icr_timer;
-	lapic->ccr_timer = regs->ccr_timer;
-	lapic->dcr_timer = regs->dcr_timer;
-	vlapic_write_dcr(vlapic);
-}
-
 uint64_t vlapic_get_apicbase(const struct acrn_vlapic *vlapic)
 {
 	return vlapic->msr_apicbase;
