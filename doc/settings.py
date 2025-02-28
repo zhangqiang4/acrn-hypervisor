@@ -45,3 +45,10 @@ NL = '\n'
 PERIOD = ','
 NL_REPL = '__NL__'
 NEW_LINE = PERIOD + NL_REPL+PERIOD
+
+# support intervals in initializers, i.e., [beg..end] = {1,2,...}
+ESCAPE_SYMBOLS = {
+    '[': '__LEFT_BRACKET__',
+    ']': '__RIGHT_BRACKET__',
+    '..': '__INTERVAL__'
+}

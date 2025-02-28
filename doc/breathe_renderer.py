@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 
 import docutils.nodes
@@ -15,7 +16,7 @@ from sphinx.domains.c import (
     ASTExpression,
     _expression_assignment_ops,
     ASTBracedInitList,
-    _keywords
+    _keywords,
 )
 from sphinx.util.cfamily import (
     StringifyTransform,
@@ -41,7 +42,7 @@ from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 from settings import (
     UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
     SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
-    NEW_LINE, NL_REPL, NL, PERIOD
+    NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS
 )
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
@@ -283,6 +284,7 @@ class BreatheDefinitionParser:
     7. Miscellaneous: static struct X x =
     {1, x1 = 2, x2 = {{3}, 4}, x3 = {y1 = 5, y2 = {z1 = 6}}, {7, 8, {9}}, {x4 = 10, x5 = 11}};
     """
+
     def _parse_inner_initializer_or_expression(self):
         # Parse inner initializer
         # eg1. static struct X x = {{1,2},{3,4}};
@@ -477,7 +479,7 @@ class BreatheASTBracedInitList:
         new_line = False
         for i, e in enumerate(self.exprs):
             if not first:
-                if str(self.exprs[i-1]) == NL_REPL:
+                if str(self.exprs[i - 1]) == NL_REPL:
                     signode += addnodes.desc_sig_punctuation(',', '')
                 else:
                     signode += addnodes.desc_sig_punctuation(',', ',')
@@ -491,7 +493,28 @@ class BreatheASTBracedInitList:
                 new_line = True
                 signode += addnodes.desc_sig_punctuation('\n', '<br/>')
             else:
-                e.describe_signature(signode, mode, env, symbol)
+                # exchange escape symbols
+                """
+                support syntax as bellow:
+                
+                static struct X x = {
+                    1,2,
+                    [0..4] = x,
+                    [4..8] = y
+                    [1..] = {1,2},
+                    [ 2 ..  5  ] = {7,8,9}
+                };
+                """
+                tmp = str(e).strip()
+                interval_re = re.compile(r"__LEFT_BRACKET__(.*)(\s*__INTERVAL__\s*.*)?__RIGHT_BRACKET__")
+                if re.match(interval_re, tmp):
+                    res = (tmp.replace(ESCAPE_SYMBOLS['['], '[')
+                           .replace(ESCAPE_SYMBOLS[']'], ']')
+                           .replace(ESCAPE_SYMBOLS['..'], '..'))
+                    signode += addnodes.desc_sig_punctuation(tmp, res)
+                else:
+                    e.describe_signature(signode, mode, env, symbol)
+
         if self.trailingComma:  # hide tailingComma whether existed or not
             signode += addnodes.desc_sig_punctuation(',', '')
         DEPTH -= 1
@@ -927,15 +950,23 @@ class BreatheRenderer:
                 t += n.astext()
                 temp.append(t)
                 pos = i
-            elif n.astext() != " " and i != pos+1:
+            elif n.astext() != " " and i != pos + 1:
                 temp.append(n.astext())
-            elif n.astext() != " " and i == pos+1:
+            elif n.astext() != " " and i == pos + 1:
                 t = temp.pop()
                 t += n.astext()
                 temp.append(t)
 
+        # support intervals in initializers
         len_ = len(temp)
         raw_ = temp[0] if len_ == 1 else "\n".join(temp)
+        for i, e in enumerate(raw_):
+            if (f := raw_[i:i + 2]) in ESCAPE_SYMBOLS:  # __INTERVAL__: ..
+                raw_ = raw_.replace(f, ESCAPE_SYMBOLS[f])
+            if e in ESCAPE_SYMBOLS:  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
+                raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
+            if e == ' ':  # remove redundant spaces between [ , .. and ]
+                raw_ = raw_.replace(' ', '')
         return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
 
     # some methods should be modified and not be contained in `methods`
