@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -9,121 +9,72 @@
 
 #include <types.h>
 
-/* x2APIC Interrupt Command Register (ICR) structure */
-union apic_icr {
-	uint64_t value;
-	struct {
-		uint32_t lo_32;
-		uint32_t hi_32;
-	} value_32;
-	struct {
-		uint32_t vector:8;
-		uint32_t delivery_mode:3;
-		uint32_t destination_mode:1;
-		uint32_t rsvd_1:2;
-		uint32_t level:1;
-		uint32_t trigger_mode:1;
-		uint32_t rsvd_2:2;
-		uint32_t shorthand:2;
-		uint32_t rsvd_3:12;
-		uint32_t dest_field:32;
-	} bits;
-};
-
 /**
- * @defgroup lapic_ext_apis LAPIC External Interfaces
- *
- * This is a group that includes LAPIC External Interfaces.
+ * @addtogroup hwmgmt_apic
  *
  * @{
  */
 
 /**
- * @brief Enable LAPIC in x2APIC mode
+ * @file
  *
- * Enable LAPIC in x2APIC mode via MSR writes.
+ * @brief Local APIC management for ACRN hypervisor header
  *
+ * This header file provides definitions and functions for managing the Local Advanced Programmable
+ * Interrupt Controller (LAPIC).
  */
+
+/**
+ * @brief Union representing the x2APIC Interrupt Command Register (ICR).
+ *
+ * This union is used to represent the x2APIC Interrupt Command Register (ICR), which is responsible
+ * for sending interrupts to processors in a multiprocessor system. It provides both a 64-bit view
+ * and a structured view for accessing individual fields within the ICR.
+ *
+ * The ICR is a critical component in managing inter-processor interrupts, allowing configuration
+ * of various parameters such as delivery mode, destination mode, and trigger mode.
+ *
+ * @remark This union is used to manipulate the x2APIC ICR settings, enabling precise control over
+ *         interrupt delivery in multiprocessor environments.
+ */
+union apic_icr {
+	uint64_t value; /**< Full 64-bit ICR value */
+	struct {
+		uint32_t lo_32; /**< Lower 32 bits of the ICR */
+		uint32_t hi_32; /**< Higher 32 bits of the ICR */
+	} value_32; /**< 32-bit access to ICR components */
+	struct {
+		uint32_t vector:8; /**< Interrupt vector */
+		uint32_t delivery_mode:3; /**< Delivery mode for the interrupt */
+		uint32_t destination_mode:1; /**< Destination mode (physical/logical) */
+		uint32_t rsvd_1:2; /**< Reserved bits */
+		uint32_t level:1; /**< Level (assert/deassert) */
+		uint32_t trigger_mode:1; /**< Trigger mode (edge/level) */
+		uint32_t rsvd_2:2; /**< Reserved bits */
+		uint32_t shorthand:2; /**< Shorthand for destination */
+		uint32_t rsvd_3:12; /**< Reserved bits */
+		uint32_t dest_field:32; /**< Destination field specifying target processor(s) */
+	} bits; /**< Field-based access to ICR components */
+};
+
 void early_init_lapic(void);
 
-/**
- * @brief Suspend LAPIC
- *
- * Suspend LAPIC by getting the APIC base addr and saving the registers.
- */
 void suspend_lapic(void);
 
-/**
- * @brief Resume LAPIC
- *
- * Resume LAPIC by setting the APIC base addr and restoring the registers.
- */
 void resume_lapic(void);
 
-/**
- * @brief Get the LAPIC ID
- *
- * Get the LAPIC ID via MSR read.
- *
- * @return LAPIC ID
- */
 uint32_t get_cur_lapic_id(void);
-
-/**
- * @}
- */
-/* End of lapic_ext_apis */
 
 void init_lapic(uint16_t pcpu_id);
 void send_lapic_eoi(void);
-
-/**
- * @defgroup ipi_ext_apis IPI External Interfaces
- *
- * This is a group that includes IPI External Interfaces.
- *
- * @{
- */
-
-/**
- * @brief Send an SIPI to a specific cpu
- *
- * Send an Startup IPI to a specific cpu, to notify the cpu to start booting.
- *
- * @param[in]	dest_pcpu_id The id of destination physical cpu
- * @param[in]	cpu_startup_start_address The address for the dest pCPU to start running
- *
- */
 void send_startup_ipi(uint16_t dest_pcpu_id, uint64_t cpu_startup_start_address);
-
-/**
- * @brief Send an IPI to multiple pCPUs
- *
- * @param[in]	dest_mask The mask of destination physical cpus
- * @param[in]	vector The vector of interrupt
- */
 void send_dest_ipi_mask(uint32_t dest_mask, uint32_t vector);
-
-/**
- * @brief Send an IPI to a single pCPU
- *
- * @param[in]	pcpu_id The id of destination physical cpu
- * @param[in]	vector The vector of interrupt
- */
 void send_single_ipi(uint16_t pcpu_id, uint32_t vector);
+void send_single_init(uint16_t pcpu_id);
+void kick_pcpu(uint16_t pcpu_id);
+
+#endif /* ARCH_X86_LAPIC_H */
 
 /**
  * @}
  */
-/* End of ipi_ext_apis */
-
-/**
- * @brief Send an INIT signal to a single pCPU
- *
- * @param[in] pcpu_id The id of destination physical cpu
- */
-void send_single_init(uint16_t pcpu_id);
-
-void kick_pcpu(uint16_t pcpu_id);
-
-#endif /* ARCH_X86_LAPIC_H */

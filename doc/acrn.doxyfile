@@ -994,6 +994,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/schedule.h \
                           ../hypervisor/arch/x86/ioapic.c \
                           ../hypervisor/include/arch/x86/asm/ioapic.h \
+                          ../hypervisor/arch/x86/lapic.c \
+                          ../hypervisor/include/arch/x86/asm/apicreg.h \
                           ../hypervisor/common/event.c \
                           ../hypervisor/include/common/event.h \
                           ../hypervisor/arch/x86/pm.c \
