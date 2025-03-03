@@ -165,7 +165,9 @@
  * @return Unsigned integer value to indicate Next Capability Offset
  */
 #define PCI_ECAP_NEXT(hdr)	((uint32_t)(((hdr) >> 20U) & 0xFFCU))
+#define PCIZ_ATS 		0x0fU  /**< ATS Capability ID. */
 #define PCIZ_SRIOV		0x10U  /**< SR-IOV Extended Capability ID. */
+#define PCIZ_PRI 		0x13U  /**< PRI Capability ID. */
 #define PCIZ_PTM 		0x1fU  /**< Precision Time Measurement Capability ID */
 
 /* SRIOV Definitions */
@@ -178,6 +180,9 @@
 #define PCIR_SRIOV_VF_DEV_ID	0x1AU  /**< VF Device ID register offset. */
 #define PCIR_SRIOV_VF_BAR_OFF	0x24U  /**< VF BAR0 register offset. */
 #define PCIM_SRIOV_VF_ENABLE	0x1U   /**< Mask used to indicate VF Enable. */
+
+#define PCI_ATS_CAP_LEN		0x8U  /**< Length of ATS Capability. */
+#define PCI_PRI_CAP_LEN		0xFU  /**< Length of PRI Capability. */
 
 /* PTM Definitions */
 #define PCI_PTM_CAP_LEN			0x04U  /**< Length of PTM Extended Capability. */
@@ -354,18 +359,16 @@ struct pci_msix_cap {
 };
 
 /**
- * @brief A data structure to present basic SRIOV capability information
+ * @brief A data structure to present basic PCIe Extended Capability information
  *
  * @consistency N/A
  * @alignment N/A
  *
  * @remark N/A
  */
-struct pci_sriov_cap {
-	uint32_t  capoff;  /**< SRIOV Capability Structure offset */
-	uint32_t  caplen;  /**< Length of SRIOV Capability Structure */
-	uint32_t  pre_pos; /**< Offset of previous PCIe Extended Capability */
-	bool hide_sriov;   /**< Flag to indicate to whether to hide SRIOV */
+struct pcie_cap {
+	uint32_t  capoff;  /**< PCIe Extended Capability Structure offset */
+	uint32_t  caplen;  /**< Length of PCIe Extended Capability Structure */
 };
 
 /**
@@ -419,7 +422,9 @@ struct pci_pdev {
 	uint32_t pcie_capoff; /**< PCI Express Capability Structure offset */
 
 	struct pci_msix_cap msix;  /**< Instance of data structure to present basic MSI-X capability information */
-	struct pci_sriov_cap sriov; /**< Instance of data structure to present basic SRIOV capability information */
+	struct pcie_cap sriov; /**< Instance of data structure to present basic SRIOV capability information */
+	struct pcie_cap ats; /**< Instance of data structure to present basic ATS capability information */
+	struct pcie_cap pri; /**< Instance of data structure to present basic PRI capability information */
 
 	bool has_pm_reset;  /**< Flag to indicate to support soft reset */
 	bool has_flr;  /**< Flag to indicate to support Function Level Reset */

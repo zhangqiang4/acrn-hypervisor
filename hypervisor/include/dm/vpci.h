@@ -87,6 +87,7 @@ struct pci_msix {
 struct pci_cap_sriov {
 	uint32_t  capoff;
 	uint32_t  caplen;
+	bool      sriov_ro;
 
 	/*
 	 * If the vdev is a SRIOV PF vdev, the vbars is used to store
@@ -131,6 +132,8 @@ struct pci_vdev {
 	struct pci_msi msi;
 	struct pci_msix msix;
 	struct pci_cap_sriov sriov;
+	struct pcie_cap ats;
+	struct pcie_cap pri;
 
 	/* Pointer to the SRIOV VF associated PF's vdev */
 	struct pci_vdev *phyfun;

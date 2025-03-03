@@ -79,12 +79,32 @@ static inline bool has_sriov_cap(const struct pci_vdev *vdev)
 	return (vdev->sriov.capoff != 0U);
 }
 
+static inline bool has_ats_cap(const struct pci_vdev *vdev)
+{
+	return (vdev->ats.capoff != 0U);
+}
+
+static inline bool has_pri_cap(const struct pci_vdev *vdev)
+{
+	return (vdev->pri.capoff != 0U);
+}
+
 /*
  * @pre vdev != NULL
  */
 static inline bool sriovcap_access(const struct pci_vdev *vdev, uint32_t offset)
 {
 	return (has_sriov_cap(vdev) && in_range(offset, vdev->sriov.capoff, vdev->sriov.caplen));
+}
+
+static inline bool atscap_access(const struct pci_vdev *vdev, uint32_t offset)
+{
+	return (has_ats_cap(vdev) && in_range(offset, vdev->ats.capoff, vdev->ats.caplen));
+}
+
+static inline bool pricap_access(const struct pci_vdev *vdev, uint32_t offset)
+{
+	return (has_pri_cap(vdev) && in_range(offset, vdev->pri.capoff, vdev->pri.caplen));
 }
 
 /**
@@ -158,7 +178,6 @@ void write_vmsix_cap_reg_on_msi(struct pci_vdev *vdev, uint32_t offset, uint32_t
 void remap_one_vmsix_entry_on_msi(struct pci_vdev *vdev, uint32_t index);
 
 void init_vsriov(struct pci_vdev *vdev);
-void read_sriov_cap_reg(const struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t *val);
 void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t val);
 uint32_t sriov_bar_offset(const struct pci_vdev *vdev, uint32_t bar_idx);
 
@@ -170,8 +189,6 @@ void pci_vdev_write_vbar(struct pci_vdev *vdev, uint32_t idx, uint32_t val);
 
 void vdev_bridge_pt_restore_space(struct pci_vdev *vdev);
 void vdev_bridge_pt_restore_bus(struct pci_vdev *vdev);
-
-void vdev_pt_hide_sriov_cap(struct pci_vdev *vdev);
 
 int32_t check_pt_dev_pio_bars(struct pci_vdev *vdev);
 

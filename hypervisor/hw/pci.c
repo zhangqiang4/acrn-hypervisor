@@ -1158,8 +1158,8 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
 /**
  * @brief Enumerate PCIe Extended Capabilities
  *
- * This function walk through each PCIe extend capabilities to decode SRIOV capability and
- * enable PTM capability which features need be emumerated by ACRN.
+ * This function walk through each PCIe extend capabilities to decode SRIOV/ATS/PRI capabilities
+ * and enable PTM capability which features need be emumerated by ACRN.
  *
  * @param[in] pdev Pointer to the data structure of PCI physical device.
  *
@@ -1169,7 +1169,7 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
  */
 static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 {
-	uint32_t hdr, pos, pre_pos = 0U;
+	uint32_t hdr, pos;
 	uint8_t pcie_dev_type;
 
 	/* guard against malformed list */
@@ -1186,7 +1186,6 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 		if (PCI_ECAP_ID(hdr) == PCIZ_SRIOV) {
 			pdev->sriov.capoff = pos;
 			pdev->sriov.caplen = PCI_SRIOV_CAP_LEN;
-			pdev->sriov.pre_pos = pre_pos;
 		} else if (PCI_ECAP_ID(hdr) == PCIZ_PTM) {
 			pcie_dev_type = (((uint8_t)pci_pdev_read_cfg(pdev->bdf,
 				pdev->pcie_capoff + PCIER_FLAGS, 1)) & PCIEM_FLAGS_TYPE) >> 4;
@@ -1212,11 +1211,16 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 				pr_err("%s: Do NOT enable PTM on [%x:%x.%x].\n", __func__,
 					pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f);
 			}
+		} else if (PCI_ECAP_ID(hdr) == PCIZ_ATS) {
+			pdev->ats.capoff = pos;
+			pdev->ats.caplen = PCI_ATS_CAP_LEN;
+		} else if (PCI_ECAP_ID(hdr) == PCIZ_PRI) {
+			pdev->pri.capoff = pos;
+			pdev->pri.caplen = PCI_PRI_CAP_LEN;
 		} else {
 			/* reserved for future use */
 		}
 
-		pre_pos = pos;
 		pos = PCI_ECAP_NEXT(hdr);
 		if (pos == 0U) {
 			break;

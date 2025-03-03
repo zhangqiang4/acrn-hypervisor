@@ -382,6 +382,22 @@ static struct pci_vdev *find_available_vdev(struct acrn_vpci *vpci, union pci_bd
 	return vdev;
 }
 
+void init_vats(struct pci_vdev *vdev)
+{
+	struct pci_pdev *pdev = vdev->pdev;
+
+	vdev->ats.capoff = pdev->ats.capoff;
+	vdev->ats.caplen = pdev->ats.caplen;
+}
+
+void init_vpri(struct pci_vdev *vdev)
+{
+	struct pci_pdev *pdev = vdev->pdev;
+
+	vdev->pri.capoff = pdev->pri.capoff;
+	vdev->pri.caplen = pdev->pri.caplen;
+}
+
 static void vpci_init_pt_dev(struct pci_vdev *vdev)
 {
 	vdev->parent_user = NULL;
@@ -395,6 +411,8 @@ static void vpci_init_pt_dev(struct pci_vdev *vdev)
 	init_vmsi(vdev);
 	init_vmsix_pt(vdev);
 	init_vsriov(vdev);
+	init_vats(vdev);
+	init_vpri(vdev);
 	init_vdev_pt(vdev, false);
 
 	assign_vdev_pt_iommu_domain(vdev);
@@ -592,16 +610,16 @@ static int32_t write_pt_dev_cfg(struct pci_vdev *vdev, uint32_t offset,
 		}
 	} else if (sriovcap_access(vdev, offset)) {
 		write_sriov_cap_reg(vdev, offset, bytes, val);
+	} else if (atscap_access(vdev, offset) || pricap_access(vdev, offset)) {
+		/* Ignore write to ats/pri. */
 	} else {
-		if (offset != vdev->pdev->sriov.pre_pos) {
-			if (!is_quirk_ptdev(vdev)) {
-				if ((vdev->pdev->bdf.value != CONFIG_IGD_SBDF) || (offset != PCIR_ASLS_CTL)) {
-					/* passthru to physical device */
-					pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
-				}
-			} else {
-				ret = -ENODEV;
+		if (!is_quirk_ptdev(vdev)) {
+			if ((vdev->pdev->bdf.value != CONFIG_IGD_SBDF) || (offset != PCIR_ASLS_CTL)) {
+				/* passthru to physical device */
+				pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 			}
+		} else {
+			ret = -ENODEV;
 		}
 	}
 
@@ -619,12 +637,8 @@ static int32_t read_pt_dev_cfg(struct pci_vdev *vdev, uint32_t offset,
 		*val = pci_vdev_read_vcfg(vdev, offset, bytes);
 	} else if (msixcap_access(vdev, offset)) {
 		read_pt_vmsix_cap_reg(vdev, offset, bytes, val);
-	} else if (sriovcap_access(vdev, offset)) {
-		read_sriov_cap_reg(vdev, offset, bytes, val);
 	} else {
-		if ((offset == vdev->pdev->sriov.pre_pos) && (vdev->pdev->sriov.hide_sriov)) {
-			*val = pci_vdev_read_vcfg(vdev, offset, bytes);
-		} else if (!is_quirk_ptdev(vdev)) {
+		if (!is_quirk_ptdev(vdev)) {
 			/* passthru to physical device */
 			*val = pci_pdev_read_cfg(vdev->pdev->bdf, offset, bytes);
 			if ((vdev->pdev->bdf.value == CONFIG_IGD_SBDF) && (offset == PCIR_ASLS_CTL)) {

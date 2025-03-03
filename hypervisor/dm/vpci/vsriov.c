@@ -288,19 +288,8 @@ void init_vsriov(struct pci_vdev *vdev)
 
 	vdev->sriov.capoff = pdev->sriov.capoff;
 	vdev->sriov.caplen = pdev->sriov.caplen;
-}
-
-/**
- * @pre vdev != NULL
- * @pre vdev->pdev != NULL
- */
-void read_sriov_cap_reg(const struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t *val)
-{
-	if (!vdev->pdev->sriov.hide_sriov) {
-		/* no need to do emulation, passthrough to physical device directly */
-		*val = pci_pdev_read_cfg(vdev->pdev->bdf, offset, bytes);
-	} else {
-		*val = 0xffffffffU;
+	if (!is_service_vm(vpci2vm(vdev->vpci))) {
+		vdev->sriov.sriov_ro = true;
 	}
 }
 
@@ -313,8 +302,8 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 
 	uint32_t reg;
 
-	reg = offset - vdev->sriov.capoff;
-	if (!vdev->pdev->sriov.hide_sriov) {
+	if (!vdev->sriov.sriov_ro) {
+		reg = offset - vdev->sriov.capoff;
 		if (reg == PCIR_SRIOV_CONTROL) {
 			bool enable;
 
