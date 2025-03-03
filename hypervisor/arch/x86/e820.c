@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -29,28 +29,50 @@
  * get memory info from its MMU setup and its memory will be hide from Service VM.
  */
 
+/**
+ * @brief Global variable indicating number of E820 entries in hypervisor.
+ *
+ * @remark The value of this global variable shall be no greater than E820_MAX_ENTRIES.
+ */
 static uint32_t hv_e820_entries_nr;
-static uint64_t hv_e820_top_address;
-/* Describe the memory layout the hypervisor uses */
-static struct e820_entry hv_e820[E820_MAX_ENTRIES];
-
-#define DBG_LEVEL_E820	6U
 
 /**
- * @brief Reserve some RAM, hide it from Service VM, and return its start address.
+ * @brief Global variable indicating the top address of RAM from the E820 memory map.
+ */
+static uint64_t hv_e820_top_address;
+
+/**
+ * @brief Global array containing E820 entries in the hypervisor.
  *
- * This function searches the E820 memory map for a suitable RAM region that meets the specified size and maximum
- * address constraints. The found region is then marked as reserved and its start address is returned. This function
- * requires 4k alignment, so size_arg will be rounded up to the next page boundary in the function. When the memory
- * allocation from E820 fails, either due to no proper memory space being available or all memory being used up,
- * resulting in an attempt to allocate start address at 0 (which is a dangerous operation), the hypervisor enters a
+ * This array describes the memory layout the hypervisor uses. The number of valid entries is recorded in the global
+ * variable \p hv_e820_entries_nr. The maximum of entries is limited as \p E820_MAX_ENTRIES.
+ */
+static struct e820_entry hv_e820[E820_MAX_ENTRIES];
+
+#define DBG_LEVEL_E820	6U /**< Debug log level for the code of E820 */
+
+/**
+ * @brief Allocate memory from E820 map by finding and reserving a suitable RAM region.
+ *
+ * This function searches the E820 memory map from highest to lowest entry for a suitable RAM region
+ * that meets the specified size and maximum address constraints. When a suitable region is found, it
+ * is marked as reserved. The function handles two cases:
+ * 1. If it finds an exact-size match, it marks the entire entry as reserved.
+ * 2. If it finds a larger entry, it creates a new E820 entry by taking memory from the end of the found region.
+ *
+ * The function requires 4K alignment, so the input size is rounded up to the next page boundary. If no
+ * suitable memory region is found or the only available address would be 0, the hypervisor enters a
  * safety state by calling panic().
  *
- * @param[in] size_arg Amount of memory to be found and marked reserved.
- * @param[in] max_addr Maximum address below which memory is to be identified.
+ * @param[in] size_arg Size of memory to be found and marked as reserved (will be rounded up to page boundary).
+ * @param[in] max_addr Maximum address below which memory is to be allocated.
  *
  * @return Base address of the memory region allocated from E820.
  *
+ * @retval INVALID_HPA  Failed: No memory available.
+ * @retval 0            Failed: Memory would be allocated at address 0, which is not allowed.
+ * @retval other value  Success: Base address of the reserved memory region.
+ * 
  * @pre hv_e820_entries_nr > 0U
  *
  * @post retval != 0 && retval != INVALID_HPA
@@ -120,6 +142,29 @@ uint64_t e820_alloc_memory(uint64_t size_arg, uint64_t max_addr)
 	return ret;
 }
 
+/**
+ * @brief Insert one E820 entry into the global hypervisor entry array.
+ *
+ * This function inserts a new E820 entry at the specified index in the E820 table. It moves all entries after the
+ * specified index down by one to make room for the new entry. The total number of entries and the index shall not
+ * exceed the maximum number of entries supported by the hypervisor, otherwise this function will return the error
+ * number.
+ *
+ * @param[in] index Index at which to insert the new entry.
+ * @param[in] addr Base address of the new entry.
+ * @param[in] length Length of the new entry.
+ * @param[in] type Type of the new entry.
+ *
+ * @return err The error code indicating the result of the operation.
+ *
+ * @retval 0        Success
+ * @retval -EINVAL  E820 entry overflow.
+ *
+ * @pre hv_e820_entries_nr < E820_MAX_ENTRIES
+ * @pre index <= hv_e820_entries_nr
+ *
+ * @post hv_e820_entries_nr <= E820_MAX_ENTRIES
+ */
 static int32_t insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, uint32_t type)
 {
 	uint32_t i;
@@ -142,6 +187,32 @@ static int32_t insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length,
 }
 
 #ifdef CONFIG_MULTIBOOT2
+/**
+ * @brief Initialize the E820 table from EFI memory map.
+ *
+ * This function initializes the E820 table by reading the memory map from EFI if booted from UEFI. It iterates
+ * through the EFI memory map entries and maps them to the E820 table. The EFI memory map is sorted by address
+ * and type, so the E820 table will also be sorted. The function also merges contiguous memory regions of the
+ * same type to optimize the E820 table.
+ *
+ * This function processes each EFI memory map entry and determines the corresponding E820 type based on the EFI
+ * memory type and attributes. The mapping logic is as follows:
+ * - EFI_LOADER_CODE, EFI_LOADER_DATA, EFI_CONVENTIONAL_MEMORY(if EFI_MEMORY_WB attribute is set) are mapped to
+ *   E820_TYPE_RAM.
+ * - EFI_UNUSABLE_MEMORY is mapped to E820_TYPE_UNUSABLE.
+ * - EFI_ACPI_RECLAIM_MEMORY is mapped to E820_TYPE_ACPI_RECLAIM.
+ * - EFI_ACPI_MEMORY_NVS is mapped to E820_TYPE_ACPI_NVS.
+ * - All other types are mapped to E820_TYPE_RESERVED.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark The original EFI memory map could be above 4GB address space, so the EFI memory parsing process must be
+ * done after enable_paging().
+ */
 static void init_e820_from_efi_mmap(void)
 {
 	uint32_t i, e820_idx = 0U;
@@ -217,7 +288,20 @@ static void init_e820_from_efi_mmap(void)
 }
 #endif
 
-/* HV read multiboot header to get E820 entries info and calc total RAM info */
+/**
+ * @brief Initialize the E820 table from multiboot memory map.
+ *
+ * This function initializes the E820 table by reading the memory map from the multiboot header if it is booted from
+ * multiboot. It iterates through the multiboot memory map entries and maps them to the E820 table.
+ *
+ * @param[in] abi Pointer to the ACRN boot information structure, which contains the memory map information.
+ *
+ * @return None
+ *
+ * @pre abi != NULL
+ *
+ * @post N/A
+ */
 static void init_e820_from_mmap(struct acrn_boot_info *abi)
 {
 	uint32_t i;
@@ -240,6 +324,18 @@ static void init_e820_from_mmap(struct acrn_boot_info *abi)
 	}
 }
 
+/**
+ * @brief Calculate the top address of RAM from the E820 memory map.
+ *
+ * This function iterates through the E820 memory map entries to find the top address typed as E820_TYPE_RAM.
+ * The top address is calculated as the base address plus the length of the entry.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void calculate_e820_top_address(void)
 {
         uint32_t i;
@@ -258,6 +354,23 @@ static void calculate_e820_top_address(void)
         dev_dbg(DBG_LEVEL_E820, "E820 top address is: 0x%016lx ", hv_e820_top_address);
 }
 
+/**
+ * @brief Reserve specified region in the E820 table.
+ *
+ * This function reserves the specified region in the E820 table. It iterates through the E820 entries to find the
+ * entry that contains the specified region. If the region is completely contained within an entry and this entry
+ * has a type of E820_TYPE_RAM, the entry is split into two entries. If the region crosses multiple entries, the
+ * function will panic.
+ *
+ * @param[in] start_hpa Start address of the region to be reserved.
+ * @param[in] end_hpa End address of the region to be reserved.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 {
 	uint32_t e820_index;
@@ -290,6 +403,18 @@ static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 	}
 }
 
+/**
+ * @brief Allocate memory region for the hypervisor.
+ *
+ * This function calls get_hv_image_base() and get_hv_image_size() to get the base address and size of the hypervisor.
+ * It then calls reserve_e820_region() to reserve the memory region for the hypervisor in the E820 table.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void alloc_hv_memory(void)
 {
 	uint64_t hv_start = hva2hpa((void *)(get_hv_image_base()));
@@ -300,6 +425,19 @@ static void alloc_hv_memory(void)
 	reserve_e820_region(hv_start, hv_end);
 }
 
+/**
+ * @brief Allocate memory region for multiboot modules.
+ *
+ * This function calls get_acrn_boot_info() to get multiboot modules start and end address. The function iterates
+ * every module and calls reserve_e820_region() to reserve the memory region for each module in the E820 table.
+ * Then it iterates through the E820 entries to shrink the entries to page boundary.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void alloc_mods_memory(void)
 {
 	uint32_t mod_index, e820_index, target_index;
@@ -338,9 +476,10 @@ static void alloc_mods_memory(void)
  * @brief Initialize the E820 table.
  *
  * This function initializes the E820 table by reading the memory map from either EFI or multiboot, depending on
- * the boot method. It also calculates the total RAM size and reserves memory for multiboot modules. This function
- * will check if the modules cross multiple E820 entries. If so, possibly due to a buggy bootloader, hypervisor
- * will panic immediately to prevent modules getting corrupted.
+ * the boot method. It also calculates the E820 top size and allocates memory for hypervisor itself and multiboot
+ * modules.
+ *
+ * @return None
  *
  * @pre N/A
  *
@@ -390,7 +529,7 @@ uint32_t get_e820_entries_count(void)
 /**
  * @brief Get the E820 memory map entries.
  *
- * This function returns a pointer to the array of E820 entires as recorded during the initialization of the E820
+ * This function returns a pointer to the array of E820 entries as recorded during the initialization of the E820
  * table.
  *
  * ACRN hypervisor is the first owner to manage system memory, usually BIOS/bootloader will pass the platform
