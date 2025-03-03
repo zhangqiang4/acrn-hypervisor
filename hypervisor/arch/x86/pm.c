@@ -286,7 +286,7 @@ static uint32_t system_pm1b_cnt_val;
  *
  * @return None
  */
-void save_s5_reg_val(uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
+void save_pm1_reg_val(uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
 {
 	system_pm1a_cnt_val = pm1a_cnt_val;
 	system_pm1b_cnt_val = pm1b_cnt_val;

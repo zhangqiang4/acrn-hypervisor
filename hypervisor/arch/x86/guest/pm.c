@@ -161,7 +161,7 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
 	 * down the system.
 	 */
 	if (is_service_vm(vm)) {
-		save_s5_reg_val(pm1a_cnt_val, pm1b_cnt_val);
+		save_pm1_reg_val(pm1a_cnt_val, pm1b_cnt_val);
 	}
 	poweroff_if_rt_vm(vm);
 	pause_vm(vm);
@@ -600,13 +600,13 @@ void init_guest_pm(struct acrn_vm *vm)
 	struct pm_s_state_data *sx_data = get_host_sstate_data();
 
 	/*
-	 * In enter_s5(), it will call save_s5_reg_val() to initialize system_pm1a_cnt_val/system_pm1b_cnt_val
+	 * In enter_s5(), it will call save_pm1_reg_val() to initialize system_pm1a_cnt_val/system_pm1b_cnt_val
 	 * when the vm is Service VM.
-	 * If there is no Service VM, save_s5_reg_val() will not be called and these 2 variables will not be
+	 * If there is no Service VM, save_pm1_reg_val() will not be called and these 2 variables will not be
 	 * initialized properly, so shutdown_system() will fail, explicitly init here to avoid this.
 	 */
-	save_s5_reg_val(((uint32_t)sx_data->s5_pkg.val_pm1a << BIT_SLP_TYPx) | (1U << BIT_SLP_EN),
-			((uint32_t)sx_data->s5_pkg.val_pm1b << BIT_SLP_TYPx) | (1U << BIT_SLP_EN));
+	save_pm1_reg_val(((uint32_t)sx_data->s5_pkg.val_pm1a << BIT_SLP_TYPx) | (1U << BIT_SLP_EN),
+			 ((uint32_t)sx_data->s5_pkg.val_pm1b << BIT_SLP_TYPx) | (1U << BIT_SLP_EN));
 
 	if (is_service_vm(vm)) {
 		/* Load pm S state data */
