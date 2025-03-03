@@ -181,33 +181,27 @@ static void filter_mem_from_service_vm_e820(struct acrn_vm *vm, uint64_t start_p
 			continue;
 		}
 
-		/* filter out the specific memory and adjust length of this entry*/
-		if ((entry_start < start_pa) && (entry_end <= end_pa)) {
-			entry->length = start_pa - entry_start;
-			continue;
-		}
-
-		/* filter out the specific memory and need to create a new entry*/
-		if ((entry_start < start_pa) && (entry_end > end_pa)) {
-			entry->length = start_pa - entry_start;
-			new_entry.baseaddr = end_pa;
-			new_entry.length = entry_end - end_pa;
-			new_entry.type = E820_TYPE_RAM;
-			continue;
-		}
-
-		/* This entry is within the range of specific memory
-		 * change to E820_TYPE_RESERVED
-		 */
-		if ((entry_start >= start_pa) && (entry_end <= end_pa)) {
-			entry->type = E820_TYPE_RESERVED;
-			continue;
-		}
-
-		if ((entry_start >= start_pa) && (entry_start < end_pa) && (entry_end > end_pa)) {
-			entry->baseaddr = end_pa;
-			entry->length = entry_end - end_pa;
-			continue;
+		if (entry_start < start_pa) {
+			if (entry_end <= end_pa) {
+				/* filter out the specific memory and adjust length of this entry */
+				entry->length = start_pa - entry_start;
+			} else {
+				/* filter out the specific memory and need to create a new entry */
+				entry->length = start_pa - entry_start;
+				new_entry.baseaddr = end_pa;
+				new_entry.length = entry_end - end_pa;
+				new_entry.type = E820_TYPE_RAM;
+			}
+		} else {
+			if (entry_end <= end_pa) {
+				/* This entry is within the range of specific memory
+				 * change to E820_TYPE_RESERVED
+				 */
+				entry->type = E820_TYPE_RESERVED;
+			} else {
+				entry->baseaddr = end_pa;
+				entry->length = entry_end - end_pa;
+			}
 		}
 	}
 
