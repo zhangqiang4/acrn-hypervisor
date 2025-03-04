@@ -705,7 +705,7 @@ static void deinit_ivshmem_vdev(struct pci_vdev *vdev)
 	ivshmem_server_unbind_peer(vdev);
 
 	spinlock_obtain(&ivshmem_dev_lock);
-	for (i = IVSHMEM_DEV_NUM; i > 0 ; i--) {
+	for (i = IVSHMEM_DEV_NUM - 1U; i >= 0U ; i--) {
 		if (ivshmem_dev[i].pcidev == vdev) {
 			ivshmem_dev[i].pcidev = NULL;
 			break;

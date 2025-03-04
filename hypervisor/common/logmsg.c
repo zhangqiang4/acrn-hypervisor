@@ -34,8 +34,7 @@ static void mem_log(uint16_t pcpu_id, char *buffer)
 	msg_len = strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE);
 
 	if (sbuf != NULL) {
-		(void)sbuf_put_many(sbuf, LOG_ENTRY_SIZE, (uint8_t *)buffer,
-			LOG_ENTRY_SIZE * (((msg_len - 1U) / LOG_ENTRY_SIZE) + 1));
+		(void)sbuf_put_many(sbuf, LOG_ENTRY_SIZE, (uint8_t *)buffer, roundup(msg_len, LOG_ENTRY_SIZE));
 	} else {
 		/* store logs in temp buffer */
 		char (*temp_buffer)[LOG_MESSAGE_MAX_SIZE] = per_cpu(temp_logbuf, pcpu_id);
