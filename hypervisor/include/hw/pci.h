@@ -165,6 +165,7 @@
  * @return Unsigned integer value to indicate Next Capability Offset
  */
 #define PCI_ECAP_NEXT(hdr)	((uint32_t)(((hdr) >> 20U) & 0xFFCU))
+#define PCIZ_ACS 		0x0dU  /**< ACS Capability ID. */
 #define PCIZ_ATS 		0x0fU  /**< ATS Capability ID. */
 #define PCIZ_SRIOV		0x10U  /**< SR-IOV Extended Capability ID. */
 #define PCIZ_PRI 		0x13U  /**< PRI Capability ID. */
@@ -183,6 +184,7 @@
 
 #define PCI_ATS_CAP_LEN		0x8U  /**< Length of ATS Capability. */
 #define PCI_PRI_CAP_LEN		0xFU  /**< Length of PRI Capability. */
+#define PCI_ACS_CAP_LEN		0xFU  /**< Length of ACS Capability. */
 
 /* PTM Definitions */
 #define PCI_PTM_CAP_LEN			0x04U  /**< Length of PTM Extended Capability. */
@@ -425,6 +427,7 @@ struct pci_pdev {
 	struct pcie_cap sriov; /**< Instance of data structure to present basic SRIOV capability information */
 	struct pcie_cap ats; /**< Instance of data structure to present basic ATS capability information */
 	struct pcie_cap pri; /**< Instance of data structure to present basic PRI capability information */
+	struct pcie_cap acs; /**< Instance of data structure to present basic ACS capability information */
 
 	bool has_pm_reset;  /**< Flag to indicate to support soft reset */
 	bool has_flr;  /**< Flag to indicate to support Function Level Reset */

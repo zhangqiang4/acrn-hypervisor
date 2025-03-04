@@ -398,6 +398,14 @@ void init_vpri(struct pci_vdev *vdev)
 	vdev->pri.caplen = pdev->pri.caplen;
 }
 
+void init_vacs(struct pci_vdev *vdev)
+{
+	struct pci_pdev *pdev = vdev->pdev;
+
+	vdev->acs.capoff = pdev->acs.capoff;
+	vdev->acs.caplen = pdev->acs.caplen;
+}
+
 static void vpci_init_pt_dev(struct pci_vdev *vdev)
 {
 	vdev->parent_user = NULL;
@@ -413,6 +421,7 @@ static void vpci_init_pt_dev(struct pci_vdev *vdev)
 	init_vsriov(vdev);
 	init_vats(vdev);
 	init_vpri(vdev);
+	init_vacs(vdev);
 	init_vdev_pt(vdev, false);
 
 	assign_vdev_pt_iommu_domain(vdev);
@@ -610,8 +619,8 @@ static int32_t write_pt_dev_cfg(struct pci_vdev *vdev, uint32_t offset,
 		}
 	} else if (sriovcap_access(vdev, offset)) {
 		write_sriov_cap_reg(vdev, offset, bytes, val);
-	} else if (atscap_access(vdev, offset) || pricap_access(vdev, offset)) {
-		/* Ignore write to ats/pri. */
+	} else if (atscap_access(vdev, offset) || pricap_access(vdev, offset) || acscap_access(vdev, offset)) {
+		/* Ignore write to ats/pri/acs. */
 	} else {
 		if (!is_quirk_ptdev(vdev)) {
 			if ((vdev->pdev->bdf.value != CONFIG_IGD_SBDF) || (offset != PCIR_ASLS_CTL)) {

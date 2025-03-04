@@ -134,6 +134,7 @@ struct pci_vdev {
 	struct pci_cap_sriov sriov;
 	struct pcie_cap ats;
 	struct pcie_cap pri;
+	struct pcie_cap acs;
 
 	/* Pointer to the SRIOV VF associated PF's vdev */
 	struct pci_vdev *phyfun;

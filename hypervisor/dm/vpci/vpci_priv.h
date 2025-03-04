@@ -89,6 +89,11 @@ static inline bool has_pri_cap(const struct pci_vdev *vdev)
 	return (vdev->pri.capoff != 0U);
 }
 
+static inline bool has_acs_cap(const struct pci_vdev *vdev)
+{
+	return (vdev->acs.capoff != 0U);
+}
+
 /*
  * @pre vdev != NULL
  */
@@ -105,6 +110,11 @@ static inline bool atscap_access(const struct pci_vdev *vdev, uint32_t offset)
 static inline bool pricap_access(const struct pci_vdev *vdev, uint32_t offset)
 {
 	return (has_pri_cap(vdev) && in_range(offset, vdev->pri.capoff, vdev->pri.caplen));
+}
+
+static inline bool acscap_access(const struct pci_vdev *vdev, uint32_t offset)
+{
+	return (has_acs_cap(vdev) && in_range(offset, vdev->acs.capoff, vdev->acs.caplen));
 }
 
 /**

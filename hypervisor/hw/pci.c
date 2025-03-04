@@ -1158,7 +1158,7 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
 /**
  * @brief Enumerate PCIe Extended Capabilities
  *
- * This function walk through each PCIe extend capabilities to decode SRIOV/ATS/PRI capabilities
+ * This function walk through each PCIe extend capabilities to decode SRIOV/ATS/PRI/ACS capabilities
  * and enable PTM capability which features need be emumerated by ACRN.
  *
  * @param[in] pdev Pointer to the data structure of PCI physical device.
@@ -1217,6 +1217,9 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 		} else if (PCI_ECAP_ID(hdr) == PCIZ_PRI) {
 			pdev->pri.capoff = pos;
 			pdev->pri.caplen = PCI_PRI_CAP_LEN;
+		} else if (PCI_ECAP_ID(hdr) == PCIZ_ACS) {
+			pdev->acs.capoff = pos;
+			pdev->acs.caplen = PCI_ACS_CAP_LEN;
 		} else {
 			/* reserved for future use */
 		}
