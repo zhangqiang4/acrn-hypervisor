@@ -38,6 +38,12 @@
 extern uint32_t boot_regs[2];
 
 /**
+ * @brief This external variable platform_s3_resume stores the flag indicating whether current boot is from S3
+ * resume or not.
+ */
+extern bool platform_s3_resume;
+
+/**
  * @brief Switch to a new stack and jump to a specified function.
  *
  * This function-like macro performs a context switch by updating the stack pointer \p rsp and jumping to the
@@ -114,8 +120,9 @@ static void init_debug_post(uint16_t pcpu_id)
 /**
  * @brief Initializes the VMX mode for the given pCPU.
  *
- * This function enables VMX operation for the current processor by calling vmx_on(). Then it launches the Service VM
- * and pre-launched VMs if their vBSP is configured on the current pCPU by calling launch_vms().
+ * This function enables VMX operation for the current processor by calling vmx_on(). Then if it is not called from
+ * platform S3 resume, it launches the Service VM and pre-launched VMs if their vBSP is configured on the current
+ * pCPU by calling launch_vms().
  *
  * @param[in] pcpu_id The physical CPU ID.
  *
@@ -129,7 +136,9 @@ static void init_guest_mode(uint16_t pcpu_id)
 {
 	vmx_on();
 
-	launch_vms(pcpu_id);
+	if (!platform_s3_resume) {
+		launch_vms(pcpu_id);
+	}
 }
 
 /**

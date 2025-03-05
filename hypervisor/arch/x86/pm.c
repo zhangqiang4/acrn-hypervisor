@@ -45,6 +45,13 @@
  */
 struct cpu_context cpu_ctx;
 
+/**
+ * @brief Platform S3 resume flag
+ *
+ * This platform S3 resume flag indicates whether current boot is from S3 resume or not.
+ */
+bool platform_s3_resume;
+
 
 /**
  * @brief Host power management state (Sx) data.
@@ -359,17 +366,14 @@ static void resume_tsc(__unused void *data)
  * - Restore the main entry of trampoline to AP startup routine
  * - Online APs
  *
- * @param[in] sstate_data Stores host Sx management information data.
- * @param[in] pm1a_cnt_val PM1a_CNT value that will decide the system Sx type.
- * @param[in] pm1b_cnt_val PM1b_CNT value that will decide the system Sx type.
- *
  * @return None
  *
  * @pre sstate_data != NULL
  */
-void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
+void host_enter_s3(void)
 {
 	uint64_t pmain_entry_saved;
+	struct pm_s_state_data *sstate_data = get_host_sstate_data();
 
 	stac();
 
@@ -405,7 +409,9 @@ void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_
 	suspend_iommu();
 	suspend_lapic();
 
-	asm_enter_s3(sstate_data, pm1a_cnt_val, pm1b_cnt_val);
+	asm_enter_s3(sstate_data, system_pm1a_cnt_val, system_pm1b_cnt_val);
+
+	platform_s3_resume = true;
 
 	resume_lapic();
 	resume_iommu();

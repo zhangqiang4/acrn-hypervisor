@@ -172,10 +172,49 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
 }
 
 /**
+ * @brief Saved Service VM waking vector
+ *
+ * This variable saves the Service VM waking vector that will be used when resuming from platform S3.
+ */
+static uint32_t service_vm_waking_vector = 0;
+
+/**
+ * @brief Check if the platform is ready to enter S3 sleep state
+ *
+ * This function checks if all VMs (except TEE VMs) are either paused or powered off.
+ * If any VM is still active (not paused and not powered off), the platform is not
+ * ready for S3 state.
+ *
+ * @return true if the platform is ready to enter S3 state, false otherwise
+ */
+static bool is_ready_for_platform_s3(void)
+{
+	uint16_t i;
+	struct acrn_vm *vm;
+	bool ret = true;
+
+	for (i = 0U; i < CONFIG_MAX_VM_NUM; i++) {
+		vm = get_vm_from_vmid(i);
+
+		/* TEE VM cannot enter S3 itself, ignore here */
+		if (is_tee_vm(vm)) {
+			continue;
+		}
+		if (!is_paused_vm(vm) && !is_poweroff_vm(vm)) {
+			ret = false;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+/**
  * @brief Resume a VM from S3 sleep state
  *
  * This function attempts to resume a virtual machine from S3 sleep state by retrieving the waking vector
- * from the VM's FACS table and initiating the resume process with that vector.
+ * from the VM's FACS table (pre-launched vm) or saved waking vector (service VM) and initiating the resume
+ * process with that vector.
  *
  * @param vm Pointer to the VM structure to be resumed
  *
@@ -183,13 +222,15 @@ static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint3
  *
  * @pre vm != NULL
  */
-int __unused s3_resume_vm(struct acrn_vm *vm)
+int s3_resume_vm(struct acrn_vm *vm)
 {
 	uint32_t waking_vector = 0;
 	int ret = 0;
 
 	if (is_prelaunched_vm(vm)) {
 		copy_from_gpa(vm, &waking_vector, VIRT_FACS_ADDR + OFFSET_WAKE_VECTOR_32, 4);
+	} else if (is_service_vm(vm)) {
+		waking_vector = service_vm_waking_vector;
 	} else {
 		ret = -EINVAL;
 	}
@@ -215,9 +256,13 @@ int __unused s3_resume_vm(struct acrn_vm *vm)
  * This operation is supposed to be initiated by VM, by writing the virtual ACPI PM1a/b Control registers, to make
  * itself enter ACPI S3 (sleep) state.
  * If the VM is a pre-launched VM, this function simply pauses it.
- * If the VM is service VM, this function also freezes TEE VM, and makes the host enter S3 by calling host_enter_s3()
- * after the VM is paused. After the host resumes from S3, it will continue executing from where it falls sleep in 
- * host_enter_s3(), and resume all the states of the host. Then call resume_vm_from_s3() to resume the VM.
+ * If the VM is service VM, this function also saves PM register values that will be used for entering platform S3
+ * later, and saves its waking vector into the global variable `service_vm_waking_vector`.
+ * 
+ * This function will also trigger platform S3 on Bootstrap Processor (BSP) by monitoring if it is ready for platform
+ * S3, then freezes TEE VM and makes the host enter S3 by calling host_enter_s3(). After the host resumes from S3,
+ * BSP will continue executing from where it falls sleep in host_enter_s3(), and resume all VMs after it returns back
+ * to this function.
  *
  * @param[inout] vm Pointer to the target VM struct.
  * @param[in] pm1a_cnt_val PM1a Control register value that is written by the VM.
@@ -233,29 +278,41 @@ static inline void enter_s3(struct acrn_vm *vm, uint32_t pm1a_cnt_val, uint32_t 
 	pause_vm(vm);
 
 	if (is_service_vm(vm)) {
-		/* Save the wakeup vec set by guest OS. Will return to guest
-	 	 * with this wakeup vec as entry.
-		 */
-		uint32_t guest_wakeup_vec32;
-		struct acrn_vm *tee_vm = get_tee_vm();
-
+		save_pm1_reg_val(pm1a_cnt_val, pm1b_cnt_val);
 		stac();
-		guest_wakeup_vec32 = *(vm->pm.sx_state_data->wake_vector_32);
+		service_vm_waking_vector = *(vm->pm.sx_state_data->wake_vector_32);
 		clac();
+	}
+
+	put_vm_lock(vm);
+
+	if (get_pcpu_id() == BSP_CPU_ID) {
+		struct acrn_vm *tee_vm = get_tee_vm();
+		uint16_t i;
+
+		/* Wait for all VMs to be paused, note that shared pCPU is not supported here */
+		while (!is_ready_for_platform_s3());
 
 		if (tee_vm != NULL) {
 			freeze_vm(tee_vm);
 		}
 
-		host_enter_s3(vm->pm.sx_state_data, pm1a_cnt_val, pm1b_cnt_val);
-		resume_vm_from_s3(vm, guest_wakeup_vec32);	/* jump back to vm */
+		pr_fatal("All vm entered S3, triggering platform S3");
+		host_enter_s3();
 
 		if (tee_vm != NULL) {
 			thaw_vm(tee_vm);
 		}
-	}
 
-	put_vm_lock(vm);
+		/* Resume all pre-launched vm and service vm from S3 */
+		for (i = 0U; i < CONFIG_MAX_VM_NUM; i++) {
+			struct acrn_vm *target_vm = get_vm_from_vmid(i);
+
+			if (is_paused_vm(target_vm)) {
+				s3_resume_vm(target_vm);
+			}
+		}
+	}
 }
 
 /**
@@ -289,7 +346,6 @@ static bool pm1ab_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width, 
 		uint8_t val = get_slp_typx(v);
 
 		if ((addr == vm->pm.sx_state_data->pm1a_cnt.address) && is_s3_enabled(v)) {
-
 			if (vm->pm.sx_state_data->pm1b_cnt.address != 0UL) {
 				pm1a_cnt_ready = v;
 			} else {

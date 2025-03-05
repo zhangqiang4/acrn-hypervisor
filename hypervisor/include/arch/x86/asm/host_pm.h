@@ -101,7 +101,7 @@ struct acpi_reset_reg {
 };
 
 struct pm_s_state_data *get_host_sstate_data(void);
-void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val);
+void host_enter_s3(void);
 void shutdown_system(void);
 void save_pm1_reg_val(uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val);
 void do_acpi_sx(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val);
