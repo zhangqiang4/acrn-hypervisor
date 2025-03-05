@@ -862,6 +862,14 @@ pd_deinit_thread()
 			pthread_join(pd->vblank_thread, NULL);
 		}
 	}
+
+	for (i = 0; i < global_pd_info.num; ++i) {
+		pd = global_pd_info.pd_screen_array[i];
+		send_command(pd->data_socket_fd,
+				PD_COMMAND_FINISH, NULL, 0,
+				NULL, 0, pd->frame_nr++, 0);
+
+	}
 }
 
 static void

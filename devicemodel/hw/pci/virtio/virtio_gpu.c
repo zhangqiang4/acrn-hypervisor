@@ -2484,9 +2484,9 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		if (gpu->is_blob_supported) {
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_RESOURCE_BLOB);
 			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MODIFIER);
-			gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_PIXEL_BLEND_MODE);
 
 			if(vdpy_mplane_check()) {
+				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_PIXEL_BLEND_MODE);
 				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MULTI_PLANE);
 				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_ROTATION);
 				gpu->base.device_caps |= (1UL << VIRTIO_GPU_F_MULTI_PLANAR_FORMAT);
