@@ -396,7 +396,7 @@
     <own_pcpu>n</own_pcpu>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
-  </vm>
+</vm>
   <vm id="1">
     <vm_type>TEE_VM</vm_type>
     <console_vuart>COM Port 1</console_vuart>
@@ -444,6 +444,10 @@
     <name>VM2</name>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+      <cpu_feature>ptm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="3">
     <vm_type>STANDARD_VM</vm_type>
@@ -558,6 +562,9 @@
     <name>VM3</name>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+      <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="4">
     <vm_type>STANDARD_VM</vm_type>
@@ -610,6 +617,9 @@
     <name>VM4</name>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+      <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="5">
     <vm_type>STANDARD_VM</vm_type>
@@ -634,6 +644,9 @@
     <name>VM5</name>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+      <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
 
 </acrn-config>

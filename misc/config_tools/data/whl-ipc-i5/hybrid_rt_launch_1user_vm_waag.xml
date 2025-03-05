@@ -112,6 +112,9 @@
       <pci_dev>00:17.0 SATA controller: Intel Corporation Cannon Point-LP SATA Controller [AHCI Mode] (rev 30)</pci_dev>
       <pci_dev>03:00.0 Ethernet controller: Intel Corporation I210 Gigabit Network Connection (rev 03)</pci_dev>
     </pci_devs>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="1">
     <load_order>SERVICE_VM</load_order>
@@ -125,6 +128,10 @@
         i915.nuclear_pageflip=1</bootargs>
     </os_config>
     <console_vuart>COM Port 1</console_vuart>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+      <cpu_feature>ptm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="2">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -159,6 +166,9 @@
       <input/>
       <block>./win10-ltsc.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="3">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -189,5 +199,8 @@
       <input/>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
 </acrn-config>

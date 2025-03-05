@@ -103,6 +103,10 @@
     <vm_type>STANDARD_VM</vm_type>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+      <cpu_feature>ptm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="2">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -137,6 +141,9 @@
     </virtio_devices>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="3">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -168,5 +175,8 @@
     </virtio_devices>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
 </acrn-config>

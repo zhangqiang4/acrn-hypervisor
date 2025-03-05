@@ -66,6 +66,10 @@
         i915.nuclear_pageflip=1</bootargs>
     </os_config>
     <console_vuart>COM Port 1</console_vuart>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+      <cpu_feature>ptm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="1">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -100,6 +104,9 @@
       <input/>
       <block>./win10-ltsc.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="2">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -136,6 +143,9 @@
       <input/>
       <block>./core-image-weston-intel-corei7-64.wic</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="3">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -169,6 +179,9 @@
       <input/>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="4">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -202,6 +215,9 @@
       <input/>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="5">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -235,6 +251,9 @@
       <input/>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="6">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -268,5 +287,8 @@
       <input/>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
 </acrn-config>

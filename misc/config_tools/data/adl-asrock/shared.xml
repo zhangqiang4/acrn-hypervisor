@@ -73,6 +73,10 @@
       <kern_mod>Linux_bzImage</kern_mod>
       <bootargs>root=/dev/nvme0n1p2 rw rootwait console=tty0 console=ttyS0 consoleblank=0 no_timer_check quiet loglevel=3        i915.nuclear_pageflip=1 i915.modeset=0</bootargs>
     </os_config>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+      <cpu_feature>ptm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="1">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -111,6 +115,9 @@
       </input>
       <block>./win10-ltsc.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="2">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -151,6 +158,9 @@
       </network>
       <block>./core-image-weston-intel-corei7-64.wic</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
   <vm id="3">
     <load_order>POST_LAUNCHED_VM</load_order>
@@ -187,5 +197,8 @@
       </network>
       <block>./YaaG.img</block>
     </virtio_devices>
+    <cpu_features>
+      <cpu_feature>tm</cpu_feature>
+    </cpu_features>
   </vm>
 </acrn-config>
