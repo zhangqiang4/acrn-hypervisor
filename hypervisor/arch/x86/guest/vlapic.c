@@ -1500,16 +1500,9 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 	int32_t ret = 0;
 
 	if (vlapic->msr_apicbase != new) {
-		if ((new & APICBASE_LAPIC_MODE) != (APICBASE_XAPIC | APICBASE_X2APIC)) {
-			/* local APIC is locked in x2APIC mode */
-			pr_err("%s, try to disable x2APIC mode", __func__);
-			ret = -EACCES;
-		} else {
-			vlapic->msr_apicbase = new;
-			/*
-			 * TODO: Logic to check for change in Bits 35:12 and Bit 8 and emulate
-			 */
-		}
+		/* Guest can only use x2APIC mode, the whole IA32_APIC_BASE is Read-only. */
+		pr_err("%s, guest can't change it.", __func__);
+		ret = -EACCES;
 	}
 
 	return ret;
