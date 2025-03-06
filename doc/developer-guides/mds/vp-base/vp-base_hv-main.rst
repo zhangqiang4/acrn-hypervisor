@@ -15,8 +15,14 @@ This section contains the documentation of the module `vp-base.hv-main`.
 [File] common/hv_main.c
 ======================================================================
 
+.. doxygenfile:: hv_main.c
+   :project: Project ACRN
+
 [File] arch/x86/guest/vmexit.c
 ======================================================================
+
+.. doxygenfile:: guest/vmexit.c
+   :project: Project ACRN
 
 [File] arch/x86/guest/vmcs.c
 ======================================================================
@@ -26,6 +32,9 @@ This section contains the documentation of the module `vp-base.hv-main`.
 
 [File] include/arch/x86/asm/guest/vmexit.h
 ======================================================================
+
+.. doxygenfile:: guest/vmexit.h
+   :project: Project ACRN
 
 [File] include/arch/x86/asm/guest/vmcs.h
 ======================================================================
