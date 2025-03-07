@@ -540,9 +540,6 @@ vblank_flip_handler(int fd, unsigned int frame, unsigned int sec,
 			pd->frame_to_send[i] = *(shared_frame_to_send + i);
 		}
 	}
-	for(i = 0; i < pd->domain_cnt; i++) {
-			pd->frame_to_send[i] = frame;
-	}
 	for(i = 0; i < pd->domain_cnt; i++)
 		pd->vblank_inject(pd->virtio_data, pd->frame_to_send[i], pd->vblankq_id[i]);
 
