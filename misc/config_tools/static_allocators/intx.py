@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2021-2022 Intel Corporation.
+# Copyright (C) 2021-2025 Intel Corporation.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-import sys, os
+import sys, os, logging
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'library'))
 import acrn_config_utilities, board_cfg_lib, lib.error, lib.lib
 import re
@@ -171,14 +171,14 @@ def alloc_device_irqs(board_etree, scenario_etree, allocation_etree):
                         irq_allocation[vm_id][irq].append(pci_dev)
                     device_nodes.discard(device_node)
 
-            # Raise error when any pre-launched VM with LAPIC passthrough requires any interrupt line.
+            # Report warning when any pre-launched VM with LAPIC passthrough requires any interrupt line.
             lapic_passthru_flag = get_node("lapic_passthrough[text() = 'y']", vm)
             if lapic_passthru_flag is not None and irq_allocation[vm_id]:
                 for irq, devices in irq_allocation[vm_id].items():
                     print(f"Interrupt line {irq} is used by the following device(s).")
                     for device in devices:
                         print(f"\t{device}")
-                raise lib.error.ResourceError(f"Pre-launched VM {vm_id} with lapic_passthrough flag cannot use interrupt lines.")
+                logging.warning(f"Pre-launched VM {vm_id} with lapic_passthrough flag cannot use interrupt lines.")
         elif lib.lib.is_service_vm(load_order):
             service_vm_id = vm_id
 
