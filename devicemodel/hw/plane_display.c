@@ -8,6 +8,7 @@
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
 
+#include <dirent.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -97,6 +98,15 @@ struct pd_msg_hdr {
 	uint64_t domain_index;
 };
 
+/*
+ * Upon connection, the server should send this struct to us for vblank/flip
+ * event listening.
+ */
+struct pd_msg_crtc_info {
+	 dev_t dev;
+	 uint32_t crtc_id;
+};
+
 struct pd_screen {
 	struct pd_param *param;
 	struct pd_plane_buffer plane[PD_PLANE_COUNT];
@@ -115,6 +125,7 @@ struct pd_screen {
 	uint64_t frame_to_send_shared;
 	bool thread_enable;
 	int fd;
+	uint32_t crtc_idx;
 	pthread_t vblank_thread;
 	void *virtio_data;
 	vblank_inject_func vblank_inject;
@@ -535,7 +546,9 @@ vblank_flip_handler(int fd, unsigned int frame, unsigned int sec,
 	for(i = 0; i < pd->domain_cnt; i++)
 		pd->vblank_inject(pd->virtio_data, pd->frame_to_send[i], pd->vblankq_id[i]);
 
-	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT | DRM_VBLANK_FLIP;
+	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT |
+			   DRM_VBLANK_FLIP |
+			   (pd->crtc_idx << 1);
 	vbl.request.sequence = 1;
 	vbl.request.signal = (unsigned long)data;
 	drmWaitVBlank(fd, &vbl);
@@ -552,20 +565,15 @@ static void *
 pd_generate_vblank(void *arg)
 {
 	___drmEventContext evctx;
-	int ret, fd, max_fd;
+	int ret, max_fd;
 	struct pd_screen *pd = (struct pd_screen *)arg;
 	drmVBlank vbl;
-	fd = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
-	if(fd < 0) {
-		pr_err("failed to open drm device\n");
-		return NULL;
-	}
-
-	pd->fd = fd;
 
 	// Use vblank_flip event, which is basically the same as vblank event
 	// with flip sequence.
-	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT | DRM_VBLANK_FLIP;
+	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT |
+			   DRM_VBLANK_FLIP |
+			   (pd->crtc_idx << 1);
 	vbl.request.sequence = 1;
 	vbl.request.signal = (unsigned long) pd;
 	ret = drmWaitVBlank(pd->fd, &vbl);
@@ -662,7 +670,8 @@ static struct screen_backend_ops pd_vscreen_ops = {
 };
 
 static int
-receive_memfd(int fd) {
+receive_memfd(int fd)
+{
 	struct msghdr msg = {0};
 	struct iovec io[2];
 	struct cmsghdr *cmsg;
@@ -682,14 +691,34 @@ receive_memfd(int fd) {
 	msg.msg_controllen = sizeof(buf);
 
 	if (recvmsg(fd, &msg, 0) < 0) {
-		pr_err("Failed to send message: %s\n", strerror(errno));
+		pr_err("Failed to receive message: %s\n", strerror(errno));
 		return -1;
 	}
-	if (dummy[0] != PD_MSG_MEMFD_MAGIC) { pr_err("invalid memfd message\n");
+	if (dummy[0] != PD_MSG_MEMFD_MAGIC) {
+		pr_err("invalid memfd message\n");
 	}
 	cmsg = CMSG_FIRSTHDR(&msg);
 	memfd = * (int *) CMSG_DATA(cmsg);
 	return memfd;
+}
+
+static int
+receive_crtc_info(int fd, struct pd_msg_crtc_info *crtc_info)
+{
+	struct msghdr msg = { 0 };
+	struct iovec io[2];
+
+	io[0].iov_base = crtc_info;
+	io[0].iov_len = sizeof(*crtc_info);
+
+	msg.msg_iov = io;
+	msg.msg_iovlen = 1;
+
+	if (recvmsg(fd, &msg, 0) < 0) {
+		pr_err("Failed to receive message: %s\n", strerror(errno));
+		return -1;
+	}
+	return 0;
 }
 
 static int
@@ -716,6 +745,109 @@ pd_server_memfd_init(struct pd_screen *pd)
 	return 0;
 }
 
+/*
+ * open_device_from_dev() searches the /dev/dri directory for a device file
+ * whose st_rdev matches target_dev. If found, it opens the file (read/write)
+ * and returns its file descriptor.
+ */
+static int
+open_device_from_dev(dev_t target_dev)
+{
+	DIR *dir;
+	struct dirent *entry;
+	const char dri_path[] = "/dev/dri";
+	char path[PATH_MAX];
+	struct stat st;
+	int fd = -1;
+
+	dir = opendir(dri_path);
+	if (!dir) {
+		perror("opendir");
+		return -1;
+	}
+
+	// Iterate over each entry in /dev.
+	while ((entry = readdir(dir)) != NULL) {
+		// Skip the current and parent directory entries.
+		if (strcmp(entry->d_name, ".") == 0 ||
+		    strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		snprintf(path, sizeof(path), "%s/%s", dri_path, entry->d_name);
+
+		if (stat(path, &st) == -1)
+			continue;
+
+		if ((S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode)) &&
+		    st.st_rdev == target_dev) {
+			fd = open(path, O_RDWR);
+			if (fd == -1)
+				pr_err("cannot open file %s: %s\n",
+				       path, strerror(errno));
+			break;
+		}
+	}
+
+	closedir(dir);
+	return fd;
+}
+
+/*
+ * find_crtc:
+ * Given a DRM file descriptor (fd) and a target CRTC ID,
+ * this function gets the index of the crtc in crtc resources array.
+ */
+int
+find_crtc_index(int fd, uint32_t target_crtc_id) {
+	drmModeResPtr resources;
+	uint32_t count_crtcs, i;
+
+	resources = drmModeGetResources(fd);
+	if (!resources) {
+		pr_err("drmModeGetResources() failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	count_crtcs = resources->count_crtcs;
+	for (i = 0; i < count_crtcs; i++) {
+		if (resources->crtcs[i] == target_crtc_id) {
+			break;
+		}
+	}
+
+	drmModeFreeResources(resources);
+
+	return (i == count_crtcs) ? -1 : i;
+}
+
+static int
+pd_server_get_crtc_info(struct pd_screen *pd)
+{
+	int ret;
+	struct pd_msg_crtc_info crtc_info = { 0 };
+
+	ret = receive_crtc_info(pd->data_socket_fd, &crtc_info);
+	if (ret < 0) {
+		pr_err("failed to receive crtc idx\n");
+		close(pd->data_socket_fd);
+		return -1;
+	}
+	pd->fd = open_device_from_dev(crtc_info.dev);
+	if (pd->fd < 0) {
+		pr_err("failed to open dev from dev_t %u\n", crtc_info.dev);
+		return -1;
+	}
+
+	ret = find_crtc_index(pd->fd, crtc_info.crtc_id);
+	if (ret == -1) {
+		pr_err("failed to find crtc with id %u\n", crtc_info.crtc_id);
+		return -1;
+	}
+	pd->crtc_idx = ret;
+
+	return 0;
+}
+
 static int
 pd_server_connect(struct pd_screen *pd)
 {
@@ -725,7 +857,6 @@ pd_server_connect(struct pd_screen *pd)
 	char *socket_name = strlen(pd->param->output_name) > 0 ?
 		pd->param->output_name : "default";
 
-	// TODO: Obtain port from argument
 	snprintf(socket_path, sizeof(socket_path) - 1,
 		 PD_SOCKET_NAME, socket_name);
 
@@ -764,6 +895,10 @@ pd_server_init(struct pd_screen *pd)
 	}
 
 	ret = pd_server_memfd_init(pd);
+	if (ret < 0)
+		return ret;
+
+	ret = pd_server_get_crtc_info(pd);
 	if (ret < 0)
 		return ret;
 
