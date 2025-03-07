@@ -809,7 +809,6 @@ vlapic_trigger_lvt(struct acrn_vlapic *vlapic, uint32_t lvt_index)
 {
 	uint32_t lvt;
 	int32_t ret = 0;
-	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
 	if (vlapic_enabled(vlapic)) {
 		switch (lvt_index) {
@@ -831,12 +830,7 @@ vlapic_trigger_lvt(struct acrn_vlapic *vlapic, uint32_t lvt_index)
 			lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_PERF_LVT);
 			break;
 		case APIC_LVT_THERMAL:
-			if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_TM_PT)) {
-				lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_THERM_LVT);
-			} else {
-				lvt = 0U;
-				ret = -EINVAL;
-			}
+			lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_THERM_LVT);
 			break;
 		case APIC_LVT_CMCI:
 			lvt = vlapic_get_lvt(vlapic, APIC_OFFSET_CMCI_LVT);
