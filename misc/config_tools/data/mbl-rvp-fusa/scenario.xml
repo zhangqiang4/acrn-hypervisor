@@ -372,6 +372,9 @@
         <real_time_vcpu>n</real_time_vcpu>
       </pcpu>
     </cpu_affinity>
+    <pci_devs>
+      <pci_dev>00:1e.3 Serial bus controller: Intel Corporation</pci_dev>
+    </pci_devs>
     <lapic_passthrough>y</lapic_passthrough>
     <os_config>
       <kern_type>KERNEL_BZIMAGE</kern_type>
