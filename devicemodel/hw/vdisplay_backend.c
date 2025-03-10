@@ -19,6 +19,7 @@
 #include "atomic.h"
 #include "timer.h"
 
+#define DUMMY_BACKEND_NAME "dummy-display"
 #define transto_10bits(color) (uint16_t)(color * 1024 + 0.5)
 #define EDID_BASIC_BLOCK_SIZE 128
 #define EDID_CEA861_EXT_BLOCK_SIZE 128
@@ -1154,7 +1155,8 @@ vdpy_surface_set(int handle, int scanout_id, struct surface *surf)
 		return;
 	}
 
-	vscr->vscreen_ops->vdpy_surface_set(vscr->backend, surf);
+	if (vscr->vscreen_ops->vdpy_surface_set)
+		vscr->vscreen_ops->vdpy_surface_set(vscr->backend, surf);
 }
 
 void vdpy_surface_update(int handle, int scanout_id, struct surface *surf)
@@ -1180,7 +1182,8 @@ void vdpy_surface_update(int handle, int scanout_id, struct surface *surf)
 		return;
 	}
 
-	vscr->vscreen_ops->vdpy_surface_update(vscr->backend, surf);
+	if (vscr->vscreen_ops->vdpy_surface_update)
+		vscr->vscreen_ops->vdpy_surface_update(vscr->backend, surf);
 
 	/* update the rendering time */
 	clock_gettime(CLOCK_MONOTONIC, &vscr->last_time);
@@ -1259,14 +1262,16 @@ void vdpy_set_modifier(int handle, uint64_t modifier, int scanout_id)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
-	vscr->vscreen_ops->vdpy_set_modifier(vscr->backend, modifier);
+	if (vscr->vscreen_ops->vdpy_set_modifier)
+		vscr->vscreen_ops->vdpy_set_modifier(vscr->backend, modifier);
 }
 
 void vdpy_set_scaling(int handle,int scanout_id, int plane_id, int x1, int y1, int x2, int y2)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
-	vscr->vscreen_ops->vdpy_set_scaling(vscr->backend, plane_id, x1, y1, x2, y2);
+	if (vscr->vscreen_ops->vdpy_set_scaling)
+		vscr->vscreen_ops->vdpy_set_scaling(vscr->backend, plane_id, x1, y1, x2, y2);
 }
 
 static struct vdpy_backend *vdpy_find_backend(char *name)
@@ -1325,6 +1330,9 @@ bool vdpy_mplane_check()
 	bool mplane_support = false;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
+		if (strcmp(pdp->name, DUMMY_BACKEND_NAME) == 0) {
+			continue;
+		}
 		active_backend = false;
 		for (i = 0; i < vdpy.scrs_num; i++) {
 			if (strcmp(vdpy.scrs[i].name, pdp->name) == 0) {
@@ -1477,6 +1485,9 @@ int vdpy_parse_cmd_option(const char *opts)
 			scr->name = "plane-display";
 			vdpy.scrs_num++;
 			vdpy.pipe_num++;
+		} else if (strcasestr(str, "dummy-display")) {
+			scr->name = DUMMY_BACKEND_NAME;
+			vdpy.scrs_num++;
 		} else {
 			pr_err("couldn't find backend for parameter %s\n", str);
 			error = -1;
@@ -1503,3 +1514,29 @@ out:
 
 	return error;
 }
+
+static void
+dummy_display_info(void *backend, struct display_info *display)
+{
+	display->xoff = 0;
+	display->yoff = 0;
+	display->width = 1024;
+	display->height = 768;
+	pr_info("use dummy display, resolution is %d:%d\n", display->width, display->height);
+}
+static struct screen_backend_ops dummy_vscreen_ops = {
+	.vdpy_display_info = dummy_display_info,
+};
+
+static void
+dummy_init_screen(void **backend, struct screen_backend_ops **ops)
+{
+	*ops = &dummy_vscreen_ops;
+}
+
+struct vdpy_backend dummy_display_backend = {
+	.name = DUMMY_BACKEND_NAME,
+	.init_screen = dummy_init_screen,
+};
+
+DEFINE_BACKEND_TYPE(dummy_display_backend);
