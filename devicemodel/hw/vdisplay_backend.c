@@ -46,9 +46,11 @@ struct timer_vblank {
 struct screen {
 	char *name;
 	void *backend;
+	char *cmd_param;
 	struct screen_backend_ops *vscreen_ops;
 	struct timespec last_time;
 	bool is_timer_vblank;
+	bool is_pipe_vblank;
 	struct timer_vblank sw_vblank;
 	int vrefresh;
 };
@@ -846,7 +848,7 @@ static int vdpy_init_thread()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if (pdp->init_thread)
+		if (pdp->active && pdp->init_thread)
 			ret |= pdp->init_thread();
 	}
 	return ret;
@@ -857,7 +859,7 @@ static void vdpy_deinit_thread()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->deinit_thread) {
+		if (pdp->active && pdp->deinit_thread) {
 			pdp->deinit_thread();
 		}
 	}
@@ -1122,18 +1124,18 @@ vdpy_create_res(int dmabuf_fd)
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->create_res)
+		if(pdp->active && pdp->create_res)
 			pdp->create_res(dmabuf_fd);
 	}
-
 }
+
 void
 vdpy_destroy_res(int dmabuf_fd)
 {
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->destroy_res)
+		if(pdp->active && pdp->destroy_res)
 			pdp->destroy_res(dmabuf_fd);
 	}
 }
@@ -1295,8 +1297,24 @@ static void vdpy_init_screen(char *name, void **backend, struct screen_backend_o
 		pr_err("failed to find backend %s", name);
 		return;
 	}
+	ops->active = true;
 	if (ops->init_screen)
 		ops->init_screen(backend, screen_ops);
+}
+
+static void fallback_dummy_backend(char *backend_name)
+{
+	int i = 0;
+	if (!backend_name)
+		return;
+	for (i = 0; i < vdpy.scrs_num; i++) {
+		if (strcmp(vdpy.scrs[i].name, backend_name) == 0) {
+			pr_warn("display(%s) is unavailable, fallback to dummy display\n", vdpy.scrs[i].cmd_param);
+			vdpy.scrs[i].name = DUMMY_BACKEND_NAME;
+			if (vdpy.scrs[i].is_pipe_vblank)
+				vdpy.scrs[i].is_timer_vblank = true;
+		}
+	}
 }
 
 static int init_backends()
@@ -1305,8 +1323,14 @@ static int init_backends()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if (pdp->init)
-			ret |= pdp->init();
+		pdp->active = false;
+		if (pdp->init) {
+			ret = pdp->init();
+			if (ret) {
+				fallback_dummy_backend(pdp->name);
+				ret = 0;
+			}
+		}
 	}
 	return ret;
 }
@@ -1316,31 +1340,23 @@ static void deinit_backends()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->deinit) {
+		if (pdp->active && pdp->deinit) {
 			pdp->deinit();
 		}
+		pdp->active = false;
 	}
 }
 
 bool vdpy_mplane_check()
 {
 	struct vdpy_backend **pdpp, *pdp;
-	int i = 0;
-	bool active_backend = false;
 	bool mplane_support = false;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
 		if (strcmp(pdp->name, DUMMY_BACKEND_NAME) == 0) {
 			continue;
 		}
-		active_backend = false;
-		for (i = 0; i < vdpy.scrs_num; i++) {
-			if (strcmp(vdpy.scrs[i].name, pdp->name) == 0) {
-				active_backend = true;
-				break;
-			}
-		}
-		if(active_backend) {
+		if (pdp->active) {
 			if (!pdp->mplane_check) {
 				mplane_support = false;
 			} else {
@@ -1361,7 +1377,7 @@ void vdpy_mplane_fallback()
 	struct vdpy_backend **pdpp, *pdp;
 	SET_FOREACH(pdpp, vdpy_backend_set) {
 		pdp = *pdpp;
-		if(pdp->mplane_fallback)
+		if (pdp->active && pdp->mplane_fallback)
 			pdp->mplane_fallback();
 	}
 }
@@ -1413,7 +1429,6 @@ int vdpy_parse_cmd_option(const char *opts)
 	int hz = -1;
 	struct screen *scr;
 	int pipe_num_cache;
-
 	error = 0;
 	scr = calloc(VSCREEN_MAX_NUM, sizeof(struct screen));
 	if (!scr) {
@@ -1428,6 +1443,11 @@ int vdpy_parse_cmd_option(const char *opts)
 	vdpy.vfid = 0;
 	vdpy.dgpu_crtc_bitmask = 0;
 	pipe_num_cache = 0;
+	if (!opts) {
+		pr_warn("no screen specified for virtio gpu device\n");
+		error = -1;
+		return error;
+	}
 	stropts = strdup(opts);
 	while ((str = strsep(&stropts, ",")) != NULL) {
 		if (strcasestr(str, "backlight=")) {
@@ -1473,21 +1493,26 @@ int vdpy_parse_cmd_option(const char *opts)
 		if (tmp && strcasestr(str, "geometry=")) {
 			scr->name = "sdl";
 			vdpy.scrs_num++;
+			scr->is_pipe_vblank = false;
                 } else if (tmp && strcasestr(str, "lease=")) {
-                       scr->name = "lease";
-                       vdpy.scrs_num++;
-                       vdpy.pipe_num++;
+			scr->name = "lease";
+			vdpy.scrs_num++;
+			vdpy.pipe_num++;
+			scr->is_pipe_vblank = true;
 		} else if (tmp && strcasestr(str, "projection=")) {
 			scr->name = "projection";
 			vdpy.scrs_num++;
 			vdpy.pipe_num++;
+			scr->is_pipe_vblank = true;
 		} else if (tmp && strcasestr(str, "plane-display=")) {
 			scr->name = "plane-display";
 			vdpy.scrs_num++;
 			vdpy.pipe_num++;
+			scr->is_pipe_vblank = true;
 		} else if (strcasestr(str, "dummy-display")) {
 			scr->name = DUMMY_BACKEND_NAME;
 			vdpy.scrs_num++;
+			scr->is_pipe_vblank = false;
 		} else {
 			pr_err("couldn't find backend for parameter %s\n", str);
 			error = -1;
@@ -1501,9 +1526,16 @@ int vdpy_parse_cmd_option(const char *opts)
 			vdpy.vblank[vdpy.scrs_num] = 0;
 		}
 
-		if (scr->name)
+		if (scr->name) {
+			scr->cmd_param = strdup(str);
 			error = vdpy_set_para(scr->name,str);
-
+			if (error) {
+				pr_warn("display(%s) is unavailable, fallback to dummy display\n", scr->cmd_param);
+				scr->name = DUMMY_BACKEND_NAME;
+				if (scr->is_pipe_vblank)
+					scr->is_timer_vblank = true;
+			}
+		}
 		if (vdpy.scrs_num > VSCREEN_MAX_NUM) {
 			pr_err("%d virtual displays are too many that acrn-dm can't support!\n");
 			break;
