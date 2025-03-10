@@ -646,6 +646,7 @@ static void dmar_invalid_iotlb(struct dmar_drhd_rt *dmar_unit, uint16_t did, uin
 	default:
 		invalidate_desc.lo_64 = 0UL;
 		pr_err("unknown IIRG type");
+		break;
 	}
 
 	if (invalidate_desc.lo_64 != 0UL) {

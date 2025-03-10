@@ -299,6 +299,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 				break;
 			default:
 				pr_err("sbuf: unsupported sbuf_id %u", sbuf_id);
+				break;
 		}
 	}
 

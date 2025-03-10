@@ -109,6 +109,7 @@ static void setup_res_clos_msr(uint16_t pcpu_id, struct rdt_type *info, struct r
 			break;
 		default:
 			ASSERT(res < RDT_NUM_RESOURCES, "Support only 3 RDT resources. res=%d is invalid", res);
+			break;
 		}
 		msr_index = info->msr_base + i;
 		msr_write_pcpu(msr_index, val, pcpu_id);

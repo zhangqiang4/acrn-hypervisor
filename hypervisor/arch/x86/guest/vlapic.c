@@ -1735,10 +1735,10 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 			switch (mode) {
 			case APIC_DELMODE_INIT:
 				vlapic_process_init_sipi(target_vcpu, mode, icr_low);
-			break;
+				break;
 			case APIC_DELMODE_STARTUP:
 				vlapic_process_init_sipi(target_vcpu, mode, icr_low);
-			break;
+				break;
 			default:
 				/* convert the dest from virtual apic_id to physical apic_id */
 				papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
@@ -1746,7 +1746,7 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 					"%s vapic_id: 0x%08x papic_id: 0x%08x icr_low:0x%08x",
 					 __func__, target_vcpu->arch.vlapic.vapic_id, papic_id, icr_low);
 				msr_write(MSR_IA32_EXT_APIC_ICR, (((uint64_t)papic_id) << 32U) | icr_low);
-			break;
+				break;
 			}
 		}
 	}
