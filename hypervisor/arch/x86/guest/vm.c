@@ -462,29 +462,6 @@ struct acrn_vm *get_highest_severity_vm(bool runtime)
 }
 
 /**
- * @brief Checks if a VM has configured to hide MTRR capability.
- *
- * This function checks if a VM has configured to hide MTRR capability.
- * A VM has configured to hide MTRR capability if GUEST_FLAG_MTRR
- * is set in VM's guest flags.
- *
- * @pre vm != NULL
- * @pre vm->vm_id < CONFIG_MAX_VM_NUM
- * @pre get_vm_config(vm->vm_id) != NULL
- * @post N/A
- *
- * @param[in] vm The VM to be checked.
- *
- * @return true if VM has configured to hide MTRR capability, false otherwise.
- */
-bool vm_hide_mtrr(const struct acrn_vm *vm)
-{
-	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-
-	return ((vm_config->guest_flags & GUEST_FLAG_HIDE_MTRR) != 0U);
-}
-
-/**
  * @brief Initialize the I/O bitmap for \p vm
  *
  * Initialize IO bitmap. If the vm is service vm, allow all IO requests
@@ -635,11 +612,12 @@ static void prepare_prelaunched_vm_memmap(struct acrn_vm *vm, const struct acrn_
 				}
 			}
 
-			if (entry->type != E820_TYPE_RESERVED) {
+			if ((entry->type != E820_TYPE_RESERVED) || (entry->baseaddr < MEM_1M)) {
 				ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, base_hpa, base_gpa,
 						base_size, EPT_RWX | EPT_WB);
 			} else {
 				/* GPAs under 1MB are always backed by physical memory */
+				add_variable_mtrr(vm, base_gpa, base_size, EPT_UNCACHED);
 				ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, base_hpa, base_gpa,
 						base_size, EPT_RWX | EPT_UNCACHED);
 			}
@@ -988,6 +966,8 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 	vm = &vm_array[vm_id];
 	vm->vm_id = vm_id;
 	vm->hw.created_vcpus = 0U;
+
+	init_vmtrr(vm);
 
 	init_ept_pgtable(&vm->arch_vm.ept_pgtable, vm->vm_id);
 	vm->arch_vm.nworld_eptp = pgtable_create_root(&vm->arch_vm.ept_pgtable);

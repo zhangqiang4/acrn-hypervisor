@@ -18,7 +18,6 @@ policies = [
     GuestFlagPolicy(".//lapic_passthrough = 'y'", "GUEST_FLAG_LAPIC_PASSTHROUGH"),
     GuestFlagPolicy(".//io_completion_polling = 'y'", "GUEST_FLAG_IO_COMPLETION_POLLING"),
     GuestFlagPolicy(".//secure_world_support = 'y'", "GUEST_FLAG_SECURE_WORLD_ENABLED"),
-    GuestFlagPolicy(".//hide_mtrr_support = 'y'", "GUEST_FLAG_HIDE_MTRR"),
     GuestFlagPolicy(".//security_vm = 'y'", "GUEST_FLAG_SECURITY_VM"),
     GuestFlagPolicy(".//vm_type = 'RTVM'", "GUEST_FLAG_RT"),
     GuestFlagPolicy(".//vm_type = 'RTVM' and .//load_order = 'PRE_LAUNCHED_VM' and //hv/BUILD_TYPE= 'debug'", "GUEST_FLAG_PMU_PASSTHROUGH"),

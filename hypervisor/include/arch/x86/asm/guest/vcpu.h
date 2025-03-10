@@ -226,8 +226,6 @@ struct acrn_vcpu_arch {
 	/* pid MUST be 64 bytes aligned */
 	struct pi_desc pid __aligned(64);
 
-	struct acrn_vmtrr vmtrr;
-
 	struct guest_cpu_context contexts;
 
 	uint64_t guest_msrs[NUM_EMULATED_MSRS];
@@ -282,6 +280,10 @@ struct acrn_vcpu_arch {
 	 * Bit 63:1 - Reserved.
 	 */
 	uint64_t iwkey_copy_status;
+
+	/* MTRR def type reg */
+	union mtrr_def_type_reg mtrr_def_type;
+
 } __aligned(PAGE_SIZE);
 
 struct acrn_vm;

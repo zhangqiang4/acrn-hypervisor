@@ -897,6 +897,10 @@ static void add_vm_memory_region(struct acrn_vm *vm, struct acrn_vm *target_vm,
 		prot |= EPT_UNCACHED;
 	}
 
+	if ((prot & EPT_MT_MASK) != EPT_WB) {
+		/* TODO: add more memory types. Only supports UC now. */
+		add_variable_mtrr(target_vm, region->gpa, region->size, (prot & EPT_MT_MASK));
+	}
 	/* create gpa to hpa EPT mapping */
 	ept_add_mr(target_vm, pml4_page, hpa, region->gpa, region->size, prot);
 }

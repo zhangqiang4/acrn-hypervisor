@@ -576,11 +576,6 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	*ebx &= ~APIC_ID_MASK;
 	*ebx |= (apicid <<  APIC_ID_SHIFT);
 
-	if (vm_hide_mtrr(vcpu->vm)) {
-		/* mask mtrr */
-		*edx &= ~CPUID_EDX_MTRR;
-	}
-
 	if (!is_mc_pt_enabled(vcpu)) {
 		*edx &= ~CPUID_EDX_MCE;
 		*edx &= ~CPUID_EDX_MCA;

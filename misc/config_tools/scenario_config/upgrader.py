@@ -799,7 +799,6 @@ class ScenarioUpgrader(ScenarioTransformer):
         "lapic_passthrough": move_lapic_passthrough,
         "io_completion_polling": partialmethod(move_guest_flag, "GUEST_FLAG_IO_COMPLETION_POLLING"),
         "secure_world_support": partialmethod(move_guest_flag, "GUEST_FLAG_SECURITY_VM"),
-        "hide_mtrr_support": partialmethod(move_guest_flag, "GUEST_FLAG_HIDE_MTRR"),
         "security_vm": partialmethod(move_guest_flag, "GUEST_FLAG_SECURITY_VM"),
 
         # Feature enabling or disabling

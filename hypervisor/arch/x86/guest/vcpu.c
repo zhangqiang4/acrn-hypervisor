@@ -233,6 +233,7 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 
 static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
+static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu);
 /* As a vcpu reset internal API, DO NOT touch any vcpu state transition in this function. */
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
@@ -276,6 +277,9 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 			sizeof(struct run_context));
 
 	vlapic_reset(vcpu);
+
+	/* reset vcpu default memory type */
+	vcpu_reset_mtrr_def_type(vcpu);
 
 	reset_vcpu_regs(vcpu, mode);
 
@@ -527,6 +531,13 @@ void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 
 static void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
 
+static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu)
+{
+	union mtrr_def_type_reg *def_type = &vcpu->arch.mtrr_def_type;
+
+	def_type->value = vcpu->vm->arch_vm.vmtrr.def_type.value;
+}
+
 /*
  * @pre vm != NULL && rtn_vcpu_handle != NULL
  */
@@ -619,10 +630,6 @@ static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcp
 
 		/* Create per vcpu vlapic */
 		vlapic_create(vcpu, pcpu_id);
-
-		if (!vm_hide_mtrr(vm)) {
-			init_vmtrr(vcpu);
-		}
 
 		/* Populate the return handle */
 		*rtn_vcpu_handle = vcpu;

@@ -681,6 +681,12 @@ uint32_t vmsr_get_guest_msr_index(uint32_t msr);
 #define MTRR_ENABLE				0x800U	/* MTRR enable */
 #define MTRR_FIX_ENABLE				0x400U	/* fixed range MTRR enable */
 #define MTRR_VALID				0x800U	/* MTRR setting is valid */
+#define MTRR_VARIABLE_CNT		0xFFU   /* number of variable MTRRs */
+
+/* MSR_IA32_MTRR_DEF_TYPE bits */
+#define MSR_IA32_MTRR_DEF_TYPE_TYPE	  0xFFUL /* memory type */
+#define MSR_IA32_MTRR_DEF_TYPE_ENABLE	  0x800UL /* enable MTRR */
+#define MSR_IA32_MTRR_DEF_TYPE_RES    0xFFFFFFFFFFFFF300UL /* reserved */
 
 /* SPEC & PRED bit */
 #define SPEC_ENABLE_IBRS			(1U << 0U)

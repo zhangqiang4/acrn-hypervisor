@@ -9,14 +9,17 @@
  */
 #ifndef VMTRR_H
 #define VMTRR_H
+
+#include <board_info.h>
+
 /**
  * @brief MTRR Virtualization
  *
  * @addtogroup acrn_mem ACRN Memory Management
  * @{
  */
-#define FIXED_RANGE_MTRR_NUM	11U
-#define MTRR_SUB_RANGE_NUM	8U
+
+#define VARIABLE_RANGE_MTRR_NUM_MAX	10U
 
 union mtrr_cap_reg {
 	uint64_t value;
@@ -25,7 +28,9 @@ union mtrr_cap_reg {
 		uint32_t fix:1;
 		uint32_t res0:1;
 		uint32_t wc:1;
-		uint32_t res1:21;
+		uint32_t smrr:1;
+		uint32_t prmrr:1;
+		uint32_t res1:19;
 		uint32_t res2:32;
 	} bits;
 };
@@ -42,18 +47,40 @@ union mtrr_def_type_reg {
 	} bits;
 };
 
-union mtrr_fixed_range_reg {
+union mtrr_physbase{
 	uint64_t value;
-	uint8_t type[MTRR_SUB_RANGE_NUM];
+	struct {
+		uint32_t type:8;
+		uint32_t res0:4;
+		uint64_t physbase:(MAXIMUM_PA_WIDTH - 8 - 4);
+		uint32_t res1:(64 - MAXIMUM_PA_WIDTH);
+	} bits;
+};
+
+union mtrr_physmask{
+	uint64_t value;
+	struct {
+		uint32_t res0:11;
+		uint32_t valid:1;
+		uint64_t physmask:(MAXIMUM_PA_WIDTH - 8 - 4);
+		uint32_t res1:(64 - MAXIMUM_PA_WIDTH);
+	} bits;
+};
+
+/* Variable MTRRs are emulated */
+struct mtrr_variable_range_reg {
+	union mtrr_physbase physbase;
+	union mtrr_physmask physmask;
 };
 
 struct acrn_vmtrr {
-	union mtrr_cap_reg		cap;
-	union mtrr_def_type_reg		def_type;
-	union mtrr_fixed_range_reg	fixed_range[FIXED_RANGE_MTRR_NUM];
+	union mtrr_cap_reg cap;
+	union mtrr_def_type_reg def_type;
+	struct mtrr_variable_range_reg variable_range[VARIABLE_RANGE_MTRR_NUM_MAX];
 };
 
 struct acrn_vcpu;
+struct acrn_vm;
 /**
  * @brief Virtual MTRR MSR write
  *
@@ -61,7 +88,7 @@ struct acrn_vcpu;
  * @param[in] msr Virtual MTRR MSR Address
  * @param[in] value The value that will be writen into virtual MTRR MSR
  */
-void write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value);
+int32_t write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value);
 /**
  * @brief Virtual MTRR MSR read
  *
@@ -71,12 +98,15 @@ void write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value);
  * @return The specified virtual MTRR MSR value
  */
 uint64_t read_vmtrr(const struct acrn_vcpu *vcpu, uint32_t msr);
+
 /**
  * @brief Virtual MTRR initialization
  *
- * @param[inout] vcpu The pointer that points VCPU data structure
+ * @param[inout] vm The pointer that points VM data structure
  */
-void init_vmtrr(struct acrn_vcpu *vcpu);
+void init_vmtrr(struct acrn_vm *vm);
+void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint8_t type);
+
 /**
  * @}
  */

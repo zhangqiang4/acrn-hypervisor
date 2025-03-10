@@ -184,7 +184,6 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 /* Generic VM flags from guest OS */
 #define GUEST_FLAG_LAPIC_PASSTHROUGH     (1UL << 1U)  /**< Whether LAPIC is passed through */
 #define GUEST_FLAG_IO_COMPLETION_POLLING (1UL << 2U)  /**< Whether need hypervisor poll IO completion */
-#define GUEST_FLAG_HIDE_MTRR		(1UL << 3U)  /**< Whether hide MTRR from VM */
 #define GUEST_FLAG_RT				(1UL << 4U)  /**< Whether the vm is RT-VM */
 /**
  * @brief Whether this VM needs to do security-vm related fixup (TPM2 andSMBIOS passthrough)

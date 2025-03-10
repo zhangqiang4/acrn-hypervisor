@@ -60,6 +60,14 @@ int32_t assign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev)
 		if (mem_aligned_check(res->user_vm_pa, PAGE_SIZE) &&
 			mem_aligned_check(res->host_pa, PAGE_SIZE) &&
 			mem_aligned_check(res->size, PAGE_SIZE)) {
+
+			if (!is_service_vm(vm)) {
+				if ((res->mem_type & EPT_MT_MASK) != EPT_WB) {
+					/* TODO: add more memory types. Only supports UC now. */
+					add_variable_mtrr(vm, res->user_vm_pa, res->size, (res->mem_type & EPT_MT_MASK));
+				}
+			}
+
 			ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, res->host_pa,
 				is_service_vm(vm) ? res->host_pa : res->user_vm_pa,
 				res->size, EPT_RWX | (res->mem_type & EPT_MT_MASK));
