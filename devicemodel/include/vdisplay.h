@@ -169,6 +169,7 @@ struct vdpy_backend {
 	void (*destroy_res)(int dmabuf_fd);
 	void (*mplane_fallback)();
 	bool (*mplane_check)();
+	bool active;
 };
 
 SET_DECLARE(vdpy_backend_set, struct vdpy_backend);
