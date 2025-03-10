@@ -178,7 +178,7 @@ def alloc_device_irqs(board_etree, scenario_etree, allocation_etree):
                     print(f"Interrupt line {irq} is used by the following device(s).")
                     for device in devices:
                         print(f"\t{device}")
-                logging.warning(f"Pre-launched VM {vm_id} with lapic_passthrough flag cannot use interrupt lines.")
+                logging.warning(f"Assigning device with interrupt line to lapic_passthrough enabled Pre-launched VM {vm_id}.")
         elif lib.lib.is_service_vm(load_order):
             service_vm_id = vm_id
 
