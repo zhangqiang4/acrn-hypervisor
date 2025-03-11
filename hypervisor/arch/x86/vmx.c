@@ -58,7 +58,11 @@ void vmx_on(void)
 	if ((tmp64 & MSR_IA32_FEATURE_CONTROL_LOCK) == 0U) {
 		/* Lock and enable VMX support */
 		tmp64 |= (MSR_IA32_FEATURE_CONTROL_LOCK |
-			  MSR_IA32_FEATURE_CONTROL_VMX_NO_SMX);
+			  MSR_IA32_FEATURE_CONTROL_VMX_OUT_SMX);
+
+		/* ACRN doesn't support Intel(R) Trusted Execution Technology. */
+		tmp64 &= ~MSR_IA32_FEATURE_CONTROL_VMX_IN_SMX;
+
 		msr_write(MSR_IA32_FEATURE_CONTROL, tmp64);
 	}
 

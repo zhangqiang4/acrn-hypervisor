@@ -956,7 +956,7 @@ static inline bool is_vmx_disabled(void)
 
 	/* Check if feature control is locked and vmx cannot be enabled */
 	if (((msr_val & MSR_IA32_FEATURE_CONTROL_LOCK) != 0U) &&
-		((msr_val & MSR_IA32_FEATURE_CONTROL_VMX_NO_SMX) == 0U)) {
+		((msr_val & MSR_IA32_FEATURE_CONTROL_VMX_OUT_SMX) == 0U)) {
 		ret = true;
 	}
 
