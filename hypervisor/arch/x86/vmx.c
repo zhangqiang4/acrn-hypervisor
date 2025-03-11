@@ -47,9 +47,7 @@ void vmx_on(void)
 	tmp32 = (uint32_t)msr_read(MSR_IA32_VMX_BASIC);
 	(void)memcpy_s(vmxon_region_va, 4U, (void *)&tmp32, 4U);
 
-	/* Turn on CR0.NE and CR4.VMXE */
-	CPU_CR_READ(cr0, &tmp64);
-	CPU_CR_WRITE(cr0, tmp64 | CR0_NE);
+	/* Turn on CR4.VMXE */
 	CPU_CR_READ(cr4, &tmp64);
 	CPU_CR_WRITE(cr4, tmp64 | CR4_VMXE);
 
