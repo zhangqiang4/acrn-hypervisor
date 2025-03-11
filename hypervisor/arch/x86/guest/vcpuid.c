@@ -337,6 +337,12 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		for (i = 1U; i <= sub_leaves; i++) {
 			cpuid_subleaf(CPUID_EXTEND_FEATURE, i, &entry.eax, &entry.ebx, &entry.ecx, &entry.edx);
 			entry.subleaf = i;
+
+			/* Hypervisor doesn't support CET supervisor shadow stack, clear CPUID(7,1).EDX[18].*/
+			if (i == 1) {
+				entry.edx &= ~CPUID_EDX_CET_SSS;
+			}
+
 			result = set_vcpuid_entry(vm, &entry);
 			if (result != 0) {
 				break;

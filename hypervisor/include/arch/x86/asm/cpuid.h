@@ -613,6 +613,13 @@
  */
 #define CPUID_EAX_AVX512_BF16   (1U<<5U)
 /**
+ * @brief A bit representing whether hypervisor supports CET Supervisor Shadow Stack
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EDX[18].
+ */
+#define CPUID_EDX_CET_SSS	(1U<<18U)
+
+/**
  * @brief A bit representing whether the processor supports Process-context identifiers.
  * This bit is fetched from CPUID(EAX=1H,ECX=0H):ECX[17].
  */
