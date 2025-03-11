@@ -288,6 +288,8 @@
 #define VMX_EXIT_REASON_XRSTORS                                      0x00000040U
 #define VMX_EXIT_REASON_LOADIWKEY                                    0x00000045U
 
+#define NR_VMX_EXIT_REASONS	70U
+
 /* VMX execution control bits (pin based) */
 #define VMX_PINBASED_CTLS_IRQ_EXIT     (1U<<0U)
 #define VMX_PINBASED_CTLS_NMI_EXIT     (1U<<3U)
