@@ -999,7 +999,7 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 			*/
 			target_vcpu->arch.nr_sipi = 1U;
 		} else {
-			pr_err("Ignore INIT IPI to VCPU%hu for VM[%d]",
+			pr_info("Ignore INIT IPI to VCPU%hu for VM[%d]",
 				target_vcpu->vcpu_id, target_vcpu->vm->vm_id);
 		}
 	} else if (mode == APIC_DELMODE_STARTUP) {
@@ -1015,7 +1015,7 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 			target_vcpu->arch.nr_sipi--;
 			if (target_vcpu->arch.nr_sipi <= 0U) {
 
-				pr_err("Start Secondary VCPU%hu for VM[%d]...",
+				pr_info("Start Secondary VCPU%hu for VM[%d]...",
 					target_vcpu->vcpu_id,
 					target_vcpu->vm->vm_id);
 

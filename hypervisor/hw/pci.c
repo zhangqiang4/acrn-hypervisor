@@ -1140,7 +1140,7 @@ static void pci_enable_ptm_root(struct pci_pdev *pdev, uint32_t pos)
 
 		ctrl = pci_pdev_read_cfg(pdev->bdf, pos + PCIR_PTM_CTRL, 4);
 
-		pr_acrnlog("ptm info [%x:%x.%x]: pos=%x, enabled=%d, root_select=%d, granularity=%d.\n",
+		pr_info("ptm info [%x:%x.%x]: pos=%x, enabled=%d, root_select=%d, granularity=%d.\n",
 				pdev->bdf.bits.b, pdev->bdf.bits.d,
 				pdev->bdf.bits.f, pos, (ctrl & PCIM_PTM_CTRL_ENABLED) != 0,
 				(ctrl & PCIM_PTM_CTRL_ROOT_SELECTED) != 0,
