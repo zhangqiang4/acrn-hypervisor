@@ -11,7 +11,7 @@ import acrn_config_utilities, lib.error, lib.lib
 from collections import namedtuple
 from acrn_config_utilities import get_node
 
-class CpuFeaturePolicy(namedtuple("CpuFeaturePolicy", ["feature_flag", "host_condition_list", "extra_check_fn"])):
+class CpuFeaturePolicy(namedtuple("CpuFeaturePolicy", ["feature_flag", "host_condition_list", "extra_check_fn", "auto_enable"])):
     pass
 
 def check_hwp(vm_id, board_etree, scenario_etree, allocation_etree):
@@ -23,10 +23,10 @@ def check_hwp(vm_id, board_etree, scenario_etree, allocation_etree):
     return False
 
 policies = {
-    "vhwp": CpuFeaturePolicy("GUEST_CPU_FEATURE_VHWP", ["hwp_supported"], check_hwp),
-    "tm": CpuFeaturePolicy("GUEST_CPU_FEATURE_TM_PT", [], None),
-    "ptm": CpuFeaturePolicy("GUEST_CPU_FEATURE_PTM_PT", [], None),
-    "lbr": CpuFeaturePolicy("GUEST_CPU_FEATURE_LBR_PT", [], None),
+    "vhwp": CpuFeaturePolicy("GUEST_CPU_FEATURE_VHWP", ["hwp_supported"], check_hwp, True),
+    "tm": CpuFeaturePolicy("GUEST_CPU_FEATURE_TM_PT", [], None, False),
+    "ptm": CpuFeaturePolicy("GUEST_CPU_FEATURE_PTM_PT", [], None, False),
+    "lbr": CpuFeaturePolicy("GUEST_CPU_FEATURE_LBR_PT", [], None, False),
 }
 
 def check_host_cpu(processor_node, condition_list):
@@ -44,6 +44,13 @@ def fn(board_etree, scenario_etree, allocation_etree):
         allocation_vm_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']", allocation_etree)
         if allocation_vm_node is None:
             allocation_vm_node = acrn_config_utilities.append_node("/acrn-config/vm", None, allocation_etree, id = vm_id)
+
+        # Enable auto-enable features
+        for p in policies:
+            if (policies[p].auto_enable and
+                check_host_cpu(get_node(f"/acrn-config/processors", board_etree), policies[p].host_condition_list) and
+                ((policies[p].extra_check_fn is None) or policies[p].extra_check_fn(vm_id, board_etree, scenario_etree, allocation_etree))):
+                    acrn_config_utilities.append_node("./cpu_features/feature_flag", policies[p].feature_flag, allocation_vm_node)
 
         cpu_features_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']/cpu_features", scenario_etree)
         if cpu_features_node is None:
