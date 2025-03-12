@@ -494,10 +494,13 @@ static int acrnctl_do_set_gpio(int argc , char *argv[])
 	return 0;
 }
 
+static int wait_vm_stop(const char * vmname, unsigned int timeout);
+
 static int acrnctl_do_stop(int argc, char *argv[])
 {
 	struct vmmngr_struct *s;
 	int i, force = 0;
+	int ret;
 	const char *vmname = NULL;
 
 	for (i = 1; i < argc; i++) {
@@ -524,7 +527,12 @@ static int acrnctl_do_stop(int argc, char *argv[])
 		return -1;
 	}
 
-	return stop_vm(vmname, force);
+	ret = stop_vm(vmname, force);
+	if (!ret) {
+		ret = wait_vm_stop(vmname, STOP_TIMEOUT);
+	}
+
+	return ret;
 
 }
 
