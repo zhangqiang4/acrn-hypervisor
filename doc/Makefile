@@ -70,34 +70,40 @@ content:
 	$(Q)rsync -rt ../misc/config_tools/schema/*.xsd $(SOURCEDIR)/misc/config_tools/schema
 	$(Q)xsltproc $(XSLTPARAM) -xinclude ./scripts/configdoc.xsl $(SOURCEDIR)/misc/config_tools/schema/config.xsd > $(SOURCEDIR)/reference/configdoc.txt
 
-gen_html:
+gen_html: doxy
 	@echo making HTML content
 	$(Q)./scripts/show-versions.py
 	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
-mdshtml: dscontent doxy gen_html
+mdshtml: dscontent
+	$(MAKE) gen_html
 	@echo MDS HTML generated
 
-sashtml: sascontent doxy gen_html
+sashtml: sascontent
+	$(MAKE) gen_html
 	@echo SAS HTML generated
 
-html: content doxy gen_html
+html: content
+	$(MAKE) gen_html
 	@echo Full documentation HTML generated
 
-gen_singlehtml:
+gen_singlehtml: doxy
 	@echo making single HTML content
 	$(Q)./scripts/show-versions.py
 	$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b singlehtml -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
 
-mds_singlehtml: dscontent doxy gen_singlehtml
+mds_singlehtml: dscontent
+	$(MAKE) gen_singlehtml
 	@echo MDS single HTML generated
 
-sas_singlehtml: sascontent doxy gen_singlehtml
+sas_singlehtml: sascontent
+	$(MAKE) gen_singlehtml
 	@echo SAS single HTML generated
 
-singlehtml: content doxy gen_singlehtml
+singlehtml: content
+	$(MAKE) gen_singlehtml
 	@echo Full documentation single HTML generated
 
 DS_PDF  = $(BUILDDIR)/design_spec.pdf
@@ -108,11 +114,13 @@ dspdf:
 	@echo making $(DS_PDF)
 	$(Q)wkhtmltopdf --enable-local-file-access --disable-javascript $(BUILDDIR)/html/index.html $(DS_PDF)
 
-mdspdf: mds_singlehtml dspdf
+mdspdf: mds_singlehtml
+	$(MAKE) dspdf
 	@echo making $(MDS_PDF)
 	$(Q)mv $(DS_PDF) $(MDS_PDF)
 
-saspdf: sas_singlehtml dspdf
+saspdf: sas_singlehtml
+	$(MAKE) dspdf
 	@echo making $(SAS_PDF)
 	$(Q)mv $(DS_PDF) $(SAS_PDF)
 
