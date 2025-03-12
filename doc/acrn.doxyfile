@@ -870,10 +870,12 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/cpu.c \
                           ../hypervisor/arch/x86/rdt.c \
                           ../hypervisor/arch/x86/gdt.c \
+                          ../hypervisor/arch/x86/mce.c \
                           ../hypervisor/include/arch/x86/asm/cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpuid.h \
                           ../hypervisor/include/arch/x86/asm/rdt.h \
                           ../hypervisor/include/arch/x86/asm/gdt.h \
+                          ../hypervisor/include/arch/x86/asm/mce.h \
                           ../hypervisor/include/arch/x86/asm/per_cpu.h \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
