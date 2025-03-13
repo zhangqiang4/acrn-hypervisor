@@ -124,7 +124,7 @@ struct per_cpu_region {
 /**
  * @brief Declare a global variable per_cpu_data with the type 'struct per_cpu_region'.
  */
- extern struct per_cpu_region per_cpu_data[MAX_PCPU_NUM];
+ extern struct per_cpu_region per_cpu_data[MAX_PCPU_NUM] __aligned(PAGE_SIZE);
 /**
  * @brief Macro to get the specified field of per_cpu_data for the specified CPU.
  *
