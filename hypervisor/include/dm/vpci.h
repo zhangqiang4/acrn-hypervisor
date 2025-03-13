@@ -79,8 +79,6 @@ struct pci_msix {
 	uint32_t  table_bar;
 	uint32_t  table_offset;
 	uint32_t  table_count;
-	bool      is_vmsix_on_msi;
-	bool	  is_vmsix_on_msi_programmed;
 };
 
 /* SRIOV capability structure */

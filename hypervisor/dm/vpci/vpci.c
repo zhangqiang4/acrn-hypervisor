@@ -612,11 +612,7 @@ static int32_t write_pt_dev_cfg(struct pci_vdev *vdev, uint32_t offset,
 	} else if (msicap_access(vdev, offset)) {
 		write_vmsi_cap_reg(vdev, offset, bytes, val);
 	} else if (msixcap_access(vdev, offset)) {
-		if (vdev->msix.is_vmsix_on_msi) {
-			write_vmsix_cap_reg_on_msi(vdev, offset, bytes, val);
-		} else {
-			write_pt_vmsix_cap_reg(vdev, offset, bytes, val);
-		}
+		write_pt_vmsix_cap_reg(vdev, offset, bytes, val);
 	} else if (sriovcap_access(vdev, offset)) {
 		write_sriov_cap_reg(vdev, offset, bytes, val);
 	} else if (atscap_access(vdev, offset) || pricap_access(vdev, offset) || acscap_access(vdev, offset)) {

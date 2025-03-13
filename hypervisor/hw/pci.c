@@ -1375,7 +1375,6 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 			hlist_add_head(&pdev->link, &pdevs_hlist_heads[hash64(bdf.value, PDEV_HLIST_HASHBITS)]);
 			pdev->drhd_index = drhd_index;
 			num_pci_pdev++;
-			reserve_vmsix_on_msi_irtes(pdev);
 		} else {
 			pr_err("%s, %x:%x.%x unsupported headed type: 0x%x\n",
 				__func__, bdf.bits.b, bdf.bits.d, bdf.bits.f, hdr_type);

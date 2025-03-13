@@ -406,9 +406,6 @@ struct pci_pdev {
 
 	/* IOMMU responsible for DMA and Interrupt Remapping for this device */
 	uint32_t drhd_index;  /**< DRHD index */
-	/* Used for vMSI-x on MSI emulation */
-	uint16_t irte_start;  /**< Index of the first Interrupt Remapping Table Entry of the device in the DRHD */
-	uint16_t irte_count;  /**< Count of the Interrupt Remapping Table Entries of the device in the DRHD */
 
 	/* The bar info of the physical PCI device. */
 	uint32_t nr_bars; /**< Number of BARs: 6 for normal device, 2 for bridge, 1 for cardbus */
@@ -674,7 +671,6 @@ bool is_plat_hidden_pdev(union pci_bdf bdf);
 bool pdev_need_bar_restore(const struct pci_pdev *pdev);
 void pdev_restore_bar(const struct pci_pdev *pdev);
 void pci_switch_to_mmio_cfg_ops(void);
-void reserve_vmsix_on_msi_irtes(struct pci_pdev *pdev);
 
 /**
  * @}

@@ -107,7 +107,7 @@ static void ptirq_free_irte(const struct ptirq_remapping_info *entry)
  * that posted mode shall be used
  */
 static void ptirq_build_physical_msi(struct acrn_vm *vm,
-	struct ptirq_remapping_info *entry, uint32_t vector, uint64_t pid_paddr, uint16_t irte_idx)
+	struct ptirq_remapping_info *entry, uint32_t vector, uint64_t pid_paddr)
 {
 	uint64_t vdmask, pdmask;
 	uint32_t dest, delmode, dest_mask;
@@ -144,9 +144,6 @@ static void ptirq_build_physical_msi(struct acrn_vm *vm,
 	intr_src.is_msi = true;
 	intr_src.pid_paddr = pid_paddr;
 	intr_src.src.msi.value = entry->phys_sid.msi_id.bdf;
-	if (entry->irte_idx == INVALID_IRTE_ID) {
-		entry->irte_idx = irte_idx;
-	}
 	ret = dmar_assign_irte(&intr_src, &irte, entry->irte_idx, &ir_index.index);
 
 	if (ret == 0) {
@@ -542,7 +539,7 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
  * user must provide bdf and entry_nr
  */
 int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf, uint16_t phys_bdf,
-				uint16_t entry_nr, struct msi_info *info, uint16_t irte_idx)
+				uint16_t entry_nr, struct msi_info *info)
 {
 	struct ptirq_remapping_info *entry;
 	int32_t ret = -ENODEV;
@@ -565,16 +562,16 @@ int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf, uint16_t
 				/*
 				 * Use guest vector to program the interrupt source
 				 */
-				ptirq_build_physical_msi(vm, entry, (uint32_t)info->data.bits.vector, 0UL, irte_idx);
+				ptirq_build_physical_msi(vm, entry, (uint32_t)info->data.bits.vector, 0UL);
 		} else {
 			struct acrn_vcpu *vcpu = is_single_destination(vm, info);
 
 			if (is_pi_capable(vm) && (vcpu != NULL)) {
 				ptirq_build_physical_msi(vm, entry,
-					(uint32_t)info->data.bits.vector, hva2hpa(get_pi_desc(vcpu)), irte_idx);
+					(uint32_t)info->data.bits.vector, hva2hpa(get_pi_desc(vcpu)));
 			} else {
 				/* Go with remapped mode if we cannot handle it in posted mode */
-				ptirq_build_physical_msi(vm, entry, irq_to_vector(entry->allocated_pirq), 0UL, irte_idx);
+				ptirq_build_physical_msi(vm, entry, irq_to_vector(entry->allocated_pirq), 0UL);
 			}
 		}
 

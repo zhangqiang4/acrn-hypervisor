@@ -55,11 +55,7 @@ static inline struct msix_table_entry *get_msix_table_entry(const struct pci_vde
  */
 void read_pt_vmsix_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t *val)
 {
-	if (vdev->msix.is_vmsix_on_msi) {
-		*val = pci_vdev_read_vcfg(vdev, offset, bytes);
-	} else {
-		read_vmsix_cap_reg(vdev, offset, bytes, val);
-	}
+	read_vmsix_cap_reg(vdev, offset, bytes, val);
 }
 
 /**
@@ -116,7 +112,7 @@ static void remap_one_vmsix_entry(const struct pci_vdev *vdev, uint32_t index)
 		info.data.full = vdev->msix.table_entries[index].data;
 
 		ret = ptirq_prepare_msix_remap(vpci2vm(vdev->vpci), vdev->bdf.value, vdev->pdev->bdf.value,
-					       (uint16_t)index, &info, INVALID_IRTE_ID);
+					       (uint16_t)index, &info);
 		if (ret == 0) {
 			/* Write the table entry to the physical structure */
 			pentry = get_msix_table_entry(vdev, index);
@@ -154,11 +150,7 @@ static int32_t pt_vmsix_handle_table_mmio_access(struct io_request *io_req, void
 		index = rw_vmsix_table(vdev, io_req);
 
 		if ((mmio->direction == ACRN_IOREQ_DIR_WRITE) && (index < vdev->msix.table_count)) {
-			if (vdev->msix.is_vmsix_on_msi) {
-				remap_one_vmsix_entry_on_msi(vdev, index);
-			} else {
-				remap_one_vmsix_entry(vdev, index);
-			}
+			remap_one_vmsix_entry(vdev, index);
 		}
 	} else {
 		ret = -EFAULT;
@@ -545,7 +537,6 @@ void deinit_vmsix_pt(struct pci_vdev *vdev)
 		if (vdev->msix.table_count != 0U) {
 			ptirq_remove_msix_remapping(vpci2vm(vdev->vpci), vdev->pdev->bdf.value, vdev->msix.table_count);
 			(void)memset((void *)&vdev->msix.table_entries, 0U, sizeof(vdev->msix.table_entries));
-			vdev->msix.is_vmsix_on_msi_programmed = false;
 		}
 	}
 }
@@ -598,7 +589,6 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
 	/* Initialize the vdev BARs except SRIOV VF, VF BARs are initialized directly from create_vf function */
 	if (vdev->phyfun == NULL) {
 		init_bars(vdev, is_pf_vdev);
-		init_vmsix_on_msi(vdev);
 		if (is_service_vm(vpci2vm(vdev->vpci)) && (vdev->pdev->bdf.value == CONFIG_IGD_SBDF)) {
 			pci_vdev_write_vcfg(vdev, PCIR_ASLS_CTL, 4U, pci_pdev_read_cfg(vdev->pdev->bdf, PCIR_ASLS_CTL, 4U));
 		}

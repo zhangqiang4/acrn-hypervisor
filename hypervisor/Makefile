@@ -311,7 +311,6 @@ VP_DM_C_SRCS += dm/vpci/ivshmem.c
 VP_DM_C_SRCS += dm/vpci/pci_pt.c
 VP_DM_C_SRCS += dm/vpci/vmsi.c
 VP_DM_C_SRCS += dm/vpci/vmsix.c
-VP_DM_C_SRCS += dm/vpci/vmsix_on_msi.c
 VP_DM_C_SRCS += dm/vpci/vsriov.c
 VP_DM_C_SRCS += dm/vpci/vmcs9900.c
 VP_DM_C_SRCS += dm/mmio_dev.c

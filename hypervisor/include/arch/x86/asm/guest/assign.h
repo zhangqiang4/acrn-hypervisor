@@ -47,7 +47,6 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi);
  * @param[in] phys_bdf virtual bdf associated with the passthrough device
  * @param[in] entry_nr indicate coming vectors, entry_nr = 0 means first vector
  * @param[in] info structure used for MSI/MSI-x remapping
- * @param[in] irte_idx caller can pass a valid IRTE index, otherwise, use INVALID_IRTE_ID
  *
  * @return
  *    - 0: on success
@@ -60,7 +59,7 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi);
  *
  */
 int32_t ptirq_prepare_msix_remap(struct acrn_vm *vm, uint16_t virt_bdf,  uint16_t phys_bdf,
-				uint16_t entry_nr, struct msi_info *info, uint16_t irte_idx);
+				uint16_t entry_nr, struct msi_info *info);
 
 
 /**

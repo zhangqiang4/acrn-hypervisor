@@ -130,7 +130,6 @@ struct dmar_drhd_rt {
 	uint64_t ir_table_addr;
 	/* MAX_IR_ENTRIES is roundup (to power of 2) of CONFIG_MAX_PT_IRQ_ENTRIES. */
 	uint64_t irte_alloc_bitmap[MAX_IR_ENTRIES / 64U];
-	uint64_t irte_reserved_bitmap[MAX_IR_ENTRIES / 64U];
 	uint32_t desc_status;
 	uint64_t qi_queue;
 	uint16_t qi_tail;
@@ -1305,38 +1304,6 @@ static uint16_t alloc_irtes(struct dmar_drhd_rt *dmar_unit, const uint16_t num)
 	return (irte_idx < MAX_IR_ENTRIES) ? irte_idx: INVALID_IRTE_ID;
 }
 
-static bool is_irte_reserved(const struct dmar_drhd_rt *dmar_unit, uint16_t index)
-{
-	return ((dmar_unit->irte_reserved_bitmap[index >> 6U] & (1UL << (index & 0x3FU))) != 0UL);
-}
-
-int32_t dmar_reserve_irte(const struct intr_source *intr_src, uint16_t num, uint16_t *start_id)
-{
-	struct dmar_drhd_rt *dmar_unit;
-	union pci_bdf sid;
-	uint64_t mask = (1UL << num) - 1U;
-	int32_t ret = -EINVAL;
-
-	if (intr_src->is_msi) {
-		dmar_unit = device_to_dmaru((uint8_t)intr_src->src.msi.bits.b, intr_src->src.msi.fields.devfun);
-		sid.value = (uint16_t)(intr_src->src.msi.value);
-	} else {
-		dmar_unit = ioapic_to_dmaru(intr_src->src.ioapic_id, &sid);
-	}
-
-	if (is_dmar_unit_valid(dmar_unit, sid)) {
-		*start_id = alloc_irtes(dmar_unit, num);
-		if (*start_id < MAX_IR_ENTRIES) {
-			dmar_unit->irte_reserved_bitmap[*start_id >> 6U] |= mask << (*start_id & 0x3FU);
-		}
-		ret = 0;
-	}
-
-	pr_dbg("%s: for dev 0x%x:%x.%x, reserve %u entry for MSI(%d), start from %d",
-		__func__, sid.bits.b, sid.bits.d, sid.bits.f, num, intr_src->is_msi, *start_id);
-	return ret;
-}
-
 int32_t dmar_assign_irte(const struct intr_source *intr_src, union dmar_ir_entry *irte,
 	uint16_t idx_in, uint16_t *idx_out)
 {
@@ -1423,11 +1390,9 @@ void dmar_free_irte(const struct intr_source *intr_src, uint16_t index)
 		iommu_flush_cache(ir_entry, sizeof(union dmar_ir_entry));
 		dmar_invalid_iec(dmar_unit, index, 0U, false);
 
-		if (!is_irte_reserved(dmar_unit, index)) {
-			spinlock_obtain(&dmar_unit->lock);
-			bitmap_clear_nolock(index & 0x3FU, &dmar_unit->irte_alloc_bitmap[index >> 6U]);
-			spinlock_release(&dmar_unit->lock);
-		}
+		spinlock_obtain(&dmar_unit->lock);
+		bitmap_clear_nolock(index & 0x3FU, &dmar_unit->irte_alloc_bitmap[index >> 6U]);
+		spinlock_release(&dmar_unit->lock);
 	}
 
 }
