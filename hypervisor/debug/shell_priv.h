@@ -119,8 +119,8 @@ struct shell {
 					" ID pcpu_id"
 
 #define SHELL_CMD_VMEXIT		"vmexit"
-#define SHELL_CMD_VMEXIT_PARAM		NULL
-#define SHELL_CMD_VMEXIT_HELP	"profiling vmexit, use: vmexit [clear | enable | disable | vm_id] enabled by default"
+#define SHELL_CMD_VMEXIT_PARAM		"[clear | enable | disable | vm_id]"
+#define SHELL_CMD_VMEXIT_HELP		"profiling vmexit, use: vmexit [clear | enable | disable | vm_id] disabled by default"
 
 int64_t strtol_deci(const char *nptr);
 #endif /* SHELL_PRIV_H */
