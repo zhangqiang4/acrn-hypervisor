@@ -492,7 +492,7 @@ static void print_decimal(struct print_param *param, int64_t value)
 	while (v.dwords.high != 0U) {
 		/* determine digits from right to left */
 		pos--;
-		*pos = (char)(v.qword % 10UL) + '0';
+		*pos = (int8_t)(v.qword % 10UL) + '0';
 		v.qword = v.qword / 10UL;
 	}
 
@@ -504,7 +504,7 @@ static void print_decimal(struct print_param *param, int64_t value)
 		 * 10.
 		 */
 		pos--;
-		*pos = (char)(nv.dwords.low % 10U) + '0';
+		*pos = (int8_t)(nv.dwords.low % 10U) + '0';
 		nv.dwords.low = nv.dwords.low / 10U;
 	} while (nv.dwords.low != 0U);
 
