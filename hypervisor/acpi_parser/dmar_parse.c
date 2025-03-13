@@ -157,7 +157,7 @@ static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct
 	return 0;
 }
 
-int32_t parse_dmar_table(struct dmar_info *plat_dmar_info)
+int32_t parse_dmar_table(struct dmar_info *plat_dmar)
 {
 	struct acpi_table_dmar *dmar_tbl;
 	struct acpi_dmar_header *dmar_header;
@@ -172,7 +172,7 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar_info)
 	ptr = (char *)dmar_tbl + sizeof(*dmar_tbl);
 	ptr_end = (char *)dmar_tbl + dmar_tbl->header.length;
 
-	plat_dmar_info->drhd_units = drhd_info_array;
+	plat_dmar->drhd_units = drhd_info_array;
 	for (; ptr < ptr_end; ptr += dmar_header->length) {
 		dmar_header = (struct acpi_dmar_header *)ptr;
 		ASSERT(dmar_header->length >= sizeof(struct acpi_dmar_header), "corrupted DMAR table");
@@ -197,8 +197,8 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar_info)
 			}
 
 			dmar_unit_cnt++;
-			plat_dmar_info->drhd_units[dmar_unit_cnt - 1].devices = drhd_dev_scope[dmar_unit_cnt - 1];
-			handle_one_drhd(acpi_drhd, &(plat_dmar_info->drhd_units[dmar_unit_cnt - 1]));
+			plat_dmar->drhd_units[dmar_unit_cnt - 1].devices = drhd_dev_scope[dmar_unit_cnt - 1];
+			handle_one_drhd(acpi_drhd, &(plat_dmar->drhd_units[dmar_unit_cnt - 1]));
 		}
 	}
 
@@ -207,7 +207,7 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar_info)
 	}
 
 	ASSERT(dmar_unit_cnt <= MAX_DRHDS, "parsed dmar_unit_cnt > MAX_DRHDS");
-	plat_dmar_info->drhd_count = dmar_unit_cnt;
+	plat_dmar->drhd_count = dmar_unit_cnt;
 
 	return 0;
 }

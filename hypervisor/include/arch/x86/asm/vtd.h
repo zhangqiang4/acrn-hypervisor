@@ -558,7 +558,7 @@ union dmar_ir_entry {
 };
 
 #ifdef CONFIG_ACPI_PARSE_ENABLED
-int32_t parse_dmar_table(struct dmar_info *plat_dmar_info);
+int32_t parse_dmar_table(struct dmar_info *plat_dmar);
 #endif
 
 /**
