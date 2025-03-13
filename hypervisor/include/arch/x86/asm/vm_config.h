@@ -81,7 +81,6 @@ struct vm_hpa_regions {
 };
 
 struct acrn_vm_mem_config {
-	uint64_t size;		/* VM memory size configuration */
 	uint64_t region_num;
 	struct vm_hpa_regions  *host_regions;
 };

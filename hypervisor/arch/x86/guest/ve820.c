@@ -238,7 +238,6 @@ void create_service_vm_e820(struct acrn_vm *vm)
 	uint16_t vm_id;
 	uint32_t i;
 	uint32_t entries_count = get_e820_entries_count();
-	struct acrn_vm_config *service_vm_config = get_vm_config(vm->vm_id);
 
 	(void)memcpy_s((void *)service_vm_e820, entries_count * sizeof(struct e820_entry),
 			(const void *)get_e820_entry(), entries_count * sizeof(struct e820_entry));
@@ -259,12 +258,6 @@ void create_service_vm_e820(struct acrn_vm *vm)
 		}
 	}
 
-	for (i = 0U; i < vm->e820_entry_num; i++) {
-		struct e820_entry *entry = &service_vm_e820[i];
-		if (entry->type == E820_TYPE_RAM) {
-			service_vm_config->memory.size += entry->length;
-		}
-	}
 	sort_vm_e820(vm);
 }
 
