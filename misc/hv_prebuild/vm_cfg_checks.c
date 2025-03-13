@@ -81,6 +81,8 @@ bool sanitize_vm_config(void)
 				ret = false;
 			} else if (vm_config->epc.size != 0UL) {
 				ret = false;
+			} else {
+				/* do nothing */
 			}
 			break;
 		case SERVICE_VM:
