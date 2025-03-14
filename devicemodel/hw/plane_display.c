@@ -20,6 +20,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include "log.h"
 #include "vdisplay.h"
@@ -913,12 +914,29 @@ pd_init_screen(void **backend, struct screen_backend_ops **ops)
 	*backend = global_pd_info.pd_screen_array[global_pd_info.index++];
 }
 
+static bool
+pd_check_screen_state(char *screen)
+{
+	char path[256] = {0};
+	struct stat file_stat;
+	if (!screen)
+		return false;
+
+	snprintf(path, sizeof(path) - 1, PD_SOCKET_NAME, screen);
+	if (stat(path, &file_stat) != 0) {
+		return false;
+	}
+	if (S_ISSOCK(file_stat.st_mode))
+		return true;
+	return false;
+}
+
 static int
 pd_parse_cmd(char *tmp)
 {
 	int snum;
 	char *curr;
-	static int at;
+	static int at = -1;
 	struct pd_param *cmd_param =
 		&global_pd_info.window_param[global_pd_info.num];
 	struct pd_param *cmd_param_master;
@@ -946,6 +964,10 @@ pd_parse_cmd(char *tmp)
 		}
 
 		if (strncmp(curr, "share", 5) == 0) {
+			if (at == -1) {
+				pr_warn("display(%s) is not available\n", curr);
+				return -1;
+			}
 			cmd_param_master =
 				&global_pd_info.window_param[at];
 			cmd_param->domain_idx = cmd_param_master->domain_cnt++;
@@ -954,6 +976,12 @@ pd_parse_cmd(char *tmp)
 		if (strncmp(curr, "port=", strlen("port=")) == 0) {
 			const int start = strlen("port=");
 			const int end = strlen(curr);
+
+			if (!pd_check_screen_state(curr + start)) {
+				pr_warn("display(%s) is not available\n", curr);
+				at = -1;
+				return -1;
+			}
 
 			if (end - start > sizeof(cmd_param->output_name) - 1) {
 				pr_err("Parameter port is too long, len=%d\n",
