@@ -1152,7 +1152,7 @@ static int32_t iommu_detach_device(const struct iommu_domain *domain, uint8_t bu
  * @pre action != NULL
  * As an internal API, VT-d code can guarantee action is not NULL.
  */
-static void do_action_for_iommus(void (*action)(struct dmar_drhd_rt *))
+static void do_action_for_iommus(void (*action)(struct dmar_drhd_rt *drhd_rt))
 {
 	struct dmar_drhd_rt *dmar_unit;
 	uint32_t i;

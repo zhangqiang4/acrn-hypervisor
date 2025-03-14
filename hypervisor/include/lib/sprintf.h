@@ -42,7 +42,7 @@ struct snprint_param {
  */
 struct print_param {
 	/** A pointer to the function that is used to emit characters. */
-	void (*emit)(size_t, const char *, uint32_t, struct snprint_param *);
+	void (*emit)(size_t cmd, const char *s_arg, uint32_t sz_arg, struct snprint_param *param);
 	/**
 	 * An opaque pointer that is passed as forth argument to the emit
 	 * function.

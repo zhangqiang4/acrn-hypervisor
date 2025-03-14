@@ -8,7 +8,7 @@
 #define VMEXIT_H_
 
 struct vm_exit_dispatch {
-	int32_t (*handler)(struct acrn_vcpu *);
+	int32_t (*handler)(struct acrn_vcpu * vcpu);
 	uint32_t need_exit_qualification;
 };
 

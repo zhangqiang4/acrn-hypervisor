@@ -144,7 +144,7 @@ static spinlock_t ivshmem_dev_lock = { .head = 0U, .tail = 0U, };
  *
  * @post N/A
  */
-void init_ivshmem_shared_memory()
+void init_ivshmem_shared_memory(void)
 {
 	uint32_t i;
 	uint64_t addr;
