@@ -734,17 +734,6 @@ bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
 /**
  * @pre vcpu != NULL
  */
-bool is_ecmd_supported(struct acrn_vcpu *vcpu)
-{
-	uint32_t eax = 0x6U, ebx = 0U, ecx = 0U, edx = 0U;
-	/* ECMD. Check clock modulation duty cycle extension is supported */
-	guest_cpuid(vcpu, &eax, &ebx, &ecx, &edx);
-	return (eax & CPUID_EAX_ECMD) == CPUID_EAX_ECMD;
-}
-
-/**
- * @pre vcpu != NULL
- */
 int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	int32_t err = 0;
