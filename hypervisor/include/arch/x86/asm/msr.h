@@ -555,6 +555,7 @@
 #define IA32_HW_FEEDBACK_CONFIG			0x17d1U
 #define IA32_THREAD_FEEDBACK_CHAR		0x17d2U
 #define IA32_HW_FEEDBACK_THREAD_CONFIG		0x17d4U
+#define IA32_HRESET_ENABLE			0x17DAU
 
 #ifdef PROFILING_ON
 /* Core (and Goldmont) specific MSRs */

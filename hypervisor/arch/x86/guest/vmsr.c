@@ -265,6 +265,7 @@ static const uint32_t unsupported_msrs[] = {
 	IA32_HW_FEEDBACK_CONFIG,
 	IA32_THREAD_FEEDBACK_CHAR,
 	IA32_HW_FEEDBACK_THREAD_CONFIG,
+	IA32_HRESET_ENABLE,
 
 	/*
 	 * TME registers disabled:

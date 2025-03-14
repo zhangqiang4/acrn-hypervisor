@@ -123,6 +123,12 @@
  */
 #define CPUID_ECX_PDCM          (1U<<15U)
 /**
+ * @brief A bit representing whether the processor supports Process-context identifiers.
+ *
+ * This bit is fetched from CPUID(EAX=1H,ECX=0H):ECX[17].
+ */
+ #define CPUID_ECX_PCID         (1U<<17U)
+/**
  * @brief A bit representing whether the processor supports the ability to prefetch data from a memory-mapped device.
  *
  * This bit is fetched from CPUID(EAX=1H,ECX=0H):ECX[18].
@@ -484,6 +490,12 @@
  */
 #define CPUID_ECX_HCFC          (1U<<0U)
 /**
+ * @brief 8 bits representing the Number of Intel Thread Director classes supported by the processor.
+ *
+ * These bits are fetched from CPUID(EAX=6H,ECX=0H):ECX[15:8].
+ */
+ #define CPUID_ECX_ITD_NOC      (0xFFU<<8U)
+/**
  * @brief A bit representing whether the processor supports FSGSBASE.
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=0H):EBX[0].
@@ -649,17 +661,17 @@
  */
 #define CPUID_EAX_AVX512_BF16   (1U<<5U)
 /**
+ * @brief A bit representing whether supports history reset via the HRESET instruction and the IA32_HRESET_ENABLE MSR.
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[22].
+ */
+ #define CPUID_EAX_HRESET      (1U<<22U)
+/**
  * @brief A bit representing whether hypervisor supports CET Supervisor Shadow Stack
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=1H):EDX[18].
  */
 #define CPUID_EDX_CET_SSS	(1U<<18U)
-
-/**
- * @brief A bit representing whether the processor supports Process-context identifiers.
- * This bit is fetched from CPUID(EAX=1H,ECX=0H):ECX[17].
- */
-#define CPUID_ECX_PCID          (1U<<17U)
 /**
  * @brief A bit representing whether the processor supports XCR0.BNDREGS[3].
  *
@@ -819,6 +831,10 @@
  * @brief A CPUID entry provide the V2 Extended Topology enumeration.
  */
 #define CPUID_V2_EXTEND_TOPOLOGY     0x1FU
+/**
+ * @brief A CPUID entry provide the Processor History Reset information.
+ */
+ #define CPUID_HRESET          0x20U
 /**
  * @brief A CPUID entry to get the highest value for extended processor information.
  */

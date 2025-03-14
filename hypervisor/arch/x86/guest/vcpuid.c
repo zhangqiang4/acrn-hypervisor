@@ -337,12 +337,13 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		for (i = 1U; i <= sub_leaves; i++) {
 			cpuid_subleaf(CPUID_EXTEND_FEATURE, i, &entry.eax, &entry.ebx, &entry.ecx, &entry.edx);
 			entry.subleaf = i;
-
-			/* Hypervisor doesn't support CET supervisor shadow stack, clear CPUID(7,1).EDX[18].*/
+			/* cpuid.07h.1h */
 			if (i == 1) {
+				/* Hypervisor doesn't support CET supervisor shadow stack, clear CPUID(7,1).EDX[18].*/
 				entry.edx &= ~CPUID_EDX_CET_SSS;
+				/* Hide HRESET as Thread Director is always hidden for the guest */
+				entry.eax &= ~CPUID_EAX_HRESET;
 			}
-
 			result = set_vcpuid_entry(vm, &entry);
 			if (result != 0) {
 				break;
@@ -358,7 +359,10 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 
 	/* Always hide package level HWP controls and HWP interrupt*/
 	*eax &= ~(CPUID_EAX_HWP_CTL | CPUID_EAX_HWP_PLR | CPUID_EAX_HWP_N | CPUID_EAX_HWP_HPC | CPUID_EAX_HWP_PECI);
+	/* Always hide Hardware Feedback Interface and Thread Director */
 	*eax &= ~(CPUID_EAX_HFI | CPUID_EAX_ITD);
+	/* Since Thread Director is hidden, hide the number of Thread Director classes */
+	*ecx &= ~CPUID_ECX_ITD_NOC;
 	/* Since HFI is hidden, hide the edx too */
 	*edx = 0U;
 	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP)) {
@@ -530,6 +534,8 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 			case CPUID_TRACE:
 			/* 0x1BU, PCONFIG */
 			case CPUID_PCONFIG:
+			/* 0x20U, HRESET */
+			case CPUID_HRESET:
 				break;
 			/* 0x1CU, LBR */
 			case CPUID_LAST_BRANCH_RECORD:
@@ -815,6 +821,8 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 			/* FALLTHROUGH */
 		/* 0x1BU for PCONFIG*/
 		case CPUID_PCONFIG:
+		/* 0x20U for HRESET */
+		case CPUID_HRESET:
 			*eax = 0U;
 			*ebx = 0U;
 			*ecx = 0U;
