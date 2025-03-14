@@ -137,54 +137,6 @@ int32_t hcall_get_api_version(struct acrn_vcpu *vcpu, __unused struct acrn_vm *t
 	return copy_to_gpa(vcpu->vm, &version, param1, sizeof(version));
 }
 
-/*
- * nearest_pow2(n) is the nearest power of 2 integer that is not less than n
- * The last (most significant) bit set of (n*2-1) matches the above definition
- */
-static uint32_t nearest_pow2(uint32_t n)
-{
-	uint32_t p = n;
-
-	if (n >= 2U) {
-		p = fls32(2U*n - 1U);
-	}
-
-	return p;
-}
-
-void get_cache_shift(uint32_t *l2_shift, uint32_t *l3_shift)
-{
-	uint32_t subleaf;
-
-	*l2_shift = 0U;
-	*l3_shift = 0U;
-
-	for (subleaf = 0U;; subleaf++) {
-		uint32_t eax, ebx, ecx, edx;
-		uint32_t cache_type, cache_level, id, shift;
-
-		cpuid_subleaf(0x4U, subleaf, &eax, &ebx, &ecx, &edx);
-
-		cache_type = eax & 0x1fU;
-		cache_level = (eax >> 5U) & 0x7U;
-		id = (eax >> 14U) & 0xfffU;
-		shift = nearest_pow2(id + 1U);
-
-		/* No more caches */
-		if ((cache_type == 0U) || (cache_type >= 4U)) {
-			break;
-		}
-
-		if (cache_level == 2U) {
-			*l2_shift = shift;
-		} else if (cache_level == 3U) {
-			*l3_shift = shift;
-		} else {
-			/* this api only for L2 & L3 cache */
-		}
-	}
-}
-
 /**
  * @brief create virtual machine
  *
