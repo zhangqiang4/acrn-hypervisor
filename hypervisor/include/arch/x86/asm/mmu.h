@@ -148,8 +148,6 @@ void init_paging(void);
  * set paging attribute for primary page tables
  */
 void set_paging_supervisor(uint64_t base, uint64_t size);
-void set_paging_x(uint64_t base, uint64_t size);
-void set_paging_nx(uint64_t base, uint64_t size);
 
 /**
  * @brief Specified signle VPID flush
@@ -175,14 +173,7 @@ static inline uint64_t get_pae_pdpt_addr(uint64_t cr3)
 	return (cr3 & 0xFFFFFFE0UL);
 }
 
-/*
- * flush TLB only for the specified page with the address
- */
-void flush_tlb(uint64_t addr);
-void flush_tlb_range(uint64_t addr, uint64_t size);
-
 void flush_invalidate_all_cache(void);
-void flush_cacheline(const volatile void *p);
 void flush_cache_range(const volatile void *p, uint64_t size);
 void allocate_ppt_pages(void);
 

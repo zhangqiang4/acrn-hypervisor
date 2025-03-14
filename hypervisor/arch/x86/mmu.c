@@ -204,26 +204,6 @@ void set_paging_supervisor(uint64_t base, uint64_t size)
 		round_pde_up(size_aligned), 0UL, PAGE_USER, &ppt_pgtable, MR_MODIFY);
 }
 
-void set_paging_nx(uint64_t base, uint64_t size)
-{
-	uint64_t region_end = base + size;
-	uint64_t base_aligned = round_pde_down(base);
-	uint64_t size_aligned = round_pde_up(region_end - base_aligned);
-
-	pgtable_modify_or_del_map((uint64_t *)ppt_mmu_pml4_addr,
-		base_aligned, size_aligned, PAGE_NX, 0UL, &ppt_pgtable, MR_MODIFY);
-}
-
-void set_paging_x(uint64_t base, uint64_t size)
-{
-	uint64_t region_end = base + size;
-	uint64_t base_aligned = round_pde_down(base);
-	uint64_t size_aligned = round_pde_up(region_end - base_aligned);
-
-	pgtable_modify_or_del_map((uint64_t *)ppt_mmu_pml4_addr,
-		base_aligned, size_aligned, 0UL, PAGE_NX, &ppt_pgtable, MR_MODIFY);
-}
-
 void allocate_ppt_pages(void)
 {
 	uint64_t page_base;
@@ -315,28 +295,9 @@ void init_paging(void)
 	enable_paging();
 }
 
-void flush_tlb(uint64_t addr)
-{
-	invlpg(addr);
-}
-
-void flush_tlb_range(uint64_t addr, uint64_t size)
-{
-	uint64_t linear_addr;
-
-	for (linear_addr = addr; linear_addr < (addr + size); linear_addr += PAGE_SIZE) {
-		invlpg(linear_addr);
-	}
-}
-
 void flush_invalidate_all_cache(void)
 {
 	wbinvd();
-}
-
-void flush_cacheline(const volatile void *p)
-{
-	clflush(p);
 }
 
 void flush_cache_range(const volatile void *p, uint64_t size)
