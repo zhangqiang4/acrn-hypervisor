@@ -1135,7 +1135,7 @@ static int gpio_physical_init(struct gpio_line_group *group, char *chip_name, ch
 	for (int i = 0; i < cnt; i++)
 		request.offsets[i] = offsets[i];
 	strncpy(request.consumer, "acrn-dm", GPIO_MAX_NAME_SIZE);
-	request.config.flags = GPIO_V2_LINE_FLAG_INPUT;		/* safe to put it to input */
+	//request.config.flags = GPIO_V2_LINE_FLAG_INPUT;		/* safe to put it to input */
 	request.num_lines = cnt;
 	if ((ioctl(chip->chip_fd, GPIO_V2_GET_LINE_IOCTL, &request)) < 0) {
 		pr_err("failed to request %s lines: %s\n", chip->name, strerror(errno));
