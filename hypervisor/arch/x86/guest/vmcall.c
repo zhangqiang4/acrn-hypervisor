@@ -15,7 +15,6 @@
 #include <trace.h>
 #include <logmsg.h>
 
-static spinlock_t vm_id_lock = { .head = 0U, .tail = 0U };
 struct hc_dispatch {
 	int32_t (*handler)(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
@@ -93,28 +92,13 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_get_hw_info},
 };
 
-uint16_t allocate_dynamical_vmid(struct acrn_vm_creation *cv)
-{
-	uint16_t vm_id;
-	struct acrn_vm_config *vm_config;
-
-	spinlock_obtain(&vm_id_lock);
-	vm_id = get_unused_vmid();
-	if (vm_id != ACRN_INVALID_VMID) {
-		vm_config = get_vm_config(vm_id);
-		memcpy_s(vm_config->name, MAX_VM_NAME_LEN, cv->name, MAX_VM_NAME_LEN);
-		vm_config->cpu_affinity = cv->cpu_affinity;
-	}
-	spinlock_release(&vm_id_lock);
-	return vm_id;
-}
-
 struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1, __unused uint64_t param2)
 {
 	struct acrn_vm *target_vm = NULL;
 	uint16_t vm_id = ACRN_INVALID_VMID;
 	struct acrn_vm_creation cv;
 	struct set_regions regions;
+	struct acrn_vm_config *vm_config;
 	uint16_t relative_vm_id;
 
 	switch (hcall_id) {
@@ -125,12 +109,15 @@ struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, u
 			 * So try to allocate one free slot to start one vm based on user-requirement
 			 */
 			if (vm_id == ACRN_INVALID_VMID) {
-				vm_id = allocate_dynamical_vmid(&cv);
+				vm_id = get_unused_vmid((char *)cv.name);
 				/* it doesn't find the available vm_slot for the given vm_name.
 				 * Maybe the CONFIG_MAX_VM_NUM is too small to start the VM.
 				 */
 				if (vm_id == ACRN_INVALID_VMID) {
 					pr_err("The VM name provided (%s) is invalid, cannot create VM", cv.name);
+				} else {
+					vm_config = get_vm_config(vm_id);
+					vm_config->cpu_affinity = cv.cpu_affinity;
 				}
 			}
 		}

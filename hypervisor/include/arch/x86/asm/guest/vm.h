@@ -436,7 +436,7 @@ bool is_lapic_pt_configured(const struct acrn_vm *vm);
 bool is_pmu_pt_configured(const struct acrn_vm *vm);
 bool is_rt_vm(const struct acrn_vm *vm);
 bool is_static_configured_vm(const struct acrn_vm *vm);
-uint16_t get_unused_vmid(void);
+uint16_t get_unused_vmid(const char *vm_name);
 bool is_pi_capable(const struct acrn_vm *vm);
 bool has_rt_vm(void);
 struct acrn_vm *get_highest_severity_vm(bool runtime);

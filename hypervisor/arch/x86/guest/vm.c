@@ -93,12 +93,21 @@ static struct page pid_pointer_tables[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 static struct acrn_vm *service_vm_ptr = NULL;
 
 /**
+ * @brief Spinlock for VM ID management.
+ *
+ * This spinlock is used to protect the VM ID allocation and deallocation process.
+ * It ensures that the operations on VM IDs are thread-safe and prevents race conditions.
+ */
+static spinlock_t vm_id_lock = { .head = 0U, .tail = 0U };
+
+/**
  * @brief Get first unused VM ID.
  *
  * This function returns the first unused VM ID. A VM is unused if it does not have a VM name, and
  * it does not set GUEST_FLAG_STATIC_VM bit of its guest flags in its vm_config.
+ * If an unused VM is found, the function assigns the provided VM name to it.
  *
- * @pre N/A
+ * @pre The vm_name must be a valid pointer to a string and saved in a char array of size MAX_VM_NAME_LEN.
  * @post N/A
  *
  * @return First unused VM ID. ACRN_INVALID_VMID if no such ID was found.
@@ -106,17 +115,21 @@ static struct acrn_vm *service_vm_ptr = NULL;
  * @retval vm_id if there is at least one unused VM
  * @retval ACRN_INVALID_VMID no unused VM left
  */
-uint16_t get_unused_vmid(void)
+ uint16_t get_unused_vmid(const char *vm_name)
 {
 	uint16_t vm_id;
 	struct acrn_vm_config *vm_config;
 
+	spinlock_obtain(&vm_id_lock);
 	for (vm_id = 0; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
 		vm_config = get_vm_config(vm_id);
 		if ((vm_config->name[0] == '\0') && ((vm_config->guest_flags & GUEST_FLAG_STATIC_VM) == 0U)) {
+			memcpy_s(vm_config->name, MAX_VM_NAME_LEN, vm_name, MAX_VM_NAME_LEN);
 			break;
 		}
 	}
+	spinlock_release(&vm_id_lock);
+
 	return (vm_id < CONFIG_MAX_VM_NUM) ? (vm_id) : (ACRN_INVALID_VMID);
 }
 
