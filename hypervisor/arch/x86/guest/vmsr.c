@@ -1220,9 +1220,8 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_HWP_REQUEST:
 	{
-		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP) &&
-			((v & (MSR_IA32_HWP_REQUEST_RSV_BITS | MSR_IA32_HWP_REQUEST_PKG_CTL)) == 0)) {
-			msr_write(msr, v);
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
+			err = msr_write_safe(msr, v, (MSR_IA32_HWP_REQUEST_RSV_BITS | MSR_IA32_HWP_REQUEST_PKG_CTL));
 		} else {
 			err = -EACCES;
 		}
@@ -1230,9 +1229,8 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_HWP_STATUS:
 	{
-		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP) &&
-		    ((v & MSR_IA32_HWP_STATUS_RSV_BITS) == 0)) {
-			msr_write(msr, v);
+		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
+			err = msr_write_safe(msr, v, MSR_IA32_HWP_STATUS_RSV_BITS);
 		} else {
 			err = -EACCES;
 		}
