@@ -426,50 +426,6 @@ int32_t hcall_asyncio_assign(__unused struct acrn_vcpu *vcpu, struct acrn_vm *ta
  */
 int32_t hcall_asyncio_deassign(__unused struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 		 __unused uint64_t param1, uint64_t param2);
-
-/**
- * @brief Setup the hypervisor NPK log.
- *
- * @param vcpu Pointer to vCPU that initiates the hypercall
- * @param target_vm not used
- * @param param1 guest physical address. This gpa points to
- *              struct hv_npk_log_param
- * @param param2 not used
- *
- * @pre is_service_vm(vcpu->vm)
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_setup_hv_npk_log(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-/**
- * @brief Get hardware related info
- *
- * @param vcpu Pointer to vCPU that initiates the hypercall
- * @param target_vm not used
- * @param param1 Guest physical address pointing to struct acrn_hw_info
- * @param param2 not used
- *
- * @pre vm shall point to Service VM
- * @pre param1 shall be a valid physical address
- *
- * @retval 0 on success
- * @retval -1 in case of error
- */
-int32_t hcall_get_hw_info(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-/**
- * @brief Execute profiling operation
- *
- * @param vcpu Pointer to vCPU that initiates the hypercall
- * @param target_vm not used
- * @param param1 profiling command to be executed
- * @param param2 guest physical address. This gpa points to
- *             data structure required by each command
- *
- * @pre is_service_vm(vcpu->vm)
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_profiling_ops(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 /**
  * @}
  */
