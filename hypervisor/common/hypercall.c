@@ -650,6 +650,7 @@ int32_t hcall_set_vm_memory_regions(struct acrn_vcpu *vcpu, struct acrn_vm *targ
 			idx = 0U;
 			while (idx < regions.mr_num) {
 				if (copy_from_gpa(vm, &mr, regions.regions_gpa + idx * sizeof(mr), sizeof(mr)) != 0) {
+					ret = -1;
 					pr_err("%s: Copy mr entry fail from vm\n", __func__);
 					break;
 				}
