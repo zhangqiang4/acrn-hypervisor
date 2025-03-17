@@ -337,6 +337,15 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 			if ((((uint16_t)(val & 0xFFU)) <= total) && (!is_vf_enabled(vdev))) {
 				pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 			}
+		} else if (reg >= PCIR_SRIOV_FST_VF_OFF) {
+			/*
+			 * Ignore write to below registers:
+			 * 1. VF BARs: We are afraid of the VF's BAR address conflicting with Pre-launched VM HPA
+			 *    so we decide not to support the VF's BAR register update;
+			 * 2. System Page Size: When System Page Size is set, the VF associated with this PF is
+			 *    required to align all BAR resources on a System Page Size boundary. We don't care it
+			 *    so far;
+			 */
 		} else {
 			pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 		}
