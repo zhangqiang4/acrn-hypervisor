@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -16,10 +16,38 @@
 #include <trace.h>
 #include <logmsg.h>
 
+/**
+ * @addtogroup vp-base_hypercall
+ *
+ * @{
+ */
+
+/**
+ * @file
+ *
+ * @brief This file provides the VMCALL VM exit handler and dispatches hypercalls according to the hypercall ID.
+ *
+ * This file is responsible for managing hypercalls. It handles VM exits caused by the VMCALL instruction and
+ * dispatches hypercalls to the appropriate handlers.
+ */
+
+/**
+ * @brief Hypercall dispatch structure.
+ *
+ * This structure defines a hypercall dispatch entry, including the handler function and permission flags.
+ */
 struct hc_dispatch {
+	/**
+	 * @brief Hypercall handler function.
+	 *
+	 * This function pointer points to the handler function for the hypercall.
+	 */
 	int32_t (*handler)(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
-	/* The permission_flags is a bitmap of guest flags indicating whether a VM can invoke this hypercall:
+	/**
+	 * @brief Permission flags for the hypercall.
+	 *
+	 * The permission_flags is a bitmap of guest flags indicating whether a VM can invoke this hypercall:
 	 *
 	 * - If permission_flags == 0UL (which is the default value), this hypercall can only be invoked by the
 	 *   Service VM.
@@ -29,71 +57,114 @@ struct hc_dispatch {
 	uint64_t permission_flags;
 };
 
-/* VM Dispatch table for Exit condition handling */
+/**
+ * @brief Hypercall dispatch table.
+ *
+ * This table maps hypercall IDs to their corresponding handler functions.
+ * Each entry in the table contains a handler function that will be called
+ * when the corresponding hypercall is invoked.
+ */
 static const struct hc_dispatch hc_dispatch_table[] = {
 	[HC_IDX(HC_SERVICE_VM_OFFLINE_CPU)] = {
-		.handler = hcall_service_vm_offline_cpu},
+		.handler = hcall_service_vm_offline_cpu},	/**< Handler for HC_SERVICE_VM_OFFLINE_CPU hypercall */
 	[HC_IDX(HC_SET_CALLBACK_VECTOR)] = {
-		.handler = hcall_set_callback_vector},
+		.handler = hcall_set_callback_vector},		/**< Handler for HC_SET_CALLBACK_VECTOR hypercall */
 	[HC_IDX(HC_CREATE_VM)] = {
-		.handler = hcall_create_vm},
+		.handler = hcall_create_vm},			/**< Handler for HC_CREATE_VM hypercall */
 	[HC_IDX(HC_DESTROY_VM)] = {
-		.handler = hcall_destroy_vm},
+		.handler = hcall_destroy_vm},			/**< Handler for HC_DESTROY_VM hypercall */
 	[HC_IDX(HC_START_VM)] = {
-		.handler = hcall_start_vm},
+		.handler = hcall_start_vm},			/**< Handler for HC_START_VM hypercall */
 	[HC_IDX(HC_RESET_VM)] = {
-		.handler = hcall_reset_vm},
+		.handler = hcall_reset_vm},			/**< Handler for HC_RESET_VM hypercall */
 	[HC_IDX(HC_PAUSE_VM)] = {
-		.handler = hcall_pause_vm},
+		.handler = hcall_pause_vm},			/**< Handler for HC_PAUSE_VM hypercall */
 	[HC_IDX(HC_SET_VCPU_REGS)] = {
-		.handler = hcall_set_vcpu_regs},
+		.handler = hcall_set_vcpu_regs},		/**< Handler for HC_SET_VCPU_REGS hypercall */
 	[HC_IDX(HC_SET_IRQLINE)] = {
-		.handler = hcall_set_irqline},
+		.handler = hcall_set_irqline},			/**< Handler for HC_SET_IRQLINE hypercall */
 	[HC_IDX(HC_INJECT_MSI)] = {
-		.handler = hcall_inject_msi},
+		.handler = hcall_inject_msi},			/**< Handler for HC_INJECT_MSI hypercall */
 	[HC_IDX(HC_SET_IOREQ_BUFFER)] = {
-		.handler = hcall_set_ioreq_buffer},
+		.handler = hcall_set_ioreq_buffer},		/**< Handler for HC_SET_IOREQ_BUFFER hypercall */
 	[HC_IDX(HC_ASYNCIO_ASSIGN)] = {
-		.handler = hcall_asyncio_assign},
+		.handler = hcall_asyncio_assign},		/**< Handler for HC_ASYNCIO_ASSIGN hypercall */
 	[HC_IDX(HC_ASYNCIO_DEASSIGN)] = {
-		.handler = hcall_asyncio_deassign},
+		.handler = hcall_asyncio_deassign},		/**< Handler for HC_ASYNCIO_DEASSIGN hypercall */
 	[HC_IDX(HC_NOTIFY_REQUEST_FINISH)] = {
-		.handler = hcall_notify_ioreq_finish},
+		.handler = hcall_notify_ioreq_finish},		/**< Handler for HC_NOTIFY_REQUEST_FINISH hypercall */
 	[HC_IDX(HC_VM_SET_MEMORY_REGIONS)] = {
-		.handler = hcall_set_vm_memory_regions},
+		.handler = hcall_set_vm_memory_regions},	/**< Handler for HC_VM_SET_MEMORY_REGIONS hypercall */
 	[HC_IDX(HC_VM_WRITE_PROTECT_PAGE)] = {
-		.handler = hcall_write_protect_page},
+		.handler = hcall_write_protect_page},		/**< Handler for HC_VM_WRITE_PROTECT_PAGE hypercall */
 	[HC_IDX(HC_ASSIGN_PCIDEV)] = {
-		.handler = hcall_assign_pcidev},
+		.handler = hcall_assign_pcidev},		/**< Handler for HC_ASSIGN_PCIDEV hypercall */
 	[HC_IDX(HC_DEASSIGN_PCIDEV)] = {
-		.handler = hcall_deassign_pcidev},
+		.handler = hcall_deassign_pcidev},		/**< Handler for HC_DEASSIGN_PCIDEV hypercall */
 	[HC_IDX(HC_ASSIGN_MMIODEV)] = {
-		.handler = hcall_assign_mmiodev},
+		.handler = hcall_assign_mmiodev},		/**< Handler for HC_ASSIGN_MMIODEV hypercall */
 	[HC_IDX(HC_DEASSIGN_MMIODEV)] = {
-		.handler = hcall_deassign_mmiodev},
+		.handler = hcall_deassign_mmiodev},		/**< Handler for HC_DEASSIGN_MMIODEV hypercall */
 	[HC_IDX(HC_ADD_VDEV)] = {
-		.handler = hcall_add_vdev},
+		.handler = hcall_add_vdev},			/**< Handler for HC_ADD_VDEV hypercall */
 	[HC_IDX(HC_REMOVE_VDEV)] = {
-		.handler = hcall_remove_vdev},
+		.handler = hcall_remove_vdev},			/**< Handler for HC_REMOVE_VDEV hypercall */
 	[HC_IDX(HC_SET_PTDEV_INTR_INFO)] = {
-		.handler = hcall_set_ptdev_intr_info},
+		.handler = hcall_set_ptdev_intr_info},		/**< Handler for HC_SET_PTDEV_INTR_INFO hypercall */
 	[HC_IDX(HC_RESET_PTDEV_INTR_INFO)] = {
-		.handler = hcall_reset_ptdev_intr_info},
+		.handler = hcall_reset_ptdev_intr_info},	/**< Handler for HC_RESET_PTDEV_INTR_INFO hypercall */
 	[HC_IDX(HC_PM_GET_CPU_STATE)] = {
-		.handler = hcall_get_cpu_pm_state},
+		.handler = hcall_get_cpu_pm_state},		/**< Handler for HC_PM_GET_CPU_STATE hypercall */
 	[HC_IDX(HC_VM_INTR_MONITOR)] = {
-		.handler = hcall_vm_intr_monitor},
+		.handler = hcall_vm_intr_monitor},		/**< Handler for HC_VM_INTR_MONITOR hypercall */
 	[HC_IDX(HC_SETUP_SBUF)] = {
-		.handler = hcall_setup_sbuf},
+		.handler = hcall_setup_sbuf},			/**< Handler for HC_SETUP_SBUF hypercall */
 	[HC_IDX(HC_SETUP_HV_NPK_LOG)] = {
-		.handler = hcall_setup_hv_npk_log},
+		.handler = hcall_setup_hv_npk_log},		/**< Handler for HC_SETUP_HV_NPK_LOG hypercall */
 	[HC_IDX(HC_PROFILING_OPS)] = {
-		.handler = hcall_profiling_ops},
+		.handler = hcall_profiling_ops},		/**< Handler for HC_PROFILING_OPS hypercall */
 	[HC_IDX(HC_GET_HW_INFO)] = {
-		.handler = hcall_get_hw_info},
+		.handler = hcall_get_hw_info},			/**< Handler for HC_GET_HW_INFO hypercall */
 };
 
-struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1, __unused uint64_t param2)
+/**
+ * @brief Parse the target VM for a given hypercall.
+ *
+ * This function parses the target VM for a given hypercall. It determines the target VM
+ * based on the hypercall ID and parameters. For certain hypercalls, it may create a new VM
+ * or retrieve an existing VM based on the provided parameters.
+ *
+ * How the VM ID is determined:
+ * 1. For `HC_CREATE_VM`: The vm_id is determined by checking if the VM name exists in the predefined
+ *    VM list using `get_vmid_by_name`. If not found, a new vm_id is allocated dynamically using
+ *    `get_unused_vmid`.
+ * 2. For hypercalls like `HC_SERVICE_VM_OFFLINE_CPU`, `HC_SET_CALLBACK_VECTOR`,
+ *    `HC_SETUP_HV_NPK_LOG`, `HC_PROFILING_OPS`, and `HC_GET_HW_INFO`: The target VM is
+ *    the Service VM itself, and no vm_id conversion is needed.
+ * 3. For `HC_PM_GET_CPU_STATE`:  The vm_id is extracted from `param1` as a relative
+ *    vm_id and converted to an absolute vm_id using `rel_vmid_2_vmid`.
+ * 4. For `HC_VM_SET_MEMORY_REGIONS`: The vm_id is extracted from the `set_regions` structure as a
+ *    relative vm_id and converted to an absolute vm_id using `rel_vmid_2_vmid`.
+ * 5. For other hypercalls: The vm_id is directly converted from a relative vm_id provided in
+ *    `param1` using `rel_vmid_2_vmid`.
+ *
+ * Note: If `target_vm` is `NULL` and the resulting `vm_id` is greater than or equal to `CONFIG_MAX_VM_NUM`,
+ * a NULL pointer is returned, indicating that the target VM cannot be determined.
+ *
+ * @param[inout] service_vm Pointer to the acrn_vm structure representing the service VM.
+ * @param[in] hcall_id The hypercall ID.
+ * @param[in] param1 The first parameter of the hypercall.
+ * @param[in] param2 The second parameter of the hypercall (unused).
+ *
+ * @return Pointer to the target acrn_vm structure.
+ *
+ * @retval non-NULL If get the target VM successfully.
+ * @retval NULL If cannot get the target VM.
+ *
+ * @pre is_service_vm(service_vm) == true
+ */
+struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1,
+	__unused uint64_t param2)
 {
 	struct acrn_vm *target_vm = NULL;
 	uint16_t vm_id = ACRN_INVALID_VMID;
@@ -157,6 +228,37 @@ struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, u
 	return target_vm;
 }
 
+/**
+ * @brief Dispatch a hypercall to the appropriate handler.
+ *
+ * This function dispatches a hypercall to the appropriate handler based on the
+ * hypercall ID. It performs permission checks to ensure that the hypercall is
+ * allowed for the calling VM. If the hypercall is allowed, it invokes the handler
+ * with the appropriate parameters. The function returns a status code
+ * indicating the result of the hypercall dispatch.
+ *
+ * Key points regarding hypercall handling:
+ * 1. The hypercall ID is retrieved from the R8 register of the vCPU.
+ * 2. The function checks if the hypercall ID is within the bounds of the dispatch table.
+ * 3. If a handler exists for the hypercall, the function retrieves the first and second parameters
+ *    from the RDI and RSI registers, respectively.
+ * 4. If the permission flags are zero and the VM is a Service VM, the hypercall is intended for
+ *    managing post-launched VMs. The function attempts to find the target VM using `parse_target_vm`.
+ * 5. If the target VM is found and is not a pre-launched VM, the hypercall handler is invoked with
+ *    the target VM.
+ * 6. If the permission flags are non-zero, the function checks if the guest flags allow the hypercall.
+ *    If allowed, the handler is invoked with the current VM.
+ * 7. If the vCPU is not allowed to invoke the hypercall, the function returns -ENOTTY.
+ *
+ * @param[inout] vcpu Pointer to the acrn_vcpu structure representing the calling VCPU.
+ *
+ * @return An int32_t value indicating whether this hypercall is successful.
+ *
+ * @retval 0 On successful execution of the hypercall.
+ * @retval <0 On failure, with -ENOTTY if the hypercall is not supported or the vCPU lacks permission.
+ *
+ * @pre vcpu != NULL
+ */
 static int32_t dispatch_hypercall(struct acrn_vcpu *vcpu)
 {
 	int32_t ret = -ENOTTY;
@@ -177,8 +279,8 @@ static int32_t dispatch_hypercall(struct acrn_vcpu *vcpu)
 				 * post-launched VMs.
 				 *
 				 * Though REE VM has its load order to be Service_VM, it does not offer services as
-				 * Service VM does. The only hypercalls allowed for REE are the ones with permission flag
-				 * GUEST_FLAG_REE.
+				 * Service VM does. The only hypercalls allowed for REE are the ones with permission
+				 * flag GUEST_FLAG_REE.
 				 */
 				struct acrn_vm *target_vm = parse_target_vm(vm, hcall_id, param1, param2);
 
@@ -201,10 +303,31 @@ static int32_t dispatch_hypercall(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-/*
- * Pass return value to Service VM by register rax.
- * This function should always return 0 since we shouldn't
- * deal with hypercall error in hypervisor.
+/**
+ * @brief Handle VM exit caused by VMCALL instruction.
+ *
+ * This function handles the VM exit caused by the VMCALL instruction. It performs
+ * various permission checks to ensure that only allowed VMs can invoke hypercalls
+ * and that they are invoked from the correct privilege level. Depending on the
+ * result of these checks, it either dispatches the hypercall or injects an exception.
+ * The function sets the hypercall result in the RAX register.
+ * This function always return 0, since we don't deal with hypercall error in hypervisor.
+ *
+ * Permission checks applied to hypercalls:
+ * 1. ACRN hypervisor only supports hypercalls sent from Service VMs. If a hypercall is not
+ *    sent from a Service VM, the ACRN hypervisor injects a \#UD.
+ * 2. ACRN hypervisor only supports hypercalls under 64-bit mode. For non-64-bit modes, the
+ *    ACRN hypervisor injects a \#UD.
+ * 3. When a vCPU of a Service VM attempts to execute a hypercall, the ACRN hypervisor shall
+ *    check if the vCPU is in ring 0. Otherwise, the ACRN hypervisor injects a \#GP(0) to the vCPU.
+ *
+ * @param[inout] vcpu Pointer to the acrn_vcpu structure representing the calling VCPU.
+ *
+ * @return An int32_t value indicating whether this vmexit was successfully handled, always returning 0.
+ *
+ * @retval 0 Always return 0.
+ *
+ * @pre vcpu != NULL
  */
 int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu)
 {
@@ -241,3 +364,7 @@ int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu)
 
 	return 0;
 }
+
+/**
+ * @}
+ */
