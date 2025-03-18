@@ -639,7 +639,7 @@ vlapic_write_lvt(struct acrn_vlapic *vlapic, uint32_t offset)
 	if ((lapic->svr.v & APIC_SVR_ENABLE) == 0U) {
 		val |= APIC_LVT_M;
 	}
-	mask = APIC_LVT_M | APIC_LVT_DS | APIC_LVT_VECTOR;
+	mask = APIC_LVT_M | APIC_LVT_VECTOR;
 	switch (offset) {
 	case APIC_OFFSET_TIMER_LVT:
 		mask |= APIC_LVTT_TM;
