@@ -237,14 +237,15 @@ int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu)
 	 *
 	 * 1. Only Service VM and VMs with specific guest flags (referred to as 'allowed VMs' hereinafter) can invoke
 	 *    hypercalls by executing the `vmcall` instruction. Attempts to execute the `vmcall` instruction in the
-	 *    other VMs will trigger #UD.
+	 *    other VMs will return -EACCES. No exception is triggered in this case.
+	 * 2. Hypercall can only be executed under 64bit mode. Otherwise, return -EACCES.
 	 * 2. Attempts to execute the `vmcall` instruction from ring 1, 2 or 3 in an allowed VM will trigger #GP(0).
 	 * 3. An allowed VM is permitted to only invoke some of the supported hypercalls depending on its load order and
 	 *    guest flags. Attempts to invoke an unpermitted hypercall will make a vCPU see -EINVAL as the return
 	 *    value. No exception is triggered in this case.
 	 */
 	if (!is_service_vm(vm) || (get_vcpu_mode(vcpu) != CPU_MODE_64BIT)) {
-		vcpu_inject_ud(vcpu);
+		vcpu_set_gpreg(vcpu, CPU_REG_RAX, (uint64_t)ret);
 	} else if (!is_hypercall_from_ring0()) {
 		vcpu_inject_gp(vcpu, 0U);
 	} else {
