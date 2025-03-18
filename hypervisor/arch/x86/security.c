@@ -338,6 +338,7 @@ bool check_cpu_security_cap(void)
 	return ret;
 }
 
+#ifdef CONFIG_L1D_FLUSH_VMENTRY_ENABLED
  /**
   * @brief Flush L1 data cache if it is required on VM entry.
   *
@@ -372,6 +373,7 @@ void cpu_l1d_flush(void)
 
 }
 
+#endif
 
 /**
  * @brief Overwrite CPU internal buffers with VERW instruction

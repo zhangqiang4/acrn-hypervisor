@@ -36,7 +36,11 @@
 
 #ifndef ASSEMBLER
 int32_t get_ibrs_type(void);
+
+#ifdef CONFIG_L1D_FLUSH_VMENTRY_ENABLED
 void cpu_l1d_flush(void);
+#endif
+
 bool check_cpu_security_cap(void);
 void cpu_internal_buffers_clear(void);
 uint64_t get_random_value(void);
