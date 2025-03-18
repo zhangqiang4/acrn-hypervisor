@@ -55,45 +55,43 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	char *buffer;
 	struct thread_object *current;
 
-	if (!mem_need_log(severity) && !console_need_log(severity) && !npk_need_log(severity)) {
-		return;
-	}
+	if (mem_need_log(severity) || console_need_log(severity) || npk_need_log(severity)) {
+		/* Get time-stamp value */
+		timestamp = cpu_ticks();
 
-	/* Get time-stamp value */
-	timestamp = cpu_ticks();
+		/* Scale time-stamp appropriately */
+		timestamp = ticks_to_us(timestamp);
 
-	/* Scale time-stamp appropriately */
-	timestamp = ticks_to_us(timestamp);
+		/* Get CPU ID */
+		pcpu_id = get_pcpu_id();
+		buffer = per_cpu(logbuf, pcpu_id);
+		current = sched_get_current(pcpu_id);
 
-	/* Get CPU ID */
-	pcpu_id = get_pcpu_id();
-	buffer = per_cpu(logbuf, pcpu_id);
-	current = sched_get_current(pcpu_id);
+		(void)memset(buffer, 0U, LOG_MESSAGE_MAX_SIZE);
+		/* Put time-stamp, CPU ID and severity into buffer */
+		snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
+				timestamp, pcpu_id, current->name, severity, atomic_inc_return(&log_seq));
 
-	(void)memset(buffer, 0U, LOG_MESSAGE_MAX_SIZE);
-	/* Put time-stamp, CPU ID and severity into buffer */
-	snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
-			timestamp, pcpu_id, current->name, severity, atomic_inc_return(&log_seq));
+		/* Put message into remaining portion of local buffer */
+		va_start(args, fmt);
+		vsnprintf(buffer + strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE),
+			LOG_MESSAGE_MAX_SIZE
+			- strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE), fmt, args);
+		va_end(args);
 
-	/* Put message into remaining portion of local buffer */
-	va_start(args, fmt);
-	vsnprintf(buffer + strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE),
-		LOG_MESSAGE_MAX_SIZE
-		- strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE), fmt, args);
-	va_end(args);
+		/* Check whether output to memory */
+		if (mem_need_log(severity)) {
+			mem_log(pcpu_id, buffer);
+		}
 
-	/* Check whether output to memory */
-	if (mem_need_log(severity)) {
-		mem_log(pcpu_id, buffer);
-	}
+		/* Check whether output to stdout */
+		if (console_need_log(severity)) {
+			console_log(buffer);
+		}
 
-	/* Check whether output to stdout */
-	if (console_need_log(severity)) {
-		console_log(buffer);
-	}
-
-	/* Check whether output to NPK */
-	if (npk_need_log(severity)) {
-		npk_log(buffer);
+		/* Check whether output to NPK */
+		if (npk_need_log(severity)) {
+			npk_log(buffer);
+		}
 	}
 }

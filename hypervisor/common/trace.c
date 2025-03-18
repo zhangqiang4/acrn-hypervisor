@@ -57,13 +57,11 @@ void TRACE_2L(uint32_t evid, uint64_t e, uint64_t f)
 	struct trace_entry entry;
 	uint16_t cpu_id = get_pcpu_id();
 
-	if (!trace_check(cpu_id)) {
-		return;
+	if (trace_check(cpu_id)) {
+		entry.payload.fields_64.e = e;
+		entry.payload.fields_64.f = f;
+		trace_put(cpu_id, evid, 2U, &entry);
 	}
-
-	entry.payload.fields_64.e = e;
-	entry.payload.fields_64.f = f;
-	trace_put(cpu_id, evid, 2U, &entry);
 }
 
 void TRACE_4I(uint32_t evid, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
@@ -71,15 +69,13 @@ void TRACE_4I(uint32_t evid, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 	struct trace_entry entry;
 	uint16_t cpu_id = get_pcpu_id();
 
-	if (!trace_check(cpu_id)) {
-		return;
+	if (trace_check(cpu_id)) {
+		entry.payload.fields_32.a = a;
+		entry.payload.fields_32.b = b;
+		entry.payload.fields_32.c = c;
+		entry.payload.fields_32.d = d;
+		trace_put(cpu_id, evid, 4U, &entry);
 	}
-
-	entry.payload.fields_32.a = a;
-	entry.payload.fields_32.b = b;
-	entry.payload.fields_32.c = c;
-	entry.payload.fields_32.d = d;
-	trace_put(cpu_id, evid, 4U, &entry);
 }
 
 void TRACE_16STR(uint32_t evid, const char name[])
@@ -88,21 +84,19 @@ void TRACE_16STR(uint32_t evid, const char name[])
 	uint16_t cpu_id = get_pcpu_id();
 	size_t len, i;
 
-	if (!trace_check(cpu_id)) {
-		return;
+	if (trace_check(cpu_id)) {
+		entry.payload.fields_64.e = 0UL;
+		entry.payload.fields_64.f = 0UL;
+
+		len = strnlen_s(name, 20U);
+		len = (len > 16U) ? 16U : len;
+		for (i = 0U; i < len; i++) {
+			entry.payload.str[i] = name[i];
+		}
+
+		entry.payload.str[15] = 0;
+		trace_put(cpu_id, evid, 16U, &entry);
 	}
-
-	entry.payload.fields_64.e = 0UL;
-	entry.payload.fields_64.f = 0UL;
-
-	len = strnlen_s(name, 20U);
-	len = (len > 16U) ? 16U : len;
-	for (i = 0U; i < len; i++) {
-		entry.payload.str[i] = name[i];
-	}
-
-	entry.payload.str[15] = 0;
-	trace_put(cpu_id, evid, 16U, &entry);
 }
 
 #else
