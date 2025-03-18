@@ -31,8 +31,6 @@ struct hc_dispatch {
 
 /* VM Dispatch table for Exit condition handling */
 static const struct hc_dispatch hc_dispatch_table[] = {
-	[HC_IDX(HC_GET_API_VERSION)] = {
-		.handler = hcall_get_api_version},
 	[HC_IDX(HC_SERVICE_VM_OFFLINE_CPU)] = {
 		.handler = hcall_service_vm_offline_cpu},
 	[HC_IDX(HC_SET_CALLBACK_VECTOR)] = {
@@ -49,8 +47,6 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_pause_vm},
 	[HC_IDX(HC_SET_VCPU_REGS)] = {
 		.handler = hcall_set_vcpu_regs},
-	[HC_IDX(HC_CREATE_VCPU)] = {
-		.handler = hcall_create_vcpu},
 	[HC_IDX(HC_SET_IRQLINE)] = {
 		.handler = hcall_set_irqline},
 	[HC_IDX(HC_INJECT_MSI)] = {
@@ -67,8 +63,6 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_set_vm_memory_regions},
 	[HC_IDX(HC_VM_WRITE_PROTECT_PAGE)] = {
 		.handler = hcall_write_protect_page},
-	[HC_IDX(HC_VM_GPA2HPA)] = {
-		.handler = hcall_gpa_to_hpa},
 	[HC_IDX(HC_ASSIGN_PCIDEV)] = {
 		.handler = hcall_assign_pcidev},
 	[HC_IDX(HC_DEASSIGN_PCIDEV)] = {
@@ -152,7 +146,6 @@ struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, u
 			vm_id = rel_vmid_2_vmid(service_vm->vm_id, regions.vmid);
 		}
 		break;
-	case HC_GET_API_VERSION:
 	case HC_SERVICE_VM_OFFLINE_CPU:
 	case HC_SET_CALLBACK_VECTOR:
 	case HC_SETUP_HV_NPK_LOG:

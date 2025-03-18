@@ -38,23 +38,6 @@ bool is_hypercall_from_ring0(void);
 int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
 /**
- * @brief Get hypervisor api version
- *
- * The function only return api version information when VM is Service VM.
- *
- * @param vcpu Pointer to vCPU that initiates the hypercall
- * @param target_vm not used
- * @param param1 guest physical memory address. The api version returned
- *              will be copied to this gpa
- * @param param2 not used
- *
- * @pre is_service_vm(vcpu->vm)
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_get_api_version(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-
-/**
  * @brief create virtual machine
  *
  * Create a virtual machine based on parameter, currently there is no
@@ -245,22 +228,6 @@ int32_t hcall_set_vm_memory_regions(struct acrn_vcpu *vcpu, struct acrn_vm *targ
  * @return 0 on success, non-zero on error.
  */
 int32_t hcall_write_protect_page(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-/**
- * @brief translate guest physical address to host physical address
- *
- * Translate guest physical address to host physical address for a VM.
- * The function will return -1 if the target VM does not exist.
- *
- * @param vcpu Pointer to vCPU that initiates the hypercall
- * @param target_vm Pointer to target VM data structure
- * @param param1 not used
- * @param param2 guest physical address. This gpa points to struct vm_gpa2hpa
- *
- * @pre is_service_vm(vcpu->vm)
- * @return 0 on success, non-zero on error.
- */
-int32_t hcall_gpa_to_hpa(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
 /**
  * @brief Assign one PCI dev to VM.
@@ -503,8 +470,6 @@ int32_t hcall_get_hw_info(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uin
  * @return 0 on success, non-zero on error.
  */
 int32_t hcall_profiling_ops(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
-
-int32_t hcall_create_vcpu(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 /**
  * @}
  */

@@ -356,18 +356,6 @@ struct acrn_hw_info {
 	uint16_t reserved[3];  /**< Reserved */
 } __aligned(8);
 
-/**
- * @brief GPA to HPA.
- *
- * GPA to HPA translation parameter, used for HC_VM_GPA2HPA hypercall
- *
- * @alignment 8
- */
-struct vm_gpa2hpa {
-	uint64_t gpa; /**< GPA to do translation */
-	uint64_t hpa; /**< HPA to return after translation */
-} __aligned(8);
-
 #define IRQ_INTX 0U  /**< Type for INT-x interrupt */
 #define IRQ_MSI 1U   /**< Type for MSI interrupt */
 #define IRQ_MSIX 2U  /**< Type for MSI-X interrupt */
@@ -400,18 +388,6 @@ struct hc_ptdev_irq {
 		uint8_t reserved[3];  /**< Reserved */
 	} intx;
 
-} __aligned(8);
-
-/**
- * @brief Hypervisor API version.
- *
- * Hypervisor API version info, return it for HC_GET_API_VERSION hypercall.
- *
- * @alignment 8
- */
-struct hc_api_version {
-	uint32_t major_version;  /**< Hypervisor API major version */
-	uint32_t minor_version;  /**< Hypervisor API minor version */
 } __aligned(8);
 
 #define ACRN_PLATFORM_LAPIC_IDS_MAX	64U  /**< Maximum number of LAPIC IDs */
