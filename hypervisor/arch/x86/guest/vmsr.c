@@ -453,11 +453,11 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 			 * registers to inject gp on reads. EOI and Self-IPI
 			 * Writes are disabled for EOI, TPR and Self-IPI as
 			 * writes to them are virtualized with Register Virtualization
-			 * Refer to Section 29.1 in Intel SDM Vol. 3
+			 * Refer to Section 30.5 in Vol.3, Intel SDM-325384-085US.
 			 */
 			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_CUR_COUNT, INTERCEPT_READ);
-			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_EOI, INTERCEPT_DISABLE);
-			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_SELF_IPI, INTERCEPT_DISABLE);
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_EOI, INTERCEPT_READ);
+			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_SELF_IPI, INTERCEPT_READ);
 		} else {
 			/*
 			 * For platforms that do not support register virtualization

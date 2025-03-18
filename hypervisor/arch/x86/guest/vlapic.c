@@ -180,16 +180,6 @@ static inline uint32_t vlapic_find_isrv(const struct acrn_vlapic *vlapic)
 	return isrv;
 }
 
-static void
-vlapic_write_ldr(struct acrn_vlapic *vlapic)
-{
-	struct lapic_regs *lapic;
-
-	lapic = &(vlapic->apic_page);
-	lapic->ldr.v &= ~APIC_LDR_RESERVED;
-	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic LDR set to %x", lapic->ldr.v);
-}
-
 static inline uint32_t
 vlapic_timer_divisor_shift(uint32_t dcr)
 {
@@ -1353,10 +1343,6 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 			break;
 		case APIC_OFFSET_EOI:
 			vlapic_process_eoi(vlapic);
-			break;
-		case APIC_OFFSET_LDR:
-			lapic->ldr.v = data32;
-			vlapic_write_ldr(vlapic);
 			break;
 		case APIC_OFFSET_SVR:
 			lapic->svr.v = data32;
