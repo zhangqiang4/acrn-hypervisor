@@ -53,7 +53,7 @@ static uint8_t sanitized_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 #define PPT_PT_PAGE_NUM	0UL	/* not support 4K granularity page mapping */
 
 /* Please refer to how the ept page num  was calculated */
-uint64_t get_ppt_page_num(void)
+static uint64_t get_ppt_page_num(void)
 {
        uint64_t ppt_pd_page_num = PD_PAGE_NUM(MEM_TOP_ADDRESS) + CONFIG_MAX_PCI_DEV_NUM * 6U;
 

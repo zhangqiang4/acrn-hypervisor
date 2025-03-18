@@ -382,7 +382,7 @@ static struct pci_vdev *find_available_vdev(struct acrn_vpci *vpci, union pci_bd
 	return vdev;
 }
 
-void init_vats(struct pci_vdev *vdev)
+static void init_vats(struct pci_vdev *vdev)
 {
 	struct pci_pdev *pdev = vdev->pdev;
 
@@ -390,7 +390,7 @@ void init_vats(struct pci_vdev *vdev)
 	vdev->ats.caplen = pdev->ats.caplen;
 }
 
-void init_vpri(struct pci_vdev *vdev)
+static void init_vpri(struct pci_vdev *vdev)
 {
 	struct pci_pdev *pdev = vdev->pdev;
 
@@ -398,7 +398,7 @@ void init_vpri(struct pci_vdev *vdev)
 	vdev->pri.caplen = pdev->pri.caplen;
 }
 
-void init_vacs(struct pci_vdev *vdev)
+static void init_vacs(struct pci_vdev *vdev)
 {
 	struct pci_pdev *pdev = vdev->pdev;
 

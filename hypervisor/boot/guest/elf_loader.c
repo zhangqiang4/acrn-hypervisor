@@ -33,13 +33,13 @@ struct elf_boot_para {
 	char mmap[MEM_4K * 5U];
 } __aligned(8);
 
-int32_t prepare_elf_cmdline(struct acrn_vm *vm, uint64_t param_cmd_gpa)
+static int32_t prepare_elf_cmdline(struct acrn_vm *vm, uint64_t param_cmd_gpa)
 {
 	return copy_to_gpa(vm, vm->sw.bootargs_info.src_addr, param_cmd_gpa,
 		           vm->sw.bootargs_info.size);
 }
 
-uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_gpa)
+static uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_gpa)
 {
 	uint32_t i, mmap_length = 0U;
 	struct multiboot_mmap mmap_entry;
@@ -66,7 +66,7 @@ uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_gpa)
 	return mmap_length;
 }
 
-uint32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gpa)
+static uint32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gpa)
 {
 	char loader_name[MAX_LOADER_NAME_SIZE] = "ACRN ELF LOADER";
 
@@ -241,7 +241,7 @@ static int32_t load_elf(struct acrn_vm *vm)
 	return ret;
 }
 
-struct multiboot_header *find_img_multiboot_header(struct acrn_vm *vm)
+static struct multiboot_header *find_img_multiboot_header(struct acrn_vm *vm)
 {
 	uint16_t i, j;
 	struct multiboot_header *ret = NULL;

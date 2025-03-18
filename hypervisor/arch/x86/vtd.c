@@ -1231,7 +1231,7 @@ int32_t move_pt_device(const struct iommu_domain *from_domain, const struct iomm
 	return status;
 }
 
-void enable_iommu(void)
+static void enable_iommu(void)
 {
 	do_action_for_iommus(enable_dmar);
 }

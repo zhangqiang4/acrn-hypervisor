@@ -77,7 +77,7 @@ void vcpu_thread(struct thread_object *obj)
 	} while (true);
 }
 
-void default_idle(__unused struct thread_object *obj)
+static void default_idle(__unused struct thread_object *obj)
 {
 	uint16_t pcpu_id = get_pcpu_id();
 

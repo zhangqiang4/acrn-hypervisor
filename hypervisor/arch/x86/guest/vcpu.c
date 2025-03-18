@@ -231,6 +231,7 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 	}
 }
 
+static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 /* As a vcpu reset internal API, DO NOT touch any vcpu state transition in this function. */
 static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
@@ -463,7 +464,7 @@ bool sanitize_cr0_cr4_pattern(void)
 	return ret;
 }
 
-void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
+static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 {
 	set_vcpu_regs(vcpu, &realmode_init_vregs);
 
@@ -510,10 +511,12 @@ void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 	vcpu_set_rip(vcpu, 0UL);
 }
 
+static void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
+
 /*
  * @pre vm != NULL && rtn_vcpu_handle != NULL
  */
-int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
+static int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
 {
 	struct acrn_vcpu *vcpu;
 	uint16_t vcpu_id;
@@ -850,7 +853,7 @@ void zombie_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 	}
 }
 
-void save_xsave_area(__unused struct acrn_vcpu *vcpu, struct ext_context *ectx)
+static void save_xsave_area(__unused struct acrn_vcpu *vcpu, struct ext_context *ectx)
 {
 	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
 		ectx->xcr0 = read_xcr(0);
@@ -859,7 +862,7 @@ void save_xsave_area(__unused struct acrn_vcpu *vcpu, struct ext_context *ectx)
 	}
 }
 
-void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_context *ectx)
+static void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_context *ectx)
 {
 	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
 		/*
@@ -1036,7 +1039,7 @@ void vcpu_handle_pi_notification(uint32_t vcpu_index)
 
  * @pre (vcpu != NULL)
  */
-void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
+static void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 {
 	vcpu->state = new_state;
 }

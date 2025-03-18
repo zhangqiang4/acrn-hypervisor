@@ -360,7 +360,6 @@ static inline struct pi_desc *get_pi_desc(struct acrn_vcpu *vcpu)
 }
 
 uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu);
-void default_idle(__unused struct thread_object *obj);
 void vcpu_thread(struct thread_object *obj);
 
 int32_t vmx_vmrun(struct run_context *context, int32_t ops, int32_t ibrs);
@@ -540,16 +539,6 @@ void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector);
  */
 void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs);
 
-/**
- * @brief reset all the vcpu registers
- *
- * Reset target vCPU's all registers in run_context to initial values.
- *
- * @param[inout] vcpu pointer to vcpu data structure
- * @param[in] mode the reset mode
- */
-void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
-
 bool sanitize_cr0_cr4_pattern(void);
 
 /**
@@ -590,23 +579,7 @@ static inline bool is_pae(struct acrn_vcpu *vcpu)
 struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id);
 struct acrn_vcpu *get_ever_run_vcpu(uint16_t pcpu_id);
 
-void save_xsave_area(struct acrn_vcpu *vcpu, struct ext_context *ectx);
-void rstore_xsave_area(const struct acrn_vcpu *vcpu, const struct ext_context *ectx);
 void load_iwkey(struct acrn_vcpu *vcpu);
-
-/**
- * @brief create a vcpu for the target vm
- *
- * Creates/allocates a vCPU instance, with initialization for its vcpu_id,
- * vpid, vmcs, vlapic, etc. It sets the init vCPU state to VCPU_INIT
- *
- * @param[in] pcpu_id created vcpu will run on this pcpu
- * @param[in] vm pointer to vm data structure, this vcpu will owned by this vm.
- * @param[out] rtn_vcpu_handle pointer to the created vcpu
- *
- * @retval 0 vcpu created successfully, other values failed.
- */
-int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
 
 /**
  * @brief run into non-root mode based on vcpu setting
@@ -723,16 +696,6 @@ static inline bool is_mc_pt_enabled(struct acrn_vcpu *vcpu)
  * @pre vcpu_index < CONFIG_MAX_VM_NUM
  */
 void vcpu_handle_pi_notification(uint32_t vcpu_index);
-
-/*
- * @brief Update the state of vCPU and state of vlapic
- *
- * The vlapic state of VM shall be updated for some vCPU
- * state update cases, such as from VCPU_INIT to VCPU_RUNNING.
-
- * @pre (vcpu != NULL)
- */
-void vcpu_set_state(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
 
 /**
  * @}

@@ -635,14 +635,6 @@ struct iommu_domain *create_iommu_domain(uint16_t vm_id, uint64_t translation_ta
 void destroy_iommu_domain(struct iommu_domain *domain);
 
 /**
- * @brief Enable translation of IOMMUs.
- *
- * Enable address translation of all IOMMUs, which are not ignored on the platform.
- *
- */
-void enable_iommu(void);
-
-/**
  * @brief Suspend IOMMUs.
  *
  * Suspend all IOMMUs, which are not ignored on the platform.

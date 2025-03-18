@@ -31,7 +31,7 @@ struct page_walk_info {
 	bool is_smep_on;
 };
 
-enum vm_paging_mode get_vcpu_paging_mode(struct acrn_vcpu *vcpu)
+static enum vm_paging_mode get_vcpu_paging_mode(struct acrn_vcpu *vcpu)
 {
 	enum vm_paging_mode ret = PAGING_MODE_0_LEVEL;	/* non-paging */
 

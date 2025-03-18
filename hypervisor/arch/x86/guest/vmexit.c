@@ -37,6 +37,7 @@ static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t loadiwkey_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t init_signal_vmexit_handler(__unused struct acrn_vcpu *vcpu);
+static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu);
 
 /* VM Dispatch table for Exit condition handling */
 static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
@@ -311,7 +312,7 @@ static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
-int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu)
+static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	uint32_t eax, ebx, ecx, edx;
 

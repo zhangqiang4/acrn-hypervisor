@@ -115,8 +115,7 @@ vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t
 	}
 }
 
-
-struct acrn_single_vioapic *
+static struct acrn_single_vioapic *
 vgsi_to_vioapic_and_vpin(const struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin)
 {
 	struct acrn_single_vioapic *vioapic;
@@ -495,6 +494,7 @@ void reset_vioapics(const struct acrn_vm *vm)
 	}
 }
 
+static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *handler_private_data);
 void
 vioapic_init(struct acrn_vm *vm)
 {
@@ -545,7 +545,7 @@ get_vm_gsicount(const struct acrn_vm *vm)
 /*
  * @pre handler_private_data != NULL
  */
-int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *handler_private_data)
+static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *handler_private_data)
 {
 	struct acrn_single_vioapic *vioapic = (struct acrn_single_vioapic *)handler_private_data;
 	struct acrn_mmio_request *mmio = &io_req->reqs.mmio_request;

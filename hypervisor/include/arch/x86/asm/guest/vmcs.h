@@ -61,9 +61,7 @@ static inline void set_vmcs_bit(uint32_t vmcs_field, uint64_t bit)
 
 void init_vmcs(struct acrn_vcpu *vcpu);
 void load_vmcs(const struct acrn_vcpu *vcpu);
-void init_host_state(void);
 
-void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
 #endif /* ASSEMBLER */
 
 #endif /* VMCS_H_ */

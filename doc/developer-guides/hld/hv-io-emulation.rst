@@ -315,9 +315,6 @@ I/O Emulation
 
 The following APIs are provided for I/O emulation at runtime:
 
-.. doxygenfunction:: acrn_insert_request
-   :project: Project ACRN
-
 .. doxygenfunction:: pio_instr_vmexit_handler
    :project: Project ACRN
 

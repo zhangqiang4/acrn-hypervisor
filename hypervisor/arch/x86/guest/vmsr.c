@@ -520,7 +520,7 @@ static void prepare_auto_msr_area(struct acrn_vcpu *vcpu)
 /**
  * @pre vcpu != NULL
  */
-void init_emulated_msrs(struct acrn_vcpu *vcpu)
+static void init_emulated_msrs(struct acrn_vcpu *vcpu)
 {
 	uint64_t val64 = MSR_IA32_FEATURE_CONTROL_LOCK;
 
@@ -584,7 +584,7 @@ static uint8_t mc_bank_configured_count(struct acrn_vcpu *vcpu)
  * 3. Guests who exclusively own pCPU will claim this ownership, either by setting
  *    own_pcpu to y in scenario.xml, or set LAPIC-PT (partitioned guest)
  */
-void init_mc_msrs(struct acrn_vcpu *vcpu)
+static void init_mc_msrs(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vm *vm = vcpu->vm;
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
@@ -748,7 +748,7 @@ static uint64_t get_perf_status(void)
 /**
  * @pre vcpu != NULL
  */
-bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
+static bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
 {
 	uint32_t eax = 0x19U, ebx = 0U, ecx = 0U, edx = 0U;
 

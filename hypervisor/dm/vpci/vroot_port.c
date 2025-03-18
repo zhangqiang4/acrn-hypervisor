@@ -92,6 +92,13 @@ static int32_t write_vrp_cfg(__unused struct pci_vdev *vdev, __unused uint32_t o
 	return 0;
 }
 
+static const struct pci_vdev_ops vrp_ops = {
+	.init_vdev         = init_vrp,
+	.deinit_vdev       = deinit_vrp,
+	.write_vdev_cfg    = write_vrp_cfg,
+	.read_vdev_cfg     = read_vrp_cfg,
+};
+
 /*
  * @pre vdev != NULL
  * @pre vrp_config != NULL
@@ -168,10 +175,3 @@ int32_t destroy_vrp(struct pci_vdev *vdev)
 
 	return 0;
 }
-
-const struct pci_vdev_ops vrp_ops = {
-	.init_vdev         = init_vrp,
-	.deinit_vdev       = deinit_vrp,
-	.write_vdev_cfg    = write_vrp_cfg,
-	.read_vdev_cfg     = read_vrp_cfg,
-};

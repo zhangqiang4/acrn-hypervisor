@@ -177,16 +177,6 @@ struct mem_io_node {
 /* External Interfaces */
 
 /**
- * @brief Deliver \p io_req to Service VM and suspend \p vcpu till its completion
- *
- * @param vcpu The virtual CPU that triggers the MMIO access
- * @param io_req The I/O request holding the details of the MMIO access
- *
- * @pre vcpu != NULL && io_req != NULL
- */
-int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_req);
-
-/**
  * @brief Reset all IO requests status of the VM
  *
  * @param vm The VM whose IO requests to be reset

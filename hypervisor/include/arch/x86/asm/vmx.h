@@ -464,8 +464,6 @@ void exec_vmwrite32(uint32_t field, uint32_t value);
 void exec_vmwrite64(uint32_t field_full, uint64_t value);
 #define exec_vmwrite exec_vmwrite64
 
-void exec_vmclear(void *addr);
-void exec_vmptrld(void *addr);
 void clear_va_vmcs(const uint8_t *vmcs_va);
 void load_va_vmcs(const uint8_t *vmcs_va);
 

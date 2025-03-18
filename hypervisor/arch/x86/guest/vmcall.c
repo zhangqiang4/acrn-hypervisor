@@ -163,7 +163,7 @@ static const struct hc_dispatch hc_dispatch_table[] = {
  *
  * @pre is_service_vm(service_vm) == true
  */
-struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1,
+static struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcall_id, uint64_t param1,
 	__unused uint64_t param2)
 {
 	struct acrn_vm *target_vm = NULL;

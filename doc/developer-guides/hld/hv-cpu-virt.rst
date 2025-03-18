@@ -155,9 +155,6 @@ the major states are:
 The following functions are used to drive the state machine of the vCPU
 lifecycle:
 
-.. doxygenfunction:: create_vcpu
-   :project: Project ACRN
-
 .. doxygenfunction:: zombie_vcpu
    :project: Project ACRN
 

@@ -111,12 +111,6 @@ bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu);
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu);
 
 /**
- * Returns the highest priority pending vector on vLAPIC, or
- * 0 if there is no pending vector.
- */
-uint32_t vlapic_get_next_pending_intr(struct acrn_vcpu *vcpu);
-
-/**
  * Clears a pending vector from vIRR. Returns true if
  * the bit was previously present, false otherwise.
  */
@@ -197,7 +191,6 @@ uint64_t vlapic_apicv_get_apic_access_addr(void);
 uint64_t vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic);
 int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu);
 int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu);
-void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic);
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu);
 uint64_t vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 		uint32_t dest, bool phys, bool lowprio);

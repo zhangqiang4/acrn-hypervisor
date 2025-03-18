@@ -1524,7 +1524,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
  * @retval -EIO PCI IO BAR is not identical mapping
  * @retval -ENOMEM Not enough memory to setup vcpu ID entries
  */
-int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
+static int32_t prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 {
 	int32_t err = -1;
 	struct acrn_vm *vm = NULL;

@@ -57,7 +57,7 @@ typedef void (*spurious_handler_t)(uint32_t vector);
 /**
  * @brief Stub for spurious IDT vector (unrequested) handlers
  */
-spurious_handler_t spurious_handler;
+static spurious_handler_t spurious_handler;
 
 /**
  * @brief Static mapping for hypervisor reserved vectors and irq numbers

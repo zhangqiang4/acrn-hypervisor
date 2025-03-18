@@ -36,7 +36,7 @@ static bool is_guest_gp_enabled(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-void vcpu_kick_lock_instr_emulation(struct acrn_vcpu *cur_vcpu)
+static void vcpu_kick_lock_instr_emulation(struct acrn_vcpu *cur_vcpu)
 {
 	struct acrn_vcpu *other;
 	uint16_t i;

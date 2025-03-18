@@ -88,7 +88,7 @@ static void init_guest_state(struct acrn_vcpu *vcpu)
 			ctx->run_ctx.cr4 & ~(CR4_VMXE | CR4_SMXE | CR4_MCE));
 }
 
-void init_host_state(void)
+static void init_host_state(void)
 {
 	uint16_t value16;
 	uint64_t value64;
@@ -552,6 +552,7 @@ static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 	exec_vmwrite64(VMX_EXIT_MSR_LOAD_ADDR_FULL, hva2hpa((void *)vcpu->arch.msr_area.host));
 }
 
+static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
 /**
  * @pre vcpu != NULL
  */
@@ -599,7 +600,7 @@ void load_vmcs(const struct acrn_vcpu *vcpu)
 	}
 }
 
-void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
+static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
 	uint64_t value64;

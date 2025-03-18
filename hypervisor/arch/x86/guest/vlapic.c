@@ -936,7 +936,7 @@ vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 	return dmask;
 }
 
-uint64_t
+static uint64_t
 vlapic_calc_dest(struct acrn_vcpu *vcpu, uint32_t shorthand, bool is_broadcast,
 		uint32_t dest, bool phys, bool lowprio)
 {
@@ -1926,6 +1926,7 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
 	return hva2hpa(&(vlapic->apic_page));
 }
 
+static void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic);
 static void apicv_basic_inject_intr(struct acrn_vlapic *vlapic,
 		bool guest_irq_enabled, bool injected)
 {
@@ -2008,7 +2009,7 @@ bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
 	return vlapic->ops->has_pending_delivery_intr(vcpu);
 }
 
-uint32_t vlapic_get_next_pending_intr(struct acrn_vcpu *vcpu)
+static uint32_t vlapic_get_next_pending_intr(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
 	uint32_t vector;
@@ -2117,7 +2118,7 @@ static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
  * TPR threshold (32 bits). Bits 3:0 of this field determine the threshold
  * below which bits 7:4 of VTPR (see Section 29.1.1) cannot fall.
  */
-void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic)
+static void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic)
 {
 	uint32_t irr, tpr, threshold;
 

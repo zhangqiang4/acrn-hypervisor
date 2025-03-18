@@ -246,7 +246,7 @@ static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, const uint64_t asyncio_fd
  *
  * @pre vcpu != NULL && io_req != NULL
  */
-int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_req)
+static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_req)
 {
 	struct acrn_io_request_buffer *req_buf = NULL;
 	struct acrn_io_request *acrn_io_req;

@@ -549,7 +549,7 @@ void deinit_vmsix_pt(struct pci_vdev *vdev)
  * The solution that pass-thru OpRegion has potential security issue.
  * Will take the copy + emulation solution to expose host OpRegion to guest later.
  */
-void passthru_gpu_opregion(struct pci_vdev *vdev)
+static void passthru_gpu_opregion(struct pci_vdev *vdev)
 {
 	uint32_t gpu_opregion_hpa, gpu_opregion_gpa, gpu_asls_phys;
 

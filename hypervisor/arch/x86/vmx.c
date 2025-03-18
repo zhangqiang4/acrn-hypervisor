@@ -80,7 +80,7 @@ static inline void exec_vmxoff(void)
  * @pre addr != NULL && addr is 4KB-aligned
  * @pre addr != VMXON pointer
  */
-void exec_vmclear(void *addr)
+static void exec_vmclear(void *addr)
 {
 
 	/* pre-conditions can avoid VMfail
@@ -98,7 +98,7 @@ void exec_vmclear(void *addr)
  * @pre addr != NULL && addr is 4KB-aligned
  * @pre addr != VMXON pointer
  */
-void exec_vmptrld(void *addr)
+static void exec_vmptrld(void *addr)
 {
 	/* pre-conditions can avoid VMfail
 	 * here no need check RFLAGS since it will generate #GP or #UD

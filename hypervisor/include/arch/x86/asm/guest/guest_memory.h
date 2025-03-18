@@ -31,8 +31,6 @@ enum vm_paging_mode {
  */
 int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa, uint32_t *err_code);
 
-enum vm_paging_mode get_vcpu_paging_mode(struct acrn_vcpu *vcpu);
-
 /* gpa --> hpa -->hva */
 void *gpa2hva(struct acrn_vm *vm, uint64_t x);
 
