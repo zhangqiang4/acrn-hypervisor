@@ -1277,17 +1277,17 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
  */
 static void pci_enumerate_cap(struct pci_pdev *pdev)
 {
-	uint8_t pos, cap;
+	uint32_t pos, cap;
 	uint32_t msgctrl;
 	uint32_t len, idx;
 	uint32_t table_info;
 	uint32_t pcie_devcap, val;
 	bool is_pcie = false;
 
-	pos = (uint8_t)pci_pdev_read_cfg(pdev->bdf, PCIR_CAP_PTR, 1U);
+	pos = pci_pdev_read_cfg(pdev->bdf, PCIR_CAP_PTR, 1U);
 
-	while ((pos != 0U) && (pos != 0xFFU)) {
-		cap = (uint8_t)pci_pdev_read_cfg(pdev->bdf, pos + PCICAP_ID, 1U);
+	while ((pos != 0U) && (pos < 0xFFU)) {
+		cap = pci_pdev_read_cfg(pdev->bdf, pos + PCICAP_ID, 1U);
 
 		if (cap == PCIY_MSI) {
 			pdev->msi_capoff = pos;
@@ -1310,7 +1310,7 @@ static void pci_enumerate_cap(struct pci_pdev *pdev)
 
 			/* Copy MSIX capability struct into buffer */
 			for (idx = 0U; idx < len; idx++) {
-				pdev->msix.cap[idx] = (uint8_t)pci_pdev_read_cfg(pdev->bdf, (uint32_t)pos + idx, 1U);
+				pdev->msix.cap[idx] = (uint8_t)pci_pdev_read_cfg(pdev->bdf, pos + idx, 1U);
 			}
 		} else if (cap == PCIY_PMC) {
 			val = pci_pdev_read_cfg(pdev->bdf, pos + PCIR_PMCSR, 4U);
@@ -1327,7 +1327,7 @@ static void pci_enumerate_cap(struct pci_pdev *pdev)
 			/* Ignore all other Capability IDs for now */
 		}
 
-		pos = (uint8_t)pci_pdev_read_cfg(pdev->bdf, pos + PCICAP_NEXTPTR, 1U);
+		pos = pci_pdev_read_cfg(pdev->bdf, pos + PCICAP_NEXTPTR, 1U);
 	}
 
 	if (is_pcie) {
