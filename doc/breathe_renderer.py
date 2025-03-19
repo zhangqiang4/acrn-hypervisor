@@ -1,8 +1,17 @@
 import os
 import re
 import sys
+from typing import (Callable, Dict, List, Optional, Tuple, Union, cast, Any)
 
 import docutils.nodes
+from docutils import nodes
+from docutils.nodes import Element, Node, TextElement, Text
+
+from sphinx import addnodes
+from sphinx.addnodes import pending_xref
+from sphinx.builders import Builder
+from sphinx.environment import BuildEnvironment
+from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 from sphinx.domains.c import (
     ASTIdentifier,
     ASTNestedName,
@@ -23,27 +32,27 @@ from sphinx.util.cfamily import (
     identifier_re
 )
 from sphinx.writers.html5 import HTML5Translator
+
 from breathe.renderer import RenderContext
 from breathe.renderer.sphinxrenderer import SphinxRenderer, \
     intersperse, NodeFinder
-
-from typing import (Callable, Dict, List, Optional, Tuple, Union, cast, Any)
-
-from docutils import nodes
-from docutils.nodes import Element, Node, TextElement, Text
-
-from sphinx import addnodes
-from sphinx.addnodes import pending_xref
-from sphinx.builders import Builder
-from sphinx.environment import BuildEnvironment
-
-from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
+from breathe.renderer.target import create_target_handler
+from breathe.directives.file import _BaseFileDirective
+from breathe import path_handler
+from breathe.renderer.mask import NullMaskFactory
+from breathe.renderer.filter import (
+    Filter, FilterFactory, Node, FilePathFilter, Ancestor,
+    AndFilter, NotFilter, InFilter, Gather, NodeTypeAccessor,
+    KindAccessor, LambdaAccessor, NodeNameAccessor, Parent,
+    Accessor, NamespaceAccessor, NamespaceFilter
+)
 
 from settings import (
     UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
     SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
     NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS
 )
+from hookit import HookManager
 
 Declarator = Union[addnodes.desc_signature, addnodes.desc_signature_line]
 
@@ -51,7 +60,7 @@ need_inserted_path = os.path.dirname(os.path.abspath(__file__))
 # if need_inserted_path not in sys.path
 sys.path.insert(0, need_inserted_path)
 
-from hookit import HookManager
+DEPTH = 0
 
 
 class BreatheASTIdentifier:
@@ -440,9 +449,6 @@ class BreatheHTML5Translator:
     }
 
 
-DEPTH = 0
-
-
 class BreatheASTBracedInitList:
     def _marked(self, lines, mark=', '):
         return [line + mark for line in lines if line != lines[-1]] + [lines[-1]]
@@ -496,7 +502,7 @@ class BreatheASTBracedInitList:
                 # exchange escape symbols
                 """
                 support syntax as bellow:
-                
+
                 static struct X x = {
                     1,2,
                     [0..4] = x,
@@ -983,6 +989,195 @@ class BreatheRenderer:
     })
 
 
+class BreatheBaseFileDirective:
+    """Base class handle the main work when given the appropriate file and project info to work
+    from.
+    """
+
+    # We use inheritance here rather than a separate object and composition, because so much
+    # information is present in the Directive class from the docutils framework that we'd have to
+    # pass way too much stuff to a helper object to be reasonable.
+
+    def handle_contents(self, file_, project_info):
+        finder = self.finder_factory.create_finder(project_info)
+        finder_filter = self.filter_factory.create_file_finder_filter(file_)
+
+        matches = []
+        finder.filter_(finder_filter, matches)
+
+        if len(matches) > 1:
+            warning = self.create_warning(None, file=file_, directivename=self.directive_name)
+            return warning.warn('{directivename}: Found multiple matches for file "{file} {tail}')
+        elif not matches:
+            warning = self.create_warning(None, file=file_, directivename=self.directive_name)
+            return warning.warn('{directivename}: Cannot find file "{file} {tail}')
+
+        target_handler = create_target_handler(self.options, project_info, self.state.document)
+        filter_ = self.filter_factory.create_file_filter(file_, self.options)
+
+        node_list = []
+        for node_stack in matches:
+            object_renderer = SphinxRenderer(
+                self.parser_factory.app,
+                project_info,
+                node_stack,
+                self.state,
+                self.state.document,
+                target_handler,
+                self.parser_factory.create_compound_parser(project_info),
+                filter_,
+            )
+
+            mask_factory = NullMaskFactory()
+            context = RenderContext(node_stack, mask_factory, self.directive_args)
+            node_list.extend(object_renderer.render(node_stack[0], context))
+
+        return node_list
+
+    meth = {
+        'handle_contents': handle_contents
+    }
+
+
+class BreatheFilterFactory:
+    def create_file_filter(self, filename: str, options: Dict[str, Any]) -> Filter:
+        valid_names: List[str] = []
+
+        # All filters are arranged by (~(a&b)) & (~(c&d)) BECAUSE
+        # we place Gather which returns False on top of the filters(so form should be ~(a&b)).
+        # If a node filtered by ~(a&b) got False then that node will be hide, otherwise it will be show.
+        filter_ = AndFilter(
+            NotFilter(
+                # Gather the "namespaces" attribute from the
+                # compounddef for the file we're rendering and
+                # store the information in the "valid_names" list
+                #
+                # Gather always returns false, so, combined with
+                # the NotFilter this chunk always returns true and
+                # so does not affect the result of the filtering
+                AndFilter(
+                    InFilter(NodeTypeAccessor(Node()), ["compounddef"]),
+                    InFilter(KindAccessor(Node()), ["file"]),
+                    FilePathFilter(LambdaAccessor(Node(), lambda x: x.location), filename),
+                    Gather(LambdaAccessor(Node(), lambda x: x.namespaces), valid_names),
+                )
+            ),
+            NotFilter(
+                # Take the valid_names and everytime we handle an
+                # innerclass or innernamespace, check that its name
+                # was one of those initial valid names so that we
+                # never end up rendering a namespace or class that
+                # wasn't in the initial file. Notably this is
+                # required as the location attribute for the
+                # namespace in the xml is unreliable.
+                AndFilter(
+                    InFilter(NodeTypeAccessor(Parent()), ["compounddef"]),
+                    InFilter(NodeTypeAccessor(Node()), ["ref"]),
+                    InFilter(NodeNameAccessor(Node()), ["innerclass", "innernamespace"]),
+                    NotFilter(
+                        InFilter(
+                            LambdaAccessor(Node(), lambda x: x.content_[0].getValue()), valid_names
+                        )
+                    ),
+                )
+            ),
+            NotFilter(
+                # Ignore innerclasses and innernamespaces that are inside a
+                # namespace that is going to be rendered as they will be
+                # rendered with that namespace and we don't want them twice
+                AndFilter(
+                    InFilter(NodeTypeAccessor(Parent()), ["compounddef"]),
+                    InFilter(NodeTypeAccessor(Node()), ["ref"]),
+                    InFilter(NodeNameAccessor(Node()), ["innerclass", "innernamespace"]),
+                    NamespaceFilter(
+                        NamespaceAccessor(Parent()),
+                        LambdaAccessor(Node(), lambda x: x.content_[0].getValue()),
+                    ),
+                )
+            ),
+            NotFilter(  # hide functions exposed in header file and made definition in source file
+                # Ignore memberdefs from files which are different to
+                # the one we're rendering. This happens when we have to
+                # cross into a namespace xml file which has entries
+                # from multiple files in it
+                AndFilter(
+                    InFilter(NodeTypeAccessor(Node()), ["memberdef"]),
+                    NotFilter(
+                        FilePathFilter(LambdaAccessor(Node(), lambda x: x.location), filename)
+                    ),
+                )
+            ),
+            NotFilter(
+                # Ignore compounddefs which are from another file
+                # (normally means classes and structs which are in a
+                # namespace that we have other interests in) but only
+                # check it if the compounddef is not a namespace
+                # itself, as for some reason compounddefs for
+                # namespaces are registered with just a single file
+                # location even if they namespace is spread over
+                # multiple files
+                AndFilter(
+                    InFilter(NodeTypeAccessor(Node()), ["compounddef"]),
+                    NotFilter(InFilter(KindAccessor(Node()), ["namespace"])),
+                    NotFilter(
+                        FilePathFilter(LambdaAccessor(Node(), lambda x: x.location), filename)
+                    ),
+                )
+            ),
+            # hide vars occurred in header file and source file & show those only occurred in header file
+            NotFilter(  # hide nodes
+                AndFilter(
+                    # 1. locate all global variables
+                    InFilter(NodeTypeAccessor(Node()), ["memberdef"]),
+                    InFilter(KindAccessor(Node()), ["variable"]),
+                    # with Ancestor(2) variables in innerclass will be show
+                    # when no DistinctVariableFilter was introduced
+                    InFilter(NodeTypeAccessor(Ancestor(2)), ["compounddef"]),
+                    InFilter(KindAccessor(Ancestor(2)), ["file"]),
+                    # 2. show distinct vars, two NotFilters won't take place obviously
+                    NotFilter(
+                        DistinctVariableFilter(LambdaAccessor(Node(), lambda x: x.location), filename)
+                    )
+                )
+            )
+        )
+        return AndFilter(self.create_outline_filter(options), filter_)
+
+    meth = {
+        'create_file_filter': create_file_filter
+    }
+
+
+class DistinctVariableFilter(Filter):
+    def __init__(self, accessor: Accessor, target_file: str):
+        self.accessor = accessor
+        self.target_file = target_file
+
+    def allow(self, node_stack) -> bool:
+        location = self.accessor(node_stack).file
+        body_location = self.accessor(node_stack).bodyfile
+        # attribute bodyfile will disappear for variable with extern in element <location> in xxx_h.xml
+        # generally we make definition in source file only, so we regard it as reasonable
+        if body_location is None:
+            return True
+        else:
+            if path_handler.includes_directory(self.target_file):
+                location_match = location[-len(self.target_file):]
+                return (location_match == self.target_file) & (location == body_location)
+            else:
+                location_basename = os.path.basename(location)
+                return (location_basename == self.target_file) & (location == body_location)
+
+
+class BreatheNode:
+    def __call__(self, node_stack):
+        return node_stack[0]
+
+    meth = {
+        '__call__': __call__
+    }
+
+
 def setup():
     HookManager(ASTIdentifier).hook(mapping=BreatheASTIdentifier.meth)
     HookManager(ASTNestedName).hook(mapping=BreatheASTNestedName.meth)
@@ -992,3 +1187,6 @@ def setup():
     HookManager(HTML5Translator).hook(mapping=BreatheHTML5Translator.meth)
     HookManager(ASTBracedInitList).hook(mapping=BreatheASTBracedInitList.meth)
     HookManager(SphinxRenderer).hook(mapping=BreatheRenderer.meth)
+    HookManager(_BaseFileDirective).hook(mapping=BreatheBaseFileDirective.meth)
+    HookManager(FilterFactory).hook(mapping=BreatheFilterFactory.meth)
+    HookManager(Node).hook(mapping=BreatheNode.meth)
