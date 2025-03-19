@@ -40,7 +40,7 @@
 #define E820_TYPE_ACPI_NVS	4U	/* EFI 10 */
 #define E820_TYPE_UNUSABLE	5U	/* EFI 8 */
 
-#define E820_MAX_ENTRIES	64U
+#define E820_MAX_ENTRIES	128U
 
 #define MEM_SIZE_MAX (~0UL)
 
