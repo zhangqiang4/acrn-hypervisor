@@ -177,7 +177,7 @@ static inline uint8_t iommu_cap_afl(uint64_t cap)
 
 static inline uint32_t iommu_cap_ndoms(uint64_t cap)
 {
-	return ((1U) << (4U + (2U * ((uint8_t)cap & 0x7U))));
+	return (1U << (((cap & 0x7U) * 2U) + 4U));
 }
 
 /*

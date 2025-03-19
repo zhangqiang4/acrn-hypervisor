@@ -738,10 +738,10 @@ uint32_t vmsr_get_guest_msr_index(uint32_t msr);
 #define	MSR_IA32_MCG_CTL_ENABLE		0xffffffffffffffffUL
 #define	MSR_IA32_MCG_CTL_DISABLE		0x0000000000000000UL
 #define	MSR_IA32_MC_CTL(x)		(MSR_IA32_MC0_CTL + (x) * 4)
-#define	MSR_IA32_MC_STATUS(x)	(MSR_IA32_MC0_STATUS + (x) * 4)
+#define	MSR_IA32_MC_STATUS(x)		(MSR_IA32_MC0_STATUS + (x) * 4)
 #define	MSR_IA32_MC_ADDR(x)		(MSR_IA32_MC0_ADDR + (x) * 4)
 #define	MSR_IA32_MC_MISC(x)		(MSR_IA32_MC0_MISC + (x) * 4)
-#define	MSR_IA32_MC_CTL2(x)		(MSR_IA32_MC0_CTL2 + (x))	/* If MCG_CAP_CMCI_P */
+#define	MSR_IA32_MC_CTL2(x)		(MSR_IA32_MC0_CTL2 + (x) * 1)	/* If MCG_CAP_CMCI_P */
 #define	MSR_IA32_MC_STATUS_MCA_ERROR	0x000000000000ffffUL
 #define	MSR_IA32_MC_STATUS_MODEL_ERROR	0x00000000ffff0000UL
 #define	MSR_IA32_MC_STATUS_OTHER_INFO	0x01ffffff00000000UL

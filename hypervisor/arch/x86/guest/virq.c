@@ -308,7 +308,7 @@ int32_t external_interrupt_vmexit_handler(struct acrn_vcpu *vcpu)
 		vcpu_retain_rip(vcpu);
 		ret = -EINVAL;
 	} else {
-		ctx.vector = intr_info & 0xFFU;
+		ctx.vector = (uint64_t)(intr_info & 0xFFU);
 		ctx.rip    = vcpu_get_rip(vcpu);
 		ctx.rflags = vcpu_get_rflags(vcpu);
 		ctx.cs     = exec_vmread32(VMX_GUEST_CS_SEL);

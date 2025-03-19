@@ -263,7 +263,7 @@ void sbuf_reset(void)
 int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id, uint64_t gpa, struct shared_buf *sbuf)
 {
 	int32_t ret = 0;
-	uint64_t size;
+	uint32_t size;
 	uint64_t hva;
 	uint64_t temp_gpa;
 

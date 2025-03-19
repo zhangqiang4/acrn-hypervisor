@@ -64,7 +64,7 @@ static void init_vrp(struct pci_vdev *vdev)
 	 * this register.
 	 */
 	pci_vdev_write_vcfg(vdev, PCIE_CAP_VPOS + PCIR_PCIE_DEVCTRL, 2U,
-			(vdev->pci_dev_config->vrp_max_payload << 5) & PCIM_PCIE_DEV_CTRL_MAX_PAYLOAD);
+			    ((uint32_t)vdev->pci_dev_config->vrp_max_payload << 5) & PCIM_PCIE_DEV_CTRL_MAX_PAYLOAD);
 
 	vdev->parent_user = NULL;
 	vdev->user = vdev;

@@ -1686,7 +1686,7 @@ static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 		fetch_len = min(VIE_INST_SIZE, (uint32_t)(PAGE_SIZE - (vie->rip & ~PAGE_MASK)));
 		fetch_gva = vie->rip;
 	} else {
-		fetch_len = VIE_INST_SIZE - vie->num_valid;
+		fetch_len = (uint32_t)(VIE_INST_SIZE - vie->num_valid);
 		fetch_gva = vie->rip + vie->num_valid;
 	}
 

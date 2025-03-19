@@ -984,7 +984,7 @@ static void config_pci_bridge(const struct pci_pdev *pdev)
 
 	/* for command regsiters, disable INTx */
 	val = pci_pdev_read_cfg(pdev->bdf, PCIR_COMMAND, 2U);
-	pci_pdev_write_cfg(pdev->bdf, PCIR_COMMAND, 2U, (uint16_t)val | PCIM_CMD_INTxDIS);
+	pci_pdev_write_cfg(pdev->bdf, PCIR_COMMAND, 2U, val | PCIM_CMD_INTxDIS);
 
 	/* disale MSI */
 	if (pdev->msi_capoff != 0x00UL) {

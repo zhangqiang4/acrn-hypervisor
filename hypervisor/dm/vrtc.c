@@ -285,7 +285,7 @@ static int32_t rtcget(const struct rtcdev *rtc, uint8_t val, uint32_t *retval)
 		if ((lower > 9U) || (upper > 9U)) {
 			errno = -EINVAL;
 		} else {
-			*retval = upper * 10U + lower;
+			*retval = (int32_t)upper * 10U + lower;
 		}
 	}
 	return errno;
@@ -1006,7 +1006,7 @@ static bool vrtc_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width,
 				spinlock_release(&vrtc_rebase_lock);
 				if (is_postlaunched_vm(vcpu->vm) && vrtc_is_time_register(vrtc->addr)) {
 					rtc_chg_event.type = VM_EVENT_RTC_CHG;
-					edata->delta_time = after - current;
+					edata->delta_time = (int64_t)(after - current);
 					edata->last_time = current;
 					send_vm_event(vcpu->vm, &rtc_chg_event);
 				}

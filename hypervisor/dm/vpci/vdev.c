@@ -203,7 +203,7 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 	offset = pci_bar_offset(idx);
 	lo = pci_vdev_read_vcfg(vdev, offset, 4U);
 	if ((!is_pci_reserved_bar(vbar)) && !vbar->sizing) {
-		base = lo & vbar->mask;
+		base = (uint64_t)(lo & vbar->mask);
 
 		if (is_pci_mem64lo_bar(vbar)) {
 			vbar = &vdev->vbars[idx + 1U];

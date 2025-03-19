@@ -211,7 +211,7 @@ static void sched_bvt_init_data(struct thread_object *obj, struct sched_params *
 	data->warp_limit = params->bvt_warp_limit;
 	data->unwarp_period = params->bvt_unwarp_period;
 	data->warp_on = false;	/* warp disabled by default */
-	data->vt_ratio = BVT_VT_RATIO_MAX / data->weight;
+	data->vt_ratio = (uint64_t)BVT_VT_RATIO_MAX / data->weight;
 	data->residual = 0U;
 }
 

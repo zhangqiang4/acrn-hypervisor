@@ -128,7 +128,7 @@ static bool vpci_pio_cfgdata_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t 
 
 	cfg_addr.value = atomic_readandclear32(&vpci->addr.value);
 	if (cfg_addr.bits.enable != 0U) {
-		uint32_t offset = (uint16_t)cfg_addr.bits.reg_num + (addr - PCI_CONFIG_DATA);
+		uint32_t offset = cfg_addr.bits.reg_num + ((uint32_t)addr - PCI_CONFIG_DATA);
 		if (pci_is_valid_access(offset, bytes)) {
 			bdf.value = cfg_addr.bits.bdf;
 			ret = vpci_read_cfg(vpci, bdf, offset, bytes, &val);
@@ -159,7 +159,7 @@ static bool vpci_pio_cfgdata_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t
 
 	cfg_addr.value = atomic_readandclear32(&vpci->addr.value);
 	if (cfg_addr.bits.enable != 0U) {
-		uint32_t offset = (uint16_t)cfg_addr.bits.reg_num + (addr - PCI_CONFIG_DATA);
+		uint32_t offset = cfg_addr.bits.reg_num + ((uint32_t)addr - PCI_CONFIG_DATA);
 		if (pci_is_valid_access(offset, bytes)) {
 			bdf.value = cfg_addr.bits.bdf;
 			ret = vpci_write_cfg(vpci, bdf, offset, bytes, val);
@@ -1017,14 +1017,14 @@ uint32_t vpci_add_capability(struct pci_vdev *vdev, uint8_t *capdata, uint8_t ca
 			pci_vdev_write_vcfg(vdev, PCIR_CAP_PTR, 1U, capoff);
 			pci_vdev_write_vcfg(vdev, PCIR_STATUS, 2U, sts|PCIM_STATUS_CAPPRESENT);
 		} else {
-			pci_vdev_write_vcfg(vdev, vdev->prev_capoff + 1U, 1U, capoff);
+			pci_vdev_write_vcfg(vdev, (uint32_t)vdev->prev_capoff + 1U, 1U, capoff);
 		}
 
 		/* Copy the capability */
 		(void)memcpy_s((void *)&vdev->cfgdata.data_8[capoff], caplen, (void *)capdata, caplen);
 
 		/* Set the next capability pointer */
-		pci_vdev_write_vcfg(vdev, capoff + 1U, 1U, 0U);
+		pci_vdev_write_vcfg(vdev, (uint32_t)capoff + 1U, 1U, 0U);
 
 		vdev->prev_capoff = capoff;
 		vdev->free_capoff = capoff + reallen;

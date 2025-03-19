@@ -519,7 +519,7 @@ void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry)
 
 	ectx = &(vcpu->arch.contexts.ext_ctx);
 	ectx->cs.selector = (uint16_t)((entry >> 4U) & 0xFFFFU);
-	ectx->cs.base = ectx->cs.selector << 4U;
+	ectx->cs.base = (uint64_t)ectx->cs.selector << 4U;
 
 	vcpu_set_rip(vcpu, 0UL);
 }

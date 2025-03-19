@@ -707,7 +707,7 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 
 			/* Check from the next page of header locates */
 			if (size > PAGE_SIZE) {
-				ret = !ept_is_valid_mr(vm, asp.gpa + PAGE_SIZE, size - PAGE_SIZE);
+				ret = !ept_is_valid_mr(vm, asp.gpa + PAGE_SIZE, (uint64_t)(size - PAGE_SIZE));
 			}
 
 			if (ret == 0) {

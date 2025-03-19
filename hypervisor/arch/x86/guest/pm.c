@@ -391,8 +391,8 @@ void init_guest_pm(struct acrn_vm *vm)
 	 * If there is no Service VM, save_s5_reg_val() will not be called and these 2 variables will not be initialized properly
 	 * so shutdown_system() will fail, explicitly init here to avoid this
 	 */
-	save_s5_reg_val((sx_data->s5_pkg.val_pm1a << BIT_SLP_TYPx) | (1U << BIT_SLP_EN),
-		(sx_data->s5_pkg.val_pm1b << BIT_SLP_TYPx) | (1U << BIT_SLP_EN));
+	save_s5_reg_val(((uint32_t)sx_data->s5_pkg.val_pm1a << BIT_SLP_TYPx) | (1U << BIT_SLP_EN),
+			((uint32_t)sx_data->s5_pkg.val_pm1b << BIT_SLP_TYPx) | (1U << BIT_SLP_EN));
 
 	vm_setup_cpu_state(vm);
 
