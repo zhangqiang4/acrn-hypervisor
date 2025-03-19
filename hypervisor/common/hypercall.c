@@ -729,10 +729,10 @@ int32_t hcall_setup_sbuf(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
  * to a VM if the provided parameters are valid.  It ensures that the async I/O information is correctly
  * copied from the guest memory and that the async I/O request can be registered with the target VM.
  *
- * On success, the ACRN hypervisor shall return 0. However, the hypervisor shall return an error code
+ * On success, the ACRN hypervisor shall return 0. However, the hypervisor shall return an error code -1
  * in the following scenarios:
  * 1. Fail to copy the async I/O information from guest memory, which GPA is saved in the param2.
- *    The error code is -1.
+ * 2. Failed in add_asyncio().
  *
  * @param[in] vcpu Unused, it is retained to maintain a unified interface for the hypercall dispatcher.
  * @param[inout] target_vm The target VM to which the async I/O request is to be assigned.
@@ -754,8 +754,7 @@ int32_t hcall_asyncio_assign(__unused struct acrn_vcpu *vcpu, struct acrn_vm *ta
 	int ret = -1;
 
 	if (copy_from_gpa(vm, &asyncio_info, param2, sizeof(asyncio_info)) == 0) {
-		add_asyncio(target_vm, &asyncio_info);
-		ret = 0;
+		ret = add_asyncio(target_vm, &asyncio_info);
 	}
 	return ret;
 }
@@ -768,8 +767,9 @@ int32_t hcall_asyncio_assign(__unused struct acrn_vcpu *vcpu, struct acrn_vm *ta
  * resources are deassigned from the VM if the copy operation is successful.
  *
  * The first parameter is the target VM ID. The second parameter is the GPA which saves the async I/O information.
- * On success, the ACRN hypervisor returns 0. The function returns an error code in the following scenarios:
- * 1. Failure to copy the async I/O information from guest memory. The error code is -1.
+ * On success, the ACRN hypervisor returns 0. The function returns an error code -1 in the following scenarios:
+ * 1. Failure to copy the async I/O information from guest memory.
+ * 2. Failed in remove_asyncio().
  *
  * @param[in] vcpu Unused, it is retained to maintain a unified interface for the hypercall dispatcher.
  * @param[inout] target_vm The target VM from which the async I/O operations are to be deassigned.
@@ -791,8 +791,7 @@ int32_t hcall_asyncio_deassign(__unused struct acrn_vcpu *vcpu, struct acrn_vm *
 	int ret = -1;
 
 	if (copy_from_gpa(vm, &asyncio_info, param2, sizeof(asyncio_info)) == 0) {
-		remove_asyncio(target_vm, &asyncio_info);
-		ret = 0;
+		ret = remove_asyncio(target_vm, &asyncio_info);
 	}
 	return ret;
 }
