@@ -286,10 +286,10 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         </xs:annotation>
       <xs:simpleType>
         <xs:annotation>
-          <xs:documentation>Integer value from 1 to 2048.</xs:documentation>
+          <xs:documentation>Integer value from 8 to 2048.</xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:integer">
-          <xs:minInclusive value="1" />
+          <xs:minInclusive value="8" />
           <xs:maxInclusive value="2048" />
         </xs:restriction>
       </xs:simpleType>
