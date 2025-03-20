@@ -65,7 +65,8 @@ int lapic_to_pcpu(int lapic)
 			return j;
 		}
 	}
-	return ACRN_PLATFORM_LAPIC_IDS_MAX - 1;
+	pr_err("%s: no pcpu with lapic id %d\n", __func__, lapic);
+	return -1;
 }
 
 static int

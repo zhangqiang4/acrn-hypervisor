@@ -83,14 +83,19 @@ const char *vm_state_to_str(enum vm_suspend_how idx)
 static int devfd = -1;
 static uint64_t cpu_affinity_bitmap = 0UL;
 
-static void add_one_pcpu(int pcpu_id)
+static int add_one_pcpu(int pcpu_id)
 {
+	if (pcpu_id == -1) {
+		return -EINVAL;
+	}
+
 	if (cpu_affinity_bitmap & (1UL << pcpu_id)) {
 		pr_err("%s: pcpu_id %d has been allocated to this VM.\n", __func__, pcpu_id);
-		return;
+		return 0;
 	}
 
 	cpu_affinity_bitmap |= (1UL << pcpu_id);
+	return 0;
 }
 
 /*
@@ -115,7 +120,9 @@ int acrn_parse_cpu_affinity(char *opt)
 		/* no more entries delimited by ',' */
 		if (!str) {
 			if (!dm_strtoi(cp, NULL, 10, &lapic_id)) {
-				add_one_pcpu(lapic_to_pcpu(lapic_id));
+				if (add_one_pcpu(lapic_to_pcpu(lapic_id))) {
+					goto err;
+				}
 			}
 			break;
 		} else {
@@ -127,7 +134,9 @@ int acrn_parse_cpu_affinity(char *opt)
 				if (dm_strtoi(str, NULL, 10, &lapic_id)) {
 					goto err;
 				}
-				add_one_pcpu(lapic_to_pcpu(lapic_id));
+				if (add_one_pcpu(lapic_to_pcpu(lapic_id))) {
+					goto err;
+				}
 			}
 		}
 	}
