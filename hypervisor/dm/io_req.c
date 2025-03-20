@@ -191,6 +191,7 @@ static struct asyncio_desc *get_asyncio_desc(struct acrn_vcpu *vcpu, const struc
 			type = ACRN_ASYNCIO_MMIO;
 			break;
 		default:
+			/* no actions are required */
 			break;
 		}
 
