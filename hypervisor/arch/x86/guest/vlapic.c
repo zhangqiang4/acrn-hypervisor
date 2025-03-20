@@ -35,6 +35,7 @@
 #include <asm/per_cpu.h>
 #include <asm/pgtable.h>
 #include <asm/lapic.h>
+#include <asm/cpuid.h>
 #include <asm/guest/vmcs.h>
 #include <asm/guest/vlapic.h>
 #include <asm/guest/virq.h>
@@ -241,14 +242,40 @@ static void vlapic_reset_timer(struct acrn_vlapic *vlapic)
 	update_timer(timer, 0UL, 0UL);
 }
 
+/**
+ * @pre vlapic != NULL
+ * @post return != 0U
+ */
+static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
+{
+	uint32_t ratio, eax_denominator = CPUID_CLOCK, ebx_numerator, ecx_hz, reserved;
+	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
+
+	guest_cpuid(vcpu, &eax_denominator, &ebx_numerator, &ecx_hz, &reserved);
+
+	if ((eax_denominator != 0U) && (ebx_numerator != 0U)) {
+		ratio = ebx_numerator / eax_denominator;
+	} else {
+		/* According to section 11.5.4, Vol3, Intel SDM-325384-085US: The APIC timer frequency will be the
+		   processor’s bus clock or core crystal clock frequency (when TSC/core crystal clock ratio is
+		   enumerated in CPUID leaf 0x15) divided by the value specified in the divide configuration register.
+		   If CPUID leaf 0x15 is not available, there is no exact bus clock that can be used to calculate the
+		   ratio, returns 1 to avoid faults.
+		*/
+		ratio = 1;
+	}
+	return ratio;
+}
+
 static bool
 set_expiration(struct acrn_vlapic *vlapic)
 {
 	struct vlapic_timer *vtimer;
 	struct hv_timer *timer;
-	uint32_t tmicr, divisor_shift;
+	uint32_t tmicr, divisor_shift, ratio;
 	bool ret;
 
+	ratio = get_timer_ratio(vlapic);
 	vtimer = &vlapic->vtimer;
 	tmicr = vtimer->tmicr;
 	divisor_shift = vtimer->divisor_shift;
@@ -256,9 +283,8 @@ set_expiration(struct acrn_vlapic *vlapic)
 	if ((tmicr == 0U) || (divisor_shift > 8U)) {
 		ret = false;
 	} else {
-		uint64_t delta = (uint64_t)tmicr << divisor_shift;
+		uint64_t delta = ((uint64_t)tmicr << divisor_shift) * ratio;
 		timer = &vtimer->timer;
-
 		update_timer(timer, cpu_ticks() + delta,
 			     vlapic_lvtt_period(vlapic) ? delta : 0UL);
 		ret = true;
@@ -288,13 +314,13 @@ static void vlapic_update_lvtt(struct acrn_vlapic *vlapic,
 
 static uint32_t vlapic_get_ccr(const struct acrn_vlapic *vlapic)
 {
-	uint32_t remain_count = 0U;
+	uint32_t ratio, remain_count = 0U;
 	const struct vlapic_timer *vtimer = &vlapic->vtimer;
-
+	ratio = get_timer_ratio(vlapic);
 	if ((vtimer->tmicr != 0U) && (!vlapic_lvtt_tsc_deadline(vlapic))) {
 		uint64_t remains;
 		if (!timer_expired(&vtimer->timer, cpu_ticks(), &remains)) {
-			uint64_t shifted_delta = remains >> vtimer->divisor_shift;
+			uint64_t shifted_delta = (remains / ratio) >> vtimer->divisor_shift;
 			remain_count = (uint32_t)shifted_delta;
 		}
 	}
@@ -310,7 +336,6 @@ static void vlapic_write_dcr(struct acrn_vlapic *vlapic)
 
 	vtimer = &vlapic->vtimer;
 	divisor_shift = vlapic_timer_divisor_shift(lapic->dcr_timer.v);
-
 	vtimer->divisor_shift = divisor_shift;
 }
 
