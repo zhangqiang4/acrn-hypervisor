@@ -174,6 +174,7 @@ int32_t emulate_lock_instr(struct acrn_vcpu *vcpu, uint32_t exception_vector, bo
 
 			break;
 		default:
+			/* no actions are required */
 			break;
 		}
 	}
