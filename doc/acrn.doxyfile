@@ -804,6 +804,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/ticks.c \
                           ../hypervisor/common/sbuf.c \
                           ../hypervisor/common/timer.c \
+                          ../hypervisor/common/hypercall.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/lib/stack_protector.c \
                           ../hypervisor/arch/x86/lib/retpoline-thunk.S \
@@ -841,6 +842,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/timer.h \
                           ../hypervisor/include/common/ptdev.h \
                           ../hypervisor/include/common/sbuf.h \
+                          ../hypervisor/include/common/hypercall.h \
                           ../hypervisor/include/hw/hw_timer.h \
                           ../hypervisor/include/public/acrn_common.h \
                           ../hypervisor/include/public/acrn_hv_defs.h \
@@ -866,6 +868,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/boot/include/acpi.h \
                           ../hypervisor/boot/acpi_base.c \
                           ../hypervisor/arch/x86/guest/vm.c \
+                          ../hypervisor/arch/x86/guest/vmcall.c \
                           ../hypervisor/arch/x86/cpu_state_tbl.c \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
@@ -974,7 +977,8 @@ EXCLUDE_PATTERNS       =
 # Exclude internal names (starting with an _) and doxygen-added __unnamed__
 # names given to unnamed nested unions
 
-EXCLUDE_SYMBOLS        = *.__unnamed__ version_info acrn_mmiodev hc_ptdev_irq
+EXCLUDE_SYMBOLS        = *.__unnamed__ version_info acrn_mmiodev hc_ptdev_irq \
+                        hc_dispatch_table
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

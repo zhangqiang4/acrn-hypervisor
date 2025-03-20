@@ -9,5 +9,5 @@ for the Device Model are found in the `ACRN Hypervisor GitHub repo`_.
 .. _ACRN Hypervisor GitHub repo:
    https://github.com/projectacrn/acrn-hypervisor/
 
-.. doxygengroup:: acrn_hypercall
+.. doxygengroup::  vp-base_hypercall
    :project: Project ACRN
