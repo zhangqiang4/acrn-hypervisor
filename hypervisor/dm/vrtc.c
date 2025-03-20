@@ -364,6 +364,7 @@ static int32_t clk_ct_to_ts(struct clktime *ct, time_t *sec)
  * @retval -EINVAL Input parameter secs is invalid
  *
  * @pre ct != NULL
+ * @pre secs >= 0
  *
  * @post N/A
  *
@@ -372,11 +373,11 @@ static int32_t clk_ct_to_ts(struct clktime *ct, time_t *sec)
 static int32_t clk_ts_to_ct(time_t secs, struct clktime *ct)
 {
 	uint32_t i, year, days;
-	time_t rsec;	/* remainder seconds */
+	uint32_t rsec;	/* remainder seconds */
 	int32_t err = 0;
 
-	days = secs / SECDAY;
-	rsec = secs % SECDAY;
+	days = (uint32_t)secs / SECDAY;
+	rsec = (uint32_t)secs % SECDAY;
 
 	ct->dow = day_of_week(days);
 
