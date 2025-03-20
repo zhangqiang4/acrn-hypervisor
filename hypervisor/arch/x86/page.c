@@ -94,8 +94,8 @@ void free_page(struct page_pool *pool, struct page *page)
 	uint64_t idx, bit;
 
 	spinlock_obtain(&pool->lock);
-	idx = (page - pool->start_page) >> 6U;
-	bit = (page - pool->start_page) & 0x3fUL;
+	idx = (uint64_t)(page - pool->start_page) >> 6U;
+	bit = (uint64_t)(page - pool->start_page) & 0x3fUL;
 	bitmap_clear_nolock(bit, pool->bitmap + idx);
 	spinlock_release(&pool->lock);
 }

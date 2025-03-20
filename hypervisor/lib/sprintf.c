@@ -419,7 +419,7 @@ static void print_pow2(struct print_param *param,
 
 	/* assign parameter and apply width and precision */
 	param->vars.value = pos;
-	param->vars.valuelen = (digitbuff + sizeof(digitbuff)) - pos;
+	param->vars.valuelen = (uint32_t)((digitbuff + sizeof(digitbuff)) - pos);
 
 	format_number(param);
 
@@ -726,7 +726,7 @@ void do_print(const char *fmt_arg, struct print_param *param,
 				char c[2];
 
 				c[0] = (char)__builtin_va_arg(args, int32_t);
-				c[1] = 0;
+				c[1] = '\0';
 				print_string(param, c);
 			}
 			/** default: print the format specifier as it is */
