@@ -39,8 +39,8 @@
  * FLAG_TO_REL   - resources need to be release
  * FLAG_CLEAR_BUF - to clear buffered old data
  */
-#define FLAG_TO_REL		(1UL << 0)
-#define FLAG_CLEAR_BUF		(1UL << 1)
+#define FLAG_TO_REL		(1U << 0)
+#define FLAG_CLEAR_BUF		(1U << 1)
 
 #define foreach_dev(dev_id)                                       \
         for ((dev_id) = 0; (dev_id) < (dev_cnt); (dev_id)++)
