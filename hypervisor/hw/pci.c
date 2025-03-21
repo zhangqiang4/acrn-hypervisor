@@ -546,10 +546,10 @@ static inline void pdev_save_bar(struct pci_pdev *pdev)
 }
 
 /**
- * @brief Restore the saved BAR registers values to physical device
+ * @brief Restore the saved BAR registers and VF BARs registers values to physical device
  *
  * This function iterates the physical device's BAR registers and restores the BAR registers
- * values to physical device.
+ * values to physical device. The VF BAR is restored too if there is SRIOV capability.
  *
  * @param[in] pdev Pointer to the data structure of PCI physical device.
  *
@@ -563,6 +563,13 @@ void pdev_restore_bar(const struct pci_pdev *pdev)
 
 	for (idx = 0U; idx < pdev->nr_bars; idx++) {
 		pci_pdev_write_cfg(pdev->bdf, pci_bar_offset(idx), 4U, pdev->bars[idx].phy_bar);
+	}
+
+	if (pdev->sriov.capoff != 0) {
+		for (idx = 0U; idx < PCI_STD_NUM_BARS; idx++) {
+			pci_pdev_write_cfg(pdev->bdf, pdev->sriov.capoff + PCIR_SRIOV_VF_BAR_OFF + idx * 4,
+					4U, pdev->vf_bars[idx]);
+		}
 	}
 }
 
@@ -1171,6 +1178,7 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 {
 	uint32_t hdr, pos;
 	uint8_t pcie_dev_type;
+	uint8_t idx;
 
 	/* guard against malformed list */
 	int node_limit;
@@ -1186,6 +1194,10 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 		if (PCI_ECAP_ID(hdr) == PCIZ_SRIOV) {
 			pdev->sriov.capoff = pos;
 			pdev->sriov.caplen = PCI_SRIOV_CAP_LEN;
+			for (idx = 0; idx < PCI_STD_NUM_BARS; idx++) {
+				pdev->vf_bars[idx] = pci_pdev_read_cfg(pdev->bdf,
+						pos + PCIR_SRIOV_VF_BAR_OFF + idx * 4, 4U);
+			}
 		} else if (PCI_ECAP_ID(hdr) == PCIZ_PTM) {
 			pcie_dev_type = (((uint8_t)pci_pdev_read_cfg(pdev->bdf,
 				pdev->pcie_capoff + PCIER_FLAGS, 1)) & PCIEM_FLAGS_TYPE) >> 4;

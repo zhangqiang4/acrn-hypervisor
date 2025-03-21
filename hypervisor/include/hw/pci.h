@@ -181,6 +181,7 @@
 #define PCIR_SRIOV_VF_DEV_ID	0x1AU  /**< VF Device ID register offset. */
 #define PCIR_SRIOV_VF_BAR_OFF	0x24U  /**< VF BAR0 register offset. */
 #define PCIM_SRIOV_VF_ENABLE	0x1U   /**< Mask used to indicate VF Enable. */
+#define PCIR_SRIOV_VF_MIG_ARR	0x3CU  /**< VF Migration State Array Offset register offset. */
 
 #define PCI_ATS_CAP_LEN		0x8U  /**< Length of ATS Capability. */
 #define PCI_PRI_CAP_LEN		0xFU  /**< Length of PRI Capability. */
@@ -422,6 +423,7 @@ struct pci_pdev {
 
 	struct pci_msix_cap msix;  /**< Instance of data structure to present basic MSI-X capability information */
 	struct pcie_cap sriov; /**< Instance of data structure to present basic SRIOV capability information */
+	uint32_t vf_bars[PCI_STD_NUM_BARS]; /**< Array to record VF bar initial value */
 	struct pcie_cap ats; /**< Instance of data structure to present basic ATS capability information */
 	struct pcie_cap pri; /**< Instance of data structure to present basic PRI capability information */
 	struct pcie_cap acs; /**< Instance of data structure to present basic ACS capability information */

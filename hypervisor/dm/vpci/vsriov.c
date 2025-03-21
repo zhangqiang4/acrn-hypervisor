@@ -302,6 +302,10 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 
 	uint32_t reg;
 
+	/*
+	 * With sriov_ro limitation, pre/post VMs cannot sizing VF BARs so that they cannot
+	 * set VF BARs and enable SRIOV.
+	 */
 	if (!vdev->sriov.sriov_ro) {
 		reg = offset - vdev->sriov.capoff;
 		if (reg == PCIR_SRIOV_CONTROL) {
@@ -337,15 +341,23 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 			if ((((uint16_t)(val & 0xFFU)) <= total) && (!is_vf_enabled(vdev))) {
 				pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 			}
-		} else if (reg >= PCIR_SRIOV_FST_VF_OFF) {
+		} else if ((reg >= PCIR_SRIOV_VF_BAR_OFF) && (reg < PCIR_SRIOV_VF_MIG_ARR)) {
 			/*
-			 * Ignore write to below registers:
-			 * 1. VF BARs: We are afraid of the VF's BAR address conflicting with Pre-launched VM HPA
-			 *    so we decide not to support the VF's BAR register update;
-			 * 2. System Page Size: When System Page Size is set, the VF associated with this PF is
-			 *    required to align all BAR resources on a System Page Size boundary. We don't care it
-			 *    so far;
+			 * Ignore write to VF BARs if the value is not for sizing (~0U) or not the initial VF
+			 * BAR content. We are afraid of the VF's BAR address conflicting with Pre-launched
+			 * VM HPA so we decide not to support the VF's BAR register update.
+			 *
+			 * But we allow to write System Page Size. When System Page Size is set, the VF
+			 * associated with this PF is required to align all BAR resources on a System Page
+			 * Size boundary. This is the limitatin to VM OS but doesn't affect the BAR limitation
+			 * above.
 			 */
+			if ((bytes == 4U) && ((offset & 0x3U) == 0U)) {
+				if ((val == ((uint32_t)~0U)) ||
+				    (val == vdev->pdev->vf_bars[(reg - PCIR_SRIOV_VF_BAR_OFF)/4])) {
+					pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
+				}
+			}
 		} else {
 			pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 		}
