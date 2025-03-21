@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <profiling.h>
 #include <sbuf.h>
-#include <include/debug/hypercall.h>
+#include <debug/hypercall.h>
 #include <npk_log.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>
