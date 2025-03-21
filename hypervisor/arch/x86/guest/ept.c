@@ -16,11 +16,42 @@
 #include <logmsg.h>
 #include <trace.h>
 
-#define DBG_LEVEL_EPT	6U
+/**
+ * @addtogroup vp-base_guest-mem
+ *
+ * @{
+ */
 
-/* EPT address space will not beyond the platform physical address space */
+/**
+ * @file
+ * @brief Implementation of the Extended Page Table (EPT) management
+ *
+ * The EPT is used to map guest physical addresses to host physical addresses, providing memory virtualization for
+ * virtual machines (VMs). This file includes functions for initializing, modifying, and destroying EPTs, as well as
+ * functions for translating addresses between guest and host contexts. Additionally, it provides mechanisms for
+ * handling EPT-related VM exits and managing EPT page tables.
+ */
 
-/* EPT_PD_PAGE_NUM consists of three parts:
+#define DBG_LEVEL_EPT	6U	/**< EPT logging level */
+
+#define EPT_EXTRA_PT_PAGE_NUM	32U	/**< extra PT pages for internal operations */
+
+/**
+ * @brief Number of EPT PML4 pages required for a single VM
+ * 
+ * EPT address space will not beyond the platform physical address space
+ */
+#define EPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
+/**
+ * @brief Number of EPT PDPT pages required for a single VM
+ * 
+ * EPT address space will not beyond the platform physical address space
+ */
+#define EPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
+/**
+ * @brief Number of EPT PD pages required for a single VM
+ * 
+ * EPT_PD_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most
  * 2) low MMIO - and DRAM are contiguous
@@ -31,7 +62,11 @@
  * at most;
  * The high MMIO may use (CONFIG_MAX_PCI_DEV_NUM * 6U) PD pages (may plus some PDPT entries
  * if the high MMIO BAR size is larger than 1GB) to build EPT mapping at most
-
+ */
+#define EPT_PD_PAGE_NUM		(PD_PAGE_NUM(MEM_TOP_ADDRESS) + (CONFIG_MAX_PCI_DEV_NUM * 6U))
+/**
+ * @brief Number of EPT PT pages required for a single VM
+ * 
  * EPT_PT_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most
@@ -55,24 +90,31 @@
  *                  (c) The Maximum number of PCI devices for ACRN and the Maximum number of virtual PCI devices
  *                      for VM both are CONFIG_MAX_PCI_DEV_NUM
  */
-#define EPT_EXTRA_PT_PAGE_NUM	32U	/**< extra PT pages for internal operations */
-
-#define EPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
-#define EPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
-#define EPT_PD_PAGE_NUM		(PD_PAGE_NUM(MEM_TOP_ADDRESS) + (CONFIG_MAX_PCI_DEV_NUM * 6U))
 #define EPT_PT_PAGE_NUM		((E820_MAX_ENTRIES * 2U) + (CONFIG_MAX_PCI_DEV_NUM * 6U) + EPT_EXTRA_PT_PAGE_NUM)
 
+/**
+ * @brief Number of EPT pages required for a single VM
+ */
 #define EPT_PAGE_NUM	roundup((EPT_PML4_PAGE_NUM + EPT_PDPT_PAGE_NUM + EPT_PD_PAGE_NUM + EPT_PT_PAGE_NUM), 64U)
 
 
-static struct page ept_pages[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM] __aligned((PAGE_SIZE));
-static uint64_t ept_page_bitmap[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM / 8];
-static struct page ept_dummy_pages[CONFIG_MAX_VM_NUM];
+static struct page ept_pages[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM] __aligned((PAGE_SIZE));	/**< Per-VM EPT pages */
+static uint64_t ept_page_bitmap[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM / 8];			/**< Per-VM EPT bitmap */
+static struct page ept_dummy_pages[CONFIG_MAX_VM_NUM];					/**< Per-VM EPT dummy page */
+static struct page_pool ept_page_pool[CONFIG_MAX_VM_NUM];				/**< Per-VM EPT page pool*/
 
-/* ept: extended page pool*/
-static struct page_pool ept_page_pool[CONFIG_MAX_VM_NUM];
-
-/* @pre: The PPT and EPT have same page granularity */
+/**
+ * @brief Check whether EPT has specified level large page support.
+ *
+ * Check whether EPT has specified level large page support.
+ * For 2MB large page, it is always supported.
+ * For 1GB large page, it depends on the VMX_EPT_1GB_PAGE bit of IA32_VMX_EPT_VPID_CAP MSR.
+ *
+ * @param[in] level Page level to check
+ * @param[in] prot  [Unused] Page properties
+ *
+ * @return Large page supported on given page level or not
+ */
 static inline bool ept_large_page_support(enum _page_table_level level, __unused uint64_t prot)
 {
 	bool support;
@@ -88,11 +130,34 @@ static inline bool ept_large_page_support(enum _page_table_level level, __unused
 	return support;
 }
 
+/**
+ * @brief Flush EPT page table entry in cache
+ *
+ * Flush EPT page table entry in cache.
+ *
+ * @param[in] etry Pointer to the EPT entry
+ *
+ * @return None
+ *
+ * @pre etry != NULL
+ */
 static inline void ept_clflush_pagewalk(const void* etry)
 {
 	iommu_flush_cache(etry, sizeof(uint64_t));
 }
 
+/**
+ * @brief Initialize the EPT page table for a given VM.
+ *
+ * This function sets up the EPT (Extended Page Table) page table for a specified VM. It initializes the EPT page pool,
+ * sets up the page table structure, and configures mitigation for the "Machine Check Error on Page Size Change" issue
+ * by setting up the tweak and recover functions for execute right.
+ *
+ * @param[inout] table Pointer to the pgtable structure to be initialized.
+ * @param[in]    vm_id ID of the VM for which the EPT page table is being initialized.
+ *
+ * @return None
+ */
 void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 {
 	ept_page_pool[vm_id].start_page = ept_pages[vm_id];
@@ -110,6 +175,7 @@ void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 	table->clflush_pagewalk = ept_clflush_pagewalk;
 	table->large_page_support = ept_large_page_support;
 }
+
 /*
  * To enable the identical map and support of legacy devices/ACPI method in Service VM,
  * ACRN presents the entire host 0-4GB memory region to Service VM, except the memory
@@ -117,9 +183,18 @@ void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
  * virtual e820 only contains the known DRAM regions. For this reason,
  * we can't know if the GPA range is guest valid or not, by checking with
  * its ve820 tables only.
+ */
+/**
+ * @brief Check if the GPA range is guest valid GPA or not
  *
- * instead, we Check if the GPA range is guest valid by whether the GPA range is mapped
- * in EPT pagetable or not
+ * Check if the GPA range is guest valid by whether the GPA range is mapped
+ * in EPT pagetable or not.
+ *
+ * @param[in] vm          Pointer to the VM structure
+ * @param[in] mr_base_gpa Start of the GPA rage
+ * @param[in] mr_size     Size of the GPA rage
+ *
+ * @return Whether the GPA range is guest valid
  */
 bool ept_is_valid_mr(struct acrn_vm *vm, uint64_t mr_base_gpa, uint64_t mr_size)
 {
@@ -138,6 +213,15 @@ bool ept_is_valid_mr(struct acrn_vm *vm, uint64_t mr_base_gpa, uint64_t mr_size)
 	return present;
 }
 
+/**
+ * @brief Destroy EPT page table for VM
+ *
+ * This function destroys EPT page table of specified VM by clearing the root EPT page.
+ *
+ * @param[in] vm Pointer to the VM structure
+ *
+ * @return None
+ */
 void destroy_ept(struct acrn_vm *vm)
 {
 	if (vm->arch_vm.nworld_eptp != NULL) {
@@ -146,7 +230,13 @@ void destroy_ept(struct acrn_vm *vm)
 }
 
 /**
- * @pre: vm != NULL.
+ * @brief Get the EPT base address for a given VM
+ *
+ * @param[in] vm Pointer to the VM structure
+ *
+ * @return EPT base address
+ *
+ * @pre vm != NULL
  */
 static inline void *get_eptp(struct acrn_vm *vm)
 {
@@ -154,7 +244,16 @@ static inline void *get_eptp(struct acrn_vm *vm)
 }
 
 /**
- * @pre: vm != NULL.
+ * @brief Translate Guest Physical Address to Host Physical Address and reads the EPT page size
+ *
+ * Translate Guest Physical Address to Host Physical Address by walking EPT of the VM, and reads the EPT page size
+ * GPA belongs to.
+ *
+ * @param[in]  vm   Pointer to the VM structure
+ * @param[in]  gpa  Guest Physical Address to be translated
+ * @param[out] size Pointer to the size of the EPT page GPA belongs to
+ *
+ * @return Translated Host Physical Address, or INVALID_HPA if the GPA is not mapped in the VM.
  */
 uint64_t local_gpa2hpa(struct acrn_vm *vm, uint64_t gpa, uint32_t *size)
 {
@@ -183,20 +282,47 @@ uint64_t local_gpa2hpa(struct acrn_vm *vm, uint64_t gpa, uint32_t *size)
 	return hpa;
 }
 
-/* using return value INVALID_HPA as error code */
+/**
+ * @brief Translate Guest Physical Address to Host Physical Address
+ *
+ * Translate Guest Physical Address to Host Physical Address by walking EPT of the VM
+ *
+ * @param[in]  vm   Pointer to the VM structure
+ * @param[in]  gpa  Guest Physical Address to be translated
+ *
+ * @return Translated Host Physical Address or INVALID_HPA if the GPA is not mapped in the VM.
+ */
 uint64_t gpa2hpa(struct acrn_vm *vm, uint64_t gpa)
 {
 	return local_gpa2hpa(vm, gpa, NULL);
 }
 
 /**
- * @pre: the gpa and hpa are identical mapping in Service VM.
+ * @brief Translate Host Physical Address to Guest Physical Address for Service VM
+ *
+ * Translate Host Physical Address to Guest Physical Address for Service VM, as Service VM uses identical mapping,
+ * HPA equals to GPA.
+ *
+ * @param[in]  hpa  Host Physical Address to be translated
+ *
+ * @return Translated Guest Physical Address
  */
 uint64_t service_vm_hpa2gpa(uint64_t hpa)
 {
 	return hpa;
 }
 
+/**
+ * @brief VM-Exit handler for VM-Exit caused by EPT misconfiguration
+ *
+ * ACRN doesn't handle EPT misconfiguration. Print the GPA and HPA in log, and add a trace event for it.
+ *
+ * @param[in] vcpu [Unused] Pointer to the vCPU structure
+ *
+ * @return A value indicates the status of VM-Exit handling.
+ *
+ * @retval -EINVAL
+ */
 int32_t ept_misconfig_vmexit_handler(__unused struct acrn_vcpu *vcpu)
 {
 	int32_t status;
@@ -217,6 +343,15 @@ int32_t ept_misconfig_vmexit_handler(__unused struct acrn_vcpu *vcpu)
 	return status;
 }
 
+/**
+ * @brief Flush EPT TLB for given VM
+ *
+ * Flush EPT TLB for given VM by making a ACRN_REQUEST_EPT_FLUSH request on VM's each vCPU
+ *
+ * @param[in] vm Pointer to the VM structure
+ *
+ * @return None
+ */
 static inline void ept_flush_guest(struct acrn_vm *vm)
 {
 	uint16_t i;
@@ -227,6 +362,23 @@ static inline void ept_flush_guest(struct acrn_vm *vm)
 	}
 }
 
+/**
+ * @brief Add a memory region to the EPT (Extended Page Table) of a VM
+ *
+ * This function maps a host physical address (HPA) to a guest physical address (GPA) with given property in the EPT
+ * of the specified virtual machine (VM).
+ *
+ * @param[in] vm        Pointer to the VM structure.
+ * @param[in] pml4_page Root pointer to the EPT page table.
+ * @param[in] hpa       Host physical address to be mapped.
+ * @param[in] gpa       Guest physical address to map to.
+ * @param[in] size      Size of the memory region to be mapped.
+ * @param[in] prot_orig Properties for the memory region.
+ *
+ * @return None
+ *
+ * @pre vm != NULL && pml4_page != NULL
+ */
 void ept_add_mr(struct acrn_vm *vm, uint64_t *pml4_page,
 	uint64_t hpa, uint64_t gpa, uint64_t size, uint64_t prot_orig)
 {
@@ -244,6 +396,23 @@ void ept_add_mr(struct acrn_vm *vm, uint64_t *pml4_page,
 	ept_flush_guest(vm);
 }
 
+/**
+ * @brief Modify memory region in EPT (Extended Page Tables) of a VM
+ *
+ * This function modifies the properties of a memory region mapped in the EPT  of the specified virtual machine (VM).
+ *
+ * @param[in] vm        Pointer to the VM structure.
+ * @param[in] pml4_page Root pointer to the EPT page table.
+ * @param[in] gpa       Guest physical address to be modified.
+ * @param[in] size      Size of the memory region to be modified.
+ * @param[in] prot_set  Properties to set
+ * @param[in] prot_clr  Properties to clear
+ *
+ * @return None
+ *
+ * @pre vm != NULL && pml4_page != NULL
+ * @pre ept_is_valid_mr(vm, gpa, size) == true
+ */
 void ept_modify_mr(struct acrn_vm *vm, uint64_t *pml4_page,
 		uint64_t gpa, uint64_t size,
 		uint64_t prot_set, uint64_t prot_clr)
@@ -260,8 +429,21 @@ void ept_modify_mr(struct acrn_vm *vm, uint64_t *pml4_page,
 
 	ept_flush_guest(vm);
 }
+
 /**
- * @pre [gpa,gpa+size) has been mapped into host physical memory region
+ * @brief Delete a memory region from the EPT (Extended Page Table) of a VM.
+ *
+ * This function removes a specified memory region from the EPT of a given virtual machine (VM).s
+ *
+ * @param[in] vm        Pointer to the VM structure.
+ * @param[in] pml4_page Root pointer to the EPT page table.
+ * @param[in] gpa       Guest physical address of the memory region to be deleted.
+ * @param[in] size      Size of the memory region to be deleted.
+ *
+ * @return None
+ *
+ * @pre vm != NULL && pml4_page != NULL
+ * @pre ept_is_valid_mr(vm, gpa, size) == true
  */
 void ept_del_mr(struct acrn_vm *vm, uint64_t *pml4_page, uint64_t gpa, uint64_t size)
 {
@@ -277,7 +459,17 @@ void ept_del_mr(struct acrn_vm *vm, uint64_t *pml4_page, uint64_t gpa, uint64_t 
 }
 
 /**
- * @pre pge != NULL && size > 0.
+ * @brief Flushes a leaf page in the Extended Page Table (EPT).
+ *
+ * This function flushes a leaf page in the EPT by invalidating the cache for the specified page if it is not marked
+ * as uncached.
+ *
+ * @param[in] pge  Pointer to the EPT entry for the page.
+ * @param[in] size Size of the page to be flushed.
+ *
+ * @return None
+ *
+ * @pre pge != NULL && size > 0
  */
 void ept_flush_leaf_page(uint64_t *pge, uint64_t size)
 {
@@ -293,7 +485,18 @@ void ept_flush_leaf_page(uint64_t *pge, uint64_t size)
 }
 
 /**
- * @pre vm != NULL && cb != NULL.
+ * @brief Walk through the Extended Page Tables (EPT) of a given VM and apply a callback function to each page entry.
+ *
+ * This function traverses the EPT of the specified virtual machine (VM) and applies the provided callback function
+ * to each page entry. The traversal is performed in a hierarchical manner, starting from the PML4E level down to
+ * the PTE level.
+ *
+ * @param[in] vm Pointer to the VM structure whose EPT is to be walked
+ * @param[in] cb Callback function to be applied to each page entry
+ *
+ * @return None
+ *
+ * @pre vm != NULL && cb != NULL
  */
 void walk_ept_table(struct acrn_vm *vm, pge_handler cb)
 {
@@ -345,3 +548,7 @@ void walk_ept_table(struct acrn_vm *vm, pge_handler cb)
 		}
 	}
 }
+
+/**
+ * @}
+ */

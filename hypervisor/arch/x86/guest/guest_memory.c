@@ -15,22 +15,56 @@
 #include <asm/guest/ept.h>
 #include <logmsg.h>
 
-struct page_walk_info {
-	uint64_t top_entry;	/* Top level paging structure entry */
-	uint32_t level;
-	uint32_t width;
-	bool is_user_mode_access;
-	bool is_write_access;
-	bool is_inst_fetch;
-	bool pse;		/* CR4.PSE for 32bit paing,
-				 * true for PAE/4-level paing */
-	bool wp;		/* CR0.WP */
-	bool nxe;		/* MSR_IA32_EFER_NXE_BIT */
+/**
+ * @defgroup vp-base_guest-mem vp-base.guest-mem Guest memory
+ * @ingroup vp-base
+ * @brief Guest memory implementation
+ *
+ * @{
+ */
 
-	bool is_smap_on;
-	bool is_smep_on;
+/**
+ * @file
+ * @brief Implementation of guest memory access.
+ *
+ * This file implements functions for translating guest virtual addresses to guest physical addresses,
+ * and provide utilities for accessing guest memory from hypervisor.
+ */
+
+/**
+ * @brief Structure to hold page walk information
+ *
+ * This structure holds the information required to walk the guest page table.
+ */
+struct page_walk_info {
+	uint64_t top_entry;		/**< Top level paging structure entry */
+	uint32_t level;			/**< Paging level */
+	uint32_t width;			/**< Paging width */
+	bool is_user_mode_access;	/**< User mode access flag */
+	bool is_write_access;		/**< Write access flag */
+	bool is_inst_fetch;		/**< Instruction fetch flag */
+	bool pse;			/**< CR4.PSE for 32bit paging, true for PAE/4-level paging */
+	bool wp;			/**< CR0.WP */
+	bool nxe;			/**< MSR_IA32_EFER_NXE_BIT */
+
+	bool is_smap_on;		/**< SMAP enabled flag */
+	bool is_smep_on;		/**< SMEP enabled flag */
 };
 
+/**
+ * @brief Get the paging mode of a vCPU
+ *
+ * This function determines the paging mode of the specified vCPU based on its
+ * current state. The paging mode can be one of the following:
+ * - PAGING_MODE_0_LEVEL: Non-paging mode.
+ * - PAGING_MODE_2_LEVEL: 32-bit paging.
+ * - PAGING_MODE_3_LEVEL: PAE (Physical Address Extension) paging.
+ * - PAGING_MODE_4_LEVEL: 4-level paging (used in long mode).
+ *
+ * @param[in] vcpu Pointer to the vCPU structure.
+ *
+ * @return Paging mode of the vCPU.
+ */
 static enum vm_paging_mode get_vcpu_paging_mode(struct acrn_vcpu *vcpu)
 {
 	enum vm_paging_mode ret = PAGING_MODE_0_LEVEL;	/* non-paging */
@@ -50,8 +84,35 @@ static enum vm_paging_mode get_vcpu_paging_mode(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-/* TODO: Add code to check for Revserved bits, SMAP and PKE when do translation
- * during page walk */
+/**
+ * @brief Translate Guest Virtual Address (GVA) to Guest Physical Address (GPA)
+ *
+ * This function translates a given Guest Virtual Address (GVA) to a Guest Physical Address (GPA) using the provided
+ * page walk information to walk the guest page table.
+ *
+ *  The function performs the following checks during the translation:
+ * - Ensures the page walk level is valid.
+ * - Checks if the page table entry is present.
+ * - Verifies read/write permissions.
+ * - Checks for execution permissions (NX bit).
+ * - Verifies user/supervisor mode access.
+ * - Applies SMAP/SMEP checks if enabled.
+ * If any of these checks fail, the function sets appropriate page fault error code and returns -EFAULT.
+ *
+ * @param[in]    vcpu     Pointer to the virtual CPU structure.
+ * @param[in]    pw_info  Pointer to the page walk information structure.
+ * @param[in]    gva      Guest Virtual Address to be translated.
+ * @param[out]   gpa      Pointer to store the resulting Guest Physical Address.
+ * @param[inout] err_code Pointer to the page fault error code.
+ *
+ * @return 0 on success, or error code if the translation fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL The page walk level is less than 1
+ * @retval -EFAULT A page fault occurs during translation
+ *
+ * @pre vcpu != NULL && pw_info != NULL && gpa != NULL && err_code != NULL
+ */
 static int32_t local_gva2gpa_common(struct acrn_vcpu *vcpu, const struct page_walk_info *pw_info,
 	uint64_t gva, uint64_t *gpa, uint32_t *err_code)
 {
@@ -110,7 +171,7 @@ static int32_t local_gva2gpa_common(struct acrn_vcpu *vcpu, const struct page_wa
 				}
 			}
 
-			/* check for nx, since for 32-bit paing, the XD bit is
+			/* check for nx, since for 32-bit paging, the XD bit is
 			 * reserved(0), use the same logic as PAE/4-level paging */
 			if ((fault == 0) && pw_info->is_inst_fetch && pw_info->nxe &&
 				    ((entry & PAGE_NX) != 0U)) {
@@ -167,6 +228,26 @@ static int32_t local_gva2gpa_common(struct acrn_vcpu *vcpu, const struct page_wa
 	return ret;
 }
 
+/**
+ * @brief Translate Guest Virtual Address (GVA) to Guest Physical Address (GPA) using PAE paging
+ *
+ * This function translates a given GVA to a GPA for a specific vCPU using the Page Address Extension (PAE) paging
+ * mechanism.
+ *
+ * @param[in]    vcpu     The virtual CPU for which the address translation is performed.
+ * @param[in]    pw_info  Pointer to the page walk information structure.
+ * @param[in]    gva      The guest virtual address to be translated.
+ * @param[out]   gpa      Pointer to store the resulting guest physical address.
+ * @param[inout] err_code Pointer to the page fault error code.
+ *
+ * @return 0 on success, or error code if `Convert Guest Physical Address (GPA) to Host Virtual Address (HVA)` or
+ * `Translate Guest Virtual Address (GVA) to Guest Physical Address (GPA)` fails.
+ *
+ * @retval 0       Success
+ * @retval -EFAULT A page fault occurs during translation
+ *
+ * @pre vcpu != NULL && pw_info != NULL && gpa != NULL && err_code != NULL
+ */
 static int32_t local_gva2gpa_pae(struct acrn_vcpu *vcpu, struct page_walk_info *pw_info,
 	uint64_t gva, uint64_t *gpa, uint32_t *err_code)
 {
@@ -194,23 +275,27 @@ static int32_t local_gva2gpa_pae(struct acrn_vcpu *vcpu, struct page_walk_info *
 	return ret;
 }
 
-/* Refer to SDM Vol.3A 6-39 section 6.15 for the format of paging fault error
- * code.
+/**
+ * @brief Convert Guest Virtual Address (GVA) to Guest Physical Address (GPA)
  *
- * Caller should set the contect of err_code properly according to the address
- * usage when calling this function:
- * - If it is an address for write, set PAGE_FAULT_WR_FLAG in err_code.
- * - If it is an address for instruction featch, set PAGE_FAULT_ID_FLAG in
- *   err_code.
- * Caller should check the return value to confirm if the function success or
- * not.
- * If a protection volation detected during page walk, this function still will
- * give the gpa translated, it is up to caller to decide if it need to inject a
- * #PF or not.
- * - Return 0 for success.
- * - Return -EINVAL for invalid parameter.
- * - Return -EFAULT for paging fault, and refer to err_code for paging fault
- *   error code.
+ * This function determines the paging mode on specified virtual CPU (vCPU), translates a given Guest Virtual Address
+ * (GVA) to a Guest Physical Address (GPA) with appropriate translation, and sets corresponding page fault error code.
+ *
+ * If a protection violation detected during page walk, this function still will give the gpa translated,
+ * it is up to caller to decide if it need to inject a page fault or not.
+ *
+ * @param[in]    vcpu     Pointer to the virtual CPU structure.
+ * @param[in]    gva      The Guest Virtual Address to be translated.
+ * @param[out]   gpa      Pointer to store the resulting Guest Physical Address.
+ * @param[inout] err_code Pointer to the page fault error code.
+ *
+ * @return 0 on success, or error code if the translation fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL gpa or err_code is NULL
+ * @retval -EFAULT A page fault occurs during translation
+ *
+ * @pre vcpu != NULL && gpa != NULL && err_code != NULL
  */
 int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa,
 	uint32_t *err_code)
@@ -270,6 +355,24 @@ int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa,
 	return ret;
 }
 
+/**
+ * @brief Copy memory between guest physical address (GPA) and hypervisor within a single page
+ *
+ * This function copies a specified size of memory between a guest physical address (GPA) and hypervisor within a
+ * single page. It handles the translation from GPA to host physical address (HPA) and performs the memory copy
+ * operation.
+ *
+ * @param[in]    vm          Pointer to the virtual machine structure.
+ * @param[inout] h_ptr       Pointer to the hypervisor memory where data will be copied to or from.
+ * @param[in]    gpa         Guest physical address from where data will be copied to or from.
+ * @param[in]    size        Size of the memory to be copied.
+ * @param[in]    fix_pg_size Fixed page size to be used for the copy operation. If 0, the actual page size will be used.
+ * @param[in]    cp_from_vm  Boolean flag indicating the direction of the copy operation.
+ *                           - true: Copy from guest memory to hypervisor memory.
+ *                           - false: Copy from hypervisor memory to guest memory.
+ *
+ * @return Number of bytes copied, or 0 If the GPA is invalid or address translation fails.
+ */
 static inline uint32_t local_copy_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa,
 	uint32_t size, uint32_t fix_pg_size, bool cp_from_vm)
 {
@@ -305,6 +408,26 @@ static inline uint32_t local_copy_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t 
 	return len;
 }
 
+/**
+ * @brief Copy memory between host and guest physical address space.
+ *
+ * This function copies memory between the host and guest physical address space. The direction of the copy
+ * is determined by the cp_from_vm parameter. Caller should make sure gpa is continuous.
+ *
+ * @param[in]    vm         Pointer to the VM structure.
+ * @param[inout] h_ptr_arg  Pointer to the hypervisor memory where data will be copied to or from.
+ * @param[in]    gpa_arg    Guest physical address.
+ * @param[in]    size_arg   Size of the memory to copy.
+ * @param[in]    cp_from_vm Boolean flag indicating the direction of the copy.
+ *                          - true: Copy from guest to host.
+ *                          - false: Copy from host to guest.
+ *
+ * @return 0 on success, or error code if `Copy memory between guest physical address (GPA) and hypervisor within a
+ * single page` fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL An error occurs during the copy.
+ */
 static inline int32_t copy_gpa(struct acrn_vm *vm, void *h_ptr_arg, uint64_t gpa_arg,
 	uint32_t size_arg, bool cp_from_vm)
 {
@@ -328,8 +451,86 @@ static inline int32_t copy_gpa(struct acrn_vm *vm, void *h_ptr_arg, uint64_t gpa
 	return err;
 }
 
-/*
- * @pre vcpu != NULL && err_code != NULL && h_ptr_arg != NULL
+/**
+ * @brief Copy memory from Guest Physical Address (GPA) to hypervisor memory
+ *
+ * This function copies a specified amount of memory from a given GPA in a VM to hypervisor
+ *
+ * @param[in]  vm    Pointer to the VM structure.
+ * @param[out] h_ptr Pointer to where the data will be copied to.
+ * @param[in]  gpa   Guest Physical Address from which the memory will be copied.
+ * @param[in]  size  Size of the memory to be copied in bytes.
+ *
+ * @return 0 on success, or error code if `Copy memory between host and guest physical address space` fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL Invalid parameters
+ * @retval -EFAULT Failed to copy memory
+ */
+int32_t copy_from_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa, uint32_t size)
+{
+	int32_t ret = 0;
+
+	ret = copy_gpa(vm, h_ptr, gpa, size, 1);
+	if (ret != 0) {
+		pr_err("Unable to copy GPA 0x%llx from VM%d to HPA 0x%llx\n", gpa, vm->vm_id, (uint64_t)h_ptr);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Copy memory from hypervisor memory to given Guest Physical Address (GPA)
+ *
+ * This function copies a specified amount of memory from hypervisor to a given GPA in a VM
+ *
+ * @param[in]  vm    Pointer to the VM structure.
+ * @param[in]  h_ptr Pointer to where the data will be copied from.
+ * @param[in]  gpa   Guest Physical Address to which the memory will be copied.
+ * @param[in]  size  Size of the memory to be copied in bytes.
+ *
+ * @return 0 on success, or error code if `Copy memory between host and guest physical address space` fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL Invalid parameters
+ * @retval -EFAULT Failed to copy memory
+ */
+int32_t copy_to_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa, uint32_t size)
+{
+	int32_t ret = 0;
+
+	ret = copy_gpa(vm, h_ptr, gpa, size, 0);
+	if (ret != 0) {
+		pr_err("Unable to copy HPA 0x%llx to GPA 0x%llx in VM%d\n", (uint64_t)h_ptr, gpa, vm->vm_id);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Copy guest virtual address (GVA) to/from hypervisor memory.
+ *
+ * This function copies data between a guest virtual address (GVA) and hypervisor memory.
+ * It translates the GVA to a guest physical address (GPA) and then performs the copy.
+ *
+ * @param[in]    vcpu        Pointer to the virtual CPU structure.
+ * @param[inout] h_ptr_arg   Pointer to the hypervisor memory buffer.
+ * @param[in]    gva_arg     Guest virtual address to copy from/to.
+ * @param[in]    size_arg    Size of the data to copy.
+ * @param[inout] err_code    Pointer to the page fault error code if page faults.
+ * @param[out]   fault_addr  Pointer to store the page fault address.
+ * @param[in]    cp_from_vm  Boolean flag indicating the direction of the copy.
+ *                         - true: Copy from VM to hypervisor memory.
+ *                         - false: Copy from hypervisor memory to VM.
+ *
+ * @return 0 on success, or error code if gva2gpa or `Copy memory between guest physical address (GPA) and hypervisor
+ * within a single page` fails
+ *
+ * @retval 0       Success
+ * @retval -EINVAL An error occurs during the copy.
+ * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ *
+ * @pre vcpu != NULL && h_ptr_arg != NULL && err_code != NULL && fault_addr != NULL
  */
 static inline int32_t copy_gva(struct acrn_vcpu *vcpu, void *h_ptr_arg, uint64_t gva_arg,
 	uint32_t size_arg, uint32_t *err_code, uint64_t *fault_addr,
@@ -362,59 +563,77 @@ static inline int32_t copy_gva(struct acrn_vcpu *vcpu, void *h_ptr_arg, uint64_t
 	return ret;
 }
 
-/* @pre Caller(Guest) should make sure gpa is continuous.
- * - gpa from hypercall input which from kernel stack is gpa continuous, not
- *   support kernel stack from vmap
- * - some other gpa from hypercall parameters, VHM should make sure it's
- *   continuous
- * @pre Pointer vm is non-NULL
+/**
+ * @brief Copy data from guest virtual address (GVA) to hypervisor memory.
+ *
+ * This function copies a specified amount of data from a guest virtual address (GVA) to hypervisor memory
+ * in the context of a given virtual CPU.
+ *
+ * @param[in]    vcpu       Pointer to the vCPU structure.
+ * @param[out]   h_ptr      Pointer to the destination in hypervisor memory.
+ * @param[in]    gva        Guest virtual address where the data should be copied to.
+ * @param[in]    size       Size of the data to be copied, in bytes.
+ * @param[inout] err_code   Pointer to the page fault error code if page faults.
+ * @param[out]   fault_addr Pointer to store the page fault address.
+ *
+ * @return 0 on success, or error code if `Copy guest virtual address (GVA) to/from hypervisor memory` fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL An error occurs during the copy.
+ * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ *
+ * @pre vcpu != NULL && h_ptr != NULL && err_code != NULL && fault_addr != NULL
  */
-int32_t copy_from_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa, uint32_t size)
-{
-	int32_t ret = 0;
-
-	ret = copy_gpa(vm, h_ptr, gpa, size, 1);
-	if (ret != 0) {
-		pr_err("Unable to copy GPA 0x%llx from VM%d to HPA 0x%llx\n", gpa, vm->vm_id, (uint64_t)h_ptr);
-	}
-
-	return ret;
-}
-
-/* @pre Caller(Guest) should make sure gpa is continuous.
- * - gpa from hypercall input which from kernel stack is gpa continuous, not
- *   support kernel stack from vmap
- * - some other gpa from hypercall parameters, VHM should make sure it's
- *   continuous
- * @pre Pointer vm is non-NULL
- */
-int32_t copy_to_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa, uint32_t size)
-{
-	int32_t ret = 0;
-
-	ret = copy_gpa(vm, h_ptr, gpa, size, 0);
-	if (ret != 0) {
-		pr_err("Unable to copy HPA 0x%llx to GPA 0x%llx in VM%d\n", (uint64_t)h_ptr, gpa, vm->vm_id);
-	}
-
-	return ret;
-}
-
 int32_t copy_from_gva(struct acrn_vcpu *vcpu, void *h_ptr, uint64_t gva,
 	uint32_t size, uint32_t *err_code, uint64_t *fault_addr)
 {
 	return copy_gva(vcpu, h_ptr, gva, size, err_code, fault_addr, 1);
 }
 
+/**
+ * @brief Copy data from hypervisor memory to guest virtual address (GVA).
+ *
+ * This function copies a specified amount of data from hypervisor memory to a guest virtual address (GVA)
+ * in the context of a given virtual CPU.
+ *
+ * @param[in]    vcpu       Pointer to the vCPU structure.
+ * @param[in]    h_ptr      Pointer to the source in hypervisor memory.
+ * @param[in]    gva        Guest virtual address where the data should be copied to.
+ * @param[in]    size       Size of the data to be copied, in bytes.
+ * @param[inout] err_code   Pointer to the page fault error code if page faults.
+ * @param[out]   fault_addr Pointer to store the page fault address.
+ *
+ * @return 0 on success, or error code if `Copy guest virtual address (GVA) to/from hypervisor memory` fails.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL An error occurs during the copy.
+ * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ *
+ * @pre vcpu != NULL && h_ptr != NULL && err_code != NULL && fault_addr != NULL
+ */
 int32_t copy_to_gva(struct acrn_vcpu *vcpu, void *h_ptr, uint64_t gva,
 	uint32_t size, uint32_t *err_code, uint64_t *fault_addr)
 {
 	return copy_gva(vcpu, h_ptr, gva, size, err_code, fault_addr, false);
 }
 
-/* gpa --> hpa -->hva */
+/**
+ * @brief Convert Guest Physical Address (GPA) to Host Virtual Address (HVA)
+ *
+ * This function translates a given Guest Physical Address (GPA) to the corresponding
+ * Host Virtual Address (HVA) for a specified virtual machine (VM).
+ *
+ * @param[in] vm Pointer to the virtual machine structure
+ * @param[in] x  Guest Physical Address (GPA) to be translated
+ *
+ * @return Translated Host Virtual Address(HVA), or INVALID_HPA if the GPA is not mapped in the VM.
+ */
 void *gpa2hva(struct acrn_vm *vm, uint64_t x)
 {
 	uint64_t hpa = gpa2hpa(vm, x);
 	return (hpa == INVALID_HPA) ? NULL : hpa2hva(hpa);
 }
+
+/**
+ * @}
+ */
