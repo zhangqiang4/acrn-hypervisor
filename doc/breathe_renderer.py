@@ -49,7 +49,7 @@ from breathe.renderer.filter import (
 
 from settings import (
     UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
-    SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
+    NEED_DEFINED_SORTING, SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
     NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS
 )
 from hookit import HookManager
@@ -551,10 +551,13 @@ class BreatheRenderer:
         self.context = cast(RenderContext, self.context)
         options = self.context.directive_args[2]
         section_order = None
-        # if not "sections" in options:  # sorting sections by the given sequence
-        #     options['sections'] = ' '.join(SECTIONS_SORTING_SEQUENCE)
-        if "sections" in options:
+        if NEED_DEFINED_SORTING and "sections" not in options:  # sorting sections by the given sequence
+            options['sections'] = ' '.join(['briefdescription', 'detaileddescription'] + SECTIONS_SORTING_SEQUENCE)
             section_order = {sec: i for i, sec in enumerate(options["sections"].split(" "))}
+        elif "sections" in options:
+            section_order = {sec: i for i, sec in enumerate(options["sections"].split(" "))}
+        else:
+            pass
         membergroup_order = None
         if "membergroups" in options:
             membergroup_order = {sec: i for i, sec in enumerate(options["membergroups"].split(" "))}
