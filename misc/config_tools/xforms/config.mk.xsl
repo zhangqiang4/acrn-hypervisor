@@ -14,6 +14,7 @@
   <xsl:output method="text" />
 
   <xsl:variable name="integer-suffix" select="''" />
+  <xsl:variable name="long-suffix" select="''" />
 
   <xi:include href="config_common.xsl" xpointer="xpointer(id('config_common')/*)" />
 

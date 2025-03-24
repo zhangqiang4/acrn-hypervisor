@@ -176,6 +176,12 @@
     <xsl:call-template name="integer-by-key">
       <xsl:with-param name="key" select="'STACK_SIZE'" />
     </xsl:call-template>
+
+    <xsl:call-template name="integer-by-key">
+      <xsl:with-param name="key" select="'MEMORY_TOP_ADDRESS'" />
+      <xsl:with-param name="default" select="//allocation-data/acrn-config/hv/MEMORY/TOP_ADDRESS" />
+      <xsl:with-param name="suffix" select="$long-suffix" />
+    </xsl:call-template>
   </xsl:template>
 
   <xsl:template match="CAPACITIES">
@@ -332,20 +338,21 @@
     <xsl:param name="key" />
     <xsl:param name="value" />
     <xsl:param name="default" />
+    <xsl:param name="suffix" select="$integer-suffix" />
 
     <xsl:choose>
       <xsl:when test="$value != ''">
 	<xsl:call-template name="entry-by-key-value">
 	  <xsl:with-param name="prefix" select="$prefix" />
 	  <xsl:with-param name="key" select="$key" />
-	  <xsl:with-param name="value" select="concat($value, $integer-suffix)" />
+	  <xsl:with-param name="value" select="concat($value, $suffix)" />
 	</xsl:call-template>
       </xsl:when>
       <xsl:when test="$default != ''">
 	<xsl:call-template name="entry-by-key-value">
 	  <xsl:with-param name="prefix" select="$prefix" />
 	  <xsl:with-param name="key" select="$key" />
-	  <xsl:with-param name="value" select="concat($default, $integer-suffix)" />
+	  <xsl:with-param name="value" select="concat($default, $suffix)" />
 	</xsl:call-template>
       </xsl:when>
       <xsl:otherwise>
@@ -369,11 +376,13 @@
   <xsl:template name="integer-by-key">
     <xsl:param name="key" />
     <xsl:param name="default" />
+    <xsl:param name="suffix" select="$integer-suffix" />
 
     <xsl:call-template name="integer-by-key-value">
       <xsl:with-param name="key" select="$key" />
       <xsl:with-param name="value" select="./*[name() = $key]" />
       <xsl:with-param name="default" select="$default" />
+      <xsl:with-param name="suffix" select="$suffix" />
     </xsl:call-template>
   </xsl:template>
 

@@ -14,6 +14,10 @@ HV_RAM_SIZE_MAX = 0x40000000
 
 MEM_ALIGN = 2 * acrn_config_utilities.SIZE_M
 
+def get_e820_top_address(memory_etree):
+    return max(int(end_value, 16) for end_value in memory_etree.xpath('//range/@end')) + 1
+
+
 def fn(board_etree, scenario_etree, allocation_etree):
     # this dictonary mapped with 'address start':'mem range'
     ram_range = {}
@@ -48,3 +52,6 @@ def fn(board_etree, scenario_etree, allocation_etree):
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/RAMOOPS_SIZE", hex(ramoops_size), allocation_etree)
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/HVLOG_START", hex(avl_start_addr + ramoops_size), allocation_etree)
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/HVLOG_SIZE", hex(hvlog_size), allocation_etree)
+    
+    top_address = get_e820_top_address(get_node(f"/acrn-config/memory", board_etree))
+    acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/TOP_ADDRESS", hex(top_address), allocation_etree)
