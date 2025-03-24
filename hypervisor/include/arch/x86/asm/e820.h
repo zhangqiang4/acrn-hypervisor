@@ -7,6 +7,7 @@
 #ifndef E820_H
 #define E820_H
 #include <types.h>
+#include <config.h>
 
 /**
  * @defgroup hwmgmt_memory hwmgmt.memory
@@ -44,6 +45,8 @@
 
 #define MEM_SIZE_MAX (~0UL)
 
+#define MEM_TOP_ADDRESS		max(CONFIG_MEMORY_TOP_ADDRESS, MEM_4G)
+
 /**
  * @brief E820 memory map entry.
  *
@@ -67,7 +70,6 @@ struct mem_range {
 void init_e820(void);
 
 uint64_t e820_alloc_memory(uint64_t size_arg, uint64_t max_addr);
-uint64_t get_ram_top_address(void);
 /* get total number of the E820 entries */
 uint32_t get_e820_entries_count(void);
 

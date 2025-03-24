@@ -19,30 +19,30 @@
 #define DBG_LEVEL_EPT	6U
 
 /* EPT address space will not beyond the platform physical address space */
-#define EPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
-#define EPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
 
-/* ept_pd_page_num consists of three parts:
+/* EPT_PD_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most
  * 2) low MMIO - and DRAM are contiguous
  * 3) high MMIO - Only PCI BARs're high MMIO (we didn't build the high MMIO EPT mapping
  *                except writing PCI 64 bits BARs)
  *
- * The first two parts may use PD_PAGE_NUM(get_ram_top_address()) PD pages to build EPT mapping
+ * The first two parts may use PD_PAGE_NUM(CONFIG_MEMORY_TOP_ADDRESS) PD pages to build EPT mapping
  * at most;
  * The high MMIO may use (CONFIG_MAX_PCI_DEV_NUM * 6U) PD pages (may plus some PDPT entries
  * if the high MMIO BAR size is larger than 1GB) to build EPT mapping at most
 
- * ept_pt_page_num consists of three parts:
+ * EPT_PT_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most
  * 2) low MMIO - and DRAM are contiguous
  * 3) high MMIO - Only PCI BARs're high MMIO (we didn't build the high MMIO EPT mapping
  *                except writing PCI 64 bits BARs)
  *
- * The first two parts may use PT_PAGE_NUM(get_ram_top_address()) PT pages to build EPT mapping
- * at most;
+ * The first two parts may use (E820_MAX_ENTRIES * 2U) PT pages to build EPT mapping at most,
+ * this is because using 2MB PD to map continuous memory regions is preferred, as E820 entries are 4KB-aligned,
+ * at most 2 more PT pages are needed to map the bounds. We also provide extra PT pages for internal operations
+ * like handling ept violation caused by instruction fetch and virtual LAPIC.
  * The high MMIO may use (CONFIG_MAX_PCI_DEV_NUM * 6U) PT pages to build EPT mapping at most:
  * this is because: (a) each 64 bits MMIO BAR may spend one PT page at most to build EPT mapping,
  *                      MMIO BAR size must be a power of 2 from 16 bytes;
@@ -55,63 +55,22 @@
  *                  (c) The Maximum number of PCI devices for ACRN and the Maximum number of virtual PCI devices
  *                      for VM both are CONFIG_MAX_PCI_DEV_NUM
  */
-static uint64_t get_ept_page_num(void)
-{
-	uint64_t ept_pd_page_num = PD_PAGE_NUM(get_ram_top_address()) + CONFIG_MAX_PCI_DEV_NUM * 6U;
-	uint64_t ept_pt_page_num = PT_PAGE_NUM(get_ram_top_address()) + CONFIG_MAX_PCI_DEV_NUM * 6U;
+#define EPT_EXTRA_PT_PAGE_NUM	32U	/**< extra PT pages for internal operations */
 
-	return roundup((EPT_PML4_PAGE_NUM + EPT_PDPT_PAGE_NUM + ept_pd_page_num + ept_pt_page_num), 64U);
-}
+#define EPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
+#define EPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
+#define EPT_PD_PAGE_NUM		(PD_PAGE_NUM(MEM_TOP_ADDRESS) + (CONFIG_MAX_PCI_DEV_NUM * 6U))
+#define EPT_PT_PAGE_NUM		((E820_MAX_ENTRIES * 2U) + (CONFIG_MAX_PCI_DEV_NUM * 6U) + EPT_EXTRA_PT_PAGE_NUM)
 
-uint64_t get_total_ept_4k_pages_size(void)
-{
-	return CONFIG_MAX_VM_NUM * (get_ept_page_num()) * PAGE_SIZE;
-}
+#define EPT_PAGE_NUM	roundup((EPT_PML4_PAGE_NUM + EPT_PDPT_PAGE_NUM + EPT_PD_PAGE_NUM + EPT_PT_PAGE_NUM), 64U)
 
-static struct page *ept_pages[CONFIG_MAX_VM_NUM];
-static uint64_t *ept_page_bitmap[CONFIG_MAX_VM_NUM];
+
+static struct page ept_pages[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM] __aligned((PAGE_SIZE));
+static uint64_t ept_page_bitmap[CONFIG_MAX_VM_NUM][EPT_PAGE_NUM / 8];
 static struct page ept_dummy_pages[CONFIG_MAX_VM_NUM];
 
 /* ept: extended page pool*/
 static struct page_pool ept_page_pool[CONFIG_MAX_VM_NUM];
-
-static void reserve_ept_bitmap(void)
-{
-	uint32_t i;
-	uint64_t bitmap_base;
-	uint64_t bitmap_size;
-	uint64_t bitmap_offset;
-
-	bitmap_size = (get_ept_page_num() * CONFIG_MAX_VM_NUM) / 8;
-	bitmap_offset = get_ept_page_num() / 8;
-
-	bitmap_base = e820_alloc_memory(bitmap_size, MEM_SIZE_MAX);
-	set_paging_supervisor(bitmap_base, bitmap_size);
-
-	for(i = 0; i < CONFIG_MAX_VM_NUM; i++){
-		ept_page_bitmap[i] = (uint64_t *)(void *)(bitmap_base + bitmap_offset * i);
-	}
-}
-
-/*
- * @brief Reserve space for EPT 4K pages from platform E820 table
- */
-void reserve_buffer_for_ept_pages(void)
-{
-	uint64_t page_base;
-	uint16_t vm_id;
-	uint32_t offset = 0U;
-
-	page_base = e820_alloc_memory(get_total_ept_4k_pages_size(), MEM_SIZE_MAX);
-	set_paging_supervisor(page_base, get_total_ept_4k_pages_size());
-	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
-		ept_pages[vm_id] = (struct page *)(void *)(page_base + offset);
-		/* assume each VM has same amount of EPT pages */
-		offset += get_ept_page_num() * PAGE_SIZE;
-	}
-
-	reserve_ept_bitmap();
-}
 
 /* @pre: The PPT and EPT have same page granularity */
 static inline bool ept_large_page_support(enum _page_table_level level, __unused uint64_t prot)
@@ -137,7 +96,7 @@ static inline void ept_clflush_pagewalk(const void* etry)
 void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 {
 	ept_page_pool[vm_id].start_page = ept_pages[vm_id];
-	ept_page_pool[vm_id].bitmap_size = get_ept_page_num() / 64;
+	ept_page_pool[vm_id].bitmap_size = EPT_PAGE_NUM / 64;
 	ept_page_pool[vm_id].bitmap = ept_page_bitmap[vm_id];
 	ept_page_pool[vm_id].dummy_page = &ept_dummy_pages[vm_id];
 

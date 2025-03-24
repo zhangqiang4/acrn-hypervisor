@@ -55,7 +55,7 @@ static uint8_t sanitized_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 /* Please refer to how the ept page num  was calculated */
 uint64_t get_ppt_page_num(void)
 {
-       uint64_t ppt_pd_page_num = PD_PAGE_NUM(get_ram_top_address()) + CONFIG_MAX_PCI_DEV_NUM * 6U;
+       uint64_t ppt_pd_page_num = PD_PAGE_NUM(MEM_TOP_ADDRESS) + CONFIG_MAX_PCI_DEV_NUM * 6U;
 
        /* must be a multiple of 64 */
        return roundup((PPT_PML4_PAGE_NUM + PPT_PDPT_PAGE_NUM + ppt_pd_page_num + PPT_PT_PAGE_NUM), 64U);

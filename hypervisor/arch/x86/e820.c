@@ -357,25 +357,6 @@ void init_e820(void)
 }
 
 /**
- * @brief Get the top address of RAM.
- *
- * This functions returns the top address of RAM which is mainly used to calculate EPT and PPT,
- *
- * The top address is mainly used to calculate EPT and PPT, on the x86 platform, high memory are continuous
- * and begin from 4G, so calculating the top address will save more memory than calculating RAM size + 4G.
- *
- * @return The top address of RAM
- *
- * @pre N/A
- *
- * @post N/A
- */
-uint64_t get_ram_top_address(void)
-{
-        return (hv_e820_top_address > MEM_4G) ? hv_e820_top_address : MEM_4G;
-}
-
-/**
  * @brief Get the number of E820 entries.
  *
  * This function returns the number of E820 entries as recorded during the initialization of the E820 table.

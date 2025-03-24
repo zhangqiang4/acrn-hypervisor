@@ -517,11 +517,6 @@ void init_pcpu_post(uint16_t pcpu_id)
 			panic("failed to initialize sgx!");
 		}
 
-		/*
-		 * Reserve memory from platform E820 for EPT 4K pages for all VMs
-		 */
-		reserve_buffer_for_ept_pages();
-
 		pcpu_sync = ALL_CPUS_MASK;
 		/* Start all secondary cores */
 		startup_paddr = prepare_trampoline();
