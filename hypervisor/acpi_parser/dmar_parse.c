@@ -26,14 +26,6 @@
  */
 
 /**
- * @brief Counter for the number of DMAR units.
- *
- * This static variable keeps track of the number of DMAR (DMA Remapping) units detected or processed by the ACPI
- * parser. It is used internally within the DMAR parsing logic to maintain a count of these units.
- */
-static uint32_t dmar_unit_cnt;
-
-/**
  * @brief Array to store DRHD (DMA Remapping Hardware Unit Definition) information.
  *
  * This array holds the information for each DRHD unit parsed from the ACPI DMAR table.
@@ -273,18 +265,20 @@ static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct
  *
  * @param[inout] plat_dmar Pointer to the structure where the parsed DMAR information will be stored.
  *
- * @return Always returns 0.
+ * @return 0 on success, -EINVAL on (segment != acpi_drhd->segment) or (dmar_unit_cnt > MAX_DRHDS).
  *
  * @pre plat_dmar != NULL
  */
-int32_t parse_dmar_table(struct dmar_info *plat_dmar)
+int parse_dmar_table(struct dmar_info *plat_dmar)
 {
 	struct acpi_table_dmar *dmar_tbl;
 	struct acpi_dmar_header *dmar_header;
 	struct acpi_dmar_hardware_unit *acpi_drhd;
 	char *ptr, *ptr_end;
+	uint32_t dmar_unit_cnt = 0U;
 	uint32_t include_all_idx = ~0U;
 	uint16_t segment = 0;
+	int ret = 0;
 
 	dmar_tbl = (struct acpi_table_dmar *)get_dmar_table();
 	ASSERT(dmar_tbl != NULL, "");
@@ -302,12 +296,20 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar)
 			/* Treat a valid DRHD has a non-zero base address */
 			ASSERT(acpi_drhd->address != 0UL, "a zero base address DRHD. Please fix the BIOS.");
 
+			if (dmar_unit_cnt >= MAX_DRHDS) {
+				pr_fatal("Parsed dmar_unit_cnt (%u) >= MAX_DRHDS (%u)", dmar_unit_cnt, MAX_DRHDS);
+				ret = -EINVAL;
+				break;
+			}
+
 			if (dmar_unit_cnt == 0U) {
 				segment = acpi_drhd->segment;
 			} else {
 				/* Only support single PCI Segment */
 				if (segment != acpi_drhd->segment) {
-					panic("Only support single PCI Segment.");
+					pr_fatal("Only single PCI Segment is supported.");
+					ret = -EINVAL;
+					break;
 				}
 			}
 
@@ -316,20 +318,22 @@ int32_t parse_dmar_table(struct dmar_info *plat_dmar)
 				include_all_idx = dmar_unit_cnt;
 			}
 
+			plat_dmar->drhd_units[dmar_unit_cnt].devices = drhd_dev_scope[dmar_unit_cnt];
+			handle_one_drhd(acpi_drhd, &(plat_dmar->drhd_units[dmar_unit_cnt]));
 			dmar_unit_cnt++;
-			plat_dmar->drhd_units[dmar_unit_cnt - 1].devices = drhd_dev_scope[dmar_unit_cnt - 1];
-			handle_one_drhd(acpi_drhd, &(plat_dmar->drhd_units[dmar_unit_cnt - 1]));
 		}
 	}
 
-	if ((include_all_idx != ~0U) && (dmar_unit_cnt != (include_all_idx + 1U))) {
-		pr_err("DRHD%d with INCLUDE_PCI_ALL flag is NOT the last one. Please fix the BIOS.", include_all_idx);
+	if (ret == 0) {
+		if ((include_all_idx != ~0U) && (dmar_unit_cnt != (include_all_idx + 1U))) {
+			pr_err("DRHD%d with INCLUDE_PCI_ALL flag is NOT the last one. Please fix the BIOS.",
+			       include_all_idx);
+		}
+
+		plat_dmar->drhd_count = dmar_unit_cnt;
 	}
 
-	ASSERT(dmar_unit_cnt <= MAX_DRHDS, "parsed dmar_unit_cnt > MAX_DRHDS");
-	plat_dmar->drhd_count = dmar_unit_cnt;
-
-	return 0;
+	return ret;
 }
 /**
  * @}

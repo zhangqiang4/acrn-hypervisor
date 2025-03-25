@@ -1252,10 +1252,14 @@ void resume_iommu(void)
  */
 static struct dmar_info *get_dmar_info(void)
 {
+	struct dmar_info *platform_dmar = &plat_dmar_info;
+
 #ifdef CONFIG_ACPI_PARSE_ENABLED
-	parse_dmar_table(&plat_dmar_info);
+	if (parse_dmar_table(platform_dmar)) {
+		platform_dmar = NULL;
+	}
 #endif
-	return &plat_dmar_info;
+	return platform_dmar;
 }
 
 int32_t init_iommu(void)
