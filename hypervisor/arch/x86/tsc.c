@@ -318,10 +318,10 @@ static uint64_t native_calculate_tsc_cpuid_0x15(void)
 	uint64_t tsc_hz = 0UL;
 	const struct cpuinfo_x86 *cpu_info = get_pcpu_info();
 
-	if (cpu_info->cpuid_level >= 0x15U) {
+	if (cpu_info->cpuid_level >= CPUID_CLOCK) {
 		uint32_t eax_denominator, ebx_numerator, ecx_hz, reserved;
 
-		cpuid_subleaf(0x15U, 0x0U, &eax_denominator, &ebx_numerator,
+		cpuid_subleaf(CPUID_CLOCK, 0x0U, &eax_denominator, &ebx_numerator,
 			&ecx_hz, &reserved);
 
 		if ((eax_denominator != 0U) && (ebx_numerator != 0U)) {
@@ -354,10 +354,10 @@ static uint64_t native_calculate_tsc_cpuid_0x16(void)
 	uint64_t tsc_hz = 0UL;
 	const struct cpuinfo_x86 *cpu_info = get_pcpu_info();
 
-	if (cpu_info->cpuid_level >= 0x16U) {
+	if (cpu_info->cpuid_level >= CPUID_FREQ) {
 		uint32_t eax_base_mhz, ebx_max_mhz, ecx_bus_mhz, edx;
 
-		cpuid_subleaf(0x16U, 0x0U, &eax_base_mhz, &ebx_max_mhz, &ecx_bus_mhz, &edx);
+		cpuid_subleaf(CPUID_FREQ, 0x0U, &eax_base_mhz, &ebx_max_mhz, &ecx_bus_mhz, &edx);
 		tsc_hz = (uint64_t) eax_base_mhz * 1000000U;
 	}
 

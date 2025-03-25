@@ -119,9 +119,9 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 	entry->flags = flags;
 
 	switch (leaf) {
-	case 0x16U:
+	case CPUID_FREQ:
 		cpu_info = get_pcpu_info();
-		if (cpu_info->cpuid_level >= 0x16U) {
+		if (cpu_info->cpuid_level >= CPUID_FREQ) {
 			/* call the cpuid when 0x16 is supported */
 			cpuid_subleaf(leaf, subleaf, &entry->eax, &entry->ebx, &entry->ecx, &entry->edx);
 		} else {
@@ -564,7 +564,7 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
 	uint64_t cr4_reserved_mask = get_cr4_reserved_bits(vcpu->vm);
 
-	cpuid_subleaf(0x1U, 0x0U, eax, ebx, ecx, edx);
+	cpuid_subleaf(CPUID_FEATURES, 0x0U, eax, ebx, ecx, edx);
 	/* Patching initial APIC ID */
 	*ebx &= ~APIC_ID_MASK;
 	*ebx |= (apicid <<  APIC_ID_SHIFT);
@@ -661,7 +661,7 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 static void guest_cpuid_0bh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	/* Forward host cpu topology to the guest, guest will know the native platform information such as host cpu topology here */
-	cpuid_subleaf(0x0BU, *ecx, eax, ebx, ecx, edx);
+	cpuid_subleaf(CPUID_EXTEND_TOPOLOGY, *ecx, eax, ebx, ecx, edx);
 
 	/* Patching X2APIC */
 	*edx = vlapic_get_apicid(vcpu_vlapic(vcpu));
@@ -677,7 +677,7 @@ static void guest_cpuid_0dh(__unused struct acrn_vcpu *vcpu, uint32_t *eax, uint
 				*ecx = 0U;
 				*edx = 0U;
 	} else {
-		cpuid_subleaf(0x0dU, subleaf, eax, ebx, ecx, edx);
+		cpuid_subleaf(CPUID_XSAVE_FEATURES, subleaf, eax, ebx, ecx, edx);
 		switch (subleaf) {
 		case 0U:
 			/* SDM Vol.1 17-2, On processors that do not support Intel MPX,
@@ -706,7 +706,7 @@ static void guest_cpuid_19h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 {
 	if (pcpu_has_cap(X86_FEATURE_KEYLOCKER)) {
 		/* Host CR4.KL should be enabled at boot time */
-		cpuid_subleaf(0x19U, 0U, eax, ebx, ecx, edx);
+		cpuid_subleaf(CPUID_KEY_LOCKER, 0U, eax, ebx, ecx, edx);
 		/* Guest CR4.KL determines KL_AES_ENABLED */
 		*ebx &= ~(vcpu->arch.cr4_kl_enabled ? 0U : CPUID_EBX_KL_AES_EN);
 		/* Don't support nobackup and randomization parameter of LOADIWKEY */
@@ -721,7 +721,7 @@ static void guest_cpuid_19h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 
 static void guest_cpuid_1fh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
-	cpuid_subleaf(0x1fU, *ecx, eax, ebx, ecx, edx);
+	cpuid_subleaf(CPUID_V2_EXTEND_TOPOLOGY, *ecx, eax, ebx, ecx, edx);
 
 	/* Patching X2APIC */
 	*edx = vlapic_get_apicid(vcpu_vlapic(vcpu));
@@ -730,9 +730,9 @@ static void guest_cpuid_1fh(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 static void guest_cpuid_80000001h(const struct acrn_vcpu *vcpu,
 	uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
-	const struct vcpuid_entry *entry_check = find_vcpuid_entry(vcpu, 0x80000000U, 0);
+	const struct vcpuid_entry *entry_check = find_vcpuid_entry(vcpu, CPUID_MAX_EXTENDED_FUNCTION, 0);
 	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
-	uint32_t leaf = 0x80000001U;
+	uint32_t leaf = CPUID_EXTEND_FUNCTION_1;
 
 	if ((entry_check != NULL) && (entry_check->eax >= leaf)) {
 		cpuid_subleaf(leaf, 0x0U, eax, ebx, ecx, edx);

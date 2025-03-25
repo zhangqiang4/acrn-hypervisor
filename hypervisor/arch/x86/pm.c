@@ -293,7 +293,7 @@ void init_frequency_policy(void)
 		cpufreq_policy = CPUFREQ_POLICY_NOMINAL;
 	}
 
-	cpuid_subleaf(0x6U, 0U, &cpuid_06_eax, &unused, &unused, &unused);
+	cpuid_subleaf(CPUID_THERMAL_POWER, 0U, &cpuid_06_eax, &unused, &unused, &unused);
 	if ((cpuid_06_eax & CPUID_EAX_HWP) != 0U) {
 		/* If HWP is available, enable HWP early. This will unlock other HWP MSRs. */
 		msr_write(MSR_IA32_PM_ENABLE, 1U);
@@ -317,8 +317,8 @@ void apply_frequency_policy(void)
 	uint8_t pstate_req = limits->performance_pstate;
 	uint32_t cpuid_06_eax, cpuid_01_ecx, unused;
 
-	cpuid_subleaf(0x6U, 0U, &cpuid_06_eax, &unused, &unused, &unused);
-	cpuid_subleaf(0x1U, 0U, &unused, &unused, &cpuid_01_ecx, &unused);
+	cpuid_subleaf(CPUID_THERMAL_POWER, 0U, &cpuid_06_eax, &unused, &unused, &unused);
+	cpuid_subleaf(CPUID_FEATURES, 0U, &unused, &unused, &cpuid_01_ecx, &unused);
 	/* Both HWP and ACPI p-state are supported. HWP is the first choice. */
 	if ((cpuid_06_eax & CPUID_EAX_HWP) != 0U) {
 		/*

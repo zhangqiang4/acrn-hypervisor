@@ -741,7 +741,7 @@ static uint64_t get_perf_status(void)
 	 * CPUID.16H:ecx[15:0] Bus Frequency (MHz)
 	 * ratio = CPU_frequency/bus_frequency
 	 */
-	cpuid_subleaf(0x16U, 0U, &eax, &unused, &ecx, &unused);
+	cpuid_subleaf(CPUID_FREQ, 0U, &eax, &unused, &ecx, &unused);
 	return (uint64_t)(((eax/ecx) & 0xFFU) << 8);
 }
 
@@ -750,7 +750,7 @@ static uint64_t get_perf_status(void)
  */
 static bool is_iwkey_backup_support(struct acrn_vcpu *vcpu)
 {
-	uint32_t eax = 0x19U, ebx = 0U, ecx = 0U, edx = 0U;
+	uint32_t eax = CPUID_KEY_LOCKER, ebx = 0U, ecx = 0U, edx = 0U;
 
 	guest_cpuid(vcpu, &eax, &ebx, &ecx, &edx);
 	return (ebx & CPUID_EBX_KL_BACKUP_MSR) == CPUID_EBX_KL_BACKUP_MSR;
@@ -1121,7 +1121,7 @@ static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 	 *   shall be cleared.
 	 */
 	if (((v ^ vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE)) & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) {
-		eax = 1U;
+		eax = CPUID_FEATURES;
 		guest_cpuid(vcpu, &eax, &ebx, &ecx, &edx);
 		/* According to SDM Vol4 2.1 Table 2-2,
 		 * Writing this bit when the SSE3 feature flag is set to 0 may generate a #GP exception.

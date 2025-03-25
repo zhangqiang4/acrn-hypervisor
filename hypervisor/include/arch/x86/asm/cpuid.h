@@ -752,6 +752,10 @@
  */
 #define CPUID_TRACE            0x14U
 /**
+ * @brief A CPUID entry provide the Time Stamp Counter and Nominal Core Crystal Clock information.
+ */
+ #define CPUID_CLOCK           0x15U
+/**
  * @brief A CPUID entry provide the Intel Processor frequency information.
  */
 #define CPUID_FREQ             0x16U
