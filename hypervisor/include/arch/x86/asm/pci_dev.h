@@ -9,8 +9,6 @@
 
 #include <asm/vm_config.h>
 
-extern struct acrn_vm_pci_dev_config sos_pci_devs[CONFIG_MAX_PCI_DEV_NUM];
-
 struct pci_pdev;
 struct acrn_vm_pci_dev_config *init_one_dev_config(struct pci_pdev *pdev);
 
