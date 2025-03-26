@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,20 +13,89 @@
 #include <console.h>
 #include <npk_log.h>
 
-/* buf size should be identical to the size in hvlog option, which is
- * transfered to Service VM:
- * bsp/uefi/clearlinux/acrn.conf: hvlog=2M@0x1FE00000
+/**
+ * @defgroup debug debug
+ * @brief The debug module includes logging, tracing, and debugging interfaces.
+ *
+ * The debug module provides comprehensive logging, tracing, and debugging interfaces to facilitate
+ * efficient diagnosis and troubleshooting of hypervisor issues.
+ *
+ * @{
  */
 
+/**
+ * @file
+ * @brief Logging Subsystem for ACRN Hypervisor
+ *
+ * This file implements the logging subsystem for the ACRN hypervisor. It provides
+ * functionality to log messages with varying severity levels to different outputs,
+ * such as memory buffers, the console, and NPK (North Peak PCI device). The logging
+ * system is designed to be efficient and safe, supporting concurrent operations
+ * across multiple CPUs. It includes mechanisms to format log messages with metadata
+ * like timestamps, CPU IDs, thread names, severity levels, and sequence numbers.
+ * The subsystem ensures that logs are captured even if the primary logging mechanism
+ * is unavailable by using temporary buffers.
+ */
+
+/**
+ * @brief Sequence number for logging.
+ *
+ * This static variable is used to maintain a sequence number for log entries.
+ * It is initialized to 0 and is incremented each time a new log entry is created.
+ * The sequence number helps in tracking the order of log messages.
+ */
 static int32_t log_seq = 0;
 
+/**
+ * @brief Memory log level threshold.
+ *
+ * This variable sets the threshold for memory logging. Logs with a severity level
+ * less than or equal to this value will be logged to memory. The default value is
+ * set by CONFIG_MEM_LOGLEVEL_DEFAULT, and it can be adjusted in debug mode using
+ * ACRN shell commands.
+ */
 uint16_t mem_loglevel = CONFIG_MEM_LOGLEVEL_DEFAULT;
 
+/**
+ * @brief Determine if a message should be logged to memory based on severity.
+ *
+ * This function checks if the given severity level is less than or equal to the
+ * memory log level threshold, `mem_loglevel`. If so, it indicates that the message
+ * should be logged to memory.
+ *
+ * @param[in] severity The severity level of the log message.
+ *
+ * @return A boolean value indicating whether the message should be logged to memory
+ *
+ * @retval true If the message should be logged to memory.
+ * @retval false If the message should not be logged to memory.
+ */
 static inline bool mem_need_log(uint32_t severity)
 {
 	return (severity <= mem_loglevel);
 }
 
+/**
+ * @brief Log a message to a shared buffer or temporary buffer.
+ *
+ * This function attempts to log a message contained in the `buffer` to a shared buffer
+ * associated with the specified physical CPU (`pcpu_id`). If the shared buffer is
+ * not available, the message is stored in a temporary buffer specific to the CPU.
+ *
+ * The function performs the following steps:
+ * - Determines the length of the message in `buffer` using `strnlen_s`.
+ * - Checks if the shared buffer (`sbuf`) is available for the specified CPU.
+ *   - If available, it stores the message in the shared buffer using `sbuf_put_many`.
+ *   - If not available, it stores the message in the per-CPU temporary buffer (`temp_logbuf`) and
+ *     increments the count of messages stored in the temporary buffer (`temp_logbuf_count`).
+ *
+ * @param[in] pcpu_id The physical CPU ID.
+ * @param[inout] buffer The log message to be stored.
+ *
+ * @return none
+ *
+ * @pre buffer != NULL
+ */
 static void mem_log(uint16_t pcpu_id, char *buffer)
 {
 	uint32_t msg_len;
@@ -47,6 +116,28 @@ static void mem_log(uint16_t pcpu_id, char *buffer)
 	}
 }
 
+/**
+ * @brief Log a formatted message with severity to various outputs.
+ *
+ * This function logs a message with a given severity level to memory, console, and NPK,
+ * based on the logging needs determined by the severity level. It formats the message
+ * with a timestamp, CPU ID, thread name, severity, and a sequence number.
+ *
+ * The function performs the following steps:
+ * - Checks if logging is needed for memory, console, or NPK based on the severity.
+ * - Retrieves the current timestamp and scales it to microseconds.
+ * - Gets the current physical CPU ID and the current thread object.
+ * - Clears the log buffer and formats the initial part of the message with timestamp, CPU ID,
+ *   thread name, severity, and a sequence number.
+ * - Formats the remaining part of the message using the provided format string and arguments.
+ * - Logs the message to memory, console, and NPK as needed based on the severity.
+ *
+ * @param[in] severity The severity level of the log message.
+ * @param[in] fmt The format string for the log message, similar to printf.
+ * @param[in] ... Additional arguments for the format string.
+ *
+ * @return none
+ */
 void do_logmsg(uint32_t severity, const char *fmt, ...)
 {
 	va_list args;
@@ -95,3 +186,7 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 		}
 	}
 }
+
+/**
+ * @}
+ */
