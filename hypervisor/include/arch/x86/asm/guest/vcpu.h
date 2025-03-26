@@ -539,7 +539,7 @@ void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector);
  */
 void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs);
 
-bool sanitize_cr0_cr4_pattern(void);
+bool sanitize_cr0_cr4_pattern(struct acrn_vm *vm);
 
 /**
  * @brief Initialize the protect mode vcpu registers

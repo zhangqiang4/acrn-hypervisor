@@ -493,7 +493,7 @@ int32_t hcall_set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 		} else {
 			target_vcpu = vcpu_from_vid(target_vm, vcpu_regs.vcpu_id);
 			if (target_vcpu->state != VCPU_OFFLINE) {
-				if (is_valid_cr0_cr4(vcpu_regs.vcpu_regs.cr0, vcpu_regs.vcpu_regs.cr4)) {
+				if (is_valid_cr0_cr4(target_vm, vcpu_regs.vcpu_regs.cr0, vcpu_regs.vcpu_regs.cr4)) {
 					set_vcpu_regs(target_vcpu, &(vcpu_regs.vcpu_regs));
 					ret = 0;
 				}

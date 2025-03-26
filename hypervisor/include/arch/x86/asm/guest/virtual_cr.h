@@ -12,8 +12,10 @@
  *
  * @brief public APIs for vCR operations
  */
-uint64_t get_cr4_reserved_bits(void);
-void init_cr0_cr4_host_guest_mask(void);
+uint64_t get_cr4_reserved_bits(struct acrn_vm *vm);
+void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm);
+void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm);
+bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4);
 
 /**
  * @brief vCR from vcpu

@@ -951,6 +951,7 @@ static uint64_t lapic_pt_enabled_pcpu_bitmap(struct acrn_vm *vm)
  * - Hide PIC from VM
  * - For Pre-launch VM or RTVM, Create Virtual RTC
  * - For Service VM, remove access to hypervisor owned devices
+ * - Update guest/host masks for CR0 and CR4 registers according to VM configuration
  * - Initialize virtual PCI bus
  * - Initialize legacy VUART
  * - Initialize virtual IOAPIC
@@ -1048,7 +1049,15 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 
 		vm->sw.vm_event_sbuf = NULL;
 
-		status = init_vpci(vm);
+		fixup_cr0_cr4_guest_mask(vm);
+		if (!sanitize_cr0_cr4_pattern(vm)) {
+			pr_err("Sanitize pattern of CR0 or CR4 failed.");
+			status = -EINVAL;
+		}
+
+		if (status == 0) {
+			status = init_vpci(vm);
+		}
 		if (status == 0) {
 			/* Create virtual uart;*/
 			init_legacy_vuarts(vm, vm_config->vuart);

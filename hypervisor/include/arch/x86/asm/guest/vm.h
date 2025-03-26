@@ -121,6 +121,16 @@ struct vm_pm_info {
 };
 
 /**
+ * @brief Config information of a VM
+ *
+ * This struct records the CR4 config info.
+ */
+struct vm_cfg_info {
+	uint64_t cr4_passthru_mask;		/**< CR4 passthrough bits mask */
+	uint64_t cr4_reserved_bits_mask;	/**< CR4 reserved bits mask */
+};
+
+/**
  * @brief VM state enums
  *
  * Enumerated type for VM states.
@@ -187,7 +197,8 @@ struct acrn_vm {
 	struct vm_arch arch_vm; /**< Reference to this VM's arch information */
 	struct vm_hw_info hw;	/**< Reference to this VM's HW information */
 	struct vm_sw_info sw;	/**< Reference to SW associated with this VM */
-	struct vm_pm_info pm;	/**< Reference to this VM's arch information */
+	struct vm_pm_info pm;	/**< Reference to this VM's power management information */
+	struct vm_cfg_info cfg; /**< Reference to this VM's config information */
 	uint32_t e820_entry_num;	/**< Number of E820 entry */
 	struct e820_entry *e820_entries; /**< Pointer to E820 entries array */
 	uint16_t vm_id;		    /**< Virtual machine identifier */

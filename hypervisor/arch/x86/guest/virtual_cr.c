@@ -78,7 +78,6 @@ static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* boun
 
 /* The CR4 value guest expected to see for bits of CR4_EMULATED_RESERVE_BITS */
 #define CR4_EMRSV_BITS_VIRT_VALUE	0UL
-static uint64_t cr4_rsv_bits_guest_value;
 
 /*
  * Initial value or reset value of GUEST_CR4, i.e. physical value.
@@ -342,24 +341,24 @@ static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 	}
 }
 
-static inline bool is_valid_cr4(uint64_t cr4)
+static inline bool is_valid_cr4(struct acrn_vm *vm, uint64_t cr4)
 {
-	return (cr4 & cr4_reserved_bits_mask) == cr4_rsv_bits_guest_value;
+	return (cr4 & vm->cfg.cr4_reserved_bits_mask) == 0UL;
 }
 
 /*
  * TODO: Implement more comprhensive check here.
  */
-bool is_valid_cr0_cr4(uint64_t cr0, uint64_t cr4)
+bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4)
 {
-	return is_valid_cr4(cr4) & is_valid_cr0(cr0);
+	return is_valid_cr4(vm, cr4) & is_valid_cr0(cr0);
 }
 
 static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
 {
 	bool ret = true;
 
-	if (!is_valid_cr4(cr4) || (is_long_mode(vcpu) && ((cr4 & CR4_PAE) == 0UL))) {
+	if (!is_valid_cr4(vcpu->vm, cr4) || (is_long_mode(vcpu) && ((cr4 & CR4_PAE) == 0UL))) {
 		ret = false;
 	}
 
@@ -430,7 +429,10 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 			/*
 			 * Update the passthru bits.
 			 */
-			mask = cr4_trap_and_passthru_mask | cr4_passthru_mask;
+			mask = cr4_trap_and_passthru_mask | vcpu->vm->cfg.cr4_passthru_mask;
+			/*
+			 * CR4 fixed bits can't be changed. Otherwise, VM-entry will fail due to invalid guest state.
+			 */
 			tmp = (initial_guest_cr4 & ~mask) | (cr4 & mask);
 
 			/*
@@ -451,7 +453,7 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 void init_cr0_cr4_flexible_bits(void)
 {
 	uint64_t cr0_flexible_bits;
-	uint64_t cr4_flexible_bits;
+	uint64_t cr4_flexible_bits, cr4_fixed1_bits;
 	uint64_t fixed0, fixed1;
 
 	/* make sure following MACROs don't have any overlapped set bit.
@@ -508,23 +510,28 @@ void init_cr0_cr4_flexible_bits(void)
 	 */
 	cr4_reserved_bits_mask = ~(cr4_passthru_mask | cr4_trap_and_passthru_mask | CR4_TRAP_AND_EMULATE_BITS);
 
-	/*
-	 * cr4_reserved_bits_value should be sync with always ON bits (1 in both FIXED0/FIXED1 MSRs).
-	 * Refer SDM Appendix A.8
-	 */
-	cr4_rsv_bits_guest_value = (fixed0 & ~cr4_flexible_bits);
+	cr4_fixed1_bits = (fixed0 & ~cr4_flexible_bits);
 
-	initial_guest_cr4 = (cr4_rsv_bits_guest_value & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_PHYS_VALUE \
+	initial_guest_cr4 = (cr4_fixed1_bits & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_PHYS_VALUE \
 						| CR4_EM_BITS_INITIAL_PHYS_VALUE;
-	cr4_rsv_bits_guest_value = (cr4_rsv_bits_guest_value & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_VIRT_VALUE;
 
 	pr_dbg("cr4_flexible_bits:0x%lx, cr4_passthru_mask:0x%lx, cr4_trap_and_passthru_mask:0x%lx.",
 		cr4_flexible_bits, cr4_passthru_mask, cr4_trap_and_passthru_mask);
-	pr_dbg("cr4_reserved_bits_mask:%lx, cr4_rsv_bits_guest_value:%lx, initial_guest_cr4:%lx.\n",
-		cr4_reserved_bits_mask, cr4_rsv_bits_guest_value, initial_guest_cr4);
+	pr_dbg("cr4_reserved_bits_mask:%lx, initial_guest_cr4:%lx.\n", cr4_reserved_bits_mask, initial_guest_cr4);
 }
 
-void init_cr0_cr4_host_guest_mask(void)
+void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm)
+{
+	if (is_pmu_pt_configured(vm)) {
+		vm->cfg.cr4_reserved_bits_mask = cr4_reserved_bits_mask;
+		vm->cfg.cr4_passthru_mask = cr4_passthru_mask;
+	} else {
+		vm->cfg.cr4_reserved_bits_mask = cr4_reserved_bits_mask | CR4_PCE;
+		vm->cfg.cr4_passthru_mask = cr4_passthru_mask & ~CR4_PCE;
+	}
+}
+
+void init_cr0_cr4_host_guest_mask(struct acrn_vm *vm)
 {
 	/*
 	 * "1" means the bit is trapped by host, and "0" means passthru to guest..
@@ -532,8 +539,9 @@ void init_cr0_cr4_host_guest_mask(void)
 	exec_vmwrite(VMX_CR0_GUEST_HOST_MASK, ~cr0_passthru_mask); /* all bits except passthrubits are trapped */
 	pr_dbg("CR0 guest-host mask value: 0x%016lx", ~cr0_passthru_mask);
 
-	exec_vmwrite(VMX_CR4_GUEST_HOST_MASK, ~cr4_passthru_mask); /* all bits except passthru bits are trapped */
-	pr_dbg("CR4 guest-host mask value: 0x%016lx", ~cr4_passthru_mask);
+	/* VM may reserve some bits access due to VM configuration. */
+	exec_vmwrite(VMX_CR4_GUEST_HOST_MASK, ~vm->cfg.cr4_passthru_mask); /* all bits except passthru bits are trapped */
+	pr_dbg("CR4 guest-host mask value: 0x%016lx", ~vm->cfg.cr4_passthru_mask);
 }
 
 uint64_t vcpu_get_cr0(struct acrn_vcpu *vcpu)
@@ -567,10 +575,10 @@ void vcpu_set_cr2(struct acrn_vcpu *vcpu, uint64_t val)
 uint64_t vcpu_get_cr4(struct acrn_vcpu *vcpu)
 {
 	struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
+	uint64_t pt_mask = cr4_trap_and_passthru_mask | vcpu->vm->cfg.cr4_passthru_mask;
 
 	if (bitmap_test_and_set_nolock(CPU_REG_CR4, &vcpu->reg_cached) == 0) {
-		ctx->cr4 = (exec_vmread(VMX_CR4_READ_SHADOW) & ~cr4_passthru_mask) |
-			(exec_vmread(VMX_GUEST_CR4) & cr4_passthru_mask);
+		ctx->cr4 = (exec_vmread(VMX_CR4_READ_SHADOW) & ~pt_mask) | (exec_vmread(VMX_GUEST_CR4) & pt_mask);
 	}
 	return ctx->cr4;
 }
@@ -616,7 +624,7 @@ int32_t cr_access_vmexit_handler(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
-uint64_t get_cr4_reserved_bits(void)
+uint64_t get_cr4_reserved_bits(struct acrn_vm *vm)
 {
-	return cr4_reserved_bits_mask;
+	return vm->cfg.cr4_reserved_bits_mask;
 }

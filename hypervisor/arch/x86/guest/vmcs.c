@@ -468,7 +468,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	/* Natural-width */
 	pr_dbg("Natural-width*********");
 
-	init_cr0_cr4_host_guest_mask();
+	init_cr0_cr4_host_guest_mask(vm);
 
 	/* The CR3 target registers work in concert with VMX_CR3_TARGET_COUNT
 	 * field. Using these registers guest CR3 access can be managed. i.e.,

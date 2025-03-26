@@ -258,7 +258,7 @@ static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 
 static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 {
-	uint64_t cr4_reserved_mask = get_cr4_reserved_bits();
+	uint64_t cr4_reserved_mask = get_cr4_reserved_bits(vm);
 	int32_t result = 0;
 	struct vcpuid_entry entry;
 	uint32_t i, sub_leaves;
@@ -562,7 +562,7 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 {
 	uint32_t apicid = vlapic_get_apicid(vcpu_vlapic(vcpu));
 	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
-	uint64_t cr4_reserved_mask = get_cr4_reserved_bits();
+	uint64_t cr4_reserved_mask = get_cr4_reserved_bits(vcpu->vm);
 
 	cpuid_subleaf(0x1U, 0x0U, eax, ebx, ecx, edx);
 	/* Patching initial APIC ID */

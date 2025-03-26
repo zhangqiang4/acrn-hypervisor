@@ -468,7 +468,6 @@ void clear_va_vmcs(const uint8_t *vmcs_va);
 void load_va_vmcs(const uint8_t *vmcs_va);
 
 void init_cr0_cr4_flexible_bits(void);
-bool is_valid_cr0_cr4(uint64_t cr0, uint64_t cr4);
 
 uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req);
 

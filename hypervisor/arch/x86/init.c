@@ -75,9 +75,6 @@ static void init_pcpu_comm_post(void)
 static void init_misc(void)
 {
 	init_cr0_cr4_flexible_bits();
-	if (!sanitize_cr0_cr4_pattern()) {
-		panic("%s Sanitize pattern of CR0 or CR4 failed.\n", __func__);
-	}
 }
 
 /* NOTE: this function is using temp stack, and after SWITCH_TO(runtime_sp, to)
