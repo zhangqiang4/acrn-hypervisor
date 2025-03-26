@@ -15,7 +15,7 @@ This section contains the documentation of the module `vp-base.hypercall`.
 [File] common/hypercall.c
 ======================================================================
 
-.. doxygenfile:: hypercall.c
+.. doxygenfile:: common/hypercall.c
    :project: Project ACRN
 
 [File] arch/x86/guest/vmcall.c

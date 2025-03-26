@@ -806,6 +806,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/timer.c \
                           ../hypervisor/common/hypercall.c \
                           ../hypervisor/common/thermal.c \
+                          ../hypervisor/common/logmsg.c \
+                          ../hypervisor/common/trace.c \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/lib/stack_protector.c \
                           ../hypervisor/arch/x86/lib/retpoline-thunk.S \
@@ -849,6 +851,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/ptdev.h \
                           ../hypervisor/include/common/sbuf.h \
                           ../hypervisor/include/common/hypercall.h \
+                          ../hypervisor/include/common/logmsg.h \
+                          ../hypervisor/include/common/trace.h \
                           ../hypervisor/include/common/thermal.h \
                           ../hypervisor/include/hw/hw_thermal.h \
                           ../hypervisor/include/hw/hw_timer.h \
@@ -921,6 +925,20 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/hw/pci.h \
                           ../hypervisor/include/lib/sprintf.h \
                           ../hypervisor/lib/sprintf.c \
+                          ../hypervisor/include/debug/console.h \
+                          ../hypervisor/include/debug/dbg_cmd.h \
+                          ../hypervisor/include/debug/dump.h \
+                          ../hypervisor/include/debug/npk_log.h \
+                          ../hypervisor/include/debug/profiling.h \
+                          ../hypervisor/include/debug/shell.h \
+                          ../hypervisor/include/debug/uart16550.h \
+                          ../hypervisor/release/console.c \
+                          ../hypervisor/release/dump.c \
+                          ../hypervisor/release/hypercall.c \
+                          ../hypervisor/release/npk_log.c \
+                          ../hypervisor/release/printf.c \
+                          ../hypervisor/release/profiling.c \
+                          ../hypervisor/release/uart16550.c \
 
 
 # This tag can be used to specify the character encoding of the source files
@@ -2204,6 +2222,7 @@ PREDEFINED             = "__attribute__(x)=" \
                          "CONFIG_MCE_ON_PSC_WORKAROUND_ENABLED=" \
                          "CONFIG_RDT_ENABLED=" \
                          "CONFIG_ACPI_PARSE_ENABLED=" \
+                         "CONFIG_ACRNTRACE_ENABLED=" \
 
 PREDEFINED += "bool=acrn_bool"
 # Macros in module libs.bit
