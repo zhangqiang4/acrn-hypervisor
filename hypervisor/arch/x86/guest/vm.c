@@ -31,6 +31,7 @@
 #include <sbuf.h>
 #include <asm/pci_dev.h>
 #include <vacpi.h>
+#include <asm/cpufeatures.h>
 #include <asm/platform_caps.h>
 #include <mmio_dev.h>
 #include <asm/trampoline.h>
@@ -1019,7 +1020,7 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		spinlock_init(&vm->emul_mmio_lock);
 		spinlock_init(&vm->arch_vm.iwkey_backup_lock);
 
-		vm->arch_vm.vm_mwait_cap = has_monitor_cap();
+		vm->arch_vm.vm_mwait_cap = pcpu_has_cap(X86_FEATURE_MONITOR);
 		vm->intr_inject_delay_delta = 0UL;
 		vm->nr_emul_mmio_regions = 0U;
 		vm->vcpuid_entry_nr = 0U;

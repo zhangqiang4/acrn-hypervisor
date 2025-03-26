@@ -191,7 +191,6 @@ struct cpuinfo_x86 {
 	char model_name[64];
 };
 
-bool has_monitor_cap(void);
 bool is_apicv_advanced_feature_supported(void);
 bool is_apicv_ipiv_feature_supported(void);
 bool pcpu_has_cap(uint32_t bit);

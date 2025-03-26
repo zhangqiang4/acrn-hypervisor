@@ -180,30 +180,6 @@ bool pcpu_has_cap(uint32_t bit)
 }
 
 /**
- * @brief The interface to check whether the CPU supports MONITOR instructions.
- *
- * This function checks if the CPU supports the MONITOR instructions by examining the CPU feature for MONITOR
- * capability.
- * It returns a boolean value indicating whether the MONITOR instructions are supported.
- * It always returns `false` for APL platform. For other platforms, it returns the result of the check on the physical
- * platform.
- *
- * @return A boolean value indicating whether the CPU supports MONITOR instructions.
- *
- * @retval true  The CPU supports MONITOR instructions.
- * @retval false The CPU doesn't support MONITOR instructions.
- *
- * @pre N/A
- * @post N/A
- *
- * @remark This API shall be called after `init_pcpu_capabilities` has been called once on the bootstrap processor.
- */
-bool has_monitor_cap(void)
-{
-	return pcpu_has_cap(X86_FEATURE_MONITOR);
-}
-
-/**
  * @brief The inline function to check if FAST_STRING is enabled and ERMS is supported.
  *
  * This function checks the status of the FAST_STRING feature by reading the dedicated MSR (Model-Specific Register)

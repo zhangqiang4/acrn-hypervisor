@@ -937,7 +937,7 @@ inline void asm_mwait(uint64_t eax, uint64_t ecx)
  */
 void wait_sync_change(volatile const uint64_t *sync, uint64_t wake_sync)
 {
-	if (has_monitor_cap()) {
+	if (pcpu_has_cap(X86_FEATURE_MONITOR)) {
 		/* Wait for the event to be set using monitor/mwait */
 		while ((*sync) != wake_sync) {
 			asm_monitor(sync, 0UL, 0UL);
