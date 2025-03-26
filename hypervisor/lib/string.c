@@ -48,15 +48,15 @@
  *
  * @post N/A
  */
-static inline char hex_digit_value(char ch)
+static inline int8_t hex_digit_value(char ch)
 {
-	char c;
+	int8_t c;
 	if (('0' <= ch) && (ch <= '9')) {
-		c = ch - '0';
+		c = (int8_t)(ch - '0');
 	} else if (('a' <= ch) && (ch <= 'f')) {
-		c = ch - 'a' + 10;
+		c = (int8_t)(ch - 'a') + 10;
 	} else if (('A' <= ch) && (ch <= 'F')) {
-		c = ch - 'A' + 10;
+		c = (int8_t)(ch - 'A') + 10;
 	} else {
 		c = -1;
 	}
@@ -87,7 +87,8 @@ static inline char hex_digit_value(char ch)
 uint64_t strtoul_hex(const char *nptr)
 {
 	const char *s = nptr;
-	char c, digit;
+	char c;
+	int8_t digit;
 	uint64_t acc, cutoff;
 	uint64_t base = 16UL;
 	int32_t any;
