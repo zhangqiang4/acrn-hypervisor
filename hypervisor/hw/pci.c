@@ -1179,6 +1179,7 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 	uint32_t hdr, pos;
 	uint8_t pcie_dev_type;
 	uint8_t idx;
+	uint8_t vf_bar_zero = 0;
 
 	/* guard against malformed list */
 	int node_limit;
@@ -1197,6 +1198,12 @@ static void pci_enumerate_ext_cap(struct pci_pdev *pdev)
 			for (idx = 0; idx < PCI_STD_NUM_BARS; idx++) {
 				pdev->vf_bars[idx] = pci_pdev_read_cfg(pdev->bdf,
 						pos + PCIR_SRIOV_VF_BAR_OFF + idx * 4, 4U);
+				if (pdev->vf_bars[idx] == 0) {
+					vf_bar_zero++;
+				}
+			}
+			if (vf_bar_zero == idx) {
+				pr_err("BIOS is not right. It doesn't program VF BARs correctly!!!\n");
 			}
 		} else if (PCI_ECAP_ID(hdr) == PCIZ_PTM) {
 			pcie_dev_type = (((uint8_t)pci_pdev_read_cfg(pdev->bdf,
