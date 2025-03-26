@@ -65,7 +65,7 @@ int32_t assign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev)
 				res->size, EPT_RWX | (res->mem_type & EPT_MT_MASK));
 		} else {
 			pr_err("%s invalid mmio res[%d] gpa:0x%lx hpa:0x%lx size:0x%lx",
-				__FUNCTION__, i, res->user_vm_pa, res->host_pa, res->size);
+				__func__, i, res->user_vm_pa, res->host_pa, res->size);
 			ret = -EINVAL;
 			break;
 		}
@@ -111,7 +111,7 @@ int32_t deassign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev
 				ept_del_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, gpa, res->size);
 			} else {
 				pr_err("%s invalid mmio res[%d] gpa:0x%lx hpa:0x%lx size:0x%lx",
-					__FUNCTION__, i, res->user_vm_pa, res->host_pa, res->size);
+					__func__, i, res->user_vm_pa, res->host_pa, res->size);
 				ret = -EINVAL;
 				break;
 			}
