@@ -192,12 +192,10 @@ struct cpuinfo_x86 {
 };
 
 bool has_monitor_cap(void);
-bool is_apl_platform(void);
 bool is_apicv_advanced_feature_supported(void);
 bool is_apicv_ipiv_feature_supported(void);
 bool pcpu_has_cap(uint32_t bit);
 bool pcpu_has_vmx_ept_vpid_cap(uint64_t bit_mask);
-bool is_apl_platform(void);
 bool has_core_cap(uint32_t bit_mask);
 bool is_ac_enabled(void);
 bool is_gp_enabled(void);

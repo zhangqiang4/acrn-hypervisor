@@ -200,20 +200,7 @@ bool pcpu_has_cap(uint32_t bit)
  */
 bool has_monitor_cap(void)
 {
-	bool ret = false;
-
-	/* Check if the CPU has the MONITOR capability */
-	if (pcpu_has_cap(X86_FEATURE_MONITOR)) {
-		/* Don't use MONITOR for CPU (family: 0x6 model: 0x5c)
-		 * in hypervisor, but still expose it to the guests and
-		 * let them handle it correctly.
-		 */
-		if (!is_apl_platform()) {
-			ret = true;
-		}
-	}
-
-	return ret;
+	return pcpu_has_cap(X86_FEATURE_MONITOR);
 }
 
 /**
@@ -277,33 +264,6 @@ static bool is_ctrl_setting_allowed(uint64_t msr_val, uint32_t ctrl)
 	 *   only if bit 32+X in msr_val is 1
 	 */
 	return ((((uint32_t)(msr_val >> 32UL)) & ctrl) == ctrl);
-}
-
-/**
- * @brief The interface to check if the platform is APL (Apollo Lake).
- *
- * This function checks if the platform is APL (Apollo Lake) by using the data stored in the global variable
- * `boot_cpu_data`. The APL platform is identified by a DisplayFamily value of 0x6 and a DisplayModel value of 0x5C.
- *
- * @return A boolean value indicating whether the platform is APL.
- *
- * @retval true The platform is APL.
- * @retval false The platform is not APL.
- *
- * @pre N/A
- * @post N/A
- * @remark This API shall be called after `init_pcpu_capabilities` has been called once on the bootstrap processor.
- */
-bool is_apl_platform(void)
-{
-	bool ret = false;
-
-	/* Check if the platform is APL by comparing DisplayFamily and DisplayModel */
-	if ((boot_cpu_data.displayfamily == 0x6U) && (boot_cpu_data.displaymodel == 0x5cU)) {
-		ret = true;
-	}
-
-	return ret;
 }
 
 /**
