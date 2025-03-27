@@ -277,6 +277,8 @@
 #define	XHCI_NATIVE_DRD_SWITCH_PATH	\
 	"/sys/class/usb_role/intel_xhci_usb_sw-role-switch/role"
 
+#define SW_DEV_NAME			"intel_xhci_usb_sw"
+
 /* return value after setting drd device node */
 #define	XHCI_NATIVE_DRD_WRITE_DEV_SZ	(sizeof(XHCI_NATIVE_DRD_DEV_MODE) - 1)
 #define	XHCI_NATIVE_DRD_WRITE_HOST_SZ	(sizeof(XHCI_NATIVE_DRD_HOST_MODE) - 1)

@@ -78,6 +78,8 @@
  *                +--------+   +--------+
  */
 
+#include <dirent.h>
+#include <linux/limits.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -481,6 +483,7 @@ static int pci_xhci_xfer_complete(struct pci_xhci_vdev *xdev,
 static inline int pci_xhci_is_valid_portnum(int n);
 static int pci_xhci_parse_tablet(struct pci_xhci_vdev *xdev, char *opts);
 static int pci_xhci_parse_extcap(struct pci_xhci_vdev *xdev, char *opts);
+static int pci_xhci_parse_drd_ports(struct pci_xhci_vdev *xdev, char *opts);
 static int pci_xhci_convert_speed(int lspeed);
 static void pci_xhci_free_usb_xfer(struct pci_xhci_dev_emu *dev, struct usb_xfer *xfer);
 static void pci_xhci_isoc_handler(void *arg, uint64_t param);
@@ -489,8 +492,14 @@ static void pci_xhci_async_enqueue(struct pci_xhci_vdev *xdev, uint64_t offset, 
 #define XHCI_OPT_MAX_LEN 32
 static struct pci_xhci_option_elem xhci_option_table[] = {
 	{"tablet", pci_xhci_parse_tablet},
-	{"cap", pci_xhci_parse_extcap}
+	{"cap", pci_xhci_parse_extcap},
+	{"drd", pci_xhci_parse_drd_ports}
 };
+
+static int drd_bus;
+static int drd_port;
+static const char *port_path;
+static const char *role_sw_path;
 
 static bool
 pci_xhci_is_vport_free(struct pci_xhci_vdev *xdev, int portnum)
@@ -1347,14 +1356,51 @@ pci_xhci_portregs_write(struct pci_xhci_vdev *xdev,
 	}
 }
 
+static int xhci_drd_select_port(const char *path, int port)
+{
+	int fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		pr_err("failed to open %s\n", path);
+		return -1;
+	}
+
+	char port_str[8];
+	snprintf(port_str, 7, "%d", drd_port - 1);
+	int rc = write(fd, port_str, strlen(port_str));
+	close(fd);
+	if (rc != strlen(port_str)) {
+		pr_err("failed to write port selector\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int xhci_drd_select_role(const char *path, bool host)
+{
+	int fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		pr_err("failed to open %s\n", path);
+		return -1;
+	}
+
+	const char *role = host ? "host" : "device";
+	int rc = write(fd, role, strlen(role));
+	close(fd);
+	if (rc != strlen(role)) {
+		pr_err("failed to write role selector\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int
 pci_xhci_apl_drdregs_write(struct pci_xhci_vdev *xdev, uint64_t offset,
 		uint64_t value)
 {
-	int rc = 0, fd;
-	char *mstr;
-	int msz = 0;
 	uint32_t drdcfg1 = 0;
+	bool host_mode;
 	struct pci_xhci_excap *excap;
 	struct pci_xhci_excap_drd_apl *excap_drd;
 
@@ -1386,35 +1432,32 @@ pci_xhci_apl_drdregs_write(struct pci_xhci_vdev *xdev, uint64_t offset,
 
 	if (value & XHCI_DRD_CFG0_IDPIN_EN) {
 		if ((value & XHCI_DRD_CFG0_IDPIN) == 0) {
-			mstr = XHCI_NATIVE_DRD_HOST_MODE;
-			msz = strlen(XHCI_NATIVE_DRD_HOST_MODE);
 			drdcfg1 |= XHCI_DRD_CFG1_HOST_MODE;
+			host_mode = true;
 		} else {
-			mstr = XHCI_NATIVE_DRD_DEV_MODE;
-			msz = strlen(XHCI_NATIVE_DRD_DEV_MODE);
 			drdcfg1 &= ~XHCI_DRD_CFG1_HOST_MODE;
+			host_mode = false;
 		}
 	} else
 		return 0;
 
-	fd = open(XHCI_NATIVE_DRD_SWITCH_PATH, O_WRONLY);
-	if (fd < 0) {
-		pr_warn("drd native interface open failed\r\n");
-		return -1;
+	const char *sw_path = XHCI_NATIVE_DRD_SWITCH_PATH;
+	if (drd_bus && drd_port) {
+		if (!port_path || !role_sw_path)
+			return -1;
+		if (xhci_drd_select_port(port_path, drd_port) < 0)
+			return -1;
+		sw_path = role_sw_path;
 	}
 
-	rc = write(fd, mstr, msz);
-	close(fd);
-	if (rc == msz)
-		excap_drd->drdcfg1 = drdcfg1;
-	else {
-		pr_warn("drd native interface write "
-			"%s mode failed, drdcfg0: 0x%x, "
-			"drdcfg1: 0x%x.\r\n",
-			value & XHCI_DRD_CFG0_IDPIN ? "device" : "host",
+	if (xhci_drd_select_role(sw_path, host_mode) < 0) {
+		pr_warn("drd native interface write %s mode failed, drdcfg0: 0x%x, drdcfg1: 0x%x.\r\n",
+			host_mode ? "host" : "device",
 			excap_drd->drdcfg0, excap_drd->drdcfg1);
 		return -1;
 	}
+	excap_drd->drdcfg1 = drdcfg1;
+
 	return 0;
 }
 
@@ -4090,7 +4133,7 @@ pci_xhci_device_usage(char *opt)
 		" eg: -s 8,xhci,1-2,2-2\r\n"
 		" eg: -s 7,xhci,tablet\r\n"
 		" eg: -s 7,xhci,1-2,2-2:tablet\r\n"
-		" eg: -s 7,xhci,1-2,2-2:tablet:cap=apl\r\n"
+		" eg: -s 7,xhci,1-2,2-2:tablet:cap=apl:drd=1-2\r\n"
 		" Note: please follow the board hardware design, assign the "
 		" ports according to the receptacle connection\r\n";
 
@@ -4256,6 +4299,95 @@ pci_xhci_parse_extcap(struct pci_xhci_vdev *xdev, char *opts)
 errout:
 	if (rc)
 		pr_err("USB: fail to set vendor capability, rc=%d\r\n", rc);
+	free(o);
+	return rc;
+}
+
+static int xhci_drd_init(int bus, int port)
+{
+	char symlink[128], real_path[PATH_MAX];
+	char *t, *sw_dev_name = NULL;
+	ssize_t len;
+
+	snprintf(symlink, sizeof(symlink), "/sys/bus/usb/devices/usb%d", bus);
+	// e.g. /sys/devices/pci0000:00/0000:00:14.0/usb3
+	if (!realpath(symlink, real_path)) {
+		pr_err("failed to get real path of %s\n", symlink);
+		return -1;
+	}
+
+	t = strstr(real_path, "usb");
+	if (!t) {
+		pr_err("invalid sysfs symlink!\n");
+		return -1;
+	}
+	*t = '\0';
+	len = strlen(real_path);
+
+	DIR *dir = opendir(real_path);
+	if (!dir) {
+		pr_err("failed to opendir %s\n", real_path);
+		return -1;
+	}
+	struct dirent *entry;
+	while ((entry = readdir(dir))) {
+		if (strstr(entry->d_name, SW_DEV_NAME)) {
+			sw_dev_name = strdup(entry->d_name);
+			break;
+		}
+	}
+	if (!sw_dev_name) {
+		pr_err("%s not found under %s\n", SW_DEV_NAME, real_path);
+		return -1;
+	}
+
+	snprintf(t, sizeof(real_path) - len - 1, "%s/port", sw_dev_name);
+	port_path = strdup(real_path);
+	snprintf(t, sizeof(real_path) - len - 1, "%s/usb_role/%s-role-switch/role",
+			sw_dev_name, sw_dev_name);
+	role_sw_path = strdup(real_path);
+	pr_dbg("port path: %s\n", port_path);
+	pr_dbg("role switch path: %s\n", role_sw_path);
+
+	free(sw_dev_name);
+
+	if (xhci_drd_select_port(port_path, port) < 0)
+		return -1;
+	if (xhci_drd_select_role(role_sw_path, true) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int pci_xhci_parse_drd_ports(struct pci_xhci_vdev *xdev, char *opts)
+{
+	char *s, *o, *tstr;
+	int rc = 0, port, bus;
+
+	o = s = strdup(opts);
+
+	s = strchr(opts, '=');
+	if (!s) {
+		rc = -1;
+		goto errout;
+	}
+
+	tstr = s + 1;
+	/* 'bus-port' format */
+	if (!tstr || dm_strtoi(tstr, &tstr, 10, &bus) || *tstr != '-' ||
+			dm_strtoi(tstr + 1, &tstr, 10, &port)) {
+		rc = -2;
+		goto errout;
+	}
+
+	drd_bus = bus;
+	drd_port = port;
+
+	rc = xhci_drd_init(bus, port);
+
+errout:
+	if (rc)
+		pr_err("USB: fail to parse drd parameter, rc=%d\r\n", rc);
 	free(o);
 	return rc;
 }
@@ -4628,6 +4760,9 @@ pci_xhci_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	free(xdev->devices);
 	free(xdev->slots);
 	free(xdev->portregs);
+
+	free((void *)port_path);
+	free((void *)role_sw_path);
 
 	usb_dev_sys_deinit();
 
