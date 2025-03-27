@@ -441,8 +441,7 @@ static uint64_t vm_get_register(const struct acrn_vcpu *vcpu, enum cpu_reg_name 
 
 	if (reg <= CPU_REG_GENERAL_LAST) {
 		reg_val = vcpu_get_gpreg(vcpu, reg);
-	} else if ((reg >= CPU_REG_NONGENERAL_FIRST) &&
-		(reg <= CPU_REG_NONGENERAL_LAST)) {
+	} else if (reg <= CPU_REG_NONGENERAL_LAST) {
 		uint32_t field = get_vmcs_field(reg);
 
 		if (reg <= CPU_REG_NATURAL_LAST) {
@@ -1596,7 +1595,7 @@ static int32_t emulate_group1(struct acrn_vcpu *vcpu, const struct instr_emul_vi
 		error = emulate_cmp(vcpu, vie);
 		break;
 	default:
-		error = EINVAL;
+		error = -EINVAL;
 		break;
 	}
 
