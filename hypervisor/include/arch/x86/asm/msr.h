@@ -649,6 +649,8 @@ struct acrn_vcpu;
 void init_msr_emulation(struct acrn_vcpu *vcpu);
 void init_intercepted_cat_msr_list(void);
 uint32_t vmsr_get_guest_msr_index(uint32_t msr);
+int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu);
+int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu);
 
 #endif /* ASSEMBLER */
 

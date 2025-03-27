@@ -705,6 +705,8 @@ static inline bool is_mc_pt_enabled(struct acrn_vcpu *vcpu)
  */
 void vcpu_handle_pi_notification(uint32_t vcpu_index);
 
+extern void vm_exit(void);
+
 /**
  * @}
  */
