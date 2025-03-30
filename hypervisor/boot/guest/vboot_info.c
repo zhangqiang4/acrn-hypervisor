@@ -68,8 +68,8 @@ static int32_t init_vm_kernel_info(struct acrn_vm *vm, const struct abi_module *
 	return ret;
 }
 
-/* cmdline parsed from abi module string, for pre-launched VMs and Service VM only. */
-static char mod_cmdline[PRE_VM_NUM + SERVICE_VM_NUM][MAX_BOOTARGS_SIZE] = { 0 };
+/* cmdline parsed from abi kernel module string, for pre-launched VMs and Service VM only. */
+static char kernel_mod_string[PRE_VM_NUM + SERVICE_VM_NUM][MAX_BOOTARGS_SIZE] = { 0 };
 
 /**
  * @pre vm != NULL && abi != NULL
@@ -82,8 +82,8 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 	/* If module string of the kernel module exists, it would OVERRIDE the pre-configured build-in VM bootargs,
 	 * which means we give user a chance to re-configure VM bootargs at bootloader runtime. e.g. GRUB menu
 	 */
-	if (mod_cmdline[vm->vm_id][0] != '\0') {
-		vm->sw.bootargs_info.src_addr = &mod_cmdline[vm->vm_id][0];
+	if (kernel_mod_string[vm->vm_id][0] != '\0') {
+		vm->sw.bootargs_info.src_addr = &kernel_mod_string[vm->vm_id][0];
 	}
 
 	if (vm_config->load_order == SERVICE_VM) {
@@ -127,9 +127,9 @@ static int32_t init_vm_sw_load(struct acrn_vm *vm, const struct acrn_boot_info *
 		uint32_t tag_len = strnlen_s(vm_config->os_config.kernel_mod_tag, MAX_MOD_TAG_LEN);
 		const char *p_chr = string + tag_len + 1; /* point to the possible start of cmdline */
 
-		/* check whether there is a cmdline configured in module string */
+		/* check whether there is a cmdline configured in kernel module string */
 		if (((str_len > (tag_len + 1U))) && (is_space(*(p_chr - 1))) && (!is_eol(*p_chr))) {
-			(void)strncpy_s(&mod_cmdline[vm->vm_id][0], MAX_BOOTARGS_SIZE,
+			(void)strncpy_s(&kernel_mod_string[vm->vm_id][0], MAX_BOOTARGS_SIZE,
 					p_chr, (MAX_BOOTARGS_SIZE - 1U));
 		}
 
