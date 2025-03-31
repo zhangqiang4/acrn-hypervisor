@@ -110,8 +110,8 @@ to benefit the code scalability in the future.
 The macro definition has been reviewed not to rely on any non-deterministic or implementation-specific behavior in C99.
 There are no potential risks observed due to this specific deviation in the list_for_each_safe macro.
 
-JD_003: Use of ## operator
---------------------------
+JD_003: Use of # operator
+-------------------------
 
 The # operator is used to convert a user-given token into a string. It is directly used only by the STRINGIFY macro,
 which is further used by CPU_SEG_READ, CPU_CR_READ, CPU_CR_WRITE, CPU_XMM_READ, and CPU_XMM_WRITE macros.
@@ -119,8 +119,36 @@ Without using # operator, the implementation needs to add a series of functions 
 the same functionality. It has been reviewed that the ## operator is not used together with the # operator.
 Thus the behavior is well defined in C99.
 
-JD_004: Use of # operator
--------------------------
+JD_004: Use of ## operator
+--------------------------
+
+All the reported violations are classified and justified into below categories:
+
+ - Due to save_segment/load_segment.
+   The token concatenation operator (##) is used by save_segment/load_segment which saves/loads the VMCS fields
+   related to a segment register.
+ - Due to `CAT__`.
+   The token concatenation operator (##) is used by the `CAT__` macro, which is further used by `CAT_` and CTASSERT.
+   The macro CTASSERT performs build-time sanity checks to ensure that hard-coded offsets match the actual offsets
+   in the data structure.
+
+   The macro is designed to be used in the following way.
+
+   .. code-block:: c
+
+	#define CAT__(A,B) A ## B
+	#define CAT_(A,B) CAT__(A,B)
+	#define CTASSERT(expr) \
+	typedef int32_t CAT_(CTA_DummyType,__LINE__)[(expr) ? 1 : -1]
+
+	CTASSERT(CPU_CONTEXT_OFFSET_RAX    == offsetof(struct acrn_gp_regs, rax));
+
+The operator is used here to simplify the parameters of the macro.
+If not using the ## operator, the saving/loading of such VMCS fields, and the build time sanity checks
+for the hard-coded offset can be lengthy, tedious and harder to maintain.
+It has been reviewed that the ## operator is not used together with the # operator. Also the
+operator is used to concatenate at most 2 parts into a token. Thus the behavior is well defined
+in C99.
 
 JD_005: Externally linked function and variable used in a single translation unit
 ---------------------------------------------------------------------------------

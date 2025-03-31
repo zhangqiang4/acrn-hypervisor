@@ -3,6 +3,7 @@ asa.rst
 contribute.rst
 developer-guides/*.rst
 developer-guides/hld/
+developer-guides/sca/
 develop.rst
 faq.rst
 genindex.rst
