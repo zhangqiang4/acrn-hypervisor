@@ -66,7 +66,7 @@ static uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_g
 	return mmap_length;
 }
 
-static uint32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gpa)
+static int32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gpa)
 {
 	char loader_name[MAX_LOADER_NAME_SIZE] = "ACRN ELF LOADER";
 
