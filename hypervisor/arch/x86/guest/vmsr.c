@@ -243,10 +243,12 @@ static const uint32_t unsupported_msrs[] = {
 	/*
 	 * HWP package ctrl disabled:
 	 * CPUID.06H.EAX[11] (MSR_IA32_HWP_REQUEST_PKG)
+	 * CPUID.06H.EAX[16] (MSR_IA32_HWP_PECI_REQUEST_INFO)
 	 * CPUID.06H.EAX[22] (MSR_IA32_HWP_CTL)
 	 */
 	MSR_IA32_HWP_REQUEST_PKG,
 	MSR_IA32_HWP_CTL,
+	MSR_IA32_HWP_PECI_REQUEST_INFO,
 
 	/*
 	 * HWP interrupt disabled:

@@ -357,7 +357,7 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	cpuid_subleaf(CPUID_THERMAL_POWER, *ecx, eax, ebx, ecx, edx);
 
 	/* Always hide package level HWP controls and HWP interrupt*/
-	*eax &= ~(CPUID_EAX_HWP_CTL | CPUID_EAX_HWP_PLR | CPUID_EAX_HWP_N);
+	*eax &= ~(CPUID_EAX_HWP_CTL | CPUID_EAX_HWP_PLR | CPUID_EAX_HWP_N | CPUID_EAX_HWP_HPC | CPUID_EAX_HWP_PECI);
 	*eax &= ~(CPUID_EAX_HFI | CPUID_EAX_ITD);
 	/* Since HFI is hidden, hide the edx too */
 	*edx = 0U;

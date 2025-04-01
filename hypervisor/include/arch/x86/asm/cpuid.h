@@ -418,6 +418,18 @@
  */
 #define CPUID_EAX_HWP_PLR       (1U<<11U)
 /**
+ * @brief A bit representing whether the processor supports highest performance change notification.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[15].
+ */
+#define CPUID_EAX_HWP_HPC       (1U<<15U)
+/**
+ * @brief A bit representing whether the processor supports HWP PECI override notification.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[16].
+ */
+#define CPUID_EAX_HWP_PECI      (1U<<16U)
+/**
  * @brief A bit representing whether the processor supports HW FEEDBACK.
  *
  * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[19].
