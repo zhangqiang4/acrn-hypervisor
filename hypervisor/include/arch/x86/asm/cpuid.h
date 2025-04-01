@@ -418,6 +418,12 @@
  */
 #define CPUID_EAX_HWP_PLR       (1U<<11U)
 /**
+ * @brief A bit representing whether the processor supports HWP Favored Cores support (Turbo Boost Max Technology 3.0).
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[14].
+ */
+#define CPUID_EAX_HWP_FC        (1U<<14U)
+/**
  * @brief A bit representing whether the processor supports highest performance change notification.
  *
  * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[15].
@@ -430,11 +436,29 @@
  */
 #define CPUID_EAX_HWP_PECI      (1U<<16U)
 /**
+ * @brief A bit representing whether the processor supports Flexible HWP.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[17].
+ */
+#define CPUID_EAX_FLEX_HWP      (1U<<17U)
+/**
+ * @brief A bit representing whether the processor supports Fast MSR access mode for IA32_HWP_REQUEST MSR.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[18].
+ */
+#define CPUID_EAX_HWP_FAM       (1U<<18U)
+/**
  * @brief A bit representing whether the processor supports HW FEEDBACK.
  *
  * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[19].
  */
 #define CPUID_EAX_HFI           (1U<<19U)
+/**
+ * @brief A bit representing whether the processor supports Ignoring Idle Logical Processor HWP request.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[20].
+ */
+#define CPUID_EAX_HWP_IILP      (1U<<20U)
 /**
  * @brief A bit representing whether the processor supports HWP Control MSR.
  *
