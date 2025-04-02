@@ -53,5 +53,7 @@ NEW_LINE = PERIOD + NL_REPL+PERIOD
 ESCAPE_SYMBOLS = {
     '[': '__LEFT_BRACKET__',
     ']': '__RIGHT_BRACKET__',
-    '..': '__INTERVAL__'
+    '..': '__INTERVAL__',
+    '(': '__LEFT_PARENTHESIS__',
+    ')': '__RIGHT_PARENTHESIS__',
 }

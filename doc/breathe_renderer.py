@@ -508,18 +508,27 @@ class BreatheASTBracedInitList:
                     [0..4] = x,
                     [4..8] = y
                     [1..] = {1,2},
-                    [ 2 ..  5  ] = {7,8,9}
+                    [ 2 ..  5  ] = {7,8,9}, 
+                    [fn(RESULT_VALUE)] = {10,11,12}
                 };
                 """
                 tmp = str(e).strip()
-                interval_re = re.compile(r"__LEFT_BRACKET__(.*)(\s*__INTERVAL__\s*.*)?__RIGHT_BRACKET__")
+                interval_re = re.compile(
+                    r"__LEFT_BRACKET__(.*)(__LEFT_PARENTHESIS__(.*)__RIGHT_PARENTHESIS__)*(\s*__INTERVAL__\s*.*)?__RIGHT_BRACKET__")
                 if re.match(interval_re, tmp):
-                    res = (tmp.replace(ESCAPE_SYMBOLS['['], '[')
-                           .replace(ESCAPE_SYMBOLS[']'], ']')
-                           .replace(ESCAPE_SYMBOLS['..'], '..'))
+                    res = (
+                        tmp.replace(ESCAPE_SYMBOLS['['], '[')
+                        .replace(ESCAPE_SYMBOLS[']'], ']')
+                        .replace(ESCAPE_SYMBOLS['..'], '..')
+                        .replace(ESCAPE_SYMBOLS['('], '(')
+                        .replace(ESCAPE_SYMBOLS[')'], ')')
+                    )
+                    res = res.replace(NL_REPL + ',', '').replace(NL_REPL, '')
                     signode += addnodes.desc_sig_punctuation(tmp, res)
                 else:
-                    e.describe_signature(signode, mode, env, symbol)
+                    res = tmp.replace(NL_REPL + ',', '').replace(NL_REPL, '')
+                    signode += addnodes.desc_sig_punctuation(tmp, res)
+                    # e.describe_signature(signode, mode, env, symbol)
 
         if self.trailingComma:  # hide tailingComma whether existed or not
             signode += addnodes.desc_sig_punctuation(',', '')
@@ -969,13 +978,19 @@ class BreatheRenderer:
         # support intervals in initializers
         len_ = len(temp)
         raw_ = temp[0] if len_ == 1 else "\n".join(temp)
+        has_bracket = False
         for i, e in enumerate(raw_):
-            if (f := raw_[i:i + 2]) in ESCAPE_SYMBOLS:  # __INTERVAL__: ..
+            if (f := raw_[i:i + 2]) == '..':  # __INTERVAL__: ..
                 raw_ = raw_.replace(f, ESCAPE_SYMBOLS[f])
-            if e in ESCAPE_SYMBOLS:  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
+            if e in ('[', ']'):  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
+                has_bracket = True
                 raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
             if e == ' ':  # remove redundant spaces between [ , .. and ]
                 raw_ = raw_.replace(' ', '')
+            # remove interference introduced by single ( and )
+            # that is, I replace (,) with escape only has [,] before them, otherwise I won't replace it
+            if has_bracket and e in ('(', ')'):
+                raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
         return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
 
     # some methods should be modified and not be contained in `methods`
