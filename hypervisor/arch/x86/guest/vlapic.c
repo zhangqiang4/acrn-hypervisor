@@ -248,7 +248,7 @@ static void vlapic_reset_timer(struct acrn_vlapic *vlapic)
  */
 static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 {
-	uint32_t ratio, eax_denominator = CPUID_CLOCK, ebx_numerator, ecx_hz, reserved;
+	uint32_t ratio, eax_denominator = CPUID_CLOCK, ebx_numerator = 0U, ecx_hz = 0U, reserved = 0U;
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
 	guest_cpuid(vcpu, &eax_denominator, &ebx_numerator, &ecx_hz, &reserved);
@@ -262,7 +262,7 @@ static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 		   If CPUID leaf 0x15 is not available, there is no exact bus clock that can be used to calculate the
 		   ratio, returns 1 to avoid faults.
 		*/
-		ratio = 1;
+		ratio = 1U;
 	}
 	return ratio;
 }
