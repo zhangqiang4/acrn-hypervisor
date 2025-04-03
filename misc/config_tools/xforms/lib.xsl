@@ -467,6 +467,17 @@
     <func:result select="$load_order = 'POST_LAUNCHED_VM'" />
   </func:function>
 
+  <func:function name="acrn:is-scheduler-prio">
+    <xsl:choose>
+      <xsl:when test="//SCHEDULER = 'SCHED_PRIO'">
+        <func:result select="true()" />
+      </xsl:when>
+      <xsl:otherwise>
+        <func:result select="false()" />
+      </xsl:otherwise>
+    </xsl:choose>
+  </func:function>
+
   <!-- acrn:is-vmsix-supported-device checks the given params are matched with any of the listed devices -->
   <!-- The listed devices are known that can have a virtual vmsix -->
   <!-- Each pair of vendor and identifier represents a device which can have a vmsix (virtual msix) -->

@@ -111,7 +111,9 @@
       <xsl:value-of select="$newline" />
     </xsl:if>
     <xsl:value-of select="acrn:initializer('sched_params', '{', true())" />
-    <xsl:value-of select="acrn:initializer('prio', priority)" />
+    <xsl:if test="acrn:is-scheduler-prio()">
+      <xsl:value-of select="acrn:initializer('prio', priority)" />
+    </xsl:if>
     <xsl:value-of select="acrn:initializer('bvt_weight', bvt_weight)" />
     <xsl:value-of select="acrn:initializer('bvt_warp_value', bvt_warp_value)" />
     <xsl:value-of select="acrn:initializer('bvt_warp_limit', bvt_warp_limit)" />
