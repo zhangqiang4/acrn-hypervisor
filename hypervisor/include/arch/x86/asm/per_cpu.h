@@ -57,15 +57,23 @@ struct per_cpu_region {
 #endif
 	struct per_cpu_timers cpu_timers; /**< Structure representing the head of timer list per CPU. */
 	struct sched_control sched_ctl; /**< Scheduler control block of the physical processor. */
+#ifdef CONFIG_SCHED_NOOP
 	struct sched_noop_control sched_noop_ctl; /**< Records the thread object of the thread which will run or is
 						   *   running on the physical processor while the noop scheduler is
 						   *   configured. */
+#endif
+#ifdef CONFIG_SCHED_IORR
 	struct sched_iorr_control sched_iorr_ctl; /**< Records the structure variable controlling the IO-sensitive
 						   *   Round-robin scheduler. */
+#endif
+#ifdef CONFIG_SCHED_BVT
 	struct sched_bvt_control sched_bvt_ctl; /**< Records the structure variable controlling the BVT (Borrowed
 						 *   virtual time) scheduler. */
+#endif
+#ifdef CONFIG_SCHED_PRIO
 	struct sched_prio_control sched_prio_ctl; /**< Records the structure variable controlling the priority-based
 						   *   scheduler. */
+#endif
 	struct thread_object idle; /**< Structure representing the idle thread. */
 	struct host_gdt gdt; /**< Structure representing the Global Descriptor Table used for the logical processor. */
 	struct tss_64 tss; /**< Structure representing the Task State Segment used for the logical processor. */

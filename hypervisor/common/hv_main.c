@@ -107,7 +107,9 @@ void run_idle_thread(void)
 	idle->thread_entry = default_idle;
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;
+#ifdef CONFIG_SCHED_PRIO
 	idle_params.prio = PRIO_IDLE;
+#endif
 	init_thread_data(idle, &idle_params);
 
 	run_thread(idle);

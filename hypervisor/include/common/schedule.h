@@ -41,7 +41,9 @@ enum thread_priority {
  * schedulers.
  */
 struct sched_params {
+#ifdef CONFIG_SCHED_PRIO
 	uint32_t prio;		/* The priority of a thread */
+#endif
 
 	/* per thread parameters for bvt scheduler */
 	uint8_t bvt_weight;	/* the weight of a thread */
@@ -104,18 +106,22 @@ struct acrn_scheduler {
 	/* resume scheduler */
 	void	(*resume)(struct sched_control *ctl);
 };
+#ifdef CONFIG_SCHED_NOOP
 extern struct acrn_scheduler sched_noop;
-extern struct acrn_scheduler sched_iorr;
-
 struct sched_noop_control {
 	struct thread_object *noop_thread_obj;
 };
+#endif
 
+#ifdef CONFIG_SCHED_IORR
+extern struct acrn_scheduler sched_iorr;
 struct sched_iorr_control {
 	struct list_head runqueue;
 	struct hv_timer tick_timer;
 };
+#endif
 
+#ifdef CONFIG_SCHED_BVT
 extern struct acrn_scheduler sched_bvt;
 struct sched_bvt_control {
 	struct list_head runqueue;
@@ -123,11 +129,14 @@ struct sched_bvt_control {
 	/* The minimum AVT of any runnable threads */
 	int64_t svt;
 };
+#endif
 
+#ifdef CONFIG_SCHED_PRIO
 extern struct acrn_scheduler sched_prio;
 struct sched_prio_control {
 	struct list_head prio_queue;
 };
+#endif
 
 bool is_idle_thread(const struct thread_object *obj);
 uint16_t sched_get_pcpuid(const struct thread_object *obj);
