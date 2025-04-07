@@ -128,15 +128,6 @@ void init_thread_data(struct thread_object *obj, struct sched_params *params)
 	release_schedule_lock(obj->pcpu_id, rflag);
 }
 
-void deinit_thread_data(struct thread_object *obj)
-{
-	struct acrn_scheduler *scheduler = get_scheduler(obj->pcpu_id);
-
-	if (scheduler->deinit_data != NULL) {
-		scheduler->deinit_data(obj);
-	}
-}
-
 struct thread_object *sched_get_current(uint16_t pcpu_id)
 {
 	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
