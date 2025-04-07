@@ -73,8 +73,11 @@ void inject_mc_event_to_governing_vcpu(uint16_t pcpu_id, bool is_cmci)
 	}
 
 	if (!injected && !is_cmci) {
-		panic("#MC was not injected as governing vcpu wasn't found on pcpu%d, or governing vcpu didn't enable MC in CR4.\n", pcpu_id);
+		pr_fatal("#MC was not injected as governing vcpu wasn't found on pcpu%d, \
+				or governing vcpu didn't enable MC in CR4.", pcpu_id);
+		pr_fatal("Halting current pCPU");
 		cpu_dead();
+		/* Loops forever */
 	}
 
 	if (!injected && is_cmci) {
