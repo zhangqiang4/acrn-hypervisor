@@ -110,11 +110,9 @@ struct vm_sw_info {
 /**
  * @brief Power management information of a VM
  *
- * This struct records the P state data.
+ * This struct records the Sx state data.
  */
 struct vm_pm_info {
-	uint8_t			px_cnt;		/**< Count of all Px states */
-	struct acrn_pstate_data	px_data[MAX_PSTATE]; /**< P-state data */
 	struct pm_s_state_data	*sx_state_data;	/**< Data for S3/S5 implementation */
 };
 

@@ -15,16 +15,6 @@
 #define CF9_RESET_WARM	0x6
 #define CF9_RESET_COLD	0xE
 
-struct cpu_state_info {
-	uint8_t			 	px_cnt;	/* count of all Px states */
-	const struct acrn_pstate_data	*px_data;
-};
-
-struct cpu_state_table {
-	char			model_name[64];
-	struct cpu_state_info	state_info;
-};
-
 struct acpi_reset_reg {
 	struct acrn_acpi_generic_address reg;
 	uint8_t val;

@@ -146,13 +146,7 @@ struct rdt_type res_cap_info[RDT_NUM_RESOURCES] = {
 
 #endif
 
-/* Px data is not available */
-static const struct acrn_pstate_data board_cpu_px[0];
 
-const struct cpu_state_table board_cpu_state_tbl = {
-	"11th Gen Intel(R) Core(TM) i7-1185GRE @ 2.80GHz",
-	{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px}
-};
 const union pci_bdf plat_hidden_pdevs[MAX_HIDDEN_PDEVS_NUM];
 
 const struct vmsix_on_msi_info vmsix_on_msi_devs[MAX_VMSIX_ON_MSI_PDEVS_NUM];
@@ -162,28 +156,20 @@ struct acrn_cpufreq_limits cpufreq_limits[MAX_PCPU_NUM] = {
 		.guaranteed_hwp_lvl = 255,
 		.highest_hwp_lvl = 255,
 		.lowest_hwp_lvl = 1,
-		.nominal_pstate = 0,
-		.performance_pstate = 0,
 	},
 	{
 		.guaranteed_hwp_lvl = 255,
 		.highest_hwp_lvl = 255,
 		.lowest_hwp_lvl = 1,
-		.nominal_pstate = 0,
-		.performance_pstate = 0,
 	},
 	{
 		.guaranteed_hwp_lvl = 255,
 		.highest_hwp_lvl = 255,
 		.lowest_hwp_lvl = 1,
-		.nominal_pstate = 0,
-		.performance_pstate = 0,
 	},
 	{
 		.guaranteed_hwp_lvl = 255,
 		.highest_hwp_lvl = 255,
 		.lowest_hwp_lvl = 1,
-		.nominal_pstate = 0,
-		.performance_pstate = 0,
 	},
 };

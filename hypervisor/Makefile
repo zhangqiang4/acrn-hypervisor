@@ -213,7 +213,6 @@ HW_C_SRCS += arch/x86/tsc.c
 HW_C_SRCS += arch/x86/tsc_deadline_timer.c
 HW_C_SRCS += arch/x86/hw_thermal.c
 HW_C_SRCS += arch/x86/vmx.c
-HW_C_SRCS += arch/x86/cpu_state_tbl.c
 HW_C_SRCS += arch/x86/pm.c
 HW_S_SRCS += arch/x86/wakeup.S
 HW_C_SRCS += arch/x86/trampoline.c

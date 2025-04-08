@@ -1466,24 +1466,6 @@ int32_t hcall_reset_ptdev_intr_info(struct acrn_vcpu *vcpu, struct acrn_vm *targ
 }
 
 /**
- * @brief Check if the power state (P-state) is pass-through for a virtual machine (VM).
- *
- * This function checks if the P-state is pass-through for a VM. Currently, the CPU frequency
- * is managed by the hypervisor, so no pass-through is allowed for all VMs.
- *
- * @param[in] vm The VM to check (unused in this function).
- *
- * @return A boolean value indicating that P-state pass-through is allowed.
- *
- * @retval false Always return false.
- */
-static bool is_pt_pstate(__unused const struct acrn_vm *vm)
-{
-	/* Currently VM's CPU frequency is managed in hypervisor. So no pass through for all VMs. */
-	return false;
-}
-
-/**
  * @brief Handle hypercall to get the CPU power management (PM) state for a virtual machine (VM).
  *
  * The hypercall HC_PM_GET_CPU_STATE is used to get the vCPU power information and write the
@@ -1496,13 +1478,9 @@ static bool is_pt_pstate(__unused const struct acrn_vm *vm)
  *    - Return -1 if the VM is not in a valid state.
  * 2. Execute the command specified by `param1` to retrieve PM information:
  *    - ACRN_PMCMD_GET_PX_CNT: Determine the number of P-states available.
- *      - If the VM supports virtual Hardware P-states (vHWP), set `px_cnt` to 0.
- *      - If P-states are hidden or unavailable, return -1.
- *      - Otherwise, retrieve the P-state count.
+ *      - The hypervisor supports only platforms with HWP capability; set `px_cnt` to 0 for compatibility.
  *    - ACRN_PMCMD_GET_PX_DATA: Retrieve data for a specific P-state.
- *      - Check if P-states are available; if not, return -1.
- *      - Validate the state number; if invalid, return -1.
- *      - Retrieve the P-state data.
+ *      - The hypervisor does not return valid Px data as it supports only HWP-capable platforms.
  *    - ACRN_PMCMD_GET_CX_CNT: Retrieve the number of C-states.
  *      - The hypervisor supports only platforms with MONITOR/MWAIT capability; set `cx_cnt` to 0 for compatibility.
  *    - ACRN_PMCMD_GET_CX_DATA: Retrieve data for a specific C-state.
@@ -1531,47 +1509,12 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm
 	if (is_created_vm(target_vm) || is_paused_vm(target_vm)) {
 		switch (cmd & PMCMD_TYPE_MASK) {
 		case ACRN_PMCMD_GET_PX_CNT: {
-			uint8_t px_cnt;
-			/*
-			 * If the VM supports vHWP, then the guest is having continuous p-state.
-			 * Thus it doesn't have a specific px_cnt. The hypercall returns success and px_cnt = 0.
-			 * If the VM's p-state is hidden or hv doesn't have its p-state info, the hypercall returns -1.
-			 */
-			if (vm_cpu_feature_enabled(target_vm, GUEST_CPU_FEATURE_VHWP)) {
-				px_cnt = 0U;
-			} else if (!is_pt_pstate(target_vm)) {
-				break;
-			} else if (target_vm->pm.px_cnt == 0U) {
-				break;
-			} else {
-				px_cnt = target_vm->pm.px_cnt;
-			}
+			uint8_t px_cnt = 0U;
 			ret = copy_to_gpa(vm, &px_cnt, param2, sizeof(px_cnt));
 			break;
 		}
 		case ACRN_PMCMD_GET_PX_DATA: {
-			uint8_t pn;
-			struct acrn_pstate_data *px_data;
-
-			if (!is_pt_pstate(target_vm)) {
-				break;
-			}
-
-			/* For now we put px data as per-vm,
-			 * If it is stored as per-cpu in the future,
-			 * we need to check PMCMD_VCPUID_MASK in cmd.
-			 */
-			if (target_vm->pm.px_cnt == 0U) {
-				break;
-			}
-
-			pn = (uint8_t)((cmd & PMCMD_STATE_NUM_MASK) >> PMCMD_STATE_NUM_SHIFT);
-			if (pn >= target_vm->pm.px_cnt) {
-				break;
-			}
-
-			px_data = target_vm->pm.px_data + pn;
-			ret = copy_to_gpa(vm, px_data, param2, sizeof(struct acrn_pstate_data));
+			ret = 0;
 			break;
 		}
 		case ACRN_PMCMD_GET_CX_CNT: {

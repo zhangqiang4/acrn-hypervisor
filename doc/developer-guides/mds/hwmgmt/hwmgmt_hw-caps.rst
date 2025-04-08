@@ -42,12 +42,6 @@ This section contains the documentation of the module `hwmgmt.hw-caps`.
 .. doxygenfile:: platform_caps.c
    :project: Project ACRN
 
-[File] arch/x86/cpu_state_tbl.c
-======================================================================
-
-.. doxygenfile:: cpu_state_tbl.c
-   :project: Project ACRN
-
 [File] boot/include/acpi.h
 ======================================================================
 

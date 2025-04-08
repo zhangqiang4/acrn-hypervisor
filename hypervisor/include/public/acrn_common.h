@@ -664,20 +664,6 @@ struct acrn_acpi_generic_address {
 } __attribute__ ((__packed__));
 
 /**
- * @brief Info about the power state data of a vCPU.
- *
- * This structure holds information about the power state (P-state) of a vCPU.
- */
-struct acrn_pstate_data {
-	uint64_t core_frequency;     /**< Core frequency in megahertz */
-	uint64_t power;              /**< The power consumption in this P-state in milliwatts */
-	uint64_t transition_latency; /**< The transition latency in microseconds */
-	uint64_t bus_master_latency; /**< The bus mater latency in microseconds */
-	uint64_t control;            /**< The control value for this P-state */
-	uint64_t status;		     /**< The success indicator for this P-state */
-};
-
-/**
  * @brief CPU frequency policy types
  *
  * This enumeration defines the different CPU frequency policy types that can be applied to a vCPU.
@@ -691,16 +677,13 @@ enum acrn_cpufreq_policy_type {
  * @brief CPU frequency limits
  *
  * This structure holds the limits for CPU frequency, including performance levels for Hardware-Controlled Performance
- * States (HWP) and P-state indices.
+ * States (HWP) indices.
  */
 struct acrn_cpufreq_limits {
 	/* Performance levels for HWP */
 	uint8_t guaranteed_hwp_lvl; /**< Guaranteed performance level for HWP */
 	uint8_t highest_hwp_lvl;    /**< Highest performance level for HWP */
 	uint8_t lowest_hwp_lvl;     /**< Lowest performance level for HWP */
-	/* Index for the p-state table _PSS */
-	uint8_t nominal_pstate;     /**< Nominal P-state index */
-	uint8_t performance_pstate; /**< Performance P-state index */
 };
 
 /**
@@ -739,18 +722,13 @@ struct pm_s_state_data {
  *
  * The command would specify request type(e.g. get px count or data) for specific VM and specific vCPU with specific
  * state number.
- * - For Px, PMCMD_STATE_NUM means Px number from 0 to (MAX_PSTATE - 1).
- * - For Cx, PMCMD_STATE_NUM means Cx entry index.
+ * ACRN supports only HWP and MONITOR/MWAIT platforms; legacy Px and Cx states are unsupported.
+ * This command remains for compatibility.
  * @{
  */
 #define PMCMD_VMID_MASK		0xff000000U  /**< Bitmask to extract the VM ID from the PM command */
-#define PMCMD_VCPUID_MASK	0x00ff0000U  /**< Bitmask to extract the vCPU ID from the PM command */
-#define PMCMD_STATE_NUM_MASK	0x0000ff00U /**< Bitmask to extract the state number from the PM command */
 #define PMCMD_TYPE_MASK		0x000000ffU  /**< Bitmask to extract the command type from the PM command */
-
 #define PMCMD_VMID_SHIFT	24U     /**< Bit shift value to position the VM ID in the PM command */
-#define PMCMD_VCPUID_SHIFT	16U     /**< Bit shift value to position the vCPU ID in the PM command */
-#define PMCMD_STATE_NUM_SHIFT	8U  /**< Bit shift value to position the state number in the PM command */
 /**
  * @}
  */

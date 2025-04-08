@@ -15,66 +15,6 @@
 #include <asm/per_cpu.h>
 #include <asm/platform_caps.h>
 
-int32_t validate_pstate(const struct acrn_vm *vm, uint64_t perf_ctl)
-{
-	/* Note:
-	 * 1. We don't validate Px request from Service VM for now;
-	 * 2. Px request will be rejected if no VM Px data is set, even guest is running intel_pstate driver;
-	 * 3. The Pstate frequency varies from LFM to HFM and then TFM, but not all frequencies between
-	 *     LFM to TFM are mapped in ACPI table. For acpi-cpufreq driver, the target Px value in MSR
-	 *     PERF_CTL should be matched with control value of px_data which come from ACPI table,
-	 *     but for intel_pstate driver the target Px value could be any value that between LFM to HFM.
-	 *     HV has no idea what driver guest is running, so we just check the LFM/TFM range here.
-	 *     Only checking Px by indexing control value in px_data might lost the guest Px request.
-	 */
-	int32_t ret = -1;
-
-	if (is_service_vm(vm)) {
-		ret = 0;
-	} else {
-		uint8_t px_cnt = vm->pm.px_cnt;
-		const struct acrn_pstate_data *px_data = vm->pm.px_data;
-
-		if ((px_cnt != 0U) && (px_data != NULL)) {
-			uint64_t px_target_val, max_px_ctl_val, min_px_ctl_val;
-
-			/* get max px control value, should be for p(0), i.e. TFM. */
-			max_px_ctl_val = ((px_data[0].control & 0xff00UL) >> 8U);
-
-			/* get min px control value, should be for p(px_cnt-1), i.e. LFM. */
-			min_px_ctl_val = ((px_data[px_cnt - 1U].control & 0xff00UL) >> 8U);
-
-			px_target_val = ((perf_ctl & 0xff00UL) >> 8U);
-			if ((px_target_val <= max_px_ctl_val) && (px_target_val >= min_px_ctl_val)) {
-				ret = 0;
-			}
-		}
-	}
-	return ret;
-}
-
-static void vm_setup_cpu_px(struct acrn_vm *vm)
-{
-	uint32_t px_data_size;
-	struct cpu_state_info *pm_state_info = get_cpu_pm_state_info();
-
-	vm->pm.px_cnt = 0U;
-	(void)memset(vm->pm.px_data, 0U, MAX_PSTATE * sizeof(struct acrn_pstate_data));
-
-	if ((pm_state_info->px_cnt != 0U) && (pm_state_info->px_data != NULL)) {
-		ASSERT((pm_state_info->px_cnt <= MAX_PSTATE), "failed to setup cpu px");
-
-		vm->pm.px_cnt = pm_state_info->px_cnt;
-		px_data_size = ((uint32_t)vm->pm.px_cnt) * sizeof(struct acrn_pstate_data);
-		(void)memcpy_s(vm->pm.px_data, px_data_size, pm_state_info->px_data, px_data_size);
-	}
-}
-
-static void vm_setup_cpu_state(struct acrn_vm *vm)
-{
-	vm_setup_cpu_px(vm);
-}
-
 /* This function is for power management Sx state implementation,
  * VM need to load the Sx state data to implement S3/S5.
  */
@@ -361,8 +301,6 @@ void init_guest_pm(struct acrn_vm *vm)
 	 */
 	save_s5_reg_val(((uint32_t)sx_data->s5_pkg.val_pm1a << BIT_SLP_TYPx) | (1U << BIT_SLP_EN),
 			((uint32_t)sx_data->s5_pkg.val_pm1b << BIT_SLP_TYPx) | (1U << BIT_SLP_EN));
-
-	vm_setup_cpu_state(vm);
 
 	if (is_service_vm(vm)) {
 		/* Load pm S state data */

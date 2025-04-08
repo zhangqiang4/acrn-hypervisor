@@ -304,8 +304,8 @@ void init_frequency_policy(void)
  * This Function is to be called by each pcpu after init_cpufreq().
  * It applies the frequency policy, which can be specified from boot parameters.
  *   - cpu_perf_policy=Performance: HWP autonomous selection, between highest HWP level and
- *     lowest HWP level. If HWP is not available, the frequency is fixed to highest p-state.
- *   - cpu_perf_policy=Nominal: frequency is fixed to guaranteed HWP level or nominal p-state.
+ *     lowest HWP level.
+ *   - cpu_perf_policy=Nominal: frequency is fixed to guaranteed HWP level.
  * The default policy is 'Performance'.
  *
  * ACRN will not be governing pcpu's frequency after this.
@@ -314,12 +314,11 @@ void apply_frequency_policy(void)
 {
 	struct acrn_cpufreq_limits *limits = &cpufreq_limits[get_pcpu_id()];
 	uint64_t highest_lvl_req = limits->highest_hwp_lvl, lowest_lvl_req = limits->lowest_hwp_lvl, reg;
-	uint8_t pstate_req = limits->performance_pstate;
 	uint32_t cpuid_06_eax, cpuid_01_ecx, unused;
 
 	cpuid_subleaf(CPUID_THERMAL_POWER, 0U, &cpuid_06_eax, &unused, &unused, &unused);
 	cpuid_subleaf(CPUID_FEATURES, 0U, &unused, &unused, &cpuid_01_ecx, &unused);
-	/* Both HWP and ACPI p-state are supported. HWP is the first choice. */
+	/* only support HWP. */
 	if ((cpuid_06_eax & CPUID_EAX_HWP) != 0U) {
 		/*
 		 * For Performance policy(default): CPU frequency will be autonomously selected between highest and lowest
@@ -332,26 +331,6 @@ void apply_frequency_policy(void)
 		/* EPP(0x80: default) | Desired_Performance(0: HWP auto) | Maximum_Performance | Minimum_Performance */
 		reg = (0x80UL << 24U) | (0x00UL << 16U) | (highest_lvl_req << 8U) | lowest_lvl_req;
 	    msr_write(MSR_IA32_HWP_REQUEST, reg);
-	} else if ((cpuid_01_ecx & CPUID_ECX_EST) != 0U) {
-		struct cpu_state_info *pm_s_state_data = get_cpu_pm_state_info();
-
-		/*
-		 * Set to fixed frequency in ACPI p-state mode.
-		 * Performance policy: performance_pstate
-		 * Nominal policy: nominal_pstate
-		 */
-		if (cpufreq_policy == CPUFREQ_POLICY_NOMINAL) {
-			pstate_req = limits->nominal_pstate;
-		}
-
-		/* PX info might be missing on some platforms (px_cnt equals 0). Do nothing if so. */
-		if (pm_s_state_data->px_cnt != 0) {
-			if (pstate_req < pm_s_state_data->px_cnt) {
-				msr_write(MSR_IA32_PERF_CTL, pm_s_state_data->px_data[pstate_req].control);
-			} else {
-				ASSERT(false, "invalid p-state index");
-			}
-		}
 	} else {
 		/* If no frequency interface is presented, just let CPU run by itself. Do nothing here.*/
 	}

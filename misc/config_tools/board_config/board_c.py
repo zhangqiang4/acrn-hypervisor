@@ -381,31 +381,6 @@ def gen_single_data(data_lines, domain_str, config):
         print("};\n", file=config)
 
 
-def gen_px_cx(config):
-    """
-    Get Px/Cx and store them to board.c
-    :param config: it is a file pointer of board information for writing to
-    """
-    cpu_brand_lines = board_cfg_lib.get_info(
-        acrn_config_utilities.BOARD_INFO_FILE, "<CPU_BRAND>", "</CPU_BRAND>")
-    cx_lines = board_cfg_lib.get_info(acrn_config_utilities.BOARD_INFO_FILE, "<CX_INFO>", "</CX_INFO>")
-    px_lines = board_cfg_lib.get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PX_INFO>", "</PX_INFO>")
-
-    gen_single_data(px_lines, 'p', config)
-
-    if not cpu_brand_lines:
-        print("\nconst struct cpu_state_table board_cpu_state_tbl;\n", file=config)
-        return
-
-    for brand_line in cpu_brand_lines:
-        cpu_brand = brand_line
-
-    print("const struct cpu_state_table board_cpu_state_tbl = {", file=config)
-    print("\t{0},".format(cpu_brand.strip()), file=config)
-    print("\t{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px}", file=config)
-    print("};", file=config)
-
-
 def gen_pci_hide(config):
     """Generate hide pci information for this platform"""
 
@@ -468,16 +443,11 @@ def gen_cpufreq_limits(config):
             limit_guaranteed_lvl = get_node("./limit_guaranteed_lvl/text()", limit_node)
             limit_highest_lvl = get_node("./limit_highest_lvl/text()", limit_node)
             limit_lowest_lvl = get_node("./limit_lowest_lvl/text()", limit_node)
-            limit_nominal_pstate = get_node("./limit_nominal_pstate/text()", limit_node)
-            limit_highest_pstate = get_node("./limit_highest_pstate/text()", limit_node)
-            limit_lowest_pstate = get_node("./limit_lowest_pstate/text()", limit_node)
 
             print("\t{", file=config)
             print(f"\t\t.guaranteed_hwp_lvl = {limit_guaranteed_lvl},", file=config)
             print(f"\t\t.highest_hwp_lvl = {limit_highest_lvl},", file=config)
             print(f"\t\t.lowest_hwp_lvl = {limit_lowest_lvl},", file=config)
-            print(f"\t\t.nominal_pstate = {limit_nominal_pstate},", file=config)
-            print(f"\t\t.performance_pstate = {limit_highest_pstate},", file=config)
             print("\t},", file=config)
     print("};", file=config)
 
@@ -500,9 +470,6 @@ def generate_file(config):
     err_dic = gen_rdt_res(config)
     if err_dic:
         return err_dic
-
-    # start to parse PX/CX info
-    gen_px_cx(config)
 
     # gen hide pci info for platform
     gen_pci_hide(config)

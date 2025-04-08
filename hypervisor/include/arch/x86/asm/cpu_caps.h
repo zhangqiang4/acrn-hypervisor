@@ -21,8 +21,6 @@
  *
  */
 
-#define MAX_PSTATE	20U	/**< Max num of supported Px state */
-
 /* index list of 'cpuinfo_x86.cpuid_leaves[]' contains value of registers indicating CPUID features */
 /**
  * @brief The index of 'cpuinfo_x86.cpuid_leaves[]' contains value of ECX register returned from the CPUID instruction

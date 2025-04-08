@@ -729,17 +729,6 @@ vm_set_vcpu_regs(struct vmctx *ctx, struct acrn_vcpu_regs *vcpu_regs)
 }
 
 int
-vm_get_cpu_state(struct vmctx *ctx, void *state_buf)
-{
-	int error;
-	error = ioctl(ctx->fd, ACRN_IOCTL_PM_GET_CPU_STATE, state_buf);
-	if (error) {
-		pr_err("ACRN_IOCTL_PM_GET_CPU_STATE ioctl() returned an error: %s\n", errormsg(errno));
-	}
-	return error;
-}
-
-int
 vm_intr_monitor(struct vmctx *ctx, void *intr_buf)
 {
 	int error;
