@@ -140,6 +140,10 @@
 /** @brief Index of the PBE feature, indicated by EDX bit 31 of CPUID level 0x00000001 */
 #define X86_FEATURE_PBE             ((FEAT_1_EDX << 5U) + 31U)
 
+/* Intel-defined CPU features, CPUID.(EAX=06H,ECX=0H) (EAX) */
+/** @brief Index of the HWP feature, indicated by EAX bit 7 of CPUID.(EAX=6H,ECX=0H) */
+#define X86_FEATURE_HWP             ((FEAT_6_0_EAX << 5U) +  7U)
+
 /* Intel-defined CPU features, CPUID.(EAX=7H,ECX=0H) (EBX)*/
 /** @brief Index of the TSC_ADJUST feature, indicated by EBX bit 1 of CPUID.(EAX=7H,ECX=0H) */
 #define X86_FEATURE_TSC_ADJ         ((FEAT_7_0_EBX << 5U) +  1U)

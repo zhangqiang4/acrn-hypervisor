@@ -586,7 +586,7 @@ static uint64_t get_address_mask(uint8_t limit)
  */
 void init_pcpu_capabilities(void)
 {
-	uint32_t eax, unused;
+	uint32_t eax, ebx, ecx, edx, unused;
 	uint32_t family_id, model_id, displayfamily, displaymodel;
 
 	cpuid_subleaf(CPUID_VENDORSTRING, 0x0U,
@@ -612,6 +612,9 @@ void init_pcpu_capabilities(void)
 	}
 	boot_cpu_data.displaymodel = (uint8_t)displaymodel;
 
+	cpuid_subleaf(CPUID_THERMAL_POWER, 0x0U,
+		&boot_cpu_data.cpuid_leaves[FEAT_6_0_EAX],
+		&ebx, &ecx, &edx);
 
 	cpuid_subleaf(CPUID_EXTEND_FEATURE, 0x0U, &unused,
 		&boot_cpu_data.cpuid_leaves[FEAT_7_0_EBX],
@@ -1064,6 +1067,7 @@ static int32_t check_essential_vmx_caps(void)
  * - SSE (Streaming SIMD Extensions)
  * - RDRAND instruction
  * - MONITOR/MWAIT
+ * - HWP (hardware P-states)
  * - Additional VMX capability checks via `check_essential_vmx_caps()`
  *
  * @return An int32_t value indicating whether all required basic CPU hardware capabilities are supported.
@@ -1156,6 +1160,9 @@ int32_t detect_hardware_support(void)
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_MONITOR)) {
 		printf("%s, MONITOR/MWAIT is not supported\n", __func__);
+		ret = -ENODEV;
+	} else if (!pcpu_has_cap(X86_FEATURE_HWP)) {
+		printf("%s, HWP is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if ((msr_read(MSR_IA32_ARCH_CAPABILITIES) & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) == 0UL) {
 		printf("%s, vulnerable to Machine Check Error on Page Size Change\n", __func__);

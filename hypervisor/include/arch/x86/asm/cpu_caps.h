@@ -85,6 +85,11 @@
  */
 #define	FEAT_D_1_EAX		11U
 /**
+ * @brief The index of 'cpuinfo_x86.cpuid_leaves[]' contains value of EAX register returned from the CPUID instruction
+ * CPUID.(EAX=6H,ECX=0H)
+ */
+#define	FEAT_6_0_EAX		12U
+/**
  * @brief The index of 'cpuinfo_x86.cpuid_leaves[]' contains value of ECX register returned from the CPUID instruction
  * CPUID.(EAX=DH,ECX=1H)
  */
