@@ -175,6 +175,60 @@ All the reported violations are classified and justified into below categories:
       They are initialized in the generated `build/configs/scenarios/mbl-rvp-fusa/pci_dev.c`
       since it is determined by the configuration data.
 
+JD_006: Violations due to pointer arithmetic beyond the array bound
+-------------------------------------------------------------------
+
+Pointer arithmetic is applied on pointers in the following case.
+
+.. code-block:: c
+
+        uint16_t *sel = &(vcpu_regs->cs_sel);
+        struct segment_sel *seg;
+
+        for (seg = &(ectx->cs); seg <= &(ectx->gs); seg++) {
+                seg->base     = 0UL;
+                seg->limit    = limit;
+                seg->attr     = attr;
+                seg->selector = *sel;
+                sel++;
+        }
+
+In the above codes, Coverity complains that "Dereferencing seg which points past the end of a singleton." and "Using
+sel as an array. This might corrupt or misinterpret adjacent memory locations." The violations are classified into the
+following rule.
+
+ - Rule 18.1	A pointer resulting from arithmetic on a pointer operand shall address an element of the same array as
+   that pointer operand
+
+The codes logic has been reviewed not to point to different elements or corrupt/misinterpret adjacent memory locations.
+This is achieved by the same order of segment selectors defined in the struct ext_context and struct acrn_regs as below.
+
+.. code-block:: c
+
+	struct ext_context {
+	...
+		struct segment_sel cs;   /**< The guest Code Segment Register */
+		struct segment_sel ss;   /**< The guest Stack Segment Register */
+		struct segment_sel ds;   /**< The guest Data Segment Register */
+		struct segment_sel es;   /**< The guest ES Register */
+		struct segment_sel fs;   /**< The guest FS Register */
+		struct segment_sel gs;   /**< The guest GS Register */
+	...
+	};
+
+	struct acrn_regs {
+	...
+		uint16_t cs_sel;            /**< The value in the guest CS selector */
+		uint16_t ss_sel;            /**< The value in the guest SS selector */
+		uint16_t ds_sel;            /**< The value in the guest DS selector */
+		uint16_t es_sel;            /**< The value in the guest ES selector */
+		uint16_t fs_sel;            /**< The value in the guest FS selector */
+		uint16_t gs_sel;            /**< The value in the guest GS selector */
+	...
+	};
+
+There are no potential risks observed due to this specific deviation.
+
 Explanations to False Positives
 ===============================
 
