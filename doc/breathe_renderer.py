@@ -979,18 +979,32 @@ class BreatheRenderer:
         len_ = len(temp)
         raw_ = temp[0] if len_ == 1 else "\n".join(temp)
         has_bracket = False
-        for i, e in enumerate(raw_):
-            if (f := raw_[i:i + 2]) == '..':  # __INTERVAL__: ..
-                raw_ = raw_.replace(f, ESCAPE_SYMBOLS[f])
-            if e in ('[', ']'):  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
-                has_bracket = True
-                raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
-            if e == ' ':  # remove redundant spaces between [ , .. and ]
-                raw_ = raw_.replace(' ', '')
+        raw_lines = raw_.split('\n')
+        for raw_line in raw_lines:
+            # detect position of closed symbol (i.e., `]`) for each line
+            # to replace pairs of parenthesis before the position and neglect ones followed by the position
+
+            # TODO: support long function-name separated for lines in intervals
+            # I didn't take the situation into consideration,
+            # that is, a very long function in the interval which cannot be filled in a single line
+            # and so it was separated in several lines instead
+            last_right_bracket_pos = 0
+            for i, e in enumerate(raw_line):
+                if (f := raw_[i:i + 2]) == '..':  # __INTERVAL__: ..
+                    raw_ = raw_.replace(f, ESCAPE_SYMBOLS[f])
+                if e in ('[', ']'):  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
+                    has_bracket = True
+                    if e == ']' and i > last_right_bracket_pos:
+                        last_right_bracket_pos = i
+                    raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
+                if e == ' ':  # remove redundant spaces between [ , .. and ]
+                    raw_ = raw_.replace(' ', '')
             # remove interference introduced by single ( and )
             # that is, I replace (,) with escape only has [,] before them, otherwise I won't replace it
-            if has_bracket and e in ('(', ')'):
-                raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
+            for i, e in enumerate(raw_line):
+                if has_bracket and e in ('(', ')') and i < last_right_bracket_pos:
+                    raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
+
         return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
 
     # some methods should be modified and not be contained in `methods`
