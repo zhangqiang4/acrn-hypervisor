@@ -70,47 +70,9 @@ static void vm_setup_cpu_px(struct acrn_vm *vm)
 	}
 }
 
-static void vm_setup_cpu_cx(struct acrn_vm *vm)
-{
-	uint32_t cx_data_size;
-	struct cpu_state_info *pm_state_info = get_cpu_pm_state_info();
-
-	vm->pm.cx_cnt = 0U;
-	(void)memset(vm->pm.cx_data, 0U, MAX_CSTATE * sizeof(struct acrn_cstate_data));
-
-	if ((pm_state_info->cx_cnt != 0U) && (pm_state_info->cx_data != NULL)) {
-		ASSERT((pm_state_info->cx_cnt <= MAX_CX_ENTRY), "failed to setup cpu cx");
-
-		vm->pm.cx_cnt = pm_state_info->cx_cnt;
-		cx_data_size = ((uint32_t)vm->pm.cx_cnt) * sizeof(struct acrn_cstate_data);
-
-		/* please note pm.cx_data[0] is a empty space holder,
-		 * pm.cx_data[1...MAX_CX_ENTRY] would be used to store cx entry datas.
-		 */
-		(void)memcpy_s(vm->pm.cx_data + 1, cx_data_size, pm_state_info->cx_data, cx_data_size);
-	}
-}
-
-static inline void init_cx_port(struct acrn_vm *vm)
-{
-	uint8_t cx_idx;
-
-	for (cx_idx = 2U; cx_idx <= vm->pm.cx_cnt; cx_idx++) {
-		struct acrn_cstate_data *cx_data = vm->pm.cx_data + cx_idx;
-
-		if (cx_data->cx_reg.space_id == SPACE_SYSTEM_IO) {
-			uint16_t port = (uint16_t)cx_data->cx_reg.address;
-
-			allow_guest_pio_access(vm, port, 1U);
-		}
-	}
-}
-
 static void vm_setup_cpu_state(struct acrn_vm *vm)
 {
 	vm_setup_cpu_px(vm);
-	vm_setup_cpu_cx(vm);
-	init_cx_port(vm);
 }
 
 /* This function is for power management Sx state implementation,

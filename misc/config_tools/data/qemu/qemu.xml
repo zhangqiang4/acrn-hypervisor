@@ -118,9 +118,6 @@
   <CPU_BRAND>
         "Intel Atom Processor (Denverton)"
         </CPU_BRAND>
-  <CX_INFO>
-        /* Cx data is not available */
-        </CX_INFO>
   <PX_INFO>
         /* Px data is not available */
         </PX_INFO>

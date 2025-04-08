@@ -1063,6 +1063,7 @@ static int32_t check_essential_vmx_caps(void)
  * - POPCNT instruction
  * - SSE (Streaming SIMD Extensions)
  * - RDRAND instruction
+ * - MONITOR/MWAIT
  * - Additional VMX capability checks via `check_essential_vmx_caps()`
  *
  * @return An int32_t value indicating whether all required basic CPU hardware capabilities are supported.
@@ -1152,6 +1153,9 @@ int32_t detect_hardware_support(void)
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_ARCH_CAP)){
 		printf("%s, IA32_ARCH_CAPABILITIES MSR is not supported\n", __func__);
+		ret = -ENODEV;
+	} else if (!pcpu_has_cap(X86_FEATURE_MONITOR)) {
+		printf("%s, MONITOR/MWAIT is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if ((msr_read(MSR_IA32_ARCH_CAPABILITIES) & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) == 0UL) {
 		printf("%s, vulnerable to Machine Check Error on Page Size Change\n", __func__);

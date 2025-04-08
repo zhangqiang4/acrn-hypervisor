@@ -172,9 +172,6 @@
   <CPU_BRAND>
 	"12th Gen Intel(R) Core(TM) i7-12700E"
 	</CPU_BRAND>
-  <CX_INFO>
-	/* Cx data is not available */
-	</CX_INFO>
   <PX_INFO>
 	/* Px data is not available */
 	</PX_INFO>

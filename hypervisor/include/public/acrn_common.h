@@ -666,18 +666,6 @@ struct acrn_acpi_generic_address {
 /**
  * @brief Info about the power state data of a vCPU.
  *
- * This structure holds information about the power state (C-state) of a vCPU.
- */
-struct acrn_cstate_data {
-	struct acrn_acpi_generic_address cx_reg; /**< The ACPI GAS for the C-state register */
-	uint8_t 	type;    /**< The type of C-state */
-	uint32_t	latency; /**< The latency of entering or exiting this C-state */
-	uint64_t	power;   /**< The power consumption in this C-state */
-};
-
-/**
- * @brief Info about the power state data of a vCPU.
- *
  * This structure holds information about the power state (P-state) of a vCPU.
  */
 struct acrn_pstate_data {
@@ -752,8 +740,7 @@ struct pm_s_state_data {
  * The command would specify request type(e.g. get px count or data) for specific VM and specific vCPU with specific
  * state number.
  * - For Px, PMCMD_STATE_NUM means Px number from 0 to (MAX_PSTATE - 1).
- * - For Cx, PMCMD_STATE_NUM means Cx entry index from 1 to MAX_CX_ENTRY.
- *
+ * - For Cx, PMCMD_STATE_NUM means Cx entry index.
  * @{
  */
 #define PMCMD_VMID_MASK		0xff000000U  /**< Bitmask to extract the VM ID from the PM command */

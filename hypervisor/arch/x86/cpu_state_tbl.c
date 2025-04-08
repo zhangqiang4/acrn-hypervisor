@@ -48,13 +48,6 @@ static const struct acrn_pstate_data px_a3960[17] = {
 	{0x320UL, 0UL, 0xAUL, 0xAUL, 0x0800UL, 0x0800UL}  /* P16 */
 };
 
-/** @brief The static variable of table includes CPU Cx info of Intel Broxton SoC such as A39x0, J3455, N3350 */
-static const struct acrn_cstate_data cx_bxt[3] = {
-	{{SPACE_FFixedHW,  0x0U, 0U, 0U,     0UL}, 0x1U, 0x1U, 0x3E8UL}, /* C1 */
-	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x415UL}, 0x2U, 0x32U, 0x0AUL}, /* C2 */
-	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x419UL}, 0x3U, 0x96U, 0x0AUL}  /* C3 */
-};
-
 /** @brief The static variable of table includes CPU Px info of Intel A3950 SoC */
 static const struct acrn_pstate_data px_a3950[13] = {
 	{0x7D0UL, 0UL, 0xAUL, 0xAUL, 0x1400UL, 0x1400UL}, /* P0 */
@@ -114,34 +107,22 @@ static const struct acrn_pstate_data px_i78650[16] = {
 	{0x190UL, 0x0UL, 0xAUL, 0xAUL, 0x0400UL, 0x0400UL}  /* P15 */
 };
 
-/** @brief The static variable of table includes CPU Cx info of Intel i7-8650U SoC */
-static const struct acrn_cstate_data cx_i78650[3] = {
-	{{SPACE_FFixedHW,  0x0U, 0U, 0U,      0UL}, 0x1U, 0x1U,   0UL}, /* C1 */
-	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x1816UL}, 0x2U, 0x97U,  0UL}, /* C2 */
-	{{SPACE_SYSTEM_IO, 0x8U, 0U, 0U, 0x1819UL}, 0x3U, 0x40AU, 0UL}  /* C3 */
-};
-
-/** @brief The static variable of table includes CPU Px and Cx info of build-in Intel SoC models */
+/** @brief The static variable of table includes CPU Px info of build-in Intel SoC models */
 static const struct cpu_state_table cpu_state_tbl[5] = {
 	{"Intel(R) Atom(TM) Processor A3960 @ 1.90GHz",
-		{(uint8_t)ARRAY_SIZE(px_a3960), px_a3960,
-		 (uint8_t)ARRAY_SIZE(cx_bxt), cx_bxt}
+		{(uint8_t)ARRAY_SIZE(px_a3960), px_a3960}
 	},
 	{"Intel(R) Atom(TM) Processor A3950 @ 1.60GHz",
-		{(uint8_t)ARRAY_SIZE(px_a3950), px_a3950,
-		 (uint8_t)ARRAY_SIZE(cx_bxt), cx_bxt}
+		{(uint8_t)ARRAY_SIZE(px_a3950), px_a3950}
 	},
 	{"Intel(R) Celeron(R) CPU J3455 @ 1.50GHz",
-		{(uint8_t)ARRAY_SIZE(px_j3455), px_j3455,
-		 (uint8_t)ARRAY_SIZE(cx_bxt), cx_bxt}
+		{(uint8_t)ARRAY_SIZE(px_j3455), px_j3455}
 	},
 	{"Intel(R) Celeron(R) CPU N3350 @ 1.10GHz",
-		{(uint8_t)ARRAY_SIZE(px_n3350), px_n3350,
-		 (uint8_t)ARRAY_SIZE(cx_bxt), cx_bxt}
+		{(uint8_t)ARRAY_SIZE(px_n3350), px_n3350}
 	},
 	{"Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz",
-		{(uint8_t)ARRAY_SIZE(px_i78650), px_i78650,
-		 (uint8_t)ARRAY_SIZE(cx_i78650), cx_i78650}
+		{(uint8_t)ARRAY_SIZE(px_i78650), px_i78650}
 	}
 };
 
@@ -208,7 +189,7 @@ struct cpu_state_info *get_cpu_pm_state_info(void)
  * @brief The internal function to store CPU state information.
  *
  * This function stores the provided CPU state information into the global variable 'cpu_pm_state_info'. It also
- * adjusts the counts of C and P state if the provided values exceed predefined limits.
+ * adjusts the counts of P state if the provided values exceed predefined limits.
  *
  * @param[in] state_info A pointer to a 'struct cpu_state_info' containing the CPU state information.
  *
@@ -227,16 +208,6 @@ static void load_cpu_state_info(const struct cpu_state_info *state_info)
 		}
 
 		cpu_pm_state_info.px_data = state_info->px_data;
-	}
-
-	if ((state_info->cx_cnt != 0U) && (state_info->cx_data != NULL)) {
-		if (state_info->cx_cnt > MAX_CX_ENTRY) {
-			cpu_pm_state_info.cx_cnt = MAX_CX_ENTRY;
-		} else {
-			cpu_pm_state_info.cx_cnt = state_info->cx_cnt;
-		}
-
-		cpu_pm_state_info.cx_data = state_info->cx_data;
 	}
 }
 

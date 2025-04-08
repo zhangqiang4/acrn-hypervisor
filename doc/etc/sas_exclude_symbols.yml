@@ -40,8 +40,8 @@ EXCLUDE_SYMBOLS += acpi_dmar_device_scope acpi_dmar_hardware_unit acpi_dmar_head
                    acpi_table_fadt acpi_table_header acpi_table_hpet acpi_table_madt \
                    acpi_table_mcfg acpi_table_rsdt acpi_table_tpm2 acpi_table_xsdt \
                    boot_cpu_data check_essential_vmx_caps check_vmx_mmu_cap cpu_capability \
-                   cpu_caps cpu_pm_state_info cpu_state_tbl cx_bxt \
-                   cx_i78650 detect_apicv_cap detect_core_caps detect_ept_cap \
+                   cpu_caps cpu_pm_state_info cpu_state_tbl  \
+                   detect_apicv_cap detect_core_caps detect_ept_cap \
                    detect_mcg_caps detect_pcpu_cap detect_vmx_mmu_cap detect_xsave_cap \
                    dmar_path_bdf dmar_unit_cnt drhd_dev_scope found_rsdp \
                    get_acpi_dt_dword get_acpi_dt_gas get_acpi_dt_qword get_acpi_tbl \
@@ -281,10 +281,10 @@ EXCLUDE_SYMBOLS += apic_access_offset apic_access_type check_vmx_ctrl default_id
 # Exclude internals of vp-base.pm (26)
 EXCLUDE_SYMBOLS += enter_s3 enter_s5 get_slp_typx handle_cf9_write \
                    handle_common_reset_reg_write handle_kb_read handle_kb_write handle_reset_reg_read \
-                   handle_reset_reg_write init_cx_port is_s3_enabled pm1ab_io_read \
+                   handle_reset_reg_write is_s3_enabled pm1ab_io_read \
                    pm1ab_io_write prelaunched_vm_sleep_io_read prelaunched_vm_sleep_io_write register_gas_io_handler \
                    register_pm1ab_handler register_prelaunched_vm_sleep_handler register_rt_vm_pm1a_ctl_handler rt_vm_pm1a_io_read \
-                   rt_vm_pm1a_io_write validate_pstate vm_load_pm_s_state vm_setup_cpu_cx \
+                   rt_vm_pm1a_io_write validate_pstate vm_load_pm_s_state \
                    vm_setup_cpu_px vm_setup_cpu_state \
 # Exclude internals of vp-base.vmtrr (14)
 EXCLUDE_SYMBOLS += fixed_mtrr_map fixed_range_mtrr_maps get_default_memory_type get_index_of_fixed_mtrr \

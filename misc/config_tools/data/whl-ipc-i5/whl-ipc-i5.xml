@@ -143,9 +143,6 @@
   <CPU_BRAND>
 	"Intel(R) Core(TM) i5-8265U CPU @ 1.60GHz"
 	</CPU_BRAND>
-  <CX_INFO>
-	{{SPACE_FFixedHW, 0x00U, 0x00U, 0x00U, 0x00UL}, 0x01U, 0x00U, 0x00U},	/* C1 */
-	</CX_INFO>
   <PX_INFO>
 	/* Px data is not available */
 	</PX_INFO>

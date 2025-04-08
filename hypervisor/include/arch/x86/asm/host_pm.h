@@ -18,8 +18,6 @@
 struct cpu_state_info {
 	uint8_t			 	px_cnt;	/* count of all Px states */
 	const struct acrn_pstate_data	*px_data;
-	uint8_t			 	cx_cnt;	/* count of all Cx entries */
-	const struct acrn_cstate_data	*cx_data;
 };
 
 struct cpu_state_table {

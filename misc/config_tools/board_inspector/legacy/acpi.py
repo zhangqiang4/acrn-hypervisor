@@ -629,10 +629,6 @@ def gen_acpi_info(config):
     store_cpu_info(SYS_PATH[0], config)
     print("{0}".format("\t</CPU_BRAND>\n"), file=config)
 
-    print("{0}".format("\t<CX_INFO>"), file=config)
-    store_cx_data(SYS_PATH[2]+'cpuidle/current_driver', SYS_PATH[2]+'cpu0/cpuidle/', config)
-    print("{0}".format("\t</CX_INFO>\n"), file=config)
-
     print("{0}".format("\t<PX_INFO>"), file=config)
     store_px_data(SYS_PATH[2], config)
     print("{0}".format("\t</PX_INFO>\n"), file=config)

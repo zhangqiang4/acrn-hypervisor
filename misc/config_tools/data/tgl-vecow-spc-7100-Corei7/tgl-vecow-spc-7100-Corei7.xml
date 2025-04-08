@@ -151,9 +151,6 @@
   <CPU_BRAND>
 	"11th Gen Intel(R) Core(TM) i7-1185GRE @ 2.80GHz"
 	</CPU_BRAND>
-  <CX_INFO>
-	{{SPACE_FFixedHW, 0x00U, 0x00U, 0x00U, 0x00UL}, 0x01U, 0x00U, 0x00U},	/* C1 */
-	</CX_INFO>
   <PX_INFO>
 	/* Px data is not available */
 	</PX_INFO>

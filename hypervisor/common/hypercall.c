@@ -1504,11 +1504,9 @@ static bool is_pt_pstate(__unused const struct acrn_vm *vm)
  *      - Validate the state number; if invalid, return -1.
  *      - Retrieve the P-state data.
  *    - ACRN_PMCMD_GET_CX_CNT: Retrieve the number of C-states.
- *      - Directly obtain the C-state count.
+ *      - The hypervisor supports only platforms with MONITOR/MWAIT capability; set `cx_cnt` to 0 for compatibility.
  *    - ACRN_PMCMD_GET_CX_DATA: Retrieve data for a specific C-state.
- *      - Check if C-states are available; if not, return -1.
- *      - Validate the state index; if invalid, return -1.
- *      - Retrieve the C-state data.
+ *      - The hypervisor does not return valid Cx data as it supports only MONITOR/MWAIT-capable platforms.
  * 3. If the data is successfully retrieved, use `copy_to_gpa` to transfer the information to the guest's memory.
  *    - Return the result of the `copy_to_gpa` operation.
  *
@@ -1577,25 +1575,12 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm
 			break;
 		}
 		case ACRN_PMCMD_GET_CX_CNT: {
-			ret = copy_to_gpa(vm, &(target_vm->pm.cx_cnt), param2, sizeof(target_vm->pm.cx_cnt));
+			uint8_t cx_cnt = 0U;
+			ret = copy_to_gpa(vm, &cx_cnt, param2, sizeof(cx_cnt));
 			break;
 		}
 		case ACRN_PMCMD_GET_CX_DATA: {
-			uint8_t cx_idx;
-			struct acrn_cstate_data *cx_data;
-
-			if (target_vm->pm.cx_cnt == 0U) {
-				break;
-			}
-
-			cx_idx = (uint8_t)
-				((cmd & PMCMD_STATE_NUM_MASK) >> PMCMD_STATE_NUM_SHIFT);
-			if ((cx_idx == 0U) || (cx_idx > target_vm->pm.cx_cnt)) {
-				break;
-			}
-
-			cx_data = target_vm->pm.cx_data + cx_idx;
-			ret = copy_to_gpa(vm, cx_data, param2, sizeof(struct acrn_cstate_data));
+			ret = 0;
 			break;
 		}
 		default:

@@ -146,17 +146,12 @@ struct rdt_type res_cap_info[RDT_NUM_RESOURCES] = {
 
 #endif
 
-static const struct acrn_cstate_data board_cpu_cx[1] = {
-	{{SPACE_FFixedHW, 0x00U, 0x00U, 0x00U, 0x00UL}, 0x01U, 0x00U, 0x00U},	/* C1 */
-};
-
 /* Px data is not available */
 static const struct acrn_pstate_data board_cpu_px[0];
 
 const struct cpu_state_table board_cpu_state_tbl = {
 	"11th Gen Intel(R) Core(TM) i7-1185GRE @ 2.80GHz",
-	{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px,
-	(uint8_t)ARRAY_SIZE(board_cpu_cx), board_cpu_cx}
+	{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px}
 };
 const union pci_bdf plat_hidden_pdevs[MAX_HIDDEN_PDEVS_NUM];
 

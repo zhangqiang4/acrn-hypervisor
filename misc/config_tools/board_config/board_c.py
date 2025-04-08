@@ -391,7 +391,6 @@ def gen_px_cx(config):
     cx_lines = board_cfg_lib.get_info(acrn_config_utilities.BOARD_INFO_FILE, "<CX_INFO>", "</CX_INFO>")
     px_lines = board_cfg_lib.get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PX_INFO>", "</PX_INFO>")
 
-    gen_single_data(cx_lines, 'c', config)
     gen_single_data(px_lines, 'p', config)
 
     if not cpu_brand_lines:
@@ -403,8 +402,7 @@ def gen_px_cx(config):
 
     print("const struct cpu_state_table board_cpu_state_tbl = {", file=config)
     print("\t{0},".format(cpu_brand.strip()), file=config)
-    print("\t{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px,", file=config)
-    print("\t(uint8_t)ARRAY_SIZE(board_cpu_cx), board_cpu_cx}", file=config)
+    print("\t{(uint8_t)ARRAY_SIZE(board_cpu_px), board_cpu_px}", file=config)
     print("};", file=config)
 
 

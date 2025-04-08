@@ -22,15 +22,6 @@
  */
 
 #define MAX_PSTATE	20U	/**< Max num of supported Px state */
-#define MAX_CSTATE	8U	/**< Max num of supported Cx state */
-
-/**
- * @brief Max Cx entry
- *
- * We support MAX_CSTATE num of Cx, means have (MAX_CSTATE - 1) Cx entries,
- * i.e. supported Cx entry index range from 1 to MAX_CX_ENTRY.
- */
-#define MAX_CX_ENTRY	(MAX_CSTATE - 1U)
 
 /* index list of 'cpuinfo_x86.cpuid_leaves[]' contains value of registers indicating CPUID features */
 /**
