@@ -161,16 +161,22 @@ typedef struct base_param{
 	const char *product_name;// Product name.
 }base_param;
 
+static int calcuate_physical_size(int res, int dpi)
+{
+	return res * 254 / 10 / dpi;
+}
+
 static void
 vdpy_edid_set_baseparam(base_param *b_param, uint32_t width, uint32_t height, uint32_t refresh_rate)
 {
+	int dpi = 160;
 	b_param->h_pixel = width;
 	b_param->v_pixel = height;
 	b_param->rate = refresh_rate;
 	if (b_param->rate <= 0)
 		b_param->rate = VDPY_DEFAULT_VREFRESH;
-	b_param->width = width;
-	b_param->height = height;
+	b_param->width = calcuate_physical_size(width, dpi);
+	b_param->height = calcuate_physical_size(height, dpi);
 
 	b_param->id_manuf = "ACRN";
 	b_param->id_product = 4321;
@@ -496,8 +502,8 @@ vdpy_edid_generate(uint8_t *edid, size_t size, struct edid_info *info)
 
 	// Horizontal and Vertical Screen Size or Aspect Ratio: 2 Bytes
 	// screen size, in centimetres
-	edid[21] = info->prefx / 10;
-	edid[22] = info->prefy / 10;
+	edid[21] = b_param.width / 10;
+	edid[22] = b_param.height / 10;
 
 	// Display Transfer Characteristics (GAMMA): 1 Byte
 	// Stored Value = (GAMMA x 100) - 100
