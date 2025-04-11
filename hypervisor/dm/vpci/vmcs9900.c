@@ -176,7 +176,8 @@ int32_t create_vmcs9900_vdev(struct acrn_vm *vm, struct acrn_vdev *dev)
 
 	for (i = 0U; i < vm_config->pci_dev_num; i++) {
 		dev_config = &vm_config->pci_devs[i];
-		if (dev_config->vuart_idx == vuart_idx) {
+		if ((dev_config->vuart_idx == vuart_idx) &&
+		    (dev_config->vbdf.value == UNASSIGNED_VBDF)) {
 			dev_config->vbdf.value = (uint16_t) dev->slot;
 			dev_config->vbar_base[0] = (uint64_t) dev->io_addr[0];
 			dev_config->vbar_base[1] = (uint64_t) dev->io_addr[1];

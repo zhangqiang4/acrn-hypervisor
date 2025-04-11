@@ -14,6 +14,8 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/vpci.c
 ======================================================================
+.. doxygenfile:: vpci.c
+   :project: Project ACRN
 
 [File] dm/vpci/vdev.c
 ======================================================================
@@ -42,7 +44,11 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/vpci_priv.h
 ======================================================================
+.. doxygenfile:: vpci_priv.h
+   :project: Project ACRN
 
 [File] include/dm/vpci.h
 ======================================================================
+.. doxygenfile:: vpci.h
+   :project: Project ACRN
 

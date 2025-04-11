@@ -745,8 +745,8 @@ static void deinit_ivshmem_vdev(struct pci_vdev *vdev)
  * - Per the ivshmem specification, BAR2 maps the shared memory object. For the ivshmem device to be created, the
  *   shared memory region name is stored in dev->args and the size of the shared memory region is stored in
  *   dev->io_size[IVSHMEM_SHM_BAR].
- * - It traverses all configured PCI devices of the specified VM. Based on the input shared memory region name, it
- *   finds corresponding acrn_vm_pci_dev_config and ivshmem_shm_region.
+ * - It traverses all configured PCI devices of the specified VM. Based on the input shared memory region name and the
+ *   vBDF value (UNASSIGNED_VBDF) of dev_config, it finds corresponding acrn_vm_pci_dev_config and ivshmem_shm_region.
  * - If the acrn_vm_pci_dev_config is not found or the ivshmem_shm_region is not found or the size of
  *   ivshmem_shm_region is not equal to the size specified in dev->io_size[IVSHMEM_SHM_BAR], the function returns
  *   -EINVAL.
@@ -778,7 +778,8 @@ int32_t create_ivshmem_vdev(struct acrn_vm *vm, struct acrn_vdev *dev)
 
 	for (i = 0U; i < vm_config->pci_dev_num; i++) {
 		dev_config = &vm_config->pci_devs[i];
-		if (strncmp(dev_config->shm_region_name, (char *)dev->args, sizeof(dev_config->shm_region_name)) == 0) {
+		if ((strncmp(dev_config->shm_region_name, (char *)dev->args, sizeof(dev_config->shm_region_name)) == 0) &&
+		    (dev_config->vbdf.value == UNASSIGNED_VBDF)) {
 			struct ivshmem_shm_region *region = find_shm_region(dev_config->shm_region_name);
 			if ((region != NULL) && (region->size == dev->io_size[IVSHMEM_SHM_BAR])) {
 				spinlock_obtain(&vm->vpci.lock);

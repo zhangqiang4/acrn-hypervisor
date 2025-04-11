@@ -874,13 +874,6 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/public/acrn_common.h \
                           ../hypervisor/include/public/acrn_hv_defs.h \
                           ../hypervisor/include/arch/x86/asm/guest/vcpuid.h \
-                          ../devicemodel/include/virtio.h \
-                          ../devicemodel/include/virtio_kernel.h \
-                          ../devicemodel/include/virtio_be.h \
-                          ../devicemodel/include/vhost.h \
-                          ../devicemodel/include/dm.h \
-                          ../devicemodel/include/pci_core.h \
-                          ../devicemodel/include/public/hsm_ioctl_defs.h \
                           ../hypervisor/arch/x86/cpu_caps.c \
                           ../hypervisor/arch/x86/cpu.c \
                           ../hypervisor/arch/x86/rdt.c \
@@ -996,6 +989,16 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/optee.c \
                           ../hypervisor/include/arch/x86/asm/guest/optee.h \
                           ../hypervisor/dm/vpci/pci_pt.c \
+                          ../hypervisor/dm/vpci/vpci.c \
+                          ../hypervisor/dm/vpci/vpci_priv.h \
+                          ../hypervisor/include/dm/vpci.h \
+                          ../devicemodel/include/virtio.h \
+                          ../devicemodel/include/virtio_kernel.h \
+                          ../devicemodel/include/virtio_be.h \
+                          ../devicemodel/include/vhost.h \
+                          ../devicemodel/include/dm.h \
+                          ../devicemodel/include/pci_core.h \
+                          ../devicemodel/include/public/hsm_ioctl_defs.h \
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
