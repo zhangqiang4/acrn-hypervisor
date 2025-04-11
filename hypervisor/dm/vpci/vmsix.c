@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011 NetApp, Inc.
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2024 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,10 +36,34 @@
 #include "vpci_priv.h"
 
 /**
- * @brief Writing MSI-X Capability Structure
+ * @addtogroup vp-dm_vpci
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief This file declares functions to handle MSI-X capability and table.
+ *
+ */
+
+/**
+ * @brief Emulate write to MSI-X Capability Structure
+ *
+ * This function is used to write value into virtual MSI-X register. Only Function Mask
+ * and MSI-X Enable are writable. The write to other registers are ignored.
+ *
+ * @param[in] vdev   Pointer to the virtual PCI device.
+ * @param[in] offset Offset to write the MSI-X Capability register.
+ * @param[in] bytes  Length to write the MSI-X Capability register.
+ * @param[in] val    Value to be written into the MSI-X Capability register.
+ *
+ * @return A boolean to indicate whether the value is written
+ *
+ * @retval true The value is written
+ * @retval false The value is not written
  *
  * @pre vdev != NULL
- * @pre vdev->pdev != NULL
  */
 bool write_vmsix_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t val)
 {
@@ -61,6 +85,21 @@ bool write_vmsix_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 }
 
 /**
+ * @brief Emulate MSI-X Table BAR read/write
+ *
+ * This function is used to read/write MSI-X Table Base Address Register. If this operation
+ * wants to read/write a MSI-X Table Entry, it will just read/write from the cached virtual
+ * MSI-X Table entries, otherwise it will use MMIO API to read/write from the physical MSI-X
+ * BAR MMIO space.
+ *
+ * @param[in]    vdev   Pointer to the virtual PCI device.
+ * @param[inout] io_req Pointer to IO request buffer.
+ *
+ * @return An integer to indicate whether the access is successful
+ *
+ * @retval Entry_Index for successful access
+ * @retval CONFIG_MAX_MSIX_TABLE_NUM for failed access
+ *
  * @pre vdev != NULL
  * @pre io_req != NULL
  * @pre mmio->address >= vdev->msix.mmio_gpa
@@ -117,6 +156,13 @@ uint32_t rw_vmsix_table(struct pci_vdev *vdev, struct io_request *io_req)
 }
 
 /**
+ * @brief Handle MMIO access to MSI-X Table Base Address Register
+ *
+ * @param[inout] io_req    Pointer to IO request buffer.
+ * @param[in]    priv_data Pointer to the virtual PCI device.
+ *
+ * @return Return 0
+ *
  * @pre io_req != NULL
  * @pre priv_data != NULL
  */
@@ -127,6 +173,23 @@ int32_t vmsix_handle_table_mmio_access(struct io_request *io_req, void *priv_dat
 }
 
 /**
+ * @brief Add MSI-X Capability Structure for virtual PCI device
+ *
+ * This function is used to add MSI-X Capability for virtual PCI device. It will set MSI-X Capability
+ * Header, Message Control Register, Table Offset/Table BIR Register and PBA Offset/PBA BIR Register.
+ * Details could refer to 7.7.2 MSI-X Capability and Table Structure, PCI Express® Base Specification
+ * Revision 5.0.
+ *
+ * @param[inout] vdev      Pointer to the virtual PCI device.
+ * @param[in]    entry_num The number of MSIX table entries.
+ * @param[in]    bar_num   The MSIX BAR index.
+ *
+ * @return An integer value to indicate whether the operation succeeds
+ *
+ * @retval 0  Success
+ * @retval -1 Fail if input entry_num/bar_num exceeds the max count or the MSI-X Capability is failed
+ *            to be added
+ *
  * @pre vdev != NULL
  */
 int32_t add_vmsix_capability(struct pci_vdev *vdev, uint32_t entry_num, uint8_t bar_num)
@@ -166,3 +229,7 @@ int32_t add_vmsix_capability(struct pci_vdev *vdev, uint32_t entry_num, uint8_t 
 	}
 	return ret;
 }
+
+/**
+ * @}
+ */

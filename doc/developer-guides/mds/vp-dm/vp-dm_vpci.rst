@@ -30,6 +30,8 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/vmsix.c
 ======================================================================
+.. doxygenfile:: vmsix.c
+   :project: Project ACRN
 
 [File] dm/vpci/vsriov.c
 ======================================================================
