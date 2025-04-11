@@ -229,6 +229,41 @@ This is achieved by the same order of segment selectors defined in the struct ex
 
 There are no potential risks observed due to this specific deviation.
 
+JD_007: Macro parameters are safely used without parentheses in macro expansion
+-------------------------------------------------------------------------------
+
+All the reported violations are due to below macros:
+
+ - build_bitmap_set
+ - build_bitmap_clear
+ - build_bitmap_testandset
+ - build_bitmap_testandclear
+
+Those macros are designed to generate function definitions with specific types and formats,
+to be used like below.
+
+.. code-block:: c
+
+	#define build_bitmap_set(name, op_len, op_type, lock)			\
+	static inline void name(uint16_t nr_arg, volatile op_type *addr)	\
+	{									\
+		uint16_t nr;							\
+		nr = nr_arg & ((8U * sizeof(op_type)) - 1U);			\
+		asm volatile(lock "or" op_len " %1,%0"				\
+				:  "+m" (*addr)					\
+				:  "r" ((op_type)(1UL<<nr))			\
+				:  "cc", "memory");				\
+	}
+
+	build_bitmap_set(bitmap_set_nolock, "q", uint64_t, "")
+
+The parameters passed (e.g., bitmap_set_nolock, "q", uint64_t, and "") are names, constants or type tokens
+and not expected to be arithmetic expressions. Wrapping these in parentheses would not provide additional
+safety and could actually lead to incorrect syntax when token pasting or stringification is involved.
+
+The macro usages and its expansions have been reviewed to avoid side effects. Therefore, those instances
+are considered safe and does not compromise the maintainability or correctness of the code.
+
 Explanations to False Positives
 ===============================
 
