@@ -155,6 +155,30 @@ JD_005: Externally linked function and variable used in a single translation uni
 
 All the reported violations are classified and justified into below categories:
 
+ - Due to the potential usages for debug purpose.
+   Some symbols are referenced in only one translation unit in the release build.
+   However, in debug builds, they potentially being used for debug purpose.
+   Defining them as static in one single file to get rid of the violation in the release build would
+   negatively impact the code's scalability.
+   Those symbols include: get_max_nr_gsi, do_print, gsi_to_ioapic_base, ioapic_get_rte_entry, irq_alloc_bitmap,
+   irq_desc_array, mem_loglevel, ptirq_entries, sbuf_next_ptr, version_info.
+
+ - Due to the functions paired or grouped with other functions.
+   In the ACRN Hypervisor, certain functions are defined to manipulate registers on physical or virtual platforms.
+   These functions are designed as complementary pairs or groups to ensure a consistent and comprehensive register
+   access model.
+   One of the function within these pairs or groups may be referenced in only one translation unit.
+   However, defining them as static in one single file to get rid of the violation could compromise
+   the integrity of the comprehensive register access model.
+
+   Those functions include:
+
+    - send_single_init: grouped with send_single_ipi and send_dest_ipi_mask
+    - get_io_req_state: paired with set_io_req_state
+    - vcpu_set_rsp: paired with vcpu_get_rsp
+    - vcpu_get_cr2: paired with vcpu_set_cr2
+    - msr_read_pcpu: paired with msr_write_pcpu
+
  - Due to the files generated from the configuration data (board.xml and scenario.xml).
    Moving the variable definition/initialization/usage from/to the generated file would blur the boundary between the
    configuration data and other hypervisor components.
