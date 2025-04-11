@@ -348,7 +348,7 @@ void vdev_bridge_pt_restore_bus(struct pci_vdev *vdev)
  *
  * Virtualize the PCI bars (up to 6 bars at byte offset 0x10~0x24 for type 0 PCI device,
  * 2 bars at byte offset 0x10-0x14 for type 1 PCI device) of the PCI configuration space
- * header.
+ * header. Ignore the last BAR if it indicates a 64-bit memory address.
  *
  * pbar: bar for the physical PCI device (pci_pdev), the value of pbar (hpa) is assigned
  * by platform firmware during boot. It is assumed a valid hpa is always assigned to a
@@ -426,8 +426,14 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 		vbar->base_hpa = (uint64_t)lo & mask;
 
 		if (is_pci_mem64lo_bar(vbar)) {
-			hi = pci_pdev_read_cfg(pbdf, offset + 4U, 4U);
-			vbar->base_hpa |= ((uint64_t)hi << 32U);
+			if ((idx + 1U) < bar_cnt) {
+				hi = pci_pdev_read_cfg(pbdf, offset + 4U, 4U);
+				vbar->base_hpa |= ((uint64_t)hi << 32U);
+			} else {
+				pr_err("%02x:%02x.%x: Failed to init 64-bit BAR%d due to no high 32-bit address.",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx);
+				vbar->base_hpa = 0UL;
+			}
 		}
 
 		if (vbar->base_hpa != 0UL) {
