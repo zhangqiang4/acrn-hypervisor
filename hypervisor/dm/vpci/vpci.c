@@ -638,10 +638,8 @@ static int32_t read_pt_dev_cfg(struct pci_vdev *vdev, uint32_t offset,
 
 	if (cfg_header_access(offset)) {
 		ret = read_cfg_header(vdev, offset, bytes, val);
-	} else if (msicap_access(vdev, offset)) {
+	} else if (msicap_access(vdev, offset) || msixcap_access(vdev, offset)) {
 		*val = pci_vdev_read_vcfg(vdev, offset, bytes);
-	} else if (msixcap_access(vdev, offset)) {
-		read_pt_vmsix_cap_reg(vdev, offset, bytes, val);
 	} else {
 		if (!is_quirk_ptdev(vdev)) {
 			/* passthru to physical device */
