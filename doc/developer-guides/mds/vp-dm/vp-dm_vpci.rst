@@ -31,6 +31,8 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/vsriov.c
 ======================================================================
+.. doxygenfile:: vsriov.c
+   :project: Project ACRN
 
 [File] dm/vpci/vpci_priv.h
 ======================================================================

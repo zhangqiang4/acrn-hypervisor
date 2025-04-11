@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011 NetApp, Inc.
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2024 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +37,28 @@
 #include "vpci_priv.h"
 
 /**
+ * @addtogroup vp-dm_vpci
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief This file implements functions to operate SRIOV PF/VF
+ */
+
+/**
+ * @brief Get VF device number and function number
+ *
+ * Refer to Chapter 9.2.1.2 VF Discovery, PCI Express® Base Specification Revision 6.0.1 for details.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ * @param[in] fst_off First VF Offset.
+ * @param[in] stride  VF Stride.
+ * @param[in] id      VF Index.
+ *
+ * @return VF device/function number
+ *
  * @pre pf_vdev != NULL
  */
 static inline uint8_t get_vf_devfun(const struct pci_vdev *pf_vdev, uint16_t fst_off, uint16_t stride, uint16_t id)
@@ -45,6 +67,17 @@ static inline uint8_t get_vf_devfun(const struct pci_vdev *pf_vdev, uint16_t fst
 }
 
 /**
+ * @brief Get VF bus number
+ *
+ * Refer to Chapter 9.2.1.2 VF Discovery, PCI Express® Base Specification Revision 6.0.1 for details.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ * @param[in] fst_off First VF Offset.
+ * @param[in] stride  VF Stride.
+ * @param[in] id      VF Index.
+ *
+ * @return VF bus number
+ *
  * @pre pf_vdev != NULL
  */
 static inline uint8_t get_vf_bus(const struct pci_vdev *pf_vdev, uint16_t fst_off, uint16_t stride, uint16_t id)
@@ -53,6 +86,13 @@ static inline uint8_t get_vf_bus(const struct pci_vdev *pf_vdev, uint16_t fst_of
 }
 
 /**
+ * @brief Read two bytes SRIOV capability register from physical device
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ * @param[in] reg     Offset of the SR-IOV Extended Capability register to read.
+ *
+ * @return Two bytes of register value
+ *
  * @pre pf_vdev != NULL
  */
 static inline uint16_t read_sriov_reg(const struct pci_vdev *pf_vdev, uint16_t reg)
@@ -61,6 +101,15 @@ static inline uint16_t read_sriov_reg(const struct pci_vdev *pf_vdev, uint16_t r
 }
 
 /**
+ * @brief Check if VF is enabled
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ *
+ * @return A boolean value to indicate whether VF is enabled
+ *
+ * @retval True VF is enabled
+ * @retval False VF is disabled
+ *
  * @pre pf_vdev != NULL
  */
 static bool is_vf_enabled(const struct pci_vdev *pf_vdev)
@@ -72,6 +121,14 @@ static bool is_vf_enabled(const struct pci_vdev *pf_vdev)
 }
 
 /**
+ * @brief Initialize PF virtual PCI device
+ *
+ * This function calls init_vdev_pt to initialize the PF virtual PCI device.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ *
+ * @return None
+ *
  * @pre pf_vdev != NULL
  */
 static void init_sriov_vf_bar(struct pci_vdev *pf_vdev)
@@ -80,6 +137,21 @@ static void init_sriov_vf_bar(struct pci_vdev *pf_vdev)
 }
 
 /**
+ * @brief Create a VF device
+ *
+ * This function is used to create a VF virtual PCI device. Firstly, it tries to initialize a physical PCI
+ * device instance for the VF device. If this step succeeds, it creates the corresponding virtual PCI device
+ * for VF.  If the VF device is not successfully initialized, disable the VF Enable flag in SRIOV Control
+ * register. If the VF device can be successfully initialized, the function initializes VF's BARs: do the EPT
+ * mapping for its valid VF BARs, and call vdev_pt_map_msix to register the MMIO handler for MSI-X Table Entry
+ * if the VF support MSI-X capability.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ * @param[in] vf_bdf  BDF of the VF device to be created.
+ * @param[in] vf_id   VF Index.
+ *
+ * @return None
+ *
  * @pre pf_vdev != NULL
  */
 static void create_vf(struct pci_vdev *pf_vdev, union pci_bdf vf_bdf, uint16_t vf_id)
@@ -140,7 +212,7 @@ static void create_vf(struct pci_vdev *pf_vdev, union pci_bdf vf_bdf, uint16_t v
 
 			/*
 			 * VF BARs value are zero and read only, according to PCI Express
-			 * Base 4.0 chapter 9.3.4.1.11, the VF
+			 * Base 5.0 chapter 9.3.4.1.11, the VF
 			 */
 			pci_vdev_write_vcfg(vf_vdev, pci_bar_offset(bar_idx), 4U, 0U);
 		}
@@ -148,9 +220,23 @@ static void create_vf(struct pci_vdev *pf_vdev, union pci_bdf vf_bdf, uint16_t v
 }
 
 /**
+ * @brief Enable VF devices
+ *
+ * This function is called when the VF enable bit in PCIR_SRIOV_CONTROL is switched to 1 from 0, i.e. enable
+ * the VF. Then, it initialize the PF virtual PCI device which also initialize the VF BAR register. After
+ * that, it waits for the VF physical devices to be ready by checking SUBSYSTEM VENDOR ID of the first VF.
+ * Then, it iterates all VFs and check every VF's SUBSYSTEM VENDOR ID to make sure the VF is ready. If the VF
+ * corresponding virtual PCI device doesn't exist, create it. If the VF is a zombie VF, re-activate it. If VF
+ * is not ready, print the error message.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ *
+ * @return None
+ *
  * @pre pf_vdev != NULL
  * @pre is_vf_enabled(pf_dev) == true
- * @Application constraints: PCIR_SRIOV_NUMVFS register value cannot be 0 if VF_ENABLE is set.
+ *
+ * @remark PCIR_SRIOV_NUMVFS register value cannot be 0 if VF_ENABLE is set.
  */
 static void enable_vfs(struct pci_vdev *pf_vdev)
 {
@@ -215,10 +301,12 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 			sub_vid = (uint16_t) pci_pdev_read_cfg(vf_bdf, PCIV_SUB_VENDOR_ID, 2U);
 			if ((sub_vid != 0xFFFFU) && (sub_vid != 0U)) {
 				/*
-				 * If one VF has never been created then create new one including pdev/vdev structures.
+				 * If one VF has never been created then create new one including pdev/vdev
+				 * structures.
 				 *
-				 * The VF maybe have already existed but it is a zombie instance that vf_vdev->vpci
-				 * is NULL, in this case, we need to make the vf_vdev available again in here.
+				 * The VF maybe have already existed but it is a zombie instance that
+				 * vf_vdev->vpci is NULL, in this case, we need to make the vf_vdev
+				 * available again in here.
 				 */
 				vf_vdev = pci_find_vdev(&vpci2vm(pf_vdev->vpci)->vpci, vf_bdf);
 				if (vf_vdev == NULL) {
@@ -246,6 +334,15 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 }
 
 /**
+ * @brief Disable VF devices
+ *
+ * This function is called when the VF enable bit in PCIR_SRIOV_CONTROL is switched to 0 from 1, i.e. disable
+ * the VF. Then, it deinitialize all VF devices.
+ *
+ * @param[in] pf_vdev Pointer to PF virtual PCI device.
+ *
+ * @return None
+ *
  * @pre pf_vdev != NULL
  */
 static void disable_vfs(struct pci_vdev *pf_vdev)
@@ -279,6 +376,16 @@ static void disable_vfs(struct pci_vdev *pf_vdev)
 }
 
 /**
+ * @brief Initialize SRIOV information of a virtual PCI device
+ *
+ * This function is used to initialize SRIOV information of a virtual PCI device, i.e. set capability register
+ * offset/length and set flag to inidicate if the SRIOV capability is read-only if the target VM is not Service
+ * VM.
+ *
+ * @param[inout] vdev Pointer to virtual PCI device.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -294,6 +401,23 @@ void init_vsriov(struct pci_vdev *vdev)
 }
 
 /**
+ * @brief Emulate VM write action to SRIOV Extended Capability registers
+ *
+ * This function is used to handle VM write action to SRIOV Extended Capability registers.
+ * The write to register is ignored if the sriov_ro flag is set, i.e. only Service VM can
+ * write SRIOV register. If PCIM_SRIOV_VF_ENABLE bit is set, enable_vfs or disable_vfs shall
+ * be called. For write to NumVFs register, the sanity check is executed to make sure the
+ * valid number is written. For write to VF BARs, ignore the write, if the value is not for
+ * sizing (~0U) or not the initial VF BAR content, for guest could not re-program the host
+ * phssical address for a PCI device BAR.
+ *
+ * @param[in] vdev   Pointer to virtual PCI device.
+ * @param[in] offset Offset of the register to write.
+ * @param[in] bytes  Bytes to write.
+ * @param[in] val    Value to write.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -364,11 +488,21 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 	}
 }
 
-
 /**
+ * @brief Get PCI configure space register offset for a VF BAR according to its BAR index
+ *
+ * @param[in] vdev    Pointer to virtual PCI device.
+ * @param[in] bar_idx VF BAR ID to get offset.
+ *
+ * @return VF BAR offset
+ *
  * @pre vdev != NULL
  */
 uint32_t sriov_bar_offset(const struct pci_vdev *vdev, uint32_t bar_idx)
 {
 	return (vdev->sriov.capoff + PCIR_SRIOV_VF_BAR_OFF + (bar_idx << 2U));
 }
+
+/**
+ * @}
+ */
