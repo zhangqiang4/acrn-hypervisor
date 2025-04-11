@@ -1730,6 +1730,10 @@ int32_t hcall_add_vdev(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, __unus
 			op = find_emul_dev_ops(&dev);
 			if ((op != NULL) && (op->create != NULL)) {
 				ret = op->create(target_vm, &dev);
+				if (ret != 0) {
+					pr_err("Failed to add device[Vendor:Device 0x%x:0x%x] to vm[%d]\n",
+						dev.id.fields.vendor, dev.id.fields.device, target_vm->vm_id);
+				}
 			}
 		}
 	} else {

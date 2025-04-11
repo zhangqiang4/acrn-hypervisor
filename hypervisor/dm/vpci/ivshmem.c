@@ -285,20 +285,25 @@ static void ivshmem_server_notify_peer(struct ivshmem_device *src_ivs_dev, uint1
  * @brief Create an ivshmem device.
  *
  * This function creates an ivshmem device by associating a PCI virtual device with an available ivshmem device slot.
- * It use spinlock to avoid access race to ivshmem_dev, it also clear ivshmem_device mmio to ensure the same initial
- * states after VM reboot.
+ * It use spinlock to avoid access race to ivshmem_dev. It also clear ivshmem_device mmio to ensure the same initial
+ * states after VM reboot if there is an available ivshmem device slot. Otherwise, return error code -ENODEV.
  *
  * @param[inout] vdev Pointer to the PCI virtual device.
  *
- * @return None
+ * @return A int32_t value to indicate ivshmem device creation result.
+ *
+ * @retval 0 On success.
+ * @retval -ENODEV If no available ivshmem device slot.
  *
  * @pre vdev != NULL
  *
  * @post vdev->priv_data != NULL
+ * @post retval <= 0
  */
-static void create_ivshmem_device(struct pci_vdev *vdev)
+static int32_t create_ivshmem_device(struct pci_vdev *vdev)
 {
 	uint32_t i;
+	int32_t ret = -ENODEV;
 
 	spinlock_obtain(&ivshmem_dev_lock);
 	for (i = 0U; i < IVSHMEM_DEV_NUM; i++) {
@@ -309,12 +314,18 @@ static void create_ivshmem_device(struct pci_vdev *vdev)
 		}
 	}
 	spinlock_release(&ivshmem_dev_lock);
-	ASSERT((i < IVSHMEM_DEV_NUM), "failed to find and set ivshmem device");
 	/*
 	 * Clear ivshmem_device mmio to ensure the same initial
 	 * states after VM reboot.
 	 */
-	memset(&ivshmem_dev[i].mmio, 0U, sizeof(uint32_t) * 4);
+	if (i < IVSHMEM_DEV_NUM) {
+		memset(&ivshmem_dev[i].mmio, 0U, sizeof(uint32_t) * 4U);
+		ret = 0;
+	} else {
+		pr_err("Failed to allocate ivshmem device slot due to already %d devices.", IVSHMEM_DEV_NUM);
+	}
+
+	return ret;
 }
 
 /**
@@ -622,6 +633,7 @@ static void init_ivshmem_bar(struct pci_vdev *vdev, uint32_t bar_idx)
  * - It sets the pcidev field in ivshmem_device (all ivshmem devices emulated by hypervisor are static stored based on
  *   the configuration) to the vdev and sets the priv_data field in the specified vdev to new ivshmem_device structure
  *   data, indicating the association between the virtual PCI device and the ivshmem device.
+ * - If the above step is not failed (no error code returned by create_ivshmem_device), continue the following work.
  * - Per the ivshmem specification and PCI Express Base Specification, it initializes the ivshmem device configuration
  *   space with appropriate values:
  *   - The device ID and Vendor ID is 0x11101af4.
@@ -647,34 +659,36 @@ static void init_ivshmem_bar(struct pci_vdev *vdev, uint32_t bar_idx)
  */
 static void init_ivshmem_vdev(struct pci_vdev *vdev)
 {
+	int32_t ret;
 	struct acrn_vm_pci_dev_config *dev_config = vdev->pci_dev_config;
 	struct ivshmem_shm_region *region = find_shm_region(dev_config->shm_region_name);
 
-	create_ivshmem_device(vdev);
+	ret = create_ivshmem_device(vdev);
+	if (ret == 0) {
+		/* initialize ivshmem config */
+		pci_vdev_write_vcfg(vdev, PCIR_VENDOR, 2U, IVSHMEM_VENDOR_ID);
+		pci_vdev_write_vcfg(vdev, PCIR_DEVICE, 2U, IVSHMEM_DEVICE_ID);
+		pci_vdev_write_vcfg(vdev, PCIR_REVID, 1U, IVSHMEM_REV);
+		pci_vdev_write_vcfg(vdev, PCIR_CLASS, 1U, IVSHMEM_CLASS);
+		pci_vdev_write_vcfg(vdev, PCIR_HDRTYPE, 1U,
+				    (uint8_t)(PCIM_HDRTYPE_NORMAL | ((vdev->bdf.bits.f == 0U) ? PCIM_MFDEV : 0U)));
 
-	/* initialize ivshmem config */
-	pci_vdev_write_vcfg(vdev, PCIR_VENDOR, 2U, IVSHMEM_VENDOR_ID);
-	pci_vdev_write_vcfg(vdev, PCIR_DEVICE, 2U, IVSHMEM_DEVICE_ID);
-	pci_vdev_write_vcfg(vdev, PCIR_REVID, 1U, IVSHMEM_REV);
-	pci_vdev_write_vcfg(vdev, PCIR_CLASS, 1U, IVSHMEM_CLASS);
-	pci_vdev_write_vcfg(vdev, PCIR_HDRTYPE, 1U,
-			    (uint8_t)(PCIM_HDRTYPE_NORMAL | ((vdev->bdf.bits.f == 0U) ? PCIM_MFDEV : 0U)));
+		pci_vdev_write_vcfg(vdev, PCIV_SUB_VENDOR_ID, 2U, IVSHMEM_INTEL_SUBVENDOR_ID);
+		if (region != NULL) {
+			pci_vdev_write_vcfg(vdev, PCIV_SUB_SYSTEM_ID, 2U, region->region_id);
+		}
 
-	pci_vdev_write_vcfg(vdev, PCIV_SUB_VENDOR_ID, 2U, IVSHMEM_INTEL_SUBVENDOR_ID);
-	if (region != NULL) {
-		pci_vdev_write_vcfg(vdev, PCIV_SUB_SYSTEM_ID, 2U, region->region_id);
+		add_vmsix_capability(vdev, MAX_IVSHMEM_MSIX_TBL_ENTRY_NUM, IVSHMEM_MSIX_BAR);
+
+		/* initialize ivshmem bars */
+		vdev->nr_bars = 4U;
+		init_ivshmem_bar(vdev, IVSHMEM_MMIO_BAR);
+		init_ivshmem_bar(vdev, IVSHMEM_MSIX_BAR);
+		init_ivshmem_bar(vdev, IVSHMEM_SHM_BAR);
+		ivshmem_server_bind_peer(vdev);
+
+		vdev->user = vdev;
 	}
-
-	add_vmsix_capability(vdev, MAX_IVSHMEM_MSIX_TBL_ENTRY_NUM, IVSHMEM_MSIX_BAR);
-
-	/* initialize ivshmem bars */
-	vdev->nr_bars = 4U;
-	init_ivshmem_bar(vdev, IVSHMEM_MMIO_BAR);
-	init_ivshmem_bar(vdev, IVSHMEM_MSIX_BAR);
-	init_ivshmem_bar(vdev, IVSHMEM_SHM_BAR);
-	ivshmem_server_bind_peer(vdev);
-
-	vdev->user = vdev;
 }
 
 /**
@@ -776,7 +790,7 @@ int32_t create_ivshmem_vdev(struct acrn_vm *vm, struct acrn_vdev *dev)
 								((uint64_t) dev->io_addr[IVSHMEM_SHM_BAR + 1U]) << 32U;
 				vdev = vpci_init_vdev(&vm->vpci, dev_config, NULL);
 				spinlock_release(&vm->vpci.lock);
-				if (vdev != NULL) {
+				if ((vdev != NULL) && (vdev->priv_data != NULL)) {
 					ret = 0;
 				}
 			}
