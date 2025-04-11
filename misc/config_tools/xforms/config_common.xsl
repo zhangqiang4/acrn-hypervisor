@@ -149,6 +149,10 @@
       <xsl:with-param name="value" select="count(//hv//IVSHMEM/IVSHMEM_REGION[PROVIDED_BY = 'Hypervisor']) > 0" />
     </xsl:call-template>
 
+    <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'VMCS9900_ENABLED'" />
+    </xsl:call-template>
+
     <xsl:call-template name="integer-by-key">
       <xsl:with-param name="key" select="'VUART_RX_BUF_SIZE'" />
     </xsl:call-template>

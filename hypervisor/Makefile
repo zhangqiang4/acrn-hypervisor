@@ -310,7 +310,6 @@ VP_DM_C_SRCS += dm/vpci/pci_pt.c
 VP_DM_C_SRCS += dm/vpci/vmsi.c
 VP_DM_C_SRCS += dm/vpci/vmsix.c
 VP_DM_C_SRCS += dm/vpci/vsriov.c
-VP_DM_C_SRCS += dm/vpci/vmcs9900.c
 VP_DM_C_SRCS += dm/mmio_dev.c
 VP_DM_C_SRCS += dm/vgpio.c
 VP_DM_C_SRCS += arch/x86/guest/vlapic.c
@@ -321,6 +320,9 @@ VP_DM_C_SRCS += arch/x86/guest/instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/lock_instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/vm_reset.c
 VP_DM_C_SRCS += common/ptdev.c
+ifeq ($(CONFIG_VMCS9900_ENABLED),y)
+VP_DM_C_SRCS += dm/vpci/vmcs9900.c
+endif
 
 # virtual platform hypercall
 VP_HCALL_C_SRCS += arch/x86/guest/vmcall.c

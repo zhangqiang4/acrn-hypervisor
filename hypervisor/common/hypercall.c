@@ -22,11 +22,11 @@
 #include <asm/ioapic.h>
 #include <mmio_dev.h>
 #include <ivshmem.h>
-#include <vmcs9900.h>
 #include <asm/irq.h>
 #include <ticks.h>
 #include <asm/cpuid.h>
 #include <vroot_port.h>
+#include <vmcs9900.h>
 
 /**
  * @defgroup vp-base_hypercall vp-base.hypercall
@@ -105,7 +105,9 @@ static struct emul_dev_ops emul_dev_ops_tbl[] = {
 	/* If IVSHMEM is not enabled, set the create and destroy functions to NULL */
 	{(IVSHMEM_VENDOR_ID | (IVSHMEM_DEVICE_ID << 16U)), NULL, NULL},
 #endif
+#ifdef CONFIG_VMCS9900_ENABLED
 	{(MCS9900_VENDOR | (MCS9900_DEV << 16U)), create_vmcs9900_vdev, destroy_vmcs9900_vdev},
+#endif
 	{(VRP_VENDOR | (VRP_DEVICE << 16U)), create_vrp, destroy_vrp},
 };
 

@@ -32,9 +32,9 @@
 #include <uart16550.h>
 #include <console.h>
 #include <vuart.h>
-#include <vmcs9900.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>
+#include <vmcs9900.h>
 
 /**
  * @addtogroup vp-dm_vperipheral
@@ -213,14 +213,18 @@ void vuart_toggle_intr(const struct acrn_vuart *vu)
 
 	intr_reason = vuart_intr_reason(vu);
 
-	if ((vu->vdev != NULL) && (intr_reason != IIR_NOPEND)) {
-		/* FIXME: Toggle is for level trigger interrupt, for edge trigger need refine the logic later. */
-		trigger_vmcs9900_msix(vu->vdev);
-	} else if (intr_reason != IIR_NOPEND) {
-		vuart_trigger_level_intr(vu, true);
+#ifdef CONFIG_VMCS9900_ENABLED
+	if (vu->vdev != NULL) {
+		if (intr_reason != IIR_NOPEND) {
+			/* FIXME: Toggle is for level trigger interrupt, for edge trigger need refine the logic later */
+			trigger_vmcs9900_msix(vu->vdev);
+		}
 	} else {
-		vuart_trigger_level_intr(vu, false);
+		vuart_trigger_level_intr(vu, (intr_reason != IIR_NOPEND));
 	}
+#else
+	vuart_trigger_level_intr(vu, (intr_reason != IIR_NOPEND));
+#endif
 }
 
 static bool send_to_target(struct acrn_vuart *vu, uint8_t value_u8)
@@ -840,6 +844,7 @@ void deinit_legacy_vuarts(struct acrn_vm *vm)
 	}
 }
 
+#ifdef CONFIG_VMCS9900_ENABLED
 /**
  * @brief Initialize a PCI virtual UART device.
  *
@@ -910,6 +915,7 @@ void deinit_pci_vuart(struct pci_vdev *vdev)
 		vuart_deinit_connection(vu);
 	}
 }
+#endif
 
 /**
  * @}

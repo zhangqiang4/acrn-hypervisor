@@ -108,8 +108,11 @@ struct acrn_vuart {
 
 void init_legacy_vuarts(struct acrn_vm *vm, const struct vuart_config *vu_config);
 void deinit_legacy_vuarts(struct acrn_vm *vm);
+
+#ifdef CONFIG_VMCS9900_ENABLED
 void init_pci_vuart(struct pci_vdev *vdev);
 void deinit_pci_vuart(struct pci_vdev *vdev);
+#endif
 
 void vuart_putchar(struct acrn_vuart *vu, char ch);
 char vuart_getchar(struct acrn_vuart *vu);
