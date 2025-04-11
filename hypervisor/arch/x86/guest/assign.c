@@ -636,8 +636,14 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 	 * entry already be held by others, return error.
 	 */
 
+#ifdef CONFIG_VUART_ENABLED
 	/* no remap for vuart intx */
-	if (!is_vuart_intx(vm, virt_sid.intx_id.gsi)) {
+	if (is_vuart_intx(vm, virt_sid.intx_id.gsi)) {
+		status = -EINVAL;
+	}
+#endif
+
+	if (status == 0) {
 		/* query if we have virt to phys mapping */
 		spinlock_obtain(&ptdev_lock);
 		entry = find_ptirq_entry(PTDEV_INTR_INTX, &virt_sid, vm);
@@ -660,8 +666,6 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 			}
 		}
 		spinlock_release(&ptdev_lock);
-	} else {
-		status = -EINVAL;
 	}
 
 	if (status == 0) {

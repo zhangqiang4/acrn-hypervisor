@@ -28,6 +28,9 @@
 
 #ifndef VUART_H
 #define VUART_H
+
+#ifdef CONFIG_VUART_ENABLED
+
 #include <types.h>
 #include <asm/lib/spinlock.h>
 #include <asm/vm_config.h>
@@ -122,8 +125,11 @@ bool is_vuart_intx(const struct acrn_vm *vm, uint32_t intx_gsi);
 
 uint8_t vuart_read_reg(struct acrn_vuart *vu, uint16_t offset);
 void vuart_write_reg(struct acrn_vuart *vu, uint16_t offset, uint8_t value);
-#endif /* VUART_H */
 
 /**
  * @}
  */
+
+#endif /* CONFIG_VUART_ENABLED */
+
+#endif /* VUART_H */

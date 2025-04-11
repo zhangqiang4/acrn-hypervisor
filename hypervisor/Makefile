@@ -297,7 +297,6 @@ endif
 VP_DM_C_SRCS += dm/vpic.c
 VP_DM_C_SRCS += dm/vrtc.c
 VP_DM_C_SRCS += dm/vioapic.c
-VP_DM_C_SRCS += dm/vuart.c
 VP_DM_C_SRCS += dm/io_req.c
 VP_DM_C_SRCS += dm/vpci/vdev.c
 VP_DM_C_SRCS += dm/vpci/vpci.c
@@ -320,6 +319,9 @@ VP_DM_C_SRCS += arch/x86/guest/instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/lock_instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/vm_reset.c
 VP_DM_C_SRCS += common/ptdev.c
+ifeq ($(CONFIG_VUART_ENABLED),y)
+VP_DM_C_SRCS += dm/vuart.c
+endif
 ifeq ($(CONFIG_VMCS9900_ENABLED),y)
 VP_DM_C_SRCS += dm/vpci/vmcs9900.c
 endif

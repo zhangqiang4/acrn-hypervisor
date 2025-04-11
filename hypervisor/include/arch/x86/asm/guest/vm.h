@@ -202,7 +202,9 @@ struct acrn_vm {
 	struct e820_entry *e820_entries; /**< Pointer to E820 entries array */
 	uint16_t vm_id;		    /**< Virtual machine identifier */
 	enum vm_state state;	/**< VM state */
+#ifdef CONFIG_VUART_ENABLED
 	struct acrn_vuart vuart[MAX_VUART_NUM_PER_VM];		/**< Virtual UART */
+#endif
 	struct asyncio_desc	aio_desc[ACRN_ASYNCIO_MAX];		/**< Async IO descriptors */
 	struct list_head aiodesc_queue;		/**< Async IO descriptor queue list */
 	spinlock_t asyncio_lock; /**< Spin-lock used to protect asyncio add/remove for a VM */

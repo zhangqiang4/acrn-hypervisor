@@ -52,13 +52,38 @@ static bool check_vm_clos_config(uint16_t vm_id)
 }
 #endif
 
+#ifdef CONFIG_VUART_ENABLED
+static bool check_vm_vuart_config(uint16_t vm_id)
+{
+	struct acrn_vm_config *vm_config = get_vm_config(vm_id);
+	uint16_t vuart_idx;
+	bool ret = true;
+
+	/* vuart[1+] are used for VM communications */
+	for (vuart_idx = 1U; vuart_idx < MAX_VUART_NUM_PER_VM; vuart_idx++) {
+		const struct vuart_config *vu_config = &vm_config->vuart[vuart_idx];
+
+		if (!(vu_config->type == VUART_LEGACY_PIO) &&
+			(vu_config->addr.port_base == INVALID_COM_BASE)) {
+			if ((vu_config->t_vuart.vm_id >= CONFIG_MAX_VM_NUM) ||
+				(vu_config->t_vuart.vm_id == vm_id)) {
+				printf("%s invalid vuart configuration for VM %d\n", __func__, vm_id);
+				ret = false;
+			}
+		}
+	}
+
+	return ret;
+}
+#endif
+
 /**
  * @pre vm_config != NULL
  */
 bool sanitize_vm_config(void)
 {
 	bool ret = true;
-	uint16_t vm_id, vuart_idx;
+	uint16_t vm_id;
 	struct acrn_vm_config *vm_config;
 
 	/* We need to setup a rule, that the vm_configs[] array should follow
@@ -108,21 +133,11 @@ bool sanitize_vm_config(void)
 			ret = false;
 		}
 
+#ifdef CONFIG_VUART_ENABLED
 		if (ret) {
-			/* vuart[1+] are used for VM communications */
-			for (vuart_idx = 1U; vuart_idx < MAX_VUART_NUM_PER_VM; vuart_idx++) {
-				const struct vuart_config *vu_config = &vm_config->vuart[vuart_idx];
-
-				if (!(vu_config->type == VUART_LEGACY_PIO) &&
-					(vu_config->addr.port_base == INVALID_COM_BASE)) {
-					if ((vu_config->t_vuart.vm_id >= CONFIG_MAX_VM_NUM) ||
-						(vu_config->t_vuart.vm_id == vm_id)) {
-						printf("%s invalid vuart configuration for VM %d\n", __func__, vm_id);
-						ret = false;
-					}
-				}
-			}
+			ret = check_vm_vuart_config(vm_id);
 		}
+#endif
 
 		if (!ret) {
 			break;

@@ -1039,8 +1039,10 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 			status = init_vpci(vm);
 		}
 		if (status == 0) {
+#ifdef CONFIG_VUART_ENABLED
 			/* Create virtual uart;*/
 			init_legacy_vuarts(vm, vm_config->vuart);
+#endif
 
 			register_reset_port_handler(vm);
 
@@ -1285,7 +1287,9 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 
 	ptirq_remove_configured_intx_remappings(vm);
 
+#ifdef CONFIG_VUART_ENABLED
 	deinit_legacy_vuarts(vm);
+#endif
 
 	deinit_vpci(vm);
 

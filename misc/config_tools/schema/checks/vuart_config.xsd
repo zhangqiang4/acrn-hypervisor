@@ -43,6 +43,13 @@
     </xs:annotation>
   </xs:assert>
 
+  <xs:assert test="/acrn-config/hv/FEATURES/VUART_ENABLED = 'y' or
+                   count(/acrn-config/hv/vuart_connections/vuart_connection) = 0">
+    <xs:annotation acrn:severity="error" acrn:report-on="/acrn-config/hv/vuart_connections">
+      <xs:documentation>vUART configured but vUART is disabled.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
   <xs:assert test="every $vuart_connection in /acrn-config//vuart_connection satisfies
                    every $type in $vuart_connection/type/text() satisfies
                    if ($type = 'pci')
@@ -50,6 +57,18 @@
                    else true()">
     <xs:annotation acrn:severity="error" acrn:report-on="$vuart_connection/type">
       <xs:documentation>Connetion type of "{$vuart_connection/name}" is pci, but MCS9900 emulation is disabled. Set VMCS9900_ENABLED to y in scenario file to fix this.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="not(/acrn-config/hv/FEATURES/VMCS9900_ENABLED = 'y') or /acrn-config/hv/FEATURES/VUART_ENABLED = 'y'">
+    <xs:annotation acrn:severity="error" acrn:report-on="/acrn-config/hv/FEATURES/VMCS9900_ENABLED">
+       <xs:documentation>VMCS9900_ENABLED depends on VUART_ENABLED.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="not(/acrn-config/hv/BUILD_TYPE = 'debug') or /acrn-config/hv/FEATURES/VUART_ENABLED = 'y'">
+    <xs:annotation acrn:severity="error" acrn:report-on="/acrn-config/hv/FEATURES/VUART_ENABLED">
+       <xs:documentation>vUART must be enabled on debug build.</xs:documentation>
     </xs:annotation>
   </xs:assert>
 

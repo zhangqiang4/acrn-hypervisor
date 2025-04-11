@@ -150,6 +150,10 @@
     </xsl:call-template>
 
     <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'VUART_ENABLED'" />
+    </xsl:call-template>
+
+    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'VMCS9900_ENABLED'" />
     </xsl:call-template>
 
