@@ -315,7 +315,9 @@ VP_DM_C_SRCS += dm/vpci/vmsi.c
 VP_DM_C_SRCS += dm/vpci/vmsix.c
 VP_DM_C_SRCS += dm/vpci/vsriov.c
 VP_DM_C_SRCS += dm/mmio_dev.c
+ifeq ($(P2SB_VGPIO_DM_ENABLED),y)
 VP_DM_C_SRCS += dm/vgpio.c
+endif
 VP_DM_C_SRCS += arch/x86/guest/vlapic.c
 VP_DM_C_SRCS += arch/x86/guest/pm.c
 VP_DM_C_SRCS += arch/x86/guest/assign.c
