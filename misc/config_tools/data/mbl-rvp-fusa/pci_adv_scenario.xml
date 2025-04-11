@@ -374,6 +374,7 @@
     </cpu_affinity>
     <pci_devs>
       <pci_dev>00:02.0 VGA compatible controller: Intel Corporation Device a7a0 (rev 04)</pci_dev>
+      <pci_dev>00:06.0 PCI bridge: Intel Corporation Device a74d (rev 08)</pci_dev>
       <pci_dev>00:0d.0 USB controller: Intel Corporation Device a71e</pci_dev>
       <pci_dev>00:1e.3 Serial bus controller: Intel Corporation</pci_dev>
     </pci_devs>
