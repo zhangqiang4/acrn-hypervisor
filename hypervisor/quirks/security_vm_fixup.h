@@ -7,7 +7,11 @@
 #ifndef _SECURITY_VM_FIXUP_H_
 #define _SECURITY_VM_FIXUP_H_
 
+#ifdef CONFIG_SECURITY_VM_FIXUP
+
 void passthrough_smbios(struct acrn_vm *vm, struct acrn_boot_info *abi);
 void security_vm_fixup(uint16_t vm_id);
 
-#endif /* _SECURITY_VM_FIXUP_H_ */
+#endif
+
+#endif  /* _SECURITY_VM_FIXUP_H_ */
