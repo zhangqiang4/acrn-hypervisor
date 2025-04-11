@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011 NetApp, Inc.
- * Copyright (c) 2018-2022 Intel Corporation.
+ * Copyright (c) 2018-2024 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,8 +33,30 @@
 #include <asm/vtd.h>
 #include "vpci_priv.h"
 
+/**
+ * @addtogroup vp-dm_vpci
+ *
+ * @{
+ */
 
 /**
+ * @file
+ * @brief This file declares functions to handle MSI
+ *
+ * This file declares functions to initialize/deinitialize, enable/disable, and remap MSI.
+ *
+ */
+
+/**
+ * @brief Enable/disable MSI
+ *
+ * Set MSI Message Controler register to enable/disable MSI.
+ *
+ * @param[in] vdev   Pointer to the virtual PCI device.
+ * @param[in] enable A boolean value to indicate to enable/disable MSI.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -51,13 +73,23 @@ static inline void enable_disable_msi(const struct pci_vdev *vdev, bool enable)
 	}
 	pci_pdev_write_cfg(pbdf, capoff + PCIR_MSI_CTRL, 2U, msgctrl);
 }
+
 /**
- * @brief Remap vMSI virtual address and data to MSI physical address and data
- * This function is called when physical MSI is disabled.
+ * @brief Do Interrupt Remapping for MSI
+ *
+ * This function uses VTD IRTE to do Interrupt Remapping for MSI when guest tring to enable MSI.
+ * It will first disable physical MSI before calling ptirq_prepare_msix_remap to the remapping.
+ * If remapping succeeds, it enables MSI and disables INTx.
+ *
+ * @param[in] vdev Pointer to the virtual PCI device.
+ *
+ * @return None
  *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  * @pre vdev->pdev != NULL
+ *
+ * @remark This function is called when MSI is disabled.
  */
 static void remap_vmsi(const struct pci_vdev *vdev)
 {
@@ -95,7 +127,21 @@ static void remap_vmsi(const struct pci_vdev *vdev)
 }
 
 /**
- * @brief Writing MSI Capability Structure
+ * @brief Emulate write to MSI Capability Structure
+ *
+ * This function emulates the MSI writing action. VM's MSI configuration is written to virtual MSI Capability
+ * registers. There are some registers are read-only which will be skipped: Capability ID, Next Capability
+ * Pointer, Message Control[bit 15:7, bit 3:1]. Furthermore, the MSI Address[bit 1:0] are reserved. If the
+ * write operation includes writing non read-only bits, disable MSI firstly. After writing, call remap_vmsi()
+ * to remap virtual MSI if the MSI Enable bit has been set and MME bits are 0. The MSI will be enabled again
+ * if remapping succeeds.
+ *
+ * @param[in] vdev   Pointer to the virtual PCI device.
+ * @param[in] offset Offset to write the MSI Capability register.
+ * @param[in] bytes  Length to write the MSI Capability register.
+ * @param[in] val    Value to be written into the MSI Capability register.
+ *
+ * @return None
  *
  * @pre vdev != NULL
  */
@@ -126,6 +172,15 @@ void write_vmsi_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, 
 }
 
 /**
+ * @brief Deinitialize the virtual PCI device MSI
+ *
+ * Call ptirq_remove_msix_remapping to try to remove the interrupt remapping for MSI in VTD
+ * Interrupt Remapping Table Entry.
+ *
+ * @param[in] vdev Pointer to the virtual PCI device to be deinitialized.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -137,6 +192,17 @@ void deinit_vmsi(const struct pci_vdev *vdev)
 }
 
 /**
+ * @brief Initialize the virtual PCI device MSI
+ *
+ * This function will cache PCI MSI capability inforamtion, if the physical PCI device supports MSI capability,
+ * by getting the MSI Capability length and whether 64 bit mode supported by reading physical register, then
+ * clear the MMC/MME bits from the value read out and write the value into virtual MSI Capability registers to
+ * initialize virtual MSI Capability structure.
+ *
+ * @param[inout] vdev Pointer to the virtual PCI device.
+ *
+ * @return None
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -159,3 +225,6 @@ void init_vmsi(struct pci_vdev *vdev)
 	}
 }
 
+/**
+ * @}
+ */
