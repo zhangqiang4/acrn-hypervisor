@@ -8,7 +8,7 @@
 #define PROFILING_H
 
 #ifdef PROFILING_ON
-#include <profiling_internal.h>
+#include <debug/profiling_internal.h>
 #endif
 
 /**
