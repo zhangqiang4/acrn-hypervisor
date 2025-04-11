@@ -809,8 +809,16 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
  */
 void init_vmcs(struct acrn_vcpu *vcpu)
 {
+	void **vmcs_ptr = &get_cpu_var(vmcs_run);
 	/* Log message */
 	pr_dbg("Initializing VMCS");
+	/*
+	 * Execute VMCLEAR VMCS to initialize parts of the VMCS region (e.g. it sets the
+	 * launch state of the VMCS to clear).
+	 */
+	clear_va_vmcs(vcpu->arch.vmcs);
+	load_va_vmcs(vcpu->arch.vmcs);
+	*vmcs_ptr = (void *)vcpu->arch.vmcs;
 
 	/* Initialize the Virtual Machine Control Structure (VMCS) */
 	init_host_state();
