@@ -26,6 +26,7 @@ from sphinx.domains.c import (
     _expression_assignment_ops,
     ASTBracedInitList,
     _keywords,
+    ASTStringLiteral
 )
 from sphinx.util.cfamily import (
     StringifyTransform,
@@ -546,6 +547,23 @@ class BreatheASTBracedInitList:
     }
 
 
+class BreatheASTStringLiteral:
+
+    def describe_signature(self, signode: TextElement, mode: str,
+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
+        txt = str(self)
+        if '"' in txt and '`' in txt:
+            txt_ = txt.replace('`', '"')[1:-1]
+        else:
+            txt_ = txt.replace('`', '"')
+
+        signode += addnodes.desc_sig_literal_string(txt, txt_)
+
+    meth = {
+        'describe_signature': describe_signature,
+    }
+
+
 class BreatheRenderer:
     sections = SphinxRenderer.sections
 
@@ -979,6 +997,13 @@ class BreatheRenderer:
         len_ = len(temp)
         raw_ = temp[0] if len_ == 1 else "\n".join(temp)
         has_bracket = False
+        is_located_in_interval = False
+        is_passed_equal = False
+
+        def embrace(raw_line, typ='macro_subs'):
+            if typ == 'macro_subs':
+                return '"' + raw_line + '"'
+
         raw_lines = raw_.split('\n')
         for raw_line in raw_lines:
             # detect position of closed symbol (i.e., `]`) for each line
@@ -989,21 +1014,47 @@ class BreatheRenderer:
             # that is, a very long function in the interval which cannot be filled in a single line
             # and so it was separated in several lines instead
             last_right_bracket_pos = 0
+            equal_pos = 0
             for i, e in enumerate(raw_line):
+                if e == '=':
+                    is_passed_equal = True
+                    equal_pos = i
                 if (f := raw_[i:i + 2]) == '..':  # __INTERVAL__: ..
                     raw_ = raw_.replace(f, ESCAPE_SYMBOLS[f])
                 if e in ('[', ']'):  # __LEFT_BRACKET__ or __RIGHT_BRACKET__: [ or ]
+                    # I assume ONLY one pairs of `[]` for the interval,
+                    # in other words, there is no sub-interval dwelling in it
+                    is_located_in_interval = True if e == '[' else False
                     has_bracket = True
                     if e == ']' and i > last_right_bracket_pos:
                         last_right_bracket_pos = i
                     raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
-                if e == ' ':  # remove redundant spaces between [ , .. and ]
+                if is_located_in_interval and e == ' ':  # remove redundant spaces between [ , .. and ]
                     raw_ = raw_.replace(' ', '')
             # remove interference introduced by single ( and )
             # that is, I replace (,) with escape only has [,] before them, otherwise I won't replace it
             for i, e in enumerate(raw_line):
                 if has_bracket and e in ('(', ')') and i < last_right_bracket_pos:
                     raw_ = raw_.replace(e, ESCAPE_SYMBOLS[e])
+
+        # deal with macro substitution
+        raw_line = ' '.join(raw_lines)
+        raw_line_pre = raw_line[equal_pos + 2:]
+
+        mc_subst_re = re.compile(r'''(?x)
+            (\".*\"\s*\w+\s*)+|        # "a" b "c" d
+            (\".*\"\s*\w+\s*)+\".*\"|  # "a" b "c" d "e"
+            (\w+\s+\".*\"\s*)+|        #  p "a" b "c"
+            (\w+\s+\".*\"\s*)+\w+      #  p "a" b "c" q
+        ''')
+
+        ident_re = re.compile(r"\w+")
+        string_re = re.compile(r'".*"')
+        if is_passed_equal and re.match(mc_subst_re, raw_line_pre):
+            raw_line_ = raw_line[:equal_pos] + embrace(raw_line_pre.replace('"', "`"))
+            return raw_line[:2] + raw_line_
+        elif is_passed_equal and (re.match(ident_re, raw_line_pre) or re.match(string_re, raw_line_pre)):
+            raw_ = raw_.replace(raw_line, raw_line)
 
         return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
 
@@ -1212,6 +1263,7 @@ class BreatheNode:
 
 def setup():
     HookManager(ASTIdentifier).hook(mapping=BreatheASTIdentifier.meth)
+    HookManager(ASTStringLiteral).hook(mapping=BreatheASTStringLiteral.meth)
     HookManager(ASTNestedName).hook(mapping=BreatheASTNestedName.meth)
     HookManager(Symbol).hook(mapping=BreatheSymbol.meth)
     HookManager(CDomain).hook(mapping=BreatheCDomain.meth)
