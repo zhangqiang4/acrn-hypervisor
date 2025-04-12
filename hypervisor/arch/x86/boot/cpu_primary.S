@@ -27,8 +27,6 @@
 /* MULTIBOOT HEADER */
 #define MULTIBOOT_HEADER_FLAGS	MULTIBOOT_HEADER_NEED_MEMINFO
 
-    .extern cpu_primary_save32
-    .extern cpu_primary_save64
     .section    multiboot_header, "a"
 
     .align     4
