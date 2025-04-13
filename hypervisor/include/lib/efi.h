@@ -7,6 +7,20 @@
 #ifndef EFI_H
 #define EFI_H
 
+/**
+ * @addtogroup boot
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief efi_info struct definition
+ *
+ * The file provides the definition of efi_info struct, which is a member of
+ * acrn_boot_info struct and zero_page struct.
+ */
+
 #ifdef CONFIG_MULTIBOOT2
 
 /* EFI Memory Attribute values: */
@@ -57,15 +71,29 @@ struct efi_memory_desc {
 
 #endif /* CONFIG_MULTIBOOT2 */
 
+/**
+ * @brief EFI information struct defined by Linux kernel
+ *
+ * The `efi_info` structure contains information related to the Extensible Firmware Interface (EFI), which
+ * is used during the boot process of the Linux kernel. The struct is referenced as part of the Linux boot
+ * params(commonly known as the 'zeropage'), starting from the zeropage offset 0x1c0. This structure includes
+ * fields for loader signature, system table addresses, memory descriptor details, and memory map information.
+ *
+ * @remark This struct is x86 specific.
+ * @remark This structure shall be packed.
+ */
 struct efi_info {
-	uint32_t loader_signature;	/* 0x1c0 */
-	uint32_t systab;		/* 0x1c4 */
-	uint32_t memdesc_size;		/* 0x1c8 */
-	uint32_t memdesc_version;	/* 0x1cc */
-	uint32_t memmap;		/* 0x1d0 */
-	uint32_t memmap_size;		/* 0x1d4 */
-	uint32_t systab_hi;		/* 0x1d8 */
-	uint32_t memmap_hi;		/* 0x1dc */
+	uint32_t loader_signature;  /**< Signature identifying the EFI loader. Zeropage Offset: 0x1c0 */
+	uint32_t systab;            /**< Address of the EFI system table. Zeropage Offset: 0x1c4 */
+	uint32_t memdesc_size;      /**< Size of each memory descriptor entry. Zeropage Offset: 0x1c8 */
+	uint32_t memdesc_version;   /**< Version of the memory descriptor format. Zeropage Offset: 0x1cc */
+	uint32_t memmap;            /**< Address of the memory map. Zeropage Offset: 0x1d0 */
+	uint32_t memmap_size;       /**< Total size of the memory map. Zeropage Offset: 0x1d4 */
+	uint32_t systab_hi;         /**< High 32 bits of the EFI system table address. Zeropage Offset: 0x1d8 */
+	uint32_t memmap_hi;         /**< High 32 bits of the memory map address. Zeropage Offset: 0x1dc */
 } __packed;
 
+/**
+ * @}
+ */
 #endif
