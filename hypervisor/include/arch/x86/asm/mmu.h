@@ -55,7 +55,7 @@
 #define IA32E_REF_MASK	((get_pcpu_info())->physical_address_mask)
 #define INVEPT_TYPE_SINGLE_CONTEXT      1UL
 #define INVEPT_TYPE_ALL_CONTEXTS        2UL
-#define VMFAIL_INVALID_EPT_VPID				\
+#define VMFAIL_VMX_INSTRUCTIONS				\
 	"       jnc 1f\n"				\
 	"       mov $1, %0\n"    /* CF: error = 1 */	\
 	"       jmp 3f\n"				\
@@ -76,7 +76,7 @@ static inline int32_t asm_invvpid(const struct invvpid_operand operand, uint64_t
 {
 	int32_t error;
 	asm volatile ("invvpid %1, %2\n"
-			VMFAIL_INVALID_EPT_VPID
+			VMFAIL_VMX_INSTRUCTIONS
 			: "=r" (error)
 			: "m" (operand), "r" (type)
 			: "memory");
@@ -92,7 +92,7 @@ static inline int32_t asm_invept(uint64_t type, struct invept_desc desc)
 {
 	int32_t error;
 	asm volatile ("invept %1, %2\n"
-			VMFAIL_INVALID_EPT_VPID
+			VMFAIL_VMX_INSTRUCTIONS
 			: "=r" (error)
 			: "m" (desc), "r" (type)
 			: "memory");
