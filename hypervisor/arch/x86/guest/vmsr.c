@@ -80,8 +80,6 @@ static uint32_t emulated_guest_msrs[NUM_EMULATED_MSRS] = {
 	MSR_IA32_HWP_CAPABILITIES,
 	MSR_IA32_HWP_REQUEST,
 	MSR_IA32_HWP_STATUS,
-	MSR_IA32_MPERF,
-	MSR_IA32_APERF,
 
 	/* If CPUID.(EAX=07H, ECX=0):EDX[29]=1 */
 	MSR_IA32_XAPIC_DIS_STATUS,
@@ -269,6 +267,13 @@ static const uint32_t unsupported_msrs[] = {
 	IA32_THREAD_FEEDBACK_CHAR,
 	IA32_HW_FEEDBACK_THREAD_CONFIG,
 	IA32_HRESET_ENABLE,
+
+	/*
+	 * Hardware Coordination Feedback Capability disabled:
+	 * CPUID.06H.ECX[0]
+	 */
+	MSR_IA32_MPERF,
+	MSR_IA32_APERF,
 
 	/*
 	 * TME registers disabled:
@@ -839,8 +844,6 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	case MSR_IA32_HWP_CAPABILITIES:
 	case MSR_IA32_HWP_REQUEST:
 	case MSR_IA32_HWP_STATUS:
-	case MSR_IA32_MPERF:
-	case MSR_IA32_APERF:
 	{
 		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			v = msr_read(msr);
@@ -1267,16 +1270,6 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	{
 		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
 			err = msr_write_safe(msr, v, MSR_IA32_HWP_STATUS_RSV_BITS);
-		} else {
-			err = -EACCES;
-		}
-		break;
-	}
-	case MSR_IA32_MPERF:
-	case MSR_IA32_APERF:
-	{
-		if (vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_VHWP)) {
-			msr_write(msr, v);
 		} else {
 			err = -EACCES;
 		}

@@ -171,7 +171,7 @@ enum vm_cpu_mode {
 
 enum reset_mode;
 
-#define NUM_COMMON_MSRS		40U
+#define NUM_COMMON_MSRS		33U
 
 #define FLEXIBLE_MSR_INDEX	NUM_COMMON_MSRS
 

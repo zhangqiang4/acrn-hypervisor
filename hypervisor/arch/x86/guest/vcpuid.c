@@ -367,12 +367,13 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	*eax &= ~(CPUID_EAX_HFI | CPUID_EAX_ITD);
 	/* Since Thread Director is hidden, hide the number of Thread Director classes */
 	*ecx &= ~CPUID_ECX_ITD_NOC;
+	/* Always hide Hardware Coordination Feedback Capability */
+	*ecx &= ~CPUID_ECX_HCFC;
 	/* Since HFI is hidden, hide the edx too */
 	*edx = 0U;
 	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP)) {
 		*eax &= ~(CPUID_EAX_HWP | CPUID_EAX_HWP_AW | CPUID_EAX_HWP_EPP | CPUID_EAX_HWP_FC | CPUID_EAX_FLEX_HWP |
 			CPUID_EAX_HWP_FAM | CPUID_EAX_HWP_IILP);
-		*ecx &= ~CPUID_ECX_HCFC;
 	}
 	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_TM_PT)) {
 		*eax &= ~(CPUID_EAX_ECMD | CPUID_EAX_HFN | CPUID_EAX_DTS | CPUID_EAX_PLN);
