@@ -294,9 +294,11 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 			case ACRN_ASYNCIO:
 				ret = init_asyncio(vm, sbuf);
 				break;
+#ifdef CONFIG_VMEVENT_ENABLED
 			case ACRN_VM_EVENT:
 				ret = init_vm_event(vm, sbuf);
 				break;
+#endif
 			default:
 				pr_err("sbuf: unsupported sbuf_id %u", sbuf_id);
 				break;
