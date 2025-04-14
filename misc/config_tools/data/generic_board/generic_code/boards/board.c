@@ -149,8 +149,6 @@ struct rdt_type res_cap_info[RDT_NUM_RESOURCES] = {
 
 const union pci_bdf plat_hidden_pdevs[MAX_HIDDEN_PDEVS_NUM];
 
-const struct vmsix_on_msi_info vmsix_on_msi_devs[MAX_VMSIX_ON_MSI_PDEVS_NUM];
-
 struct acrn_cpufreq_limits cpufreq_limits[MAX_PCPU_NUM] = {
 	{
 		.guaranteed_hwp_lvl = 255,

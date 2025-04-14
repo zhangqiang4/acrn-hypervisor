@@ -406,29 +406,11 @@ def gen_pci_hide(config):
     else:
         print("const union pci_bdf plat_hidden_pdevs[MAX_HIDDEN_PDEVS_NUM];", file=config)
 
-
 def gen_known_caps_pci_devs(config):
-    """Generate information for known capabilities of pci devices"""
-    known_caps_pci_devs = board_cfg_lib.get_known_caps_pci_devs()
-    for dev,bdf_list in known_caps_pci_devs.items():
-        if dev == "VMSIX":
-            print("", file=config)
-            bdf_list_len = len(bdf_list)
-            if bdf_list_len == 0:
-                print("const struct vmsix_on_msi_info vmsix_on_msi_devs[MAX_VMSIX_ON_MSI_PDEVS_NUM];", file=config)
-                break
-            for i in range(bdf_list_len):
-                b = bdf_list[i].split(":")[0]
-                d = bdf_list[i].split(":")[1].split(".")[0]
-                f = bdf_list[i].split(".")[1]
-                print("#define VMSIX_ON_MSI_DEV{}\t.bdf.bits = {{.b = 0x{}U, .d = 0x{}U, .f =0x{}U}},".format(i, b, d, f), file=config)
-
-            for i in range(bdf_list_len):
-                if i == 0:
-                    print("const struct vmsix_on_msi_info vmsix_on_msi_devs[MAX_VMSIX_ON_MSI_PDEVS_NUM] = {", file=config)
-                print("\t{{VMSIX_ON_MSI_DEV{}}},".format(i), file=config)
-                if i == (bdf_list_len - 1):
-                    print("};", file=config)
+     """Generate information for known capabilities of pci devices"""
+     known_caps_pci_devs = board_cfg_lib.get_known_caps_pci_devs()
+     for dev,bdf_list in known_caps_pci_devs.items():
+         pass # VMSIX_ON_MSI is removed
 
 def gen_cpufreq_limits(config):
     allocation_dir = os.path.split(acrn_config_utilities.SCENARIO_INFO_FILE)[0] + "/configs/allocation.xml"
