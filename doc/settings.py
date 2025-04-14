@@ -57,3 +57,8 @@ ESCAPE_SYMBOLS = {
     '(': '__LEFT_PARENTHESIS__',
     ')': '__RIGHT_PARENTHESIS__',
 }
+
+# redefine type alias
+REDEFINED_TYPES = {
+    'acrn_bool': 'bool',
+}

@@ -51,7 +51,7 @@ from breathe.renderer.filter import (
 from settings import (
     UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
     NEED_DEFINED_SORTING, SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
-    NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS
+    NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS, REDEFINED_TYPES
 )
 from hookit import HookManager
 
@@ -65,6 +65,20 @@ DEPTH = 0
 
 
 class BreatheASTIdentifier:
+    def __init__(self, identifier: str) -> None:
+        assert identifier is not None
+        assert len(identifier) != 0
+        self.identifier = identifier
+        # redefine type alias
+        # typedef _Bool bool; cannot be rendered directly
+        # for ONLY ONE TYPE collected in names while executing _parse_simple_type_spectifiers()
+        # so we choose type alias not occurred in _keywords & _macroKeywords
+        # 1.we refine bool as acrn_bool in acrn.doxyfile
+        # PREDEFINED += "bool=acrn_bool"
+        # 2.we exchange alias to the correct counterpart
+        for before, after in REDEFINED_TYPES.items():
+            self.identifier = self.identifier.replace(before, after)
+
     def followed_by_anon(self, identifiers):
         for i, ident in enumerate(identifiers):
             if (ident.identifier == self.identifier) and i + 2 <= len(identifiers):
@@ -72,11 +86,21 @@ class BreatheASTIdentifier:
                 return followed.is_anon()
 
     meth = {
+        '__init__': __init__,
         'followed_by_anon': followed_by_anon,
     }
 
 
 class BreatheASTNestedName:
+    def _stringify(self, transform: StringifyTransform) -> str:
+        res = '.'.join(transform(n) for n in self.names)
+        for before, after in REDEFINED_TYPES.items():
+            res = res.replace(before, after)
+        if self.rooted:
+            return '.' + res
+        else:
+            return res
+
     def describe_signature(self, signode: TextElement, mode: str,
                            env: "BuildEnvironment", symbol: "Symbol") -> None:
         verify_description_mode(mode)
@@ -145,6 +169,7 @@ class BreatheASTNestedName:
             raise Exception('Unknown description mode: %s' % mode)
 
     meth = {
+        '_stringify': _stringify,
         'describe_signature': describe_signature,
     }
 
