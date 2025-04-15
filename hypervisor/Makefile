@@ -218,7 +218,6 @@ HW_S_SRCS += arch/x86/wakeup.S
 HW_C_SRCS += arch/x86/trampoline.c
 HW_S_SRCS += arch/x86/sched.S
 HW_C_SRCS += arch/x86/rdt.c
-HW_C_SRCS += arch/x86/sgx.c
 HW_C_SRCS += common/ticks.c
 HW_C_SRCS += common/delay.c
 HW_C_SRCS += common/timer.c
@@ -229,6 +228,9 @@ HW_C_SRCS += common/schedule.c
 HW_C_SRCS += common/event.c
 HW_C_SRCS += common/efi_mmap.c
 HW_C_SRCS += common/sbuf.c
+ifeq ($(CONFIG_SGX_ENABLED),y)
+HW_C_SRCS += arch/x86/sgx.c
+endif
 ifeq ($(CONFIG_VMEVENT_ENABLED),y)
 HW_C_SRCS += common/vm_event.c
 endif

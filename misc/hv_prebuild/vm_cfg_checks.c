@@ -104,8 +104,10 @@ bool sanitize_vm_config(void)
 			if (((vm_config->guest_flags & GUEST_FLAG_RT) != 0U)
 				&& ((vm_config->guest_flags & GUEST_FLAG_LAPIC_PASSTHROUGH)== 0U)) {
 				ret = false;
+#ifdef CONFIG_SGX_ENABLED
 			} else if (vm_config->epc.size != 0UL) {
 				ret = false;
+#endif
 			} else {
 				/* do nothing */
 			}
@@ -128,10 +130,12 @@ bool sanitize_vm_config(void)
 		}
 #endif
 
+#ifdef CONFIG_SGX_ENABLED
 		if (ret &&
 		    (((vm_config->epc.size | vm_config->epc.base) & ~PAGE_MASK) != 0UL)) {
 			ret = false;
 		}
+#endif
 
 #ifdef CONFIG_VUART_ENABLED
 		if (ret) {

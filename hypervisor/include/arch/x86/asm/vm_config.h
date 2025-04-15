@@ -175,7 +175,9 @@ struct acrn_vm_config {
 	struct sched_params sched_params;		/* Scheduler params for vCPUs of this VM */
 	uint16_t companion_vm_id;			/* The companion VM id for this VM */
 	struct acrn_vm_mem_config memory;		/* memory configuration of VM */
+#ifdef CONFIG_SGX_ENABLED
 	struct epc_section epc;				/* EPC memory configuration of VM */
+#endif
 	uint16_t pci_dev_num;				/* indicate how many PCI devices in VM */
 	struct acrn_vm_pci_dev_config *pci_devs;	/* point to PCI devices BDF list */
 	struct acrn_vm_os_config os_config;		/* OS information the VM */

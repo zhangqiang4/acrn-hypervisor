@@ -125,6 +125,10 @@
       <xsl:with-param name="value" select="MCE_ON_PSC_ENABLED" />
     </xsl:call-template>
 
+    <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'SGX_ENABLED'" />
+    </xsl:call-template>
+
     <xsl:call-template name="boolean-by-key-value">
       <xsl:with-param name="key" select="'RELOC'" />
       <xsl:with-param name="value" select="RELOC_ENABLED" />

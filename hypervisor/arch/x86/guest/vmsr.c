@@ -532,9 +532,11 @@ static void init_emulated_msrs(struct acrn_vcpu *vcpu)
 {
 	uint64_t val64 = MSR_IA32_FEATURE_CONTROL_LOCK;
 
+#ifdef CONFIG_SGX_ENABLED
 	if (is_vsgx_supported(vcpu->vm->vm_id)) {
 		val64 |= MSR_IA32_FEATURE_CONTROL_SGX_GE;
 	}
+#endif
 
 	/* MSR_IA32_FEATURE_CONTROL */
 	vcpu_set_guest_msr(vcpu, MSR_IA32_FEATURE_CONTROL, val64);
@@ -894,6 +896,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		v = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
 		break;
 	}
+#ifdef CONFIG_SGX_ENABLED
 	case MSR_IA32_SGXLEPUBKEYHASH0:
 	case MSR_IA32_SGXLEPUBKEYHASH1:
 	case MSR_IA32_SGXLEPUBKEYHASH2:
@@ -907,6 +910,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		}
 		break;
 	}
+#endif
 	case MSR_IA32_COPY_STATUS:
 	{
 		if (is_iwkey_backup_support(vcpu)) {

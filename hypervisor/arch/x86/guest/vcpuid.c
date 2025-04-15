@@ -191,6 +191,7 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 	}
 }
 
+#ifdef CONFIG_SGX_ENABLED
 static int32_t set_vcpuid_sgx(struct acrn_vm *vm)
 {
 	int32_t result = 0;
@@ -231,6 +232,7 @@ static int32_t set_vcpuid_sgx(struct acrn_vm *vm)
 
 	return result;
 }
+#endif
 
 static int32_t set_vcpuid_cache(struct acrn_vm *vm)
 {
@@ -322,9 +324,11 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		entry.ecx &= ~CPUID_ECX_PKS;
 	}
 
+#ifdef CONFIG_SGX_ENABLED
 	if (is_vsgx_supported(vm->vm_id)) {
 		entry.ebx |= CPUID_EBX_SGX;
 	}
+#endif
 
 	entry.edx |= CPUID_EDX_ARCH_CAP;
 
@@ -509,10 +513,12 @@ int32_t set_vcpuid_entries(struct acrn_vm *vm)
 			case CPUID_EXTEND_FEATURE:
 				result = set_vcpuid_extfeat(vm);
 				break;
+#ifdef CONFIG_SGX_ENABLED
 			/* 0x12U */
 			case CPUID_SGX_CAP:
 				result = set_vcpuid_sgx(vm);
 				break;
+#endif
 			/* These features are disabled */
 			/* PMU is not supported except for core partition VM, like RTVM */
 			/* 0x0aU */

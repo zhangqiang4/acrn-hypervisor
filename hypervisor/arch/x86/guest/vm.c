@@ -754,6 +754,50 @@ static void deny_hv_owned_devices(struct acrn_vm *service_vm)
 	}
 }
 
+#ifdef CONFIG_SGX_ENABLED
+/**
+ * @brief Prepare EPC resource memory mapping for a VM.
+ *
+ * If virtual SGX is supported, this function adds EPT mapping for EPC resources to a VM's
+ * address space. Do nothing otherwise.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ *
+ * @param[inout] vm The VM whose EPC memory mapping to be setup
+ *
+ * @return None
+ */
+static void prepare_epc_vm_memmap(struct acrn_vm *vm)
+{
+	struct epc_map* vm_epc_maps;
+	uint32_t i;
+
+	if (is_vsgx_supported(vm->vm_id)) {
+		vm_epc_maps = get_epc_mapping(vm->vm_id);
+		for (i = 0U; (i < MAX_EPC_SECTIONS) && (vm_epc_maps[i].size != 0UL); i++) {
+			ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, vm_epc_maps[i].hpa,
+				vm_epc_maps[i].gpa, vm_epc_maps[i].size, EPT_RWX | EPT_WB);
+		}
+	}
+}
+
+static void unmap_epc_sections(struct acrn_vm *vm)
+{
+	uint64_t *pml4_page = (uint64_t *)vm->arch_vm.nworld_eptp; 
+	struct epc_section* epc_secs;
+	
+	/* Unmap all platform EPC resource from Service VM.
+	 * This part has already been marked as reserved by BIOS in E820
+	 * will cause EPT violation if Service VM accesses EPC resource.
+	 */
+	epc_secs = get_phys_epc();
+	for (i = 0U; (i < MAX_EPC_SECTIONS) && (epc_secs[i].size != 0UL); i++) {
+		ept_del_mr(vm, pml4_page, epc_secs[i].base, epc_secs[i].size);
+	}
+}
+#endif
+
 /**
  * @brief Prepares memory mapping of Service VM.
  *
@@ -785,7 +829,6 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 	uint64_t service_vm_high64_max_ram = MEM_4G;
 	struct acrn_vm_config *vm_config;
 	uint64_t *pml4_page = (uint64_t *)vm->arch_vm.nworld_eptp;
-	struct epc_section* epc_secs;
 
 	const struct e820_entry *entry;
 	uint32_t entries_count = vm->e820_entry_num;
@@ -812,14 +855,9 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 		}
 	}
 
-	/* Unmap all platform EPC resource from Service VM.
-	 * This part has already been marked as reserved by BIOS in E820
-	 * will cause EPT violation if Service VM accesses EPC resource.
-	 */
-	epc_secs = get_phys_epc();
-	for (i = 0U; (i < MAX_EPC_SECTIONS) && (epc_secs[i].size != 0UL); i++) {
-		ept_del_mr(vm, pml4_page, epc_secs[i].base, epc_secs[i].size);
-	}
+#ifdef CONFIG_SGX_ENABLED
+	unmap_epc_sections(vm);
+#endif
 
 	/* unmap hypervisor itself for safety
 	 * will cause EPT violation if Service VM accesses hv memory
@@ -860,33 +898,6 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 		ept_del_mr(vm, pml4_page, plat_dmar_info.drhd_units[i].reg_base_addr, PAGE_SIZE);
 	}
 
-}
-
-/**
- * @brief Prepare EPC resource memory mapping for a VM.
- *
- * If virtual SGX is supported, this function adds EPT mapping for EPC resources to a VM's
- * address space. Do nothing otherwise.
- *
- * @pre vm != NULL
- * @post N/A
- *
- * @param[inout] vm The VM whose EPC memory mapping to be setup
- *
- * @return None
- */
-static void prepare_epc_vm_memmap(struct acrn_vm *vm)
-{
-	struct epc_map* vm_epc_maps;
-	uint32_t i;
-
-	if (is_vsgx_supported(vm->vm_id)) {
-		vm_epc_maps = get_epc_mapping(vm->vm_id);
-		for (i = 0U; (i < MAX_EPC_SECTIONS) && (vm_epc_maps[i].size != 0UL); i++) {
-			ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, vm_epc_maps[i].hpa,
-				vm_epc_maps[i].gpa, vm_epc_maps[i].size, EPT_RWX | EPT_WB);
-		}
-	}
 }
 
 /**
@@ -995,7 +1006,10 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 	}
 
 	if (status == 0) {
+#ifdef CONFIG_SGX_ENABLED
 		prepare_epc_vm_memmap(vm);
+#endif
+
 		spinlock_init(&vm->vlapic_mode_lock);
 		spinlock_init(&vm->ept_lock);
 		spinlock_init(&vm->emul_mmio_lock);

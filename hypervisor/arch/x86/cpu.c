@@ -510,9 +510,11 @@ void init_pcpu_post(uint16_t pcpu_id)
 		init_pci_pdev_list(); /* init_iommu must come before this */
 		ptdev_init();
 
+#ifdef CONFIG_SGX_ENABLED
 		if (init_sgx() != 0) {
 			panic("failed to initialize sgx!");
 		}
+#endif
 
 		pcpu_sync = ALL_CPUS_MASK;
 		/* Start all secondary cores */

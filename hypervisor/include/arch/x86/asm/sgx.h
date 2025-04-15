@@ -7,6 +7,8 @@
 #ifndef SGX_H
 #define SGX_H
 
+#ifdef CONFIG_SGX_ENABLED
+
 #define CPUID_SGX_LEAF				0x12U
 #define CPUID_SGX_EPC_SUBLEAF_BASE 		0x2U
 #define CPUID_SGX_EPC_TYPE_MASK			0xFU
@@ -88,5 +90,7 @@ int32_t init_sgx(void);
 /**
   * @}
   */
+
+#endif /* CONFIG_SGX_ENABLED */
 
 #endif
