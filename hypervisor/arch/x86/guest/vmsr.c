@@ -269,6 +269,14 @@ static const uint32_t unsupported_msrs[] = {
 	IA32_HRESET_ENABLE,
 
 	/*
+	 * Hardware Duty Cycling disabled:
+	 * CPUID.06H.EAX[13]
+	 */
+	 MSR_IA32_PKG_HDC_CTL,
+	 MSR_IA32_PM_CTL1,
+	 MSR_IA32_THREAD_STALL,
+
+	/*
 	 * Hardware Coordination Feedback Capability disabled:
 	 * CPUID.06H.ECX[0]
 	 */

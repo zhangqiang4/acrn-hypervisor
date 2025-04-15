@@ -365,6 +365,8 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	*eax &= ~(CPUID_EAX_HWP_CTL | CPUID_EAX_HWP_PLR | CPUID_EAX_HWP_N | CPUID_EAX_HWP_HPC | CPUID_EAX_HWP_PECI);
 	/* Always hide Hardware Feedback Interface and Thread Director */
 	*eax &= ~(CPUID_EAX_HFI | CPUID_EAX_ITD);
+	/* Always hide Hardware Duty Cycling */
+	*eax &= ~CPUID_EAX_HDC;
 	/* Since Thread Director is hidden, hide the number of Thread Director classes */
 	*ecx &= ~CPUID_ECX_ITD_NOC;
 	/* Always hide Hardware Coordination Feedback Capability */

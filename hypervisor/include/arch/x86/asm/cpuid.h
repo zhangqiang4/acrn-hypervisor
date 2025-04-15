@@ -424,6 +424,12 @@
  */
 #define CPUID_EAX_HWP_PLR       (1U<<11U)
 /**
+ * @brief A bit representing whether the processor supports Hardware Duty Cycling.
+ *
+ * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[13].
+ */
+#define CPUID_EAX_HDC           (1U<<13U)
+/**
  * @brief A bit representing whether the processor supports HWP Favored Cores support (Turbo Boost Max Technology 3.0).
  *
  * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[14].
