@@ -305,7 +305,6 @@ VP_DM_C_SRCS += dm/vpci/vpci.c
 VP_DM_C_SRCS += dm/vpci/vhostbridge.c
 VP_DM_C_SRCS += dm/vpci/vroot_port.c
 VP_DM_C_SRCS += dm/vpci/vpci_bridge.c
-VP_DM_C_SRCS += dm/vpci/vpci_mf_dev.c
 VP_DM_C_SRCS += dm/vpci/ivshmem.c
 VP_DM_C_SRCS += dm/vpci/pci_pt.c
 VP_DM_C_SRCS += dm/vpci/vmsi.c
@@ -321,6 +320,9 @@ VP_DM_C_SRCS += arch/x86/guest/instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/lock_instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/vm_reset.c
 VP_DM_C_SRCS += common/ptdev.c
+ifeq ($(CONFIG_PCI_MULTIFUNCTION_SUPPORT),y)
+VP_DM_C_SRCS += dm/vpci/vpci_mf_dev.c
+endif
 ifeq ($(CONFIG_VUART_ENABLED),y)
 VP_DM_C_SRCS += dm/vuart.c
 endif

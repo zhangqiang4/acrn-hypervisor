@@ -188,7 +188,10 @@ struct acrn_vm;
 
 extern const struct pci_vdev_ops vhostbridge_ops;
 extern const struct pci_vdev_ops vpci_bridge_ops;
+#ifdef CONFIG_PCI_MULTIFUNCTION_SUPPORT
 extern const struct pci_vdev_ops vpci_mf_dev_ops;
+#endif
+
 int32_t init_vpci(struct acrn_vm *vm);
 void deinit_vpci(struct acrn_vm *vm);
 struct pci_vdev *pci_find_vdev(struct acrn_vpci *vpci, union pci_bdf vbdf);

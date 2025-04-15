@@ -8,6 +8,7 @@
 #include <pci.h>
 #include <asm/pci_dev.h>
 #include <vpci.h>
+#include <logmsg.h>
 
 /*
  * @pre pdev != NULL;
@@ -81,9 +82,16 @@ struct acrn_vm_pci_dev_config *init_one_dev_config(struct pci_pdev *pdev)
 				&& is_pci_cfg_multifunction(pdev->hdr_type)
 				&& (pdev->bdf.bits.f == 0U))
 		{
+#ifdef CONFIG_PCI_MULTIFUNCTION_SUPPORT
 			dev_config = &service_vm_config->pci_devs[service_vm_config->pci_dev_num];
 			dev_config->emu_type = PCI_DEV_TYPE_DUMMY_MF_EMUL;
 			dev_config->vdev_ops = &vpci_mf_dev_ops;
+#else
+			pr_err("Function 0 of PCI device %02x:%02x is not allocated to service VM, "
+			       "This will prevent other functions from getting probed. "
+			       "Enable PCI_MULTIFUNCTION_SUPPORT in scenario file to resolve this.",
+			       pdev->bdf.bits.b, pdev->bdf.bits.d);
+#endif
 		}
 	}
 
