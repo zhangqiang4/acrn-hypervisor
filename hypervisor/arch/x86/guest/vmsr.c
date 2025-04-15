@@ -1298,8 +1298,8 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_MISC_ENABLE:
 	{
-		uint64_t ro_mask =
-			MSR_IA32_MISC_ENABLE_PMA | MSR_IA32_MISC_ENABLE_BTS_UNAVAIL | MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL;
+		uint64_t ro_mask = MSR_IA32_MISC_ENABLE_PMA | MSR_IA32_MISC_ENABLE_BTS_UNAVAIL |
+			MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL | MSR_IA32_MISC_ENABLE_XTPR;
 
 		if (((v ^ vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE)) & ro_mask) != 0UL) {
 			err = -EACCES;
