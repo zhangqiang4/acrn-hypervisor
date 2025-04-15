@@ -34,10 +34,12 @@ static int32_t wbinvd_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t undefined_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t pause_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu);
-static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t loadiwkey_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t init_signal_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu);
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
+static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu);
+#endif
 
 /* VM Dispatch table for Exit condition handling */
 static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
@@ -120,8 +122,10 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_MWAIT] = {
 		.handler = unhandled_vmexit_handler},
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 	[VMX_EXIT_REASON_MONITOR_TRAP] = {
 		.handler = mtf_vmexit_handler},
+#endif
 	[VMX_EXIT_REASON_MONITOR] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_PAUSE] = {
@@ -273,6 +277,7 @@ static int32_t unhandled_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 /* MTF is currently only used for split-lock emulation */
 static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu)
 {
@@ -288,6 +293,7 @@ static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu)
 
 	return 0;
 }
+#endif
 
 static int32_t triple_fault_vmexit_handler(struct acrn_vcpu *vcpu)
 {

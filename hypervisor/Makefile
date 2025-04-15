@@ -320,6 +320,9 @@ VP_DM_C_SRCS += arch/x86/guest/instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/lock_instr_emul.c
 VP_DM_C_SRCS += arch/x86/guest/vm_reset.c
 VP_DM_C_SRCS += common/ptdev.c
+ifeq ($(CONFIG_LOCK_INSTRUCTION_EMULATION),y)
+VP_DM_C_SRCS += arch/x86/guest/lock_instr_emul.c
+endif
 ifeq ($(CONFIG_PCI_MULTIFUNCTION_SUPPORT),y)
 VP_DM_C_SRCS += dm/vpci/vpci_mf_dev.c
 endif

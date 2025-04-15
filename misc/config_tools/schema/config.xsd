@@ -129,6 +129,11 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Enable VM event support</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="LOCK_INSTRUCTION_EMULATION" type="Boolean" default="y">
+      <xs:annotation acrn:title="Enable lock instruction emulation" acrn:views="advanced">
+        <xs:documentation>Enable lock instruction emulation</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="PCI_MULTIFUNCTION_SUPPORT" type="Boolean" default="y">
       <xs:annotation acrn:title="Enable PCI multifunction device support" acrn:views="advanced">
         <xs:documentation>Enable PCI multifunction device support</xs:documentation>

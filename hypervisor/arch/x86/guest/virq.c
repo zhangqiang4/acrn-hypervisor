@@ -491,7 +491,9 @@ int32_t exception_vmexit_handler(struct acrn_vcpu *vcpu)
 	uint32_t exception_vector = VECTOR_INVALID;
 	uint32_t cpl;
 	int32_t status = 0;
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 	bool queue_exception;
+#endif
 
 	pr_dbg(" Handling guest exception");
 
@@ -518,11 +520,13 @@ int32_t exception_vmexit_handler(struct acrn_vcpu *vcpu)
 		}
 	}
 
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 	status = emulate_lock_instr(vcpu, exception_vector, &queue_exception);
 	if ((status == 0) && queue_exception) {
 		vcpu_retain_rip(vcpu);
 		status = vcpu_queue_exception(vcpu, exception_vector, int_err_code);
 	}
+#endif
 
 	if (exception_vector == IDT_MC) {
 		/* If we reach here then #MC comes in when non-governing vcpu is running

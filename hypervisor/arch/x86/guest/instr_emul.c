@@ -1643,6 +1643,7 @@ static int32_t emulate_bittest(struct acrn_vcpu *vcpu, const struct instr_emul_v
 	return ret;
 }
 
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	enum cpu_reg_name reg;
@@ -1673,6 +1674,7 @@ static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_
 
 	return ret;
 }
+#endif
 
 static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 {
@@ -2465,6 +2467,7 @@ int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 		case VIE_OP_TYPE_BITTEST:
 			error = emulate_bittest(vcpu, vie);
 			break;
+#ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 		case VIE_OP_TYPE_XCHG:
 			if (vcpu->arch.emulating_lock) {
 				error = emulate_xchg_for_splitlock(vcpu, vie);
@@ -2472,6 +2475,7 @@ int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 				error = -EINVAL;
 			}
 			break;
+#endif
 		default:
 			error = -EINVAL;
 			break;
