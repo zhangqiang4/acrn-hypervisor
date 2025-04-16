@@ -112,6 +112,7 @@ bool skip_pci_mem64bar_workaround = false;
 bool gfx_ui = false;
 bool ovmf_loaded = false;
 bool only_be = false;
+bool enable_vm_event = false;
 
 static int guest_ncpus = 1;
 static int virtio_msix = 1;
@@ -914,6 +915,7 @@ enum {
 	CMD_OPT_VTPM2,
 	CMD_OPT_LAPIC_PT,
 	CMD_OPT_RTVM,
+	CMD_OPT_VMEVENT_ON,
 	CMD_OPT_SOFTWARE_SRAM,
 	CMD_OPT_LOGGER_SETTING,
 	CMD_OPT_PM_NOTIFY_CHANNEL,
@@ -959,6 +961,7 @@ static struct option long_options[] = {
 	{"vtpm2",		required_argument,	0, CMD_OPT_VTPM2},
 	{"lapic_pt",		no_argument,		0, CMD_OPT_LAPIC_PT},
 	{"rtvm",		no_argument,		0, CMD_OPT_RTVM},
+	{"vm_evt_on",		no_argument,		0, CMD_OPT_VMEVENT_ON},
 	{"ssram",		required_argument,	0, CMD_OPT_SOFTWARE_SRAM},
 	{"logger_setting",	required_argument,	0, CMD_OPT_LOGGER_SETTING},
 	{"pm_notify_channel",	required_argument,	0, CMD_OPT_PM_NOTIFY_CHANNEL},
@@ -1135,6 +1138,9 @@ main(int argc, char *argv[])
 			is_rtvm = true;
 			lapic_pt = true;
 			break;
+		case CMD_OPT_VMEVENT_ON:
+			enable_vm_event = true;
+			break;
 		case CMD_OPT_SOFTWARE_SRAM:
 			if (parse_vssram_buf_params(optarg) != 0)
 				errx(EX_USAGE, "invalid vSSRAM buffer size param %s", optarg);
@@ -1298,10 +1304,12 @@ main(int argc, char *argv[])
 			goto dev_fail;
 		}
 
-		pr_notice("vm setup vm event\n");
-		error = vm_event_init(ctx);
-		if (error) {
-			pr_warn("VM_EVENT is not supported by kernel or hyperviosr!\n");
+		if (enable_vm_event) {
+			pr_notice("Preparing VM event\n");
+			error = vm_event_init(ctx);
+			if (error) {
+				pr_warn("VM_EVENT is not supported by kernel or hypervisor!\n");
+			}
 		}
 
 		/*
