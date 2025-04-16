@@ -368,7 +368,7 @@ pci_parse_slot(char *opt, uint32_t slot_property)
 	}
 
 	if ((strcmp("virtio-gpu", emul) == 0)) {
-		pr_info("%s: virtio-gpu device found, activating virtual display.\n",
+		pr_dbg("%s: virtio-gpu device found, activating virtual display.\n",
 				__func__);
 		gfx_ui = true;
 		vdpy_parse_cmd_option(config);

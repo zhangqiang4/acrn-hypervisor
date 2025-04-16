@@ -905,11 +905,11 @@ vdpy_display_thread(void *data)
 	/* Start one periodic timer to refresh UI based on 30fps */
 	acrn_timer_settime(&vdpy.ui_timer, &ui_timer_spec);
 
-	pr_info("vdisplay thread is created\n");
+	pr_dbg("vdisplay thread is created\n");
 	/* Begin to process the display_cmd after initialization */
 	do {
 		if (!vdpy.s.is_active) {
-			pr_info("display is exiting\n");
+			pr_dbg("display is exiting\n");
 			break;
 		}
 		pthread_mutex_lock(&vdpy.vdisplay_mutex);
