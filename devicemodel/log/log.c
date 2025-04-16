@@ -90,7 +90,7 @@ int init_logger_setting(const char *opt)
 					fprintf(stderr, "logger setting error: too many debug domains!\n");
 				}
 			}
-			printf("logger: debug domains:");
+
 			for (int i = 0; i < domain_cnt; i++) {
 				printf(i == 0 ? "%s": ",%s", domains[i]);
 			}
@@ -100,12 +100,10 @@ int init_logger_setting(const char *opt)
 			level = elem;
 
 			if ((strncmp(level, "level=", 6) != 0) || (dm_strtoui(level + 6, &level, 10, &lvl_val))) {
-				fprintf(stderr, "logger setting param error: %s, please check!\n", elem);
+				fprintf(stderr, "Invalid logger setting param: %s\n", elem);
 				error = -1;
 				break;
 			}
-
-			printf("logger: name=%s, level=%d\n", name, lvl_val);
 
 			plogger = NULL;
 			FOR_EACH_LOGGER(pp_logger) {
@@ -119,7 +117,7 @@ int init_logger_setting(const char *opt)
 			}
 
 			if (plogger == NULL) {
-				fprintf(stderr, "there is no logger: %s found in DM, please check!\n", name);
+				fprintf(stderr, "Unrecognized logger %s", name);
 				error = -1;
 				break;
 			}
