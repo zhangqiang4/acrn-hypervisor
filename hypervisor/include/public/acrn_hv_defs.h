@@ -361,6 +361,19 @@ struct acrn_hw_info {
 #define IRQ_MSIX 2U  /**< Type for MSI-X interrupt */
 
 /**
+ * @brief INTX remapping info
+ */
+struct intx_info {
+	uint32_t virt_pin;  /**< Virtual IOAPIC/PIC pin */
+
+	uint32_t phys_pin;  /**< Physical IOAPIC pin */
+
+	bool pic_pin;  /**< Is virtual pin from PIC */
+
+	uint8_t reserved[3];  /**< Reserved */
+};
+
+/**
  * @brief Info to set interrupt information for a pass-through device
  *
  * This structure is used as a parameter for the HC_SET_PTDEV_INTR_INFO hypercall to set interrupt information for a
@@ -378,15 +391,7 @@ struct hc_ptdev_irq {
 	/**
 	 * @brief INTX remapping info
 	 */
-	struct intx_info {
-		uint32_t virt_pin;  /**< Virtual IOAPIC/PIC pin */
-
-		uint32_t phys_pin;  /**< Physical IOAPIC pin */
-
-		bool pic_pin;  /**< Is virtual pin from PIC */
-
-		uint8_t reserved[3];  /**< Reserved */
-	} intx;
+	struct intx_info intx;
 
 } __aligned(8);
 

@@ -877,6 +877,22 @@ struct acrn_pcidev {
 #define MMIODEV_RES_NUM        3  /**< Number of MMIO resources for a device */
 
 /**
+ * @brief The MMIO resources for the MMIO device.
+ */
+struct acrn_mmiores {
+	uint64_t user_vm_pa;  /**< the gpa of the MMIO region for the MMIO device */
+
+	/**
+	 * @brief The HPA of the MMIO region for the MMIO device:
+	 *
+	 * For post-launched VM it's PA in service vm; for pre-launched VM it's PA in HV.
+	 */
+	uint64_t host_pa;
+	uint64_t size; /**< The size of the MMIO region for the MMIO resource */
+	uint64_t mem_type; /**< The memory type of the MMIO region for the MMIO resource */
+};
+
+/**
  * @brief Info to assign or deassign a MMIO device for a VM
  *
  * This structure holds the information required to assign or deassign an MMIO device to/from a VM.
@@ -887,18 +903,7 @@ struct acrn_mmiodev {
 	/**
 	 * @brief The MMIO resources for the MMIO device.
 	 */
-	struct acrn_mmiores {
-		uint64_t user_vm_pa;  /**< the gpa of the MMIO region for the MMIO device */
-
-		/**
-		 * @brief The HPA of the MMIO region for the MMIO device:
-		 *
-		 * For post-launched VM it's PA in service vm; for pre-launched VM it's PA in HV.
-		 */
-		uint64_t host_pa;
-		uint64_t size; /**< The size of the MMIO region for the MMIO resource */
-		uint64_t mem_type; /**< The memory type of the MMIO region for the MMIO resource */
-	} res[MMIODEV_RES_NUM];
+	struct acrn_mmiores res[MMIODEV_RES_NUM];
 };
 
 /**
