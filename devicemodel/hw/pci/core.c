@@ -60,6 +60,10 @@
 #define MAXSLOTS	(PCI_SLOTMAX + 1)
 #define	MAXFUNCS	(PCI_FUNCMAX + 1)
 
+#ifdef pr_prefix
+#undef pr_prefix
+#endif
+#define pr_prefix "pci-core: "
 
 struct intxinfo {
 	int	ii_count;
@@ -1916,7 +1920,7 @@ init_pci(struct vmctx *ctx)
 						continue;
 					}
 
-					pr_notice("pci init %s\r\n", fi->fi_name);
+					pr_notice("[vBDF %02x:%02x.%x] Initializing %s\r\n", bus, slot, func, fi->fi_name);
 					error = pci_emul_init(ctx, ops, bus, slot, func, fi);
 					if (error) {
 						pr_err("vm pci slot[%d] (vBDF %x:%x.%x) %s init failed.\n",
@@ -2153,7 +2157,7 @@ deinit_pci(struct vmctx *ctx)
 					pr_warn("No driver for device [%s]\n", fi->fi_name);
 					continue;
 				}
-				pr_notice("pci deinit %s\n", fi->fi_name);
+				pr_notice("[vBDF %02x.%02x.%x] Deinitializing %s\n", bus, slot, func, fi->fi_name);
 				pci_emul_deinit(ctx, ops, bus, slot,
 				    func, fi);
 			}
