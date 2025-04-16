@@ -248,7 +248,7 @@ static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, const uint64_t asyncio_fd
  */
 static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_req)
 {
-	struct acrn_io_request_buffer *req_buf = NULL;
+	union acrn_io_request_buffer *req_buf = NULL;
 	struct acrn_io_request *acrn_io_req;
 	bool is_polling = false;
 	int32_t ret = 0;
@@ -257,7 +257,7 @@ static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_reque
 	if ((vcpu->vm->sw.io_shared_page != NULL)
 		 && (get_io_req_state(vcpu->vm, vcpu->vcpu_id) == ACRN_IOREQ_STATE_FREE)) {
 
-		req_buf = (struct acrn_io_request_buffer *)(vcpu->vm->sw.io_shared_page);
+		req_buf = (union acrn_io_request_buffer *)(vcpu->vm->sw.io_shared_page);
 		cur = vcpu->vcpu_id;
 
 		stac();
@@ -310,10 +310,10 @@ static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_reque
 uint32_t get_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id)
 {
 	uint32_t state;
-	struct acrn_io_request_buffer *req_buf = NULL;
+	union acrn_io_request_buffer *req_buf = NULL;
 	struct acrn_io_request *acrn_io_req;
 
-	req_buf = (struct acrn_io_request_buffer *)vm->sw.io_shared_page;
+	req_buf = (union acrn_io_request_buffer *)vm->sw.io_shared_page;
 	if (req_buf == NULL) {
 	        state =  0xffffffffU;
 	} else {
@@ -328,10 +328,10 @@ uint32_t get_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id)
 
 void set_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id, uint32_t state)
 {
-	struct acrn_io_request_buffer *req_buf = NULL;
+	union acrn_io_request_buffer *req_buf = NULL;
 	struct acrn_io_request *acrn_io_req;
 
-	req_buf = (struct acrn_io_request_buffer *)vm->sw.io_shared_page;
+	req_buf = (union acrn_io_request_buffer *)vm->sw.io_shared_page;
 	if (req_buf != NULL) {
 		stac();
 		acrn_io_req = &req_buf->req_slot[vcpu_id];
@@ -389,10 +389,10 @@ static void emulate_mmio_complete(struct acrn_vcpu *vcpu, const struct io_reques
 
 static void complete_ioreq(struct acrn_vcpu *vcpu, struct io_request *io_req)
 {
-	struct acrn_io_request_buffer *req_buf = NULL;
+	union acrn_io_request_buffer *req_buf = NULL;
 	struct acrn_io_request *acrn_io_req;
 
-	req_buf = (struct acrn_io_request_buffer *)(vcpu->vm->sw.io_shared_page);
+	req_buf = (union acrn_io_request_buffer *)(vcpu->vm->sw.io_shared_page);
 
 	stac();
 	acrn_io_req = &req_buf->req_slot[vcpu->vcpu_id];

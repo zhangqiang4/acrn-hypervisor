@@ -461,20 +461,13 @@ struct acrn_io_request {
 } __aligned(256);
 
 /**
- * @brief IO request buffer.
+ * @brief The I/O requests.
  *
- * This structure is used to store multiple I/O requests.
+ * This union is used to store multiple I/O requests.
  */
-struct acrn_io_request_buffer {
-	/**
-	 * @brief The I/O requests.
-	 *
-	 * This union is used to store multiple I/O requests.
-	 */
-	union {
-		struct acrn_io_request	req_slot[ACRN_IO_REQUEST_MAX];  /**< IO requests slots */
-		int8_t			reserved[4096];  /**< Reserved */
-	};
+union acrn_io_request_buffer {
+	struct acrn_io_request	req_slot[ACRN_IO_REQUEST_MAX];  /**< IO requests slots */
+	int8_t			reserved[4096];  /**< Reserved */
 };
 
 /**
