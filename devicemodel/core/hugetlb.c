@@ -43,6 +43,11 @@
 
 extern char *vmname;
 
+#ifdef pr_prefix
+#undef pr_prefix
+#endif
+#define pr_prefix "hugetlb: "
+
 #define ALIGN_CHECK(x, align)	(((x) & ((align)-1)) ? 1 : 0)
 
 #define HUGETLB_LV1		0
@@ -228,12 +233,12 @@ static int mmap_hugetlbfs_from_level(struct vmctx *ctx, int level, size_t len,
 	mmap_mem_regions[mem_idx].fd_offset = skip;
 	mmap_mem_regions[mem_idx].hva_base = addr;
 	mem_idx++;
-	pr_info("mmap 0x%lx@%p\n", len, addr);
+	pr_dbg("mmap 0x%lx@%p\n", len, addr);
 
 	/* pre-allocate hugepages by touch them */
 	pagesz = hugetlb_priv[level].pg_size;
 
-	pr_info("touch %ld pages with pagesz 0x%lx\n", len/pagesz, pagesz);
+	pr_dbg("touch %ld pages with pagesz 0x%lx\n", len/pagesz, pagesz);
 
 	/* Access to the address will trigger hugetlb_fault() in kernel,
 	 * it will allocate and clear the huge page.*/
@@ -392,7 +397,7 @@ static bool hugetlb_check_memgap(void)
 		if (hugetlb_priv[lvl].pages_delta > 0)
 			has_gap = true;
 
-		pr_info("level %d free/need pages:%d/%d page size:0x%x\n", lvl,
+		pr_dbg("level %d free/need pages:%d/%d page size:0x%x\n", lvl,
 			free_pages, need_pages, hugetlb_priv[lvl].pg_size);
 	}
 
@@ -419,7 +424,7 @@ static void reserve_more_pages(int level)
 	}
 	pclose(fp);
 
-	pr_info("to reserve pages (+orig %d): %s\n", orig_pages, cmd_buf);
+	pr_dbg("to reserve pages (+orig %d): %s\n", orig_pages, cmd_buf);
 	cur_pages = read_sys_info(hugetlb_priv[level].nr_pages_path);
 	hugetlb_priv[level].pages_delta = total_pages - cur_pages;
 }
@@ -483,7 +488,7 @@ static bool hugetlb_reserve_pages(void)
 	int left_gap = 0, pg_size;
 	int level;
 
-	pr_info("to reserve more free pages:\n");
+	pr_dbg("to reserve more free pages:\n");
 	for (level = hugetlb_lv_max - 1; level >= HUGETLB_LV1; level--) {
 		if (hugetlb_priv[level].pages_delta <= 0)
 			continue;
@@ -520,12 +525,14 @@ static bool hugetlb_reserve_pages(void)
 	}
 
 	if (level >= HUGETLB_LV1) {
-		pr_err("level %d pages gap: %d failed to reserve!\n",
+		pr_dbg("level %d pages gap: %d failed to reserve!\n",
 			level, left_gap);
+		pr_err("Failed to reserve enough memory (addtional %dMB needed)\n", \
+				((uint64_t)hugetlb_priv[level].pg_size * left_gap) / (1024 * 1024));
 		return false;
 	}
 
-	pr_info("now enough free pages are reserved!\n");
+	pr_dbg("now enough free pages are reserved!\n");
 	return true;
 }
 
@@ -694,16 +701,16 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	}
 
 	/* dump hugepage trying to setup */
-	pr_info("\ntry to setup hugepage with:\n");
+	pr_dbg("\ntry to setup hugepage with:\n");
 	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
-		pr_info("\tlevel %d - lowmem 0x%lx, fbmem 0x%lx, biosmem 0x%lx, highmem 0x%lx\n",
+		pr_dbg("\tlevel %d - lowmem 0x%lx, fbmem 0x%lx, biosmem 0x%lx, highmem 0x%lx\n",
 			level,
 			hugetlb_priv[level].lowmem,
 			hugetlb_priv[level].fbmem,
 			hugetlb_priv[level].biosmem,
 			hugetlb_priv[level].highmem);
 	}
-	pr_info("total_size 0x%lx\n\n", total_size);
+	pr_dbg("total_size 0x%lx\n\n", total_size);
 
 	/* basic overview vma */
 	ptr = mmap(NULL, total_size, PROT_NONE,
@@ -721,7 +728,7 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 			break;
 		}
 	}
-	pr_info("mmap ptr 0x%p -> baseaddr 0x%p\n", ptr, ctx->baseaddr);
+	pr_dbg("mmap ptr 0x%p -> baseaddr 0x%p\n", ptr, ctx->baseaddr);
 
 	/* mmap lowmem */
 	if (mmap_hugetlbfs(ctx, 0, get_lowmem_param, adj_lowmem_param, NULL) < 0) {
@@ -778,9 +785,9 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	unlock_acrn_hugetlb();
 
 	/* dump hugepage really setup */
-	pr_info("\nreally setup hugepage with:\n");
+	pr_dbg("\nreally setup hugepage with:\n");
 	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
-		pr_info("\tlevel %d - lowmem 0x%lx, biosmem 0x%lx, highmem 0x%lx\n",
+		pr_dbg("\tlevel %d - lowmem 0x%lx, biosmem 0x%lx, highmem 0x%lx\n",
 			level,
 			hugetlb_priv[level].lowmem,
 			hugetlb_priv[level].biosmem,
