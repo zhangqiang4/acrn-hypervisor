@@ -1328,7 +1328,7 @@ main(int argc, char *argv[])
 		}
 
 		time_profiling_add("Load Guest Image", BOOT_TIME, RECORD_NODE);
-		pr_notice("acrn_sw_load\n");
+		pr_dbg("acrn_sw_load\n");
 		error = acrn_sw_load(ctx);
 		if (error) {
 			pr_err("acrn_sw_load failed, error=%d\n", error);

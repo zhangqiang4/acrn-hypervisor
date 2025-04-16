@@ -117,7 +117,7 @@ acrn_parse_ovmf(char *arg)
 						&ovmf_code_size) != 0)
 					break;
 				ovmf_code_file_name = ovmf_code_path;
-				pr_notice("SW_LOAD: get ovmf code path %s, size 0x%lx\n",
+				pr_dbg("SW_LOAD: get ovmf code path %s, size 0x%lx\n",
 					ovmf_code_path, ovmf_code_size);
 			} else if (!strncmp(token, "vars=", sizeof("vars=") - 1)) {
 				token += sizeof("vars=") - 1;
@@ -126,14 +126,14 @@ acrn_parse_ovmf(char *arg)
 						&ovmf_vars_size) != 0)
 					break;
 				ovmf_vars_file_name = ovmf_vars_path;
-				pr_notice("SW_LOAD: get ovmf vars path %s, size 0x%lx\n",
+				pr_dbg("SW_LOAD: get ovmf vars path %s, size 0x%lx\n",
 					ovmf_vars_path, ovmf_vars_size);
 			} else {
 				strncpy(ovmf_path, token, sizeof(ovmf_path));
 				if (check_image(ovmf_path, OVMF_SZ_LIMIT, &ovmf_size) != 0)
 					break;
 				ovmf_file_name = ovmf_path;
-				pr_notice("SW_LOAD: get ovmf path %s, size 0x%lx\n",
+				pr_dbg("SW_LOAD: get ovmf path %s, size 0x%lx\n",
 					ovmf_path, ovmf_size);
 			}
 		}
