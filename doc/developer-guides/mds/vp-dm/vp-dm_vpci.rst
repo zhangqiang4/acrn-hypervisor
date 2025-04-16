@@ -22,6 +22,8 @@ This section contains the documentation of the module `vp-dm.vpci`.
 
 [File] dm/vpci/pci_pt.c
 ======================================================================
+.. doxygenfile:: pci_pt.c
+   :project: Project ACRN
 
 [File] dm/vpci/vmsi.c
 ======================================================================

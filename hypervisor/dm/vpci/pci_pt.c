@@ -1,6 +1,6 @@
 /*-
 * Copyright (c) 2011 NetApp, Inc.
-* Copyright (c) 2018-2022 Intel Corporation.
+* Copyright (c) 2018-2024 Intel Corporation.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions
@@ -38,6 +38,29 @@
 #include "vpci_priv.h"
 
 /**
+ * @addtogroup vp-dm_vpci
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief This file declares functions to operate passthrough PCI device configuration space
+ *
+ * This file declares functions to initialize/deinit passthrough PCI device, operate BAR/MSI-X table and so on.
+ *
+ */
+
+/**
+ * @brief Get physical MSI-X table entry
+ *
+ * This function is used to get a physical MSI-X table entry according to input index.
+ *
+ * @param[in] vdev  Pointer to virtual PCI device to get physical MSI-X table entry.
+ * @param[in] index Unsigned integer to indicate the MSI-X table entry index.
+ *
+ * @return A pointer points to the MSI-X table entry memory address.
+ *
  * @pre vdev != NULL
  */
 static inline struct msix_table_entry *get_msix_table_entry(const struct pci_vdev *vdev, uint32_t index)
@@ -48,7 +71,20 @@ static inline struct msix_table_entry *get_msix_table_entry(const struct pci_vde
 }
 
 /**
- * @brief Writing MSI-X Capability Structure
+ * @brief Write MSI-X capability structure
+ *
+ * This function emulates MSI-X capability structrue write. It will first tries to write value into
+ * the virtual MSI-X register if it writes writable MSI-X register (Only Function Mask and MSI-X Enable
+ * bits). If this write operation writes writable register, this function would disable INTx when the
+ * guest tries to enable MSI-X and write the virtual Message Control register into physical Message
+ * Control register.
+ *
+ * @param[in] vdev   Pointer to virtual PCI device to write MSI-X capability structure.
+ * @param[in] offset Offset to the device MSI-X capability structure.
+ * @param[in] bytes  Size to write the device MSI-X capability structure.
+ * @param[in] val    Value to be written into the register.
+ *
+ * @return None.
  *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
@@ -68,6 +104,16 @@ void write_pt_vmsix_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t byt
 }
 
 /**
+ * @brief Set mask bit of vector control register
+ *
+ * This function is used to mask a MSI-X Interrupt by setting mask bit in physical vector control
+ * register in a MSI-X table entry.
+ *
+ * @param[in] vdev  Pointer to virtual PCI device to set mask bit of vector control register.
+ * @param[in] index Index of the MSI-X table entry.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  */
 static void mask_one_msix_vector(const struct pci_vdev *vdev, uint32_t index)
@@ -83,9 +129,25 @@ static void mask_one_msix_vector(const struct pci_vdev *vdev, uint32_t index)
 
 
 /**
+ * @brief Do Interrupt Remapping for MSI-X
+ *
+ * This function uses VTD IRTE to do Interrupt Remapping for one MSI-X table entry when guest tring to
+ * enable this MSI-X table entry. It will first disable corresponding physical MSI-X table entry by setting
+ * physical Vector Control register Mask Bit. Then, it uses VTD IRTE to do the Interrupt Remapping. If
+ * remapping succeeds, it update physical MSI-X table entry in Remappable format (refer to Chap 5.1.5.2
+ * MSI and MSI-X Register Programming, Intel® Virtualization Technology for Directed I/O Revision 5.0)
+ * and enable corresponding physical MSI-X table entry.
+ *
+ * @param[in] vdev  Pointer to virtual PCI device to do interrupt remapping. 
+ * @param[in] index Index of the MSI-X table entry.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  * @pre vdev->pdev != NULL
+ *
+ * @remark This function is called when MSI is disabled.
  */
 static void remap_one_vmsix_entry(const struct pci_vdev *vdev, uint32_t index)
 {
@@ -113,10 +175,12 @@ static void remap_one_vmsix_entry(const struct pci_vdev *vdev, uint32_t index)
 			 */
 			stac();
 			mmio_write32((uint32_t)(info.addr.full), (void *)&(pentry->addr));
-			mmio_write32((uint32_t)(info.addr.full >> 32U), (void *)((char *)&(pentry->addr) + 4U));
+			mmio_write32((uint32_t)(info.addr.full >> 32U),
+						(void *)((char *)&(pentry->addr) + 4U));
 
 			mmio_write32(info.data.full, (void *)&(pentry->data));
-			mmio_write32(vdev->msix.table_entries[index].vector_control, (void *)&(pentry->vector_control));
+			mmio_write32(vdev->msix.table_entries[index].vector_control,
+				     (void *)&(pentry->vector_control));
 			clac();
 		}
 	}
@@ -124,6 +188,22 @@ static void remap_one_vmsix_entry(const struct pci_vdev *vdev, uint32_t index)
 }
 
 /**
+ * @brief Handle guest's mmio access to the MSI-X table
+ *
+ * This function is used to handle guest's mmio access to the MSI-X table. It will first check whether
+ * the user of the vdev is current VM, e.g. a vdev once owned by Service VM is assigned to a post-launched
+ * VM, we need make sure the user is the vdev allocated for the post-launched VM. If the check fails,
+ * return EFAULT back. Otherwise, read/write MSI-X table and do the Interrupt Remapping if the guest
+ * is doing write and the table entry index is within the range.
+ *
+ * @param[inout] io_req    Pointer to the IO request from VM.
+ * @param[in]    priv_data Private data which should points to the virtual device to access mmio.
+ *
+ * @return An integer to indicate whether the operation is successful or not.
+ *
+ * @retval 0       Success.
+ * @retval -EFAULT Fail because the device is not passthrough PCI device.
+ *
  * @pre io_req != NULL
  * @pre priv_data != NULL
  */
@@ -148,9 +228,19 @@ static int32_t pt_vmsix_handle_table_mmio_access(struct io_request *io_req, void
 	return ret;
 }
 
-/*
+/**
+ * @brief Unmap MSI-X table
+ *
+ * This function is used to unmap a virtual PCI device's MSI-X table. Firstly, it clears
+ * the virtual MSI-X table content and set the mask bit of vector control register to 1
+ * to disable sending message. Then, it unregisters the mmio handler for the MSI-X table
+ * corresponding GPA to avoid handling the mmio access.
+ *
+ * @param[in] vdev Pointer to virtual PCI device to unmap MSI-X table.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
- * @pre vdev->vpci != NULL
  */
 static void vdev_pt_unmap_msix(struct pci_vdev *vdev)
 {
@@ -175,7 +265,20 @@ static void vdev_pt_unmap_msix(struct pci_vdev *vdev)
 	}
 }
 
-/*
+/**
+ * @brief Map MSI-X table
+ *
+ * This function is used to map a virtual PCI device's MSI-X table. If the MSI-X table corresponding
+ * BAR's GPA is valid (not zero), it registers the mmio handler (pt_vmsix_handle_table_mmio_access) for
+ * the MSI-X table corresponding GPA to handle the mmio access from VM and removes such mmio region from
+ * the EPT and DMAR mapping.
+ *
+ * @param[in] vdev      Pointer to virtual PCI device map MSI-X table.
+ * @param[in] hold_lock A boolean to indicate whether it is required to hold lock when
+ *                      handling the mmio access.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -201,6 +304,18 @@ void vdev_pt_map_msix(struct pci_vdev *vdev, bool hold_lock)
 }
 
 /**
+ * @brief Unmap memory mapping for a BAR of a virtual PCI device which points to a passthrough PCI device
+ *
+ * This function is used to unmap a memory mapped for a BAR of a virtual PCI device which points to a
+ * passthrough PCI device by deleting the memory mapping in EPT table and DMAR table. It also unregisters
+ * MSI-X Table BAR handler by unmapping the MSI-X table if the virtual PCI device has MSI-X capability
+ * and the current vBAR is a MSI-X Table BAR.
+ *
+ * @param[in] vdev Pointer to virtual PCI device unmap a vBAR.
+ * @param[in] idx  Index of the vBAR.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -222,6 +337,18 @@ static void vdev_pt_unmap_mem_vbar(struct pci_vdev *vdev, uint32_t idx)
 }
 
 /**
+ * @brief Map memory for a BAR of a virtual PCI device which points to a passthrough PCI device
+ *
+ * This function is used to map memory mapping for a BAR of a virtual PCI device which points to a passthrough
+ * PCI device by adding the memory mapping in EPT table and DMAR table. It also register MSI-X Table BAR handler
+ * by mapping the MSI-X table (delete the MSI-X Table memory mapping and register a MSI-X Table MMIO access
+ * handler) if the virtual PCI device has MSI-X capability and the current vBAR is a MSI-X Table BAR.
+ *
+ * @param[in] vdev Pointer to virtual PCI device map a vBAR.
+ * @param[in] idx  Index of the vBAR.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -245,7 +372,17 @@ static void vdev_pt_map_mem_vbar(struct pci_vdev *vdev, uint32_t idx)
 }
 
 /**
- * @brief Allow IO bar access
+ * @brief Allow IO BAR access
+ *
+ * This function is responsible for allowing I/O port access (set I/O bitmaps to enable direct access
+ * from the given vm to the port I/O space) for a PIO BAR of a virtual PCI device if the VM is not
+ * Service VM.
+ *
+ * @param[in] vdev Pointer to virtual PCI device to allow IO BAR access.
+ * @param[in] idx  Index of the vBAR.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -263,7 +400,17 @@ static void vdev_pt_allow_io_vbar(struct pci_vdev *vdev, uint32_t idx)
 }
 
 /**
- * @brief Deny IO bar access
+ * @brief Deny IO BAR access
+ *
+ * This function is responsible for denying I/O port access (set I/O bitmaps to disable direct access
+ * from the given vm to the port I/O space) for a PIO BAR of a virtual PCI device if the VM is not
+ * Service VM.
+ *
+ * @param[in] vdev Pointer to virtual PCI device deny IO BAR access.
+ * @param[in] idx  Index of the vBAR.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -282,6 +429,25 @@ static void vdev_pt_deny_io_vbar(struct pci_vdev *vdev, uint32_t idx)
 }
 
 /**
+ * @brief Emulate write to a vBAR of a virtual PCI device
+ *
+ * This function updates the specified virtual BAR of a virtual PCI device with the given value. It
+ * handles both I/O and memory BARs, updating the necessary mappings and permissions.
+ *
+ * For a virtual PCI device which points to a passthrough PCI device, we could not just allow the Guest OS
+ * to write the guest physical address of a vBAR to the physical BAR as a host physical address. This
+ * function emulates the BAR writing action. For a PIO BAR in non-service vm, we would first deny the old
+ * PIO BAR access, then update the new virtual PIO BAR. If the new virtual PIO BAR is valid (the new virtual
+ * PIO BAR is equal to the old virtual PIO BAR which means only support guest OS PIO BAR sizing, not support
+ * guest OS PIO BAR re-programming), we would allow the PIO access. For MMIO BAR, we would unmap memory
+ * mapping for the old MMIO BAR, then map memory of the new virtual MMIO BAR.
+ *
+ * @param[in] vdev Pointer to virtual PCI device to write to a vBAR.
+ * @param[in] idx  Index of the vBAR.
+ * @param[in] val  Value to be written to the vBAR.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  */
 void vdev_pt_write_vbar(struct pci_vdev *vdev, uint32_t idx, uint32_t val)
@@ -296,7 +462,16 @@ void vdev_pt_write_vbar(struct pci_vdev *vdev, uint32_t idx, uint32_t val)
 	}
 }
 
-/*
+/**
+ * @brief Restore IO Base/Limit and Memory Base/Limit for a virtual PCI bridge device
+ *
+ * This function restores IO Base and Memory Base to the value saved in virtual configuration space
+ * of a virtual PCI device which points to a passthrough PCI bridge.
+ *
+ * @param[in] vdev Pointer to virtual PCI bridge device to restore the IO Base and Memory Base.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -321,7 +496,17 @@ void vdev_bridge_pt_restore_space(struct pci_vdev *vdev)
 	}
 }
 
-/*
+/**
+ * @brief Restore Bus Number for a virtual PCI bridge device
+ *
+ * This function restores the Primary Bus Number, Secondary Bus Number and Subordinate Bus Number to
+ * the value saved in virtual configuration space of a virtual PCI device which points to a passthrough
+ * PCI bridge.
+ *
+ * @param[in] vdev Pointer to virtual PCI bridge device to restore Bus Number.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -344,32 +529,25 @@ void vdev_bridge_pt_restore_bus(struct pci_vdev *vdev)
 }
 
 /**
- * PCI base address register (bar) virtualization:
+ * @brief Initialize the Base Address Registers (BARs) of a virtual PCI device
  *
- * Virtualize the PCI bars (up to 6 bars at byte offset 0x10~0x24 for type 0 PCI device,
- * 2 bars at byte offset 0x10-0x14 for type 1 PCI device) of the PCI configuration space
- * header. Ignore the last BAR if it indicates a 64-bit memory address.
+ * This function is responsible for initializing the Base Address Registers (BARs) of a virtual PCI device
+ * which points to a passthrough PCI device. This includes setting up the BARs by recording their information
+ * (refer to struct pci_vbar for the BAR details that need to be captured) for both standard PCI devices and
+ * SRIOV VF devices. Additionally, it also recode the MSI-X Table BAR HPA and size if the device has MSI-X
+ * capability.
  *
- * pbar: bar for the physical PCI device (pci_pdev), the value of pbar (hpa) is assigned
- * by platform firmware during boot. It is assumed a valid hpa is always assigned to a
- * mmio pbar, hypervisor shall not change the value of a pbar.
+ * If the is_sriov_bar is false, init_bars is used to initialize normal PCI BARs for the virtual PCI device.
+ * If the is_sriov_bar is true, init_bars is used to initialize SRIOV VF BARs for the virtual PCI device.
+ * It gets the BAR value and size by accessing the physical PCI device register and update the value to
+ * virtual configuration space. Refer PCIe spec r5.0 Chapter 7.5.2.1.
  *
- * vbar: for each pci_pdev, it has a virtual PCI device (pci_vdev) counterpart. pci_vdev
- * virtualizes all the bars (called vbars). a vbar can be initialized by hypervisor by
- * assigning a gpa to it; if vbar has a value of 0 (unassigned), guest may assign
- * and program a gpa to it. The guest only sees the vbars, it will not see and can
- * never change the pbars.
+ * The is_sriov_bar should be false if the virtual PCI device doesn't have SRIOV capability.
  *
- * Hypervisor traps guest changes to the mmio vbar (gpa) to establish ept mapping
- * between vbar(gpa) and pbar(hpa). pbar should always align on 4K boundary.
+ * @param[in] vdev         Pointer to virtual PCI device to initialize the BARs.
+ * @param[in] is_sriov_bar A boolean value to indicate whether the accessed BARs are SRIOV VF BARs.
  *
- * @param vdev         Pointer to a vdev structure
- * @param is_sriov_bar When the first parameter vdev is a SRIOV PF vdev, the function
- *                     init_bars is used to initialize normal PCIe BARs of PF vdev if the
- *                     parameter is_sriov_bar is false, the function init_bars is used to
- *                     initialize SRIOV VF BARs of PF vdev if parameter is_sriov_bar is true
- *                     Otherwise, the parameter is_sriov_bar should be false if the first
- *                     parameter vdev is not SRIOV PF vdev
+ * @return None.
  *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
@@ -408,13 +586,14 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 
 		if (is_pci_io_bar(vbar)) {
 			if ((lo & ~IO_SPACE_BITMASK) != 0U) {
-				/* 
-				 * Some buggy x86 BIOS may program an invalid I/O BAR whose upper 16 bits are not zero.
-				 * Such I/O BAR is not addressable on x86 platforms. Skip it when initializing the
-				 * virtual PCI function as I/O BAR reprogramming in VM is currently unsupported.
+				/*
+				 * Some buggy x86 BIOS may program an invalid I/O BAR whose upper 16 bits
+				 * are not zero. Such I/O BAR is not addressable on x86 platforms. Skip
+				 * it when initializing the virtual PCI function as I/O BAR reprogramming
+				 * in VM is currently unsupported.
 				 */
-				pr_warn("%s: %02x:%02x.%x: IO BAR%d value 0x%08x has invalid bits, IO_SPACE_BITMASK "
-				        "is 0x%08x, Ignore this BAR in vdev",
+				pr_warn("%s: %02x:%02x.%x: IO BAR%d value 0x%08x has invalid bits, "
+					"IO_SPACE_BITMASK is 0x%08x, Ignore this BAR in vdev",
 					__func__, vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f, idx, lo,
 					IO_SPACE_BITMASK);
 				continue;
@@ -503,6 +682,16 @@ static void init_bars(struct pci_vdev *vdev, bool is_sriov_bar)
 }
 
 /**
+ * @brief Initialize MSI-X capability for a virtual PCI device which points to a passthrough PCI device
+ *
+ * This function initializes the MSI-X capability structure for a given virtual PCI device by caching MSI-X
+ * Capability Structure in virtual configure space and recording their information (refer to struct pci_msix
+ * for the MSI-X details that need to be captured). Refer PCIe spec r5.0 Chapter 7.7.2.
+ *
+ * @param[in] vdev Pointer to virtual PCI device.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->pdev != NULL
  */
@@ -523,6 +712,15 @@ void init_vmsix_pt(struct pci_vdev *vdev)
 }
 
 /**
+ * @brief Deinitialize MSI-X capability for a virtual PCI device which points to a passthrough PCI device
+ *
+ * This function removes MSI-X Interrupt Remapping from VTD IRTE and clears the MSI-X table entries of a
+ * given virtual PCI device.
+ *
+ * @param[in] vdev Pointer to virtual PCI device.
+ *
+ * @return None.
+ *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
@@ -530,24 +728,37 @@ void deinit_vmsix_pt(struct pci_vdev *vdev)
 {
 	if (has_msix_cap(vdev)) {
 		if (vdev->msix.table_count != 0U) {
-			ptirq_remove_msix_remapping(vpci2vm(vdev->vpci), vdev->pdev->bdf.value, vdev->msix.table_count);
+			ptirq_remove_msix_remapping(vpci2vm(vdev->vpci), vdev->pdev->bdf.value,
+						    vdev->msix.table_count);
 			(void)memset((void *)&vdev->msix.table_entries, 0U, sizeof(vdev->msix.table_entries));
 		}
 	}
 }
 
-/* TODO:
- * The OpRegion is not 4KB aligned, while under some platforms,
- * it will take up to 16KB. In this case, OpRegion overlay 5 pages.
- * So set GPU_OPREGION_SIZE to 0x5000U(20KB) here.
+/**
+ * @brief Passthrough GPU OpRegion to the guest
  *
- * The solution that pass-thru OpRegion has potential security issue.
- * Will take the copy + emulation solution to expose host OpRegion to guest later.
+ * This function maps the GPU OpRegion from the host to the guest's address space. When a GPU physical device
+ * is assigned to guest, the OpRegion should be passthrough too so that guest can communicates with the GPU.
+ * The memory of the OpRegion is added into EPT and DMAR mapping so that the guest can access it directly.
+ * Furthermore, the OpRegion GPA is written into virtual PCIR_ASLS_CTL register.
+ *
+ * @param[in] vdev Pointer to virtual PCI device.
+ *
+ * @return None.
+ *
+ * @pre vdev != NULL
+ * @pre vdev->vpdev != NULL
+ * @pre vdev->vpci != NULL
  */
 static void passthru_gpu_opregion(struct pci_vdev *vdev)
 {
 	uint32_t gpu_opregion_hpa, gpu_opregion_gpa, gpu_asls_phys;
 
+	/* TODO:
+	 * The OpRegion is not 4KB aligned, while under some platforms, it will take up to 16KB. In this case,
+	 * OpRegion overlay 5 pages.So set GPU_OPREGION_SIZE to 0x5000U(20KB) here.
+	 */
 	gpu_opregion_gpa = GPU_OPREGION_GPA;
 	gpu_asls_phys = pci_pdev_read_cfg(vdev->pdev->bdf, PCIR_ASLS_CTL, 4U);
 	gpu_opregion_hpa = gpu_asls_phys & PCIM_ASLS_OPREGION_MASK;
@@ -558,15 +769,32 @@ static void passthru_gpu_opregion(struct pci_vdev *vdev)
 }
 
 /**
- * @brief Initialize a specified passthrough vdev structure.
+ * @brief Initialize a specified virtual PCI device structure which points to a passthrough PCI device
  *
- * The function init_vdev_pt is used to initialize a vdev structure. If a vdev structure supports
- * SRIOV capability that the vdev represents a SRIOV physical function(PF) virtual device, then
- * function init_vdev_pt can initialize PF vdev SRIOV capability if parameter is_pf_vdev is true.
+ * The function is used to initialize a virtual PCI device structure. First, it copies physical PCI Configuration
+ * Space Header to virtual PCI Configuration Space. Then, it does further initialization in different ways.
  *
- * @param vdev        pointer to vdev data structure
- * @param is_pf_vdev  indicate the first parameter vdev is the data structure of a PF, which contains
- *                    the SR-IOV capability
+ * If the given vdev represents a standard passthrough PCI device:
+ *   - initialize BARs by recording their information (refer to struct pci_vbar for the BAR details that need to
+ *     be captured).
+ *   - copy physical PCIR_ASLS_CTL register value to virtual register if the passthrough PCI device target VM is
+ *     Service VM and the device is CONFIG_IGD_SBDF.
+ *   - if the passthrough PCI device target VM is pre-launched VM and the device is not SRIOV VF, disable INTx on
+ *     physical device. Then, passthrough GPU OpRegion to guest if the device BDF is CONFIG_IGD_SBDF.
+ *
+ * If the given vdev represents a passthrough SR-IOV virtual function(VF):
+ *   - if the VF is assigned to a VM, initialize the Vendor ID and Device ID in VF's virtual Configuration Space
+ *     by reading the corresponding phsyical device's Vendor ID and Device ID. Furthermore, set the number of BARs
+ *     to PCI_BAR_COUNT.
+ *   - if the VF is unassinged, i.e. when VF was first created, map the vBARs one by one by adding the memory of
+ *     vBAR to the EPT and DMAR mapping. Then, it maps the MSI-X table if the vBAR points to the MSI-X table and
+ *     device supports the MSI-X.
+ *
+ * @param[in] vdev       Pointer to virtual PCI device data structure to initialize.
+ * @param[in] is_pf_vdev A bool value to indicate whether the first parameter vdev is the data
+ *                       structure of a PF, which contains the SRIOV capability.
+ *
+ * @return None.
  *
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
@@ -585,7 +813,8 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
 	if (vdev->phyfun == NULL) {
 		init_bars(vdev, is_pf_vdev);
 		if (is_service_vm(vpci2vm(vdev->vpci)) && (vdev->pdev->bdf.value == CONFIG_IGD_SBDF)) {
-			pci_vdev_write_vcfg(vdev, PCIR_ASLS_CTL, 4U, pci_pdev_read_cfg(vdev->pdev->bdf, PCIR_ASLS_CTL, 4U));
+			pci_vdev_write_vcfg(vdev, PCIR_ASLS_CTL, 4U, pci_pdev_read_cfg(vdev->pdev->bdf,
+					    PCIR_ASLS_CTL, 4U));
 		}
 		if (is_prelaunched_vm(vpci2vm(vdev->vpci)) && (!is_pf_vdev)) {
 			pci_command = (uint16_t)pci_pdev_read_cfg(vdev->pdev->bdf, PCIR_COMMAND, 2U);
@@ -622,11 +851,14 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
 }
 
 /**
- * @brief Destruct a specified passthrough vdev structure.
+ * @brief Destruct a specified virtual PCI device structure which points to a passthrough PCI device
  *
- * The function deinit_vdev_pt is the destructor corresponding to the function init_vdev_pt.
+ * This function is the destructor corresponding to the function init_vdev_pt. It unmaps the vdev's vBARs
+ * one by one by deleting the memory mapping for a vBAR from guest address space.
  *
- * @param vdev  pointer to vdev data structure
+ * @param[in] vdev Pointer to virtual PCI device data structure.
+ *
+ * @return None.
  *
  * @pre vdev != NULL
  */
@@ -638,3 +870,7 @@ void deinit_vdev_pt(struct pci_vdev *vdev) {
 		vdev_pt_unmap_mem_vbar(vdev, bar_idx);
 	}
 }
+
+/**
+ * @}
+ */
