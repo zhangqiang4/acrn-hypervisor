@@ -318,7 +318,7 @@ set_thread_priority(int priority, bool reset_on_fork)
 		pr_err("%s(%s), getpriority failed, errno = %d\n",
 			__func__, tname, errno);
 	} else {
-		pr_info("%s(%s), orig prio = %d\n",
+		pr_dbg("%s(%s), orig prio = %d\n",
 			__func__, tname, ret);
 	}
 
@@ -333,7 +333,7 @@ set_thread_priority(int priority, bool reset_on_fork)
 		pr_err("%s(%s), getpriority(%d) != setpriority(%d)\n",
 			__func__, tname, ret, priority);
 	} else {
-		pr_info("%s(%s), new priority = %d\n",
+		pr_dbg("%s(%s), new priority = %d\n",
 			__func__, tname, ret);
 	}
 }

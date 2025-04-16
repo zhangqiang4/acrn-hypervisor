@@ -586,7 +586,7 @@ virtio_net_tx_thread(void *param)
 		pthread_cond_wait(&net->tx_cond, &net->tx_mtx);
 
 	if (net->closing) {
-		pr_err("vtnet tx thread closing...\n");
+		pr_dbg("vtnet tx thread closing...\n");
 		pthread_mutex_unlock(&net->tx_mtx);
 		return NULL;
 	}
