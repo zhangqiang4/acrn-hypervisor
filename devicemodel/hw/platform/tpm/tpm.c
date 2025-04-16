@@ -256,6 +256,10 @@ int acrn_parse_vtpm2(char *arg)
 
 void init_vtpm2(struct vmctx *ctx)
 {
+	if (!vtpm2) {
+		return;
+	}
+
 	if (!sock_path) {
 		WPRINTF("Invalid socket path!\n");
 		return;
