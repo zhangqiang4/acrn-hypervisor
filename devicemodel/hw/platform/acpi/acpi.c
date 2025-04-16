@@ -290,7 +290,7 @@ basl_fwrite_madt(FILE *fp, struct vmctx *ctx)
 		return -1;
 	}
 
-	pr_info("%s, guest_cpu_bitmask: 0x%x\n", __func__, guest_pcpu_bitmask);
+	pr_dbg("%s, guest_cpu_bitmask: 0x%x\n", __func__, guest_pcpu_bitmask);
 
 	EFPRINTF(fp, "/*\n");
 	EFPRINTF(fp, " * dm MADT template\n");
@@ -340,7 +340,7 @@ basl_fwrite_madt(FILE *fp, struct vmctx *ctx)
 		/* iasl expects hex values for the proc and apic id's */
 		EFPRINTF(fp, "[0001]\t\tProcessor ID : %02x\n", i);
 
-		pr_info("%s, vcpu_id=0x%x, pcpu_id=0x%x, lapic_id=0x%x\n", __func__, i, pcpu_id, lapic_id);
+		pr_dbg("%s, vcpu_id=0x%x, pcpu_id=0x%x, lapic_id=0x%x\n", __func__, i, pcpu_id, lapic_id);
 
 		EFPRINTF(fp, "[0001]\t\tLocal Apic ID : %02x\n", lapic_id);
 
@@ -1034,7 +1034,7 @@ basl_compile(struct vmctx *ctx,
 					 io[1].f_name, io[0].f_name);
 			else
 				snprintf(iaslbuf, sizeof(iaslbuf),
-					 "/bin/sh -c \"%s -p %s %s\" 1> /dev/null",
+					 "/bin/sh -c \"%s -p %s %s\" 1> /dev/null 2>&1",
 					 asl_compiler,
 					 io[1].f_name, io[0].f_name);
 
@@ -1182,7 +1182,6 @@ get_default_iasl_compiler(void)
 			asl_compiler[i++] = c;
 		}
 		if (strlen(asl_compiler) > 0) {
-			pr_info("Found default iasl path: %s\n", asl_compiler);
 			ret = 0;
 		}
 		pclose(fd_iasl);
@@ -1221,7 +1220,7 @@ check_iasl_version(void)
 		while (fgets(buf, ASL_VER_STR_LEN, fd_iasl_ver) != NULL) {
 			if (strstr(buf, ASL_VER_PATTERN)) {
 				ver_str = buf + strlen(ASL_VER_PATTERN);
-				pr_info("iasl version: %s", ver_str);
+				pr_info("iasl detected: %s, version: %s", asl_compiler, ver_str);
 
 				if ((!dm_strtoui(ver_str, &cp, 10, &ver)) &&
 					(!dm_strtoui(IASL_MIN_VER, &cp, 10, &min_ver)) &&

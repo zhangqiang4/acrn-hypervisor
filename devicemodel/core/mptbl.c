@@ -125,7 +125,7 @@ mpt_build_proc_entries(proc_entry_ptr mpep, int ncpu)
 		return;
 	}
 
-	pr_info("%s, guest_cpu_bitmask: 0x%x\n", __func__, guest_pcpu_bitmask);
+	pr_dbg("%s, guest_cpu_bitmask: 0x%x\n", __func__, guest_pcpu_bitmask);
 
 	for (i = 0; i < ncpu; i++) {
 		int pcpu_id = pcpuid_from_vcpuid(guest_pcpu_bitmask, i);
