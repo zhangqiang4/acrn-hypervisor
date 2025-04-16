@@ -175,7 +175,9 @@ vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 		devfd = -1;
 	}
 	if (devfd == -1) {
-		pr_err("Could not open /dev/acrn_vhm\n");
+		pr_err("Could not open /dev/acrn_vhm or /dev/acrn_hsm\n");
+		pr_err("You're likely running bare metal Linux without ACRN hypervisor.\n");
+		pr_err("Please check your boot options.\n");
 		goto err;
 	}
 
@@ -214,7 +216,6 @@ vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 	}
 
 	if (error) {
-		pr_err("failed to create VM %s, %s.\n", ctx->name, errormsg(errno));
 		goto err;
 	}
 

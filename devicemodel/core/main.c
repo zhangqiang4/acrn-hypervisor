@@ -879,7 +879,7 @@ vm_loop(struct vmctx *ctx)
 			vm_suspend_resume(ctx);
 		}
 	}
-	pr_err("VM loop exit\n");
+	pr_info("Shutting down VM\n");
 }
 
 static int
@@ -997,7 +997,7 @@ vm_init_asyncio(struct vmctx *ctx, uint64_t base)
 static int
 is_acrn_be(int argc, char *argv[])
 {
-	pr_info("is_acrn_be %s\n", argv[1]);
+	pr_dbg("is_acrn_be %s\n", argv[1]);
 	if (strcmp("--acrn_be", argv[1]) == 0) {
 		only_be = true;
 		return 1;
@@ -1261,10 +1261,10 @@ main(int argc, char *argv[])
 	}
 
 	for (;;) {
-		pr_notice("vm_create: %s\n", vmname);
+		pr_notice("Creating VM: %s\n", vmname);
 		ctx = vm_create(vmname, (unsigned long)ioreq_buf, &guest_ncpus);
 		if (!ctx) {
-			pr_err("vm_create failed");
+			pr_err("Failed to create VM %s (%s)\n", vmname, errormsg(errno));
 			goto create_fail;
 		}
 
@@ -1280,30 +1280,30 @@ main(int argc, char *argv[])
 			goto fail;
 		}
 
-		pr_notice("vm setup asyncio page\n");
+		pr_notice("Setting up asyncio pages\n");
 		error = vm_init_asyncio(ctx, (uint64_t)asyncio_page);
 		if (error) {
-			pr_warn("ASYNIO capability is not supported by kernel or hyperviosr!\n");
+			pr_warn("ASYNIO capability is not supported by kernel or hypervisor!\n");
 		}
 
 		time_profiling_add("Setup Memory", BOOT_TIME, RECORD_NODE);
-		pr_notice("vm_setup_memory: size=0x%lx\n", memsize);
+		pr_notice("Preparing VM memory (size=0x%lx)\n", memsize);
 		error = vm_setup_memory(ctx, memsize);
 		if (error) {
-			pr_err("Unable to setup memory (%d)\n", errno);
+			pr_err("Unable to setup memory (%s)\n", strerror(-error));
 			goto fail;
 		}
 
 		error = mevent_init();
 		if (error) {
-			pr_err("Unable to initialize mevent (%d)\n", errno);
+			pr_err("Unable to initialize mevent (%s)\n", strerror(errno));
 			goto mevent_fail;
 		}
 
 		time_profiling_add("Virtual Devices INIT", BOOT_TIME, RECORD_NODE);
-		pr_notice("vm_init_vdevs\n");
+		pr_notice("Preparing virtual devices\n");
 		if (vm_init_vdevs(ctx) < 0) {
-			pr_err("Unable to init vdev (%d)\n", errno);
+			pr_err("Unable to init vdev (%s)\n", strerror(errno));
 			goto dev_fail;
 		}
 
@@ -1354,7 +1354,7 @@ main(int argc, char *argv[])
 		/*
 		 * Add CPU 0
 		 */
-		pr_notice("add_cpu\n");
+		pr_notice("Initializing vCPU event threads\n");
 		error = add_cpu(ctx, guest_ncpus);
 		if (error) {
 			pr_err("add_cpu failed, error=%d\n", error);
