@@ -544,7 +544,7 @@ guest_pm_notify_init(struct vmctx *ctx)
 		ret = pm_by_vuart_init(ctx,
 			(PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5 == pm_notify_channel));
 	else
-		pr_info("No pm notify channel given\n");
+		pr_info("No pm notification channel specified\n");
 
 	return ret;
 }
@@ -552,6 +552,9 @@ guest_pm_notify_init(struct vmctx *ctx)
 static void
 guest_pm_notify_deinit(struct vmctx *ctx)
 {
+	if (!pm_notify_channel)
+		return;
+
 	if (PWR_EVENT_NOTIFY_IOC == pm_notify_channel)
 		ioc_deinit(ctx);
 	else if (PWR_EVENT_NOTIFY_PWR_BT == pm_notify_channel)
