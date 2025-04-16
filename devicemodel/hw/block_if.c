@@ -895,7 +895,7 @@ blockif_sigcont_handler(int signal)
 {
 	struct blockif_sig_elem *bse;
 
-	pr_err("block_if sigcont handler!\n");
+	pr_dbg("block_if sigcont handler!\n");
 
 	for (;;) {
 		/*

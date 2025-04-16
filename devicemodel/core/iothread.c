@@ -96,7 +96,7 @@ iothread_start(struct iothread_ctx *ioctx_x)
 	}
 
 	pthread_mutex_unlock(&ioctx_x->mtx);
-	pr_info("%s started\n", ioctx_x->name);
+	pr_dbg("%s started\n", ioctx_x->name);
 
 	return 0;
 }
@@ -173,7 +173,7 @@ iothread_deinit(void)
 			ioctx_x->epfd = -1;
 		}
 		pthread_mutex_destroy(&ioctx_x->mtx);
-		pr_info("%s stop \n", ioctx_x->name);
+		pr_dbg("%s stop \n", ioctx_x->name);
 	}
 	ioctx_active_cnt = 0;
 	pthread_mutex_unlock(&ioctxes_mutex);

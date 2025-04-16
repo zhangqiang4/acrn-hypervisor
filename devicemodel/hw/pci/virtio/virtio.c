@@ -2114,11 +2114,11 @@ int dm_virtio_register_ioeventfd(struct virtio_base *base, int idx, bool is_regi
 
 	ioeventfd.fd = fd;
 	if (is_register)
-		pr_info("[ioeventfd: %d][0x%lx@%d][flags: 0x%x][data: 0x%lx]\r\n",
+		pr_dbg("[ioeventfd: %d][0x%lx@%d][flags: 0x%x][data: 0x%lx]\r\n",
 			ioeventfd.fd, ioeventfd.addr, ioeventfd.len,
 			ioeventfd.flags, ioeventfd.data);
 	else
-		pr_info("[ioeventfd: %d][0x%lx@%d] unregister\r\n",
+		pr_dbg("[ioeventfd: %d][0x%lx@%d] unregister\r\n",
 				ioeventfd.fd, ioeventfd.addr, ioeventfd.len);
 
 	rc = vm_ioeventfd(base->dev->vmctx, &ioeventfd);
