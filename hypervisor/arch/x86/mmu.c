@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2011 NetApp, Inc.
- * Copyright (c) 2017-2024 Intel Corporation.
+ * Copyright (c) 2017-2025 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,20 +38,81 @@
 #include <logmsg.h>
 #include <misc_cfg.h>
 
+/**
+ * @addtogroup hwmgmt_memory
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Memory Management Unit (MMU) and Paging Management
+ *
+ * This file implements the hypervisor's MMU functionality including page table management, Translation Lookaside
+ * Buffers (TLB) invalidation, and cache management. It handles the setup of identity mapping for the hypervisor
+ * address space, enables CPU memory protection features, and provides utilities for memory translation
+ * and cache operations.
+ */
+
+ /**
+ * @brief Root page table address
+ *
+ * Static pointer to the PML4 page table. This variable stores the base address of the page table hierarchy
+ * used for the hypervisor's memory management.
+ */
 static void *ppt_mmu_pml4_addr;
+
 /**
  * @brief The sanitized page
  *
  * The sanitized page is used to mitigate l1tf.
+ *
+ * @alignment PAGE_SIZE
  */
 static uint8_t sanitized_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 
 /* PPT VA and PA are identical mapping */
+/**
+ * @brief Number of PML4 pages needed for the hypervisor page tables.
+ *
+ * PML4 is the top level of the page table hierarchy. This macro uses \p PML4_PAGE_NUM macro
+ * with \p MAX_PHY_ADDRESS_SPACE to calculate the number of PML4 pages. Since each PML4 entry can map
+ * 512GB of memory, typically only one PML4 page is needed.
+ */
 #define PPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
-#define PPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
-#define PPT_PT_PAGE_NUM	0UL	/* not support 4K granularity page mapping */
 
-/* Please refer to how the ept page num  was calculated */
+/**
+ * @brief Number of PDPT pages needed for the hypervisor page tables.
+ *
+ * This macro uses \p PDPT_PAGE_NUM macro with \p MAX_PHY_ADDRESS_SPACE to calculate the number of PDPT pages.
+ */
+#define PPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
+
+/**
+ * @brief Number of PT pages needed for the hypervisor page tables.
+ *
+ * This value is set 0 as we do not support 4K granularity page mapping.
+ */
+#define PPT_PT_PAGE_NUM	0UL
+
+/**
+ * @brief Calculate the total number of pages needed for the primary page table.
+ *
+ * This function calculates the number of pages required for all page table levels:
+ * - PML4 page: Typically one page for the entire address space (512GB per entry * 512 entries).
+ * - PDPT pages: Based on maximum physical address space (1GB per entry when using 1GB pages).
+ * - PD pages: Based on total physical memory size plus additional pages for PCI device mappings
+ *   (2MB per entry when using 2MB pages).
+ * - PT pages: Set to 0 as the hypervisor uses 2MB or 1GB pages instead of 4KB pages.
+ *
+ * The total is then rounded up to a multiple of 64 for alignment purposes.
+ *
+ * @return The total number of pages needed for all page table structures.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static uint64_t get_ppt_page_num(void)
 {
        uint64_t ppt_pd_page_num = PD_PAGE_NUM(MEM_TOP_ADDRESS) + CONFIG_MAX_PCI_DEV_NUM * 6U;
@@ -60,10 +121,26 @@ static uint64_t get_ppt_page_num(void)
        return roundup((PPT_PML4_PAGE_NUM + PPT_PDPT_PAGE_NUM + ppt_pd_page_num + PPT_PT_PAGE_NUM), 64U);
 }
 
-/* ppt: primary page pool */
-static struct page_pool ppt_page_pool;
+static struct page_pool ppt_page_pool; /**< Primary page pool */
 
-/* @pre: The PPT and EPT have same page granularity */
+/**
+ * @brief Determine if large page mapping is supported at the specified level.
+ *
+ * Determines whether large page mapping (2MB or 1GB) is supported at a given page table level:
+ * - For PD level (IA32E_PD): Always returns true for 2MB pages
+ * - For PDPT level (IA32E_PDPT): Returns true if 1GB pages are supported by CPU
+ * - For all other levels: Returns false
+ *
+ * @param[in] level The page table level to check (IA32E_PML4, IA32E_PDPT, IA32E_PD, or IA32E_PT)
+ * @param[in] prot Unused parameter, required for compatibility with callback type
+ *
+ * @return true if large page is supported at this level, false otherwise
+ *
+ * @pre N/A
+ * @post N/A
+ *
+ * @remark The PPT and EPT have same page granularity
+ */
 static inline bool ppt_large_page_support(enum page_table_level level, __unused uint64_t prot)
 {
 	bool support;
@@ -79,20 +156,64 @@ static inline bool ppt_large_page_support(enum page_table_level level, __unused 
 	return support;
 }
 
+/**
+ * @brief Empty callback for cache line flushing during page walks.
+ *
+ * This is a placeholder callback function that does nothing. For PPT, we don't need to flush the cache during page
+ * walks because there is no runtime MMU page table change.For other paging structures like EPT or DMAR, cache
+ * flushes may be required.
+ *
+ * @param[in] entry Pointer to the page table entry (unused)
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 static inline void ppt_clflush_pagewalk(const void* entry __attribute__((unused)))
 {
 }
 
+/**
+ * @brief Page table structure for the primary page table (PPT).
+ */
 static const struct pgtable ppt_pgtable = {
+	/**
+	 * @brief Default access rights for PPT entries.
+	 */
 	.default_access_right = (PAGE_PRESENT | PAGE_RW | PAGE_USER),
+	/**
+	 * @brief Mask used to check if a page is present.
+	 */
 	.pgentry_present_mask = PAGE_PRESENT,
+	/**
+	 * @brief Pointer to the page pool used for PPT page table allocations.
+	 */
 	.pool = &ppt_page_pool,
+	/**
+	 * @brief Function to determine if large page mapping is supported.
+	 */
 	.large_page_support = ppt_large_page_support,
+	/**
+	 * @brief Cache line flush function for page table walks.
+	 */
 	.clflush_pagewalk = ppt_clflush_pagewalk,
 };
 
-/*
- * @pre: the combined type and vpid is correct
+/**
+ * @brief Execute INVVPID instruction to invalidate TLB entries based on VPID.
+ *
+ * This function constructs an INVVPID descriptor and calls asm_invvpid() to execute the INVVPID instruction
+ * to invalidate TLB entries for a specified VPID.
+ *
+ * @param[in] type The INVVPID invalidation type (see Intel SDM Vol. 3C, 28.3.3.1)
+ * @param[in] vpid The Virtual Processor Identifier to invalidate
+ * @param[in] gva The guest linear address for address-specific invalidations
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
  */
 static inline void local_invvpid(uint64_t type, uint16_t vpid, uint64_t gva)
 {
@@ -103,8 +224,19 @@ static inline void local_invvpid(uint64_t type, uint16_t vpid, uint64_t gva)
 	}
 }
 
-/*
- * @pre: the combined type and EPTP is correct
+/**
+ * @brief Execute INVEPT instruction to invalidate cached EPT mappings.
+ *
+ * This function calls asm_invept() to execute the INVEPT instruction to invalidate mappings in the TLBs
+ * and paging-structure caches derived from EPT.
+ *
+ * @param[in] type The INVEPT invalidation type (single context or all contexts)
+ * @param[in] desc The INVEPT descriptor containing the EPTP value
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
  */
 static inline void local_invept(uint64_t type, struct invept_desc desc)
 {
@@ -113,6 +245,20 @@ static inline void local_invept(uint64_t type, struct invept_desc desc)
 	}
 }
 
+/**
+ * @brief Invalidate TLB entries for a specific VPID.
+ *
+ * Invalidates all translations for the specified VPID (except VPID 0, which is
+ * reserved for the hypervisor and not flushed here). This is used when modifying
+ * guest page tables to ensure the guest sees the updated mappings.
+ *
+ * @param[in] vpid The VPID whose translations should be invalidated.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void flush_vpid_single(uint16_t vpid)
 {
 	if (vpid != 0U) {
@@ -120,11 +266,42 @@ void flush_vpid_single(uint16_t vpid)
 	}
 }
 
+/**
+ * @brief Invalidates all mappings in the TLBs and paging-structure caches.
+ *
+ * This function calls local_invvpid() to invalidate all mappings (linear mappings, guest-physical mappings,
+ * and combined mappings) in the TLBs and paging-structure caches that are tagged with all VPIDs.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void flush_vpid_global(void)
 {
 	local_invvpid(VMX_VPID_TYPE_ALL_CONTEXT, 0U, 0UL);
 }
 
+/**
+ * @brief Invalidate cached EPT mappings in the TLB and paging-structure caches
+ *
+ * This function executes the INVEPT instruction to invalidate mappings in the translation lookaside buffers (TLBs)
+ * and invalidate cached mappings derived from Extended Page Tables (EPT). It first checks CPU capabilities to
+ * determine which INVEPT type is supported and then performs the appropriate invalidation:
+ * - If single-context INVEPT is supported, it invalidates mappings for the specified EPTP.
+ * - If only global-context INVEPT is supported, it invalidates all mappings.
+ * - If neither is supported, it does nothing.
+ *
+ * @param[in] eptp Pointer to the EPT paging structure root (EPTP)
+ *
+ * @return None
+ *
+ * @pre eptp != NULL
+ * @post N/A
+ *
+ * @remark We need to check single-context INVEPT or global-context INVEPT must support, otherwise, the old TLB
+ * cannot be invalidated.
+ */
 void invept(const void *eptp)
 {
 	struct invept_desc desc = {0};
@@ -139,6 +316,23 @@ void invept(const void *eptp)
 	}
 }
 
+/**
+ * @brief Enable paging.
+ *
+ * This function performs the following specific operations to enable paging:
+ * - Sets the IA32_PAT MSR with the power-on value (refer to Chapter 12 Programming the PAT, Volume 3, SDM 325462-078)
+ *   to define caching attributes for memory pages.
+ * - Enables NXE (No-Execute Enable) bit in IA32_EFER MSR to enforce execution protection on pages marked with XD bit.
+ * - Sets SCE (System Call Extensions) bit in IA32_EFER MSR for consistent MSR state between hypervisor and VM,
+ *   avoiding unnecessary MSR switching during VMX transitions.
+ * - Enables Write Protection (WP bit in CR0), inhibiting writing to read-only pages.
+ * - Loads CR3 with the physical address of the PML4 page table, which is the root of the page table hierarchy.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void enable_paging(void)
 {
 	uint64_t tmp64 = 0UL;
@@ -168,6 +362,17 @@ void enable_paging(void)
 	CPU_CR_WRITE(cr3, ppt_mmu_pml4_addr);
 }
 
+/**
+ * @brief Enable Supervisor Mode Execution Prevention (SMEP).
+ *
+ * Enables the SMEP feature by setting CR4.SMEP bit. When SMEP is enabled, code in supervisor mode cannot
+ * execute code from pages marked as user-accessible.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void enable_smep(void)
 {
 	uint64_t val64 = 0UL;
@@ -177,6 +382,17 @@ void enable_smep(void)
 	CPU_CR_WRITE(cr4, val64 | CR4_SMEP);
 }
 
+/**
+ * @brief Enable Supervisor Mode Access Prevention (SMAP).
+ *
+ * Enables the SMAP feature by setting CR4.SMAP bit. When SMAP is enabled, code in supervisor mode cannot access
+ * user-mode pages unless the code is running in a user context.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void enable_smap(void)
 {
 	uint64_t val64 = 0UL;
@@ -186,8 +402,23 @@ void enable_smap(void)
 	CPU_CR_WRITE(cr4, val64 | CR4_SMAP);
 }
 
-/*
- * Clean USER bit in page table to update memory pages to be owned by hypervisor.
+/**
+ * @brief Clean USER bit in page table to update memory pages to be owned by hypervisor.
+ *
+ * Updates page table entries for the specified memory region to be accessible only in
+ * supervisor mode by clearing the USER bit. This is used to protect hypervisor memory
+ * from guest access.
+ *
+ * The function rounds down the base address to a 2MB boundary and rounds up the
+ * size accordingly to ensure proper alignment.
+ *
+ * @param[in] base Starting address of the memory region to protect
+ * @param[in] size Size of the memory region in bytes
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
  */
 void set_paging_supervisor(uint64_t base, uint64_t size)
 {
@@ -203,6 +434,22 @@ void set_paging_supervisor(uint64_t base, uint64_t size)
 		round_pde_up(size_aligned), 0UL, PAGE_USER, &ppt_pgtable, MR_MODIFY);
 }
 
+/**
+ * @brief Initialize the primary page table (PPT) page pool memory structures.
+ *
+ * This function allocates and initializes memory for the primary page table page pool, which is used
+ * to manage memory for page table structures. It performs the following operations:
+ * - Calculates the bitmap size needed to track page allocation status (1 bit per page).
+ * - Allocates memory for page descriptors by calling e820_alloc_memory().
+ * - Allocates memory for the bitmap to track page allocation status.
+ * - Initializes the PPT page pool structure with the allocated memory.
+ * - Sets the bitmap to zero to indicate all pages are free.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void allocate_ppt_pages(void)
 {
 	uint64_t page_base;
@@ -218,6 +465,26 @@ void allocate_ppt_pages(void)
 	memset(ppt_page_pool.bitmap, 0U, bitmap_size);
 }
 
+/**
+ * @brief MMU page tables initialization
+ *
+ * This function sets up the complete paging environment for the hypervisor:
+ * - Calls init_sanitized_page() to initialize the sanitized page for L1TF mitigation.
+ * - Allocates memory for the Hypervisor PML4 table (root of the page table hierarchy).
+ * - Analyzes system memory map to identify RAM and MMIO regions.
+ * - Maps low RAM regions (below 4GB) with PAGE_CACHE_WB (Write-Back) caching attributes.
+ * - Maps high RAM regions (above 4GB) with PAGE_CACHE_WB caching attributes if present.
+ * - Maps MMIO regions with PAGE_CACHE_UC (Uncacheable) caching attributes.
+ * - Sets appropriate page permissions for hypervisor memory regions:
+ *   - Marks hypervisor memory as supervisor-only (clears USER bit).
+ *   - Makes hypervisor code sections executable (remove 'NX' bit for pages that contain hv code section).
+ * - Enables paging by calling enable_paging() function.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void init_paging(void)
 {
 	uint64_t hv_hva;
@@ -294,11 +561,36 @@ void init_paging(void)
 	enable_paging();
 }
 
+/**
+ * @brief Flush all processor caches.
+ *
+ * This function calls wbinvd() function to write back and invalidate all internal caches.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
 void flush_invalidate_all_cache(void)
 {
 	wbinvd();
 }
 
+/**
+ * @brief Flush cache lines for a range of memory.
+ *
+ * Executes the CLFLUSHOPT instruction for each cache line in the specified memory
+ * range. This ensures memory coherency for a range of memory locations by writing
+ * back and invalidating all cache lines that overlap with the range.
+ *
+ * @param[in] p Pointer to the start of the memory range
+ * @param[in] size Size of the memory range in bytes
+ *
+ * @return None
+ *
+ * @pre p != NULL
+ * @post N/A
+ */
 void flush_cache_range(const volatile void *p, uint64_t size)
 {
 	uint64_t i;
@@ -307,3 +599,7 @@ void flush_cache_range(const volatile void *p, uint64_t size)
 		clflushopt(p + i);
 	}
 }
+
+/**
+ * @}
+ */

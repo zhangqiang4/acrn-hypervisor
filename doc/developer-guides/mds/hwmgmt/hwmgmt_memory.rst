@@ -15,6 +15,9 @@ This section contains the documentation of the module `hwmgmt.memory`.
 [File] arch/x86/mmu.c
 ======================================================================
 
+.. doxygenfile:: mmu.c
+   :project: Project ACRN
+
 [File] arch/x86/e820.c
 ======================================================================
 
@@ -23,6 +26,10 @@ This section contains the documentation of the module `hwmgmt.memory`.
 
 [File] include/arch/x86/asm/mmu.h
 ======================================================================
+
+.. doxygenfile:: mmu.h
+   :project: Project ACRN
+
 
 [File] include/arch/x86/asm/e820.h
 ======================================================================

@@ -802,6 +802,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/e820.c \
                           ../hypervisor/arch/x86/init.c \
                           ../hypervisor/arch/x86/guest/vmexit.c \
+                          ../hypervisor/arch/x86/mmu.c \
                           ../hypervisor/arch/x86/tsc.c \
                           ../hypervisor/arch/x86/security.c \
                           ../hypervisor/common/delay.c \

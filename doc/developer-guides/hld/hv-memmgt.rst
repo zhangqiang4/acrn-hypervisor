@@ -180,17 +180,13 @@ Interfaces Design
 MMU Initialization
 ------------------
 
-.. doxygenfunction:: enable_smep
-   :project: Project ACRN
+:c:func:`enable_smep`
 
-.. doxygenfunction:: enable_smap
-   :project: Project ACRN
+:c:func:`enable_smap`
 
-.. doxygenfunction:: enable_paging
-   :project: Project ACRN
+:c:func:`enable_paging`
 
-.. doxygenfunction:: init_paging
-   :project: Project ACRN
+:c:func:`init_paging`
 
 Address Space Translation
 -------------------------
@@ -444,9 +440,6 @@ EPT
 .. doxygenfunction:: destroy_ept
    :project: Project ACRN
 
-.. doxygenfunction:: invept
-   :project: Project ACRN
-
 .. doxygenfunction:: ept_misconfig_vmexit_handler
    :project: Project ACRN
 
@@ -455,6 +448,10 @@ EPT
 
 .. doxygenfunction:: walk_ept_table
    :project: Project ACRN
+
+Refer to module design specification for more details.
+
+c:func:`invept`
 
 Virtual MTRR
 ------------
@@ -470,11 +467,12 @@ Virtual MTRR
 
 VPID
 ----
-.. doxygenfunction:: flush_vpid_single
-   :project: Project ACRN
 
-.. doxygenfunction:: flush_vpid_global
-   :project: Project ACRN
+Refer to module design specification for more details.
+
+:c:func:`flush_vpid_single`
+
+:c:func:`flush_vpid_global`
 
 Service VM Memory Management
 ****************************
