@@ -8,6 +8,7 @@ import parser_lib
 CMDS = {
     'BIOS_INFO':"dmidecode -t 0",
     'BASE_BOARD_INFO':"dmidecode -t 2",
+    'PROCESSOR_INFO':"dmidecode -t 4",
     }
 
 
@@ -19,4 +20,6 @@ def generate_info(board_info):
         parser_lib.dump_execute(CMDS['BIOS_INFO'], 'BIOS_INFO', config)
         print("", file=config)
         parser_lib.dump_execute(CMDS['BASE_BOARD_INFO'], 'BASE_BOARD_INFO', config)
+        print("", file=config)
+        parser_lib.dump_execute(CMDS['PROCESSOR_INFO'], 'PROCESSOR_INFO', config)
         print("", file=config)

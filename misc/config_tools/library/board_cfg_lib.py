@@ -11,6 +11,8 @@ import collections
 BOARD_NAME = ''
 BIOS_INFO = ['BIOS Information', 'Vendor:', 'Version:', 'Release Date:', 'BIOS Revision:']
 BASE_BOARD = ['Base Board Information', 'Manufacturer:', 'Product Name:', 'Version:']
+PROCESSOR_INFO= ['Processor Information', 'Processor Family:', 'Processor ID:', 'Processor Version:', \
+                    'Core Count:', 'Core Enabled:', 'Thread Count:']
 
 LEGACY_TTYS = {
     'ttyS0':'0x3F8',
@@ -84,24 +86,25 @@ def handle_bios_info(config):
     Handle bios information
     :param config: it is a file pointer of bios information for writing to
     """
-    bios_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<BIOS_INFO>", "</BIOS_INFO>")
-    board_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<BASE_BOARD_INFO>", "</BASE_BOARD_INFO>")
+    bios_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<BIOS_INFO>", "</BIOS_INFO>") or []
+    board_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<BASE_BOARD_INFO>", "</BASE_BOARD_INFO>") or []
+    processor_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PROCESSOR_INFO>", "</PROCESSOR_INFO>") or []
     print("/*", file=config)
 
     if not bios_lines or not board_lines:
         print(" * DMI info is not found", file=config)
     else:
         i_cnt = 0
-        bios_board = BIOS_INFO + BASE_BOARD
+        bios_board = BIOS_INFO + BASE_BOARD + PROCESSOR_INFO
 
         # remove the same value and keep origin sort
         bios_board_info = list(set(bios_board))
         bios_board_info.sort(key=bios_board.index)
 
-        bios_board_lines = bios_lines + board_lines
-        bios_info_len = len(bios_lines)
+        bios_board_lines = bios_lines + board_lines + processor_lines
+        info_len = [len(bios_lines), len(bios_lines + board_lines)]
         for line in bios_board_lines:
-            if i_cnt == bios_info_len:
+            if i_cnt in info_len:
                 print(" *", file=config)
 
             i_cnt += 1

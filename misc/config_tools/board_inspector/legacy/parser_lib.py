@@ -10,6 +10,9 @@ BIOS_INFO_KEY = ['BIOS Information', 'Vendor:', 'Version:', 'Release Date:', 'BI
 
 BASE_BOARD_KEY = ['Base Board Information', 'Manufacturer:', 'Product Name:', 'Version:']
 
+PROCESSOR_BOARD_KEY = ['Processor Information', 'Family:', 'ID:', 'Version:', \
+                       'Core Count:', 'Core Enabled:', 'Thread Count:']
+
 def check_dmi():
     """Check if this tool run on native os"""
     dmi_valid = os.path.exists("/dev/mem") or os.path.exists("/sys/firmware/dmi")
@@ -129,6 +132,11 @@ def dump_execute(cmd, desc, config):
 
         if desc == "BASE_BOARD_INFO":
             ret = handle_hw_info(line, BASE_BOARD_KEY)
+            if not ret:
+                continue
+
+        if desc == "PROCESSOR_INFO":
+            ret = handle_hw_info(line, PROCESSOR_BOARD_KEY)
             if not ret:
                 continue
 
