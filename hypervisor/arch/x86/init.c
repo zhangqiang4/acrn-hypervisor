@@ -6,8 +6,8 @@
 
 #include <types.h>
 #include <asm/init.h>
-#include <console.h>
 #include <asm/per_cpu.h>
+#include <console.h>
 #include <shell.h>
 #include <asm/vmx.h>
 #include <asm/guest/vm.h>
@@ -30,14 +30,13 @@ extern uint32_t boot_regs[2];
 			 : "r"(rsp), "rm"(SP_BOTTOM_MAGIC), "a"(to));   \
 }
 
-/*TODO: move into debug module */
+#ifdef HV_DEBUG
 static void init_debug_pre(void)
 {
 	/* Initialize console */
 	console_init();
 }
 
-/*TODO: move into debug module */
 static void init_debug_post(uint16_t pcpu_id)
 {
 	if (pcpu_id == BSP_CPU_ID) {
@@ -51,6 +50,7 @@ static void init_debug_post(uint16_t pcpu_id)
 
 	profiling_setup();
 }
+#endif
 
 /*TODO: move into guest-vcpu module */
 static void init_guest_mode(uint16_t pcpu_id)
@@ -67,7 +67,9 @@ static void init_pcpu_comm_post(void)
 	pcpu_id = get_pcpu_id();
 
 	init_pcpu_post(pcpu_id);
+#ifdef HV_DEBUG
 	init_debug_post(pcpu_id);
+#endif
 	init_guest_mode(pcpu_id);
 	run_idle_thread();
 }
@@ -89,7 +91,9 @@ void init_primary_pcpu(void)
 
 	init_acrn_boot_info(boot_regs);
 
+#ifdef HV_DEBUG
 	init_debug_pre();
+#endif
 
 	if (sanitize_acrn_boot_info(get_acrn_boot_info()) != 0) {
 		panic("Sanitize boot info failed!");
