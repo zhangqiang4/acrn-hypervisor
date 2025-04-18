@@ -399,8 +399,10 @@ static void init_lbr_msrs(struct acrn_vcpu *vcpu)
 		for (msr = (MSR_IA32_LBR_31_TO_IP - 31); msr <= MSR_IA32_LBR_31_TO_IP; msr ++) {
 			enable_msr_interception(msr_bitmap, msr, INTERCEPT_READ_WRITE);
 		}
-		/* Intercept write MSR_IA32_DEBUGCTL (0x1D9U), to keep MSR_IA32_DEBUGCTL.LBR disabled */
-		enable_msr_interception(msr_bitmap, MSR_IA32_DEBUGCTL, INTERCEPT_WRITE);
+		/* Intercept MSR_IA32_DEBUGCTL (0x1D9U) if PMU_PT is also not enabled */
+		if (!is_pmu_pt_configured(vcpu->vm)) {
+			enable_msr_interception(msr_bitmap, MSR_IA32_DEBUGCTL, INTERCEPT_READ_WRITE);
+		}
 		/* Intercept MSR_IA32_LER_FROM_LIP (0x1DDU) */
 		enable_msr_interception(msr_bitmap, MSR_IA32_LER_FROM_LIP, INTERCEPT_READ_WRITE);
 		/* Intercept MSR_IA32_LER_TO_LIP (0x1DEU) */
@@ -1396,20 +1398,6 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		} else {
 			vcpu_inject_gp(vcpu, 0U);
 		}
-		break;
-	}
-	case MSR_IA32_DEBUGCTL:
-	{
-		if (!vm_cpu_feature_enabled(vcpu->vm, GUEST_CPU_FEATURE_LBR_PT)) {
-			/* Per chapter 19.4.2, Volume 3 in SDM: On processors that do not support model-specific LBRs,
-			 * IA32_DEBUGCTL[bit 0] has no meaning. It can be written to 0 or 1, but reads will always
-			 * return 0.
-			 * So force IA32_DEBUGCTL[bit 0] = 0 at here, as LBR PT is not enabled.
-			 * Also disable IA32_DEBUGCTL[bit 11] (freeze LBRs on PMI).
-			 */
-			v &= ~(MSR_IA32_DEBUGCTL_ENABLE_LBR | MSR_IA32_DEBUGCTL_FREEZE_LBRS_ON_PMI);
-		}
-		err = msr_write_safe(msr, v, MSR_IA32_DEBUGCTL_RSV_BITS);
 		break;
 	}
 	default:
