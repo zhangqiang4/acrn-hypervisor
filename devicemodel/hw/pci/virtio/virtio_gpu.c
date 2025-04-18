@@ -2910,9 +2910,6 @@ virtio_gpu_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		return;
 
 	gpu->vga.enable = false;
-	if(gpu->vdpy_if.pipe_num)
-		free(gpu->irq_bh);
-	free(gpu->vq);
 	pthread_mutex_lock(&gpu->vga_thread_mtx);
 	if (atomic_load(&gpu->vga_thread_status) != VGA_THREAD_EOL) {
 		pthread_mutex_unlock(&gpu->vga_thread_mtx);
@@ -2978,6 +2975,9 @@ virtio_gpu_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pthread_mutex_unlock(&gpu->event_mtx);
 	pthread_mutex_destroy(&gpu->mtx);
 	pthread_mutex_destroy(&gpu->event_mtx);
+	if(gpu->vdpy_if.pipe_num)
+		free(gpu->irq_bh);
+	free(gpu->vq);
 	free(gpu);
 	virtio_gpu_device_cnt--;
 }
