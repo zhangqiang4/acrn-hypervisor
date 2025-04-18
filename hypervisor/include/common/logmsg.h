@@ -7,6 +7,7 @@
 #ifndef LOGMSG_H
 #define LOGMSG_H
 #include <asm/cpu.h>
+#include <bsp.h>
 
 /**
  * @addtogroup debug
@@ -196,7 +197,8 @@ void do_logmsg(uint32_t severity, const char *fmt, ...);
 #define panic(...) 							\
 	do { pr_fatal("PANIC: %s line: %d\n", __func__, __LINE__);	\
 		pr_fatal(__VA_ARGS__); 					\
-		while (true) { asm_pause(); }; } while (false)
+		bsp_fatal_error();					\
+	} while (false)
 
 extern uint16_t mem_loglevel;
 
