@@ -25,7 +25,6 @@
 #include <asm/irq.h>
 #include <ticks.h>
 #include <asm/cpuid.h>
-#include <vroot_port.h>
 #include <vmcs9900.h>
 
 /**
@@ -108,7 +107,6 @@ static struct emul_dev_ops emul_dev_ops_tbl[] = {
 #ifdef CONFIG_VMCS9900_ENABLED
 	{(MCS9900_VENDOR | (MCS9900_DEV << 16U)), create_vmcs9900_vdev, destroy_vmcs9900_vdev},
 #endif
-	{(VRP_VENDOR | (VRP_DEVICE << 16U)), create_vrp, destroy_vrp},
 };
 
 /**
