@@ -57,7 +57,14 @@ static bool pm1ab_io_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t width)
 static inline void enter_s5(struct acrn_vcpu *vcpu, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
 {
 	struct acrn_vm *vm = vcpu->vm;
+	struct acrn_vm *tee_vm = get_tee_vm();
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
+
+	if (tee_vm != NULL) {
+		get_vm_lock(tee_vm);
+		pause_vm(tee_vm);
+		put_vm_lock(tee_vm);
+	}
 
 	get_vm_lock(vm);
 	/*
