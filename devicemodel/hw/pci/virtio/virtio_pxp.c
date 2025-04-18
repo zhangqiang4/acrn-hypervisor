@@ -105,6 +105,7 @@ struct prelim_drm_i915_pxp_ops {
 #define PRELIM_DRM_I915_PXP_OP_STATUS_SESSION_NOT_AVAILABLE 2
 #define PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_UNKNOWN 3
 #define PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_INVALID 4
+#define PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_RETURN 0xfff
 
 	__u64 params; /* in/out - pointer to data matching the action */
 } __attribute__((packed));
@@ -242,11 +243,14 @@ process_set_session(struct virtio_pxp *pxp, struct iovec *iov, int n)
 	extra_param.session_mode = req->session_mode;
 	extra_param.req_session_state = req->req_session_state;
 	ret = ioctl(pxp->drm_fd, PRELIM_DRM_IOCTL_I915_PXP_OPS, &params);
-	pr_dbg("virtio_pxp:%s, pxp_tag:%u, session_type:%d, session_mode:%d, req_session_state:%d ret:%d\n", __FUNCTION__,
+	if (ret < 0) {
+		pr_warn("virtio_pxp:%s, pxp_tag:%u, session_type:%d, session_mode:%d, req_session_state:%d ret:%d\n", __FUNCTION__,
 			extra_param.pxp_tag, extra_param.session_type, extra_param.session_mode,
 			extra_param.req_session_state, ret);
-
-	resp.status = ret;
+		resp.status = PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_RETURN;
+	} else {
+		resp.status = params.status;
+	}
 	resp.pxp_tag = extra_param.pxp_tag;
 
 	memcpy(iov[1].iov_base, &resp, sizeof(resp));
@@ -271,8 +275,12 @@ process_io_mssage(struct virtio_pxp *pxp, struct iovec *iov, int n)
 	extra_param.msg_in = (__u64) iov[1].iov_base;
 	extra_param.msg_out =(__u64) iov[2].iov_base;
 	ret = ioctl(pxp->drm_fd, PRELIM_DRM_IOCTL_I915_PXP_OPS, &params);
-	pr_dbg("virtio_pxp:%s,ret:%d, ret_size:%d\n", __FUNCTION__, ret, extra_param.msg_out_ret_size );
-	resp.status = ret;
+	if (ret < 0) {
+		pr_warn("virtio_pxp:%s,ret:%d, ret_size:%d\n", __FUNCTION__, ret, extra_param.msg_out_ret_size );
+		resp.status = PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_RETURN;
+	} else {
+		resp.status = params.status;
+	}
 	resp.msg_out_ret_size = extra_param.msg_out_ret_size;
 
 	memcpy(iov[3].iov_base, &resp, sizeof(resp));
@@ -294,9 +302,13 @@ process_query_pxp(struct virtio_pxp *pxp, struct iovec *iov, int n)
 	extra_param.pxp_tag = req->pxp_tag;
 	extra_param.session_is_alive = req->session_is_alive;
 	ret = ioctl(pxp->drm_fd, PRELIM_DRM_IOCTL_I915_PXP_OPS, &params);
-	pr_dbg("virtio_pxp:%s,pxp_tag:%u, session_is_alive:%d ret:%d\n", __FUNCTION__,
+	if (ret < 0) {
+		pr_warn("virtio_pxp:%s,pxp_tag:%u, session_is_alive:%d ret:%d\n", __FUNCTION__,
 			extra_param.pxp_tag, extra_param.session_is_alive, ret);
-	resp.status = ret;
+		resp.status = PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_RETURN;
+	} else {
+		resp.status = params.status;
+	}
 	resp.pxp_tag = extra_param.pxp_tag;
 	resp.session_is_alive = extra_param.session_is_alive;
 
@@ -320,9 +332,13 @@ process_host_session_handle_req(struct virtio_pxp *pxp, struct iovec *iov, int n
 	extra_param.request_type = req->request_type;
 	extra_param.host_session_handle = req->host_session_handle;
 	ret = ioctl(pxp->drm_fd, PRELIM_DRM_IOCTL_I915_PXP_OPS, &params);
-	pr_dbg("virtio_pxp:%s,request_type:%d, host_session_handle:%llu ret:%d\n", __FUNCTION__,
+	if (ret < 0) {
+		pr_warn("virtio_pxp:%s,request_type:%d, host_session_handle:%llu ret:%d\n", __FUNCTION__,
 			extra_param.request_type, extra_param.host_session_handle, ret);
-	resp.status = ret;
+		resp.status = PRELIM_DRM_I915_PXP_OP_STATUS_ERROR_RETURN;
+	} else {
+		resp.status = params.status;
+	}
 	resp.host_session_handle = extra_param.host_session_handle;
 
 	memcpy(iov[1].iov_base, &resp, sizeof(resp));
@@ -510,11 +526,13 @@ static void pxp_uevent_read(int fd, enum ev_type type, void *arg)
 	if (!device)
 		return;
 	val = udev_device_get_property_value(device, "PXP_EVENT");
-	udev_device_unref(device);
-	if (!val)
+	if (!val) {
+		udev_device_unref(device);
 		return;
+	}
 	event = atoi(val);
 	pr_dbg("receive pxp event:%d\n", event);
+	udev_device_unref(device);
 
 	process_pxp_event(pxp, event);
 }
