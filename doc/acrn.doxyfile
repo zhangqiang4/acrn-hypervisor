@@ -956,6 +956,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/guest/vm_reset.c \
                           ../hypervisor/include/arch/x86/asm/guest/guest_pm.h \
                           ../hypervisor/include/arch/x86/asm/guest/vm_reset.h \
+                          ../hypervisor/arch/x86/guest/optee.c \
+                          ../hypervisor/include/arch/x86/asm/guest/optee.h \
 
 
 # This tag can be used to specify the character encoding of the source files

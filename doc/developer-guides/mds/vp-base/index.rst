@@ -22,4 +22,5 @@ Design of Component `vp-base`
    vp-base_vm-config
    vp-base_vmsr
    vp-base_vmtrr
+   vp-base_optee
 
