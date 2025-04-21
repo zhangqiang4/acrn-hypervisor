@@ -1750,6 +1750,15 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 			case APIC_DELMODE_STARTUP:
 				vlapic_process_init_sipi(target_vcpu, mode, icr_low);
 				break;
+			/* Reserved in x2APIC mode */
+			case APIC_DELMODE_LOWPRIO:
+			case APIC_DELMODE_RR:
+			case APIC_DELMODE_RESV:
+			/* Not supported by ACRN */
+			case APIC_DELMODE_SMI:
+				dev_dbg(DBG_LEVEL_LAPICPT, "%s vapic_id: 0x%08x, unsupported delivery mode %x",
+					__func__, target_vcpu->arch.vlapic.vapic_id, mode);
+				break;
 			default:
 				/* convert the dest from virtual apic_id to physical apic_id */
 				papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
