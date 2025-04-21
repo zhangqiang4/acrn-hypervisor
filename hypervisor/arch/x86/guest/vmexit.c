@@ -34,6 +34,8 @@ static int32_t wbinvd_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t undefined_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t pause_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu);
+static int32_t mwait_vmexit_handler(struct acrn_vcpu *vcpu);
+static int32_t monitor_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t loadiwkey_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t init_signal_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu);
@@ -121,13 +123,13 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_ENTRY_FAILURE_MSR_LOADING] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_MWAIT] = {
-		.handler = unhandled_vmexit_handler},
+		.handler = mwait_vmexit_handler},
 #ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 	[VMX_EXIT_REASON_MONITOR_TRAP] = {
 		.handler = mtf_vmexit_handler},
 #endif
 	[VMX_EXIT_REASON_MONITOR] = {
-		.handler = unhandled_vmexit_handler},
+		.handler = monitor_vmexit_handler},
 	[VMX_EXIT_REASON_PAUSE] = {
 		.handler = pause_vmexit_handler},
 	[VMX_EXIT_REASON_ENTRY_FAILURE_MACHINE_CHECK] = {
@@ -313,7 +315,52 @@ static int32_t pause_vmexit_handler(__unused struct acrn_vcpu *vcpu)
 static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	if ((vcpu->arch.pending_req == 0UL) && (!vlapic_has_pending_intr(vcpu))) {
+		/* HLT is emulated with MWAIT C1 (hint=0) */
 		wait_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
+	}
+	return 0;
+}
+
+static int32_t mwait_vmexit_handler(struct acrn_vcpu *vcpu)
+{
+	uint32_t eax, ecx;
+	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
+
+	if ((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) == 0UL) {
+		vcpu_inject_ud(vcpu);
+	} else {
+		/*
+		* Only monitor-less MWAIT can be emulated.
+		* Guests need to mark ecx bit2 as an indicator to do monitor-less MWAIT.
+		* Monitored MWAIT can not be emulated, we will yield and return immediately.
+		*/
+		if ((vcpu->arch.pending_req == 0UL) && (!vlapic_has_pending_intr(vcpu))) {
+			eax = (uint32_t)vcpu_get_gpreg(vcpu, CPU_REG_RAX);
+			ecx = (uint32_t)vcpu_get_gpreg(vcpu, CPU_REG_RCX);
+
+			if ((ecx & 0x4U) == 0) {
+				yield_current();
+			} else {
+				/* EAX [7:4] 01111B indicates C0, which means no idle. */
+				if ((eax & 0xF0U) != 0xF0U) {
+					vcpu->idle_hint = eax & 0xFFU;
+					wait_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
+					/* restore the hint to 0(C1) for default */
+					vcpu->idle_hint = 0U;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int32_t monitor_vmexit_handler(__unused struct acrn_vcpu *vcpu)
+{
+	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
+
+	if ((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) == 0UL) {
+		vcpu_inject_ud(vcpu);
 	}
 	return 0;
 }

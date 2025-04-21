@@ -771,11 +771,92 @@ void stop_pcpus(void)
 	wait_pcpus_offline(mask);
 }
 
+
+/**
+ * @brief Set up a linear address range to be monitored by hardware and activate the monitor.
+ *
+ * @param[in] addr The start address to be monitored.
+ * @param[in] ecx Optional extensions of the MONITOR instruction.
+ * @param[in] edx Optional hints of the MONITOR instruction.
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
+static inline void asm_monitor(volatile const uint64_t *addr, uint64_t ecx, uint64_t edx)
+{
+	asm volatile("monitor\n" : : "a" (addr), "c" (ecx), "d" (edx));
+}
+
+/**
+ * @brief Call MWAIT with interrupt enabled in a safe way.
+ *
+ * STI is called right before the MWAIT instruction, so that events happen on the instruction boundary
+ * are able to wake MWAIT.
+ *
+ * @param[in] eax A value containing hints such as the preferred optimized state the processor should enter.
+ * @param[in] ecx Optional extensions for the MWAIT instruction.
+ *
+ * @return None
+ */
+static inline void asm_safe_mwait(uint64_t eax, uint64_t ecx)
+{
+	asm volatile("sti; mwait; cli\n" : : "a" (eax), "c" (ecx));
+}
+
+/**
+ * @brief Get idle hint for a pCPU.
+ *
+ * This function returns idle hint for a pCPU for it to enter idle state by MWAIT.
+ *
+ * It goes through all vCPUs on that pCPU and finds out the shallowest idle hint.
+ *
+ * If no vcpu is launched on that pCPU, return 0xE0 to suggest the deepest Cx.
+ *
+ * @param[in] pcpu_id Id of pCPU to get the idle hint.
+ *
+ * @return Idle hint for the target pCPU.
+ */
+static uint32_t get_pcpu_idle_hint(uint16_t pcpu_id)
+{
+	uint32_t hint = 0xF0U;
+	uint32_t i, launched_cnt = 0U;
+	struct acrn_vcpu *vcpu;
+
+	for (i = 0; i < CONFIG_MAX_VM_NUM; i++) {
+		vcpu = per_cpu(vcpu_array[i], pcpu_id);
+		if ((vcpu != NULL) && vcpu->launched) {
+			hint = (vcpu->idle_hint < hint) ? vcpu->idle_hint : hint;
+			launched_cnt ++;
+		}
+	}
+
+	if (launched_cnt == 0) {
+		/* Give a big hint to suggest the deepest Cx.*/
+		hint = 0xE0U;
+	}
+
+	/* TODO
+	 * SDM doest not regulate what the hint value should be valid or invalid.
+	 * But the actual supported Cx can be enumerated by CPUID.05H:EDX, we may
+	 * need to add valid check on hint value in the future.
+	 */
+	return hint;
+}
+
 /**
  * @brief Put the current physical CPU in an idle state.
  *
- * This function puts the current physical CPU in an idle state by executing the HLT instruction or the PAUSE
- * instruction depending on the mode_to_idle field of per_cpu_data.
+ * This function puts the current physical CPU in an idle state, by executing either of:
+ *  - MWAIT, if mode_to_idle IDLE_MODE_CX.
+ *  - PAUSE, if mode_to_idle is IDLE_MODE_PAUSE.
+ *
+ * When the pCPU goes to idle with MWAIT, an event (e.g. IRQ, IPI) is needed to break the
+ * idle state.
+ *
+ * Note that MWAIT can be disabled by clearing host's MSR_IA32_MISC_ENABLE MONITOR_ENA
+ * bit. That MSR bit is not supposed to be changed as it may cause unwanted results.
  *
  * @return None
  *
@@ -785,19 +866,15 @@ void stop_pcpus(void)
 void cpu_do_idle(void)
 {
 	uint16_t pcpu_id = get_pcpu_id();
+	uint64_t dummy;
 
-	if (per_cpu(mode_to_idle, pcpu_id) == IDLE_MODE_HLT) {
-		asm_safe_hlt();
+	if (per_cpu(mode_to_idle, pcpu_id) == IDLE_MODE_CX) {
+		uint32_t hint = get_pcpu_idle_hint(pcpu_id);
+		asm_monitor(&dummy, 0UL, 0UL);
+		asm_safe_mwait(hint, 0UL);
 	} else {
-		struct acrn_vcpu *vcpu = get_ever_run_vcpu(pcpu_id);
-
-		if ((vcpu != NULL) && !is_lapic_pt_configured(vcpu->vm)) {
-			CPU_IRQ_ENABLE();
-		}
+		/* IDLE_MODE_PAUSE only used in lapic_pt VMs. So we don't need to enable IRQ here. */
 		asm_pause();
-		if ((vcpu != NULL) && !is_lapic_pt_configured(vcpu->vm)) {
-			CPU_IRQ_DISABLE();
-		}
 	}
 }
 
@@ -880,24 +957,6 @@ static void print_hv_banner(void)
 
 	/* Print the boot message */
 	printf(boot_msg);
-}
-
-/**
- * @brief Set up a linear address range to be monitored by hardware and activate the monitor.
- *
- * @param[in] addr The start address to be monitored.
- * @param[in] ecx Optional extensions of the MONITOR instruction.
- * @param[in] edx Optional hints of the MONITOR instruction.
- *
- * @return None
- *
- * @pre N/A
- * @post N/A
- */
-static
-inline void asm_monitor(volatile const uint64_t *addr, uint64_t ecx, uint64_t edx)
-{
-	asm volatile("monitor\n" : : "a" (addr), "c" (ecx), "d" (edx));
 }
 
 /**

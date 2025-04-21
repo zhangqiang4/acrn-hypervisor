@@ -307,6 +307,8 @@ struct acrn_vcpu {
 	uint64_t reg_cached;
 	uint64_t reg_updated;
 
+	uint32_t idle_hint; /* Saves the idle hint when a vCPU goes to sleep */
+
 	struct sched_event events[VCPU_EVENT_NUM];
 
 #ifdef HV_DEBUG

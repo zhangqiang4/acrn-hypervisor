@@ -60,11 +60,11 @@
 #define IDLE_MODE_PAUSE		(1U)
 
 /**
- * @brief HLT idle mode.
+ * @brief CX idle mode.
  *
- * In this mode pCPU idle thread goes to sleep (c1) with HLT.
+ * In this mode pCPU idle thread goes to sleep (Cx) with MWAIT.
  */
-#define IDLE_MODE_HLT		(2U)
+#define IDLE_MODE_CX		(2U)
 
 /**
  * @brief Data area size of thread object.

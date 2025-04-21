@@ -1144,9 +1144,11 @@ static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 	}
 
 	/* Handle MISC_ENABLE_MONITOR_ENA
-	 * - if guest try to set this bit, do nothing.
+	 * - if guest try to set this bit, MISC_ENABLE_MONITOR_ENA bit of guest MSR_IA32_MISC_ENABLE
+	 *   shall be set. lapic_pt guest does not trap MONITOR/MWAIT
 	 * - if guest try to clear this bit, MISC_ENABLE_MONITOR_ENA bit of guest MSR_IA32_MISC_ENABLE
-	 *   shall be cleared.
+	 *   shall be cleared. lapic_pt guest traps MONITOR/MWAIT, so that it can inject UD
+	 * - guest cpuid.01H will be updated when guest executes 'cpuid' with leaf 01H
 	 */
 	if (((v ^ vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE)) & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) {
 		eax = CPUID_FEATURES;
@@ -1157,11 +1159,20 @@ static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
 		if ((ecx & CPUID_ECX_SSE3) == 0U) {
 			vcpu_inject_gp(vcpu, 0U);
 			update_vmsr = false;
-		} else if (vcpu->vm->arch_vm.vm_mwait_cap) {
-			/* guest cpuid.01H will be updated when guest executes 'cpuid' with leaf 01H */
-			effective_guest_msr &= ~MSR_IA32_MISC_ENABLE_MONITOR_ENA;
+		} else if (is_lapic_pt_configured(vcpu->vm)) {
+			if ((v & MSR_IA32_MISC_ENABLE_MONITOR_ENA) == 0UL) {
+				/* guest attempts execute MONITOR/MWAIT will cause #UD */
+				vcpu->arch.proc_vm_exec_ctrls |= VMX_PROCBASED_CTLS_MONITOR;
+				vcpu->arch.proc_vm_exec_ctrls |= VMX_PROCBASED_CTLS_MWAIT;
+				exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
+			} else {
+				/* allows guest to use MONITOR/MWAIT */
+				vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_MONITOR;
+				vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_MWAIT;
+				exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
+			}
 		} else {
-			update_vmsr = false;
+			/* vmsr value be updated */
 		}
 	}
 

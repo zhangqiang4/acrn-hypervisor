@@ -388,6 +388,7 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
  *   - Use TSC offsetting (bit 3)
  *   - HLT exiting (bit 7)
  *   - Disable INVLPG exiting (bit 9)
+ *   - MWAIT exiting (bit 10)
  *   - Disable CR3-load exiting (bit 15)
  *   - Disable CR3-store exiting (bit 16)
  *   - Activate tertiary controls (bit 17)
@@ -396,6 +397,7 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
  *   - Use TPR shadow (bit 21)
  *   - Use I/O bitmaps (bit 25)
  *   - Use I/O MST bitmaps (bit 28)
+ *   - MONITOR exiting (bit 29)
  *   - Activate secondary controls (bit 31)
  * - Secondary Processor-Based VM-execution controls (Refer to Table 25-7 Definitions of Secondary Processor-Based
  *   VM-Execution Controls, Vol. 3, SDM 325462-078):
@@ -488,7 +490,8 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	value32 = check_vmx_ctrl(MSR_IA32_VMX_PROCBASED_CTLS,
 			 VMX_PROCBASED_CTLS_TSC_OFF | VMX_PROCBASED_CTLS_TPR_SHADOW |
 			 VMX_PROCBASED_CTLS_IO_BITMAP | VMX_PROCBASED_CTLS_MSR_BITMAP |
-			 VMX_PROCBASED_CTLS_HLT | VMX_PROCBASED_CTLS_SECONDARY | VMX_PROCBASED_CTLS_TERTIARY);
+			 VMX_PROCBASED_CTLS_HLT | VMX_PROCBASED_CTLS_SECONDARY | VMX_PROCBASED_CTLS_TERTIARY |
+			 VMX_PROCBASED_CTLS_MWAIT | VMX_PROCBASED_CTLS_MONITOR);
 
 	/*Disable VM_EXIT for CR3 access*/
 	value32 &= ~(VMX_PROCBASED_CTLS_CR3_LOAD | VMX_PROCBASED_CTLS_CR3_STORE);
@@ -865,7 +868,7 @@ void load_vmcs(const struct acrn_vcpu *vcpu)
  *   - Disable external interrupt exiting.
  *   - Disable posted interrupt processing if APICv advanced features are supported.
  *   - Disable IRQ acknowledgment on VM exits.
- *   - Disable TPR shadow and HLT exiting.
+ *   - Disable TPR shadow, HLT and MONITOR/MWAIT exiting.
  *   - Set TPR threshold to zero.
  *   - Disable pause loop exiting and virtual APIC.
  *   - Disable Register Virtualization and virtual interrupt delivery if APICv advanced features are supported.
@@ -907,6 +910,8 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 		/* Disable TPR shadow and HLT exiting */
 		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_TPR_SHADOW;
 		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_HLT;
+		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_MWAIT;
+		vcpu->arch.proc_vm_exec_ctrls &= ~VMX_PROCBASED_CTLS_MONITOR;
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
 		/* Set TPR threshold to zero */
 		exec_vmwrite32(VMX_TPR_THRESHOLD, 0U);

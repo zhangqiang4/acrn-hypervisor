@@ -370,6 +370,12 @@
  */
 #define CPUID_EDX_PBE           (1U<<31U)
 /**
+ * @brief A bit representing whether the processor supports Monitor-less MWAIT.
+ *
+ * This bit is fetched from CPUID(EAX=5H,ECX=0H):ECX[3].
+ */
+#define CPUID_ECX_MONITOR_LESS  (1U<<3U)
+/**
  * @brief A bit representing whether the processor supports Digital temperature sensor.
  *
  * This bit is fetched from CPUID(EAX=6H,ECX=0H):EAX[0].
@@ -769,6 +775,10 @@
  * @brief A CPUID entry provide the deterministic cache parameters for each level.
  */
 #define CPUID_CACHE             4U
+/**
+ * @brief A CPUID entry provide the MONITOR/MWAIT information.
+ */
+#define CPUID_MONITOR_MWAIT     5U
 /**
  * @brief A CPUID entry provide the thermal and power management information.
  */

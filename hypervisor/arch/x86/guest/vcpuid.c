@@ -357,6 +357,17 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	return result;
 }
 
+static void guest_cpuid_05h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
+{
+	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
+
+	cpuid_subleaf(CPUID_MONITOR_MWAIT, *ecx, eax, ebx, ecx, edx);
+	if (((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) &&
+			!is_lapic_pt_configured(vcpu->vm)) {
+		*ecx |= CPUID_ECX_MONITOR_LESS;
+	}
+}
+
 static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
 {
 	cpuid_subleaf(CPUID_THERMAL_POWER, *ecx, eax, ebx, ecx, edx);
@@ -468,7 +479,7 @@ static inline void percpu_cpuid_init(void)
 	/* hybrid related percpu leaves*/
 	if (pcpu_has_cap(X86_FEATURE_HYBRID)) {
 		/* 0x2U, 0x4U, 0x6U, 0x14U, 0x16U, 0x18U, 0x1A, 0x1C, 0x80000006U */
-		uint32_t hybrid_leaves[] = {CPUID_TLB, CPUID_CACHE,
+		uint32_t hybrid_leaves[] = {CPUID_TLB, CPUID_CACHE, CPUID_MONITOR_MWAIT,
 			CPUID_THERMAL_POWER, CPUID_TRACE, CPUID_FREQ,
 			CPUID_ADDR_TRANS, CPUID_MODEL_ID, CPUID_LAST_BRANCH_RECORD,
 			CPUID_EXTEND_CACHE};
@@ -791,6 +802,11 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 		/* 0x01U */
 		case CPUID_FEATURES:
 			guest_cpuid_01h(vcpu, eax, ebx, ecx, edx);
+			break;
+
+		/* 0x05U for MONITOR MWAIT */
+		case CPUID_MONITOR_MWAIT:
+			guest_cpuid_05h(vcpu, eax, ebx, ecx, edx);
 			break;
 
 		/* 0x06U for hybrid arch */
