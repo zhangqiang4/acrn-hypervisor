@@ -1532,8 +1532,9 @@ int vdpy_parse_cmd_option(const char *opts)
 			scr->name = "sdl";
 			vdpy.scrs_num++;
 			scr->is_pipe_vblank = false;
-                } else if (tmp && strcasestr(str, "lease=")) {
-			scr->name = "lease";
+                } else if (tmp && (strcasestr(str, "lease=") ||
+					strcasestr(str, "pipe-display="))) {
+			scr->name = "pipe-display";
 			vdpy.scrs_num++;
 			vdpy.pipe_num++;
 			scr->is_pipe_vblank = true;
