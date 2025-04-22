@@ -948,6 +948,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/sched_bvt.c \
                           ../hypervisor/arch/x86/sched.S \
                           ../hypervisor/include/common/schedule.h \
+                          ../hypervisor/arch/x86/ioapic.c \
+                          ../hypervisor/include/arch/x86/asm/ioapic.h \
                           ../hypervisor/common/event.c \
                           ../hypervisor/include/common/event.h \
                           ../hypervisor/arch/x86/guest/pm.c \
