@@ -188,7 +188,9 @@ BOOT_C_SRCS += boot/multiboot/multiboot.c
 ifeq ($(CONFIG_MULTIBOOT2),y)
 BOOT_C_SRCS += boot/multiboot/multiboot2.c
 endif
+ifeq ($(CONFIG_RELOC),y)
 BOOT_C_SRCS += boot/reloc.c
+endif
 
 # hardware management component
 HW_S_SRCS += arch/x86/idt.S

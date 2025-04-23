@@ -1,14 +1,12 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <types.h>
-#include <reloc.h>
 #include <boot.h>
 
-#ifdef CONFIG_RELOC
 #define DT_NULL		0U	/* end of .dynamic section */
 #define DT_RELA		7U	/* relocation table */
 #define DT_RELASZ	8U	/* size of reloc table */
@@ -31,11 +29,12 @@ static inline uint64_t elf64_r_type(uint64_t i)
 {
 	return (i & 0xffffffffUL);
 }
-#endif
+
+/* external symbols that are helpful for relocation */
+extern uint8_t		_DYNAMIC[1];
 
 void relocate(void)
 {
-#ifdef CONFIG_RELOC
 	struct Elf64_Dyn *dyn;
 	struct Elf64_Rel *entry = NULL;
 	uint8_t *rela_start = NULL, *rela_end = NULL;
@@ -98,5 +97,4 @@ void relocate(void)
 			rela_start += entry_size;
 		}
 	}
-#endif
 }
