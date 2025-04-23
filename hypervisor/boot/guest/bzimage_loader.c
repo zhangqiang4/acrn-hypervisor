@@ -30,11 +30,17 @@
  * should be able to accommodate it so that avoid the trampoline corruption. So the params size is:
  * (MEM_1K + MEM_4K + MEM_2K + 40B * MAX_EFI_MMAP_ENTRIES + MEM_8K)
  */
+#ifdef CONFIG_MULTIBOOT2
 #define BZIMG_LOAD_PARAMS_SIZE			(MEM_1K * 15U + MAX_EFI_MMAP_ENTRIES * sizeof(struct efi_memory_desc))
+#else
+#define BZIMG_LOAD_PARAMS_SIZE			(MEM_1K * 15U)
+#endif
 #define BZIMG_INITGDT_GPA(load_params_gpa)	((load_params_gpa) + 0UL)
 #define BZIMG_ZEROPAGE_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K)
 #define BZIMG_CMDLINE_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K + MEM_4K)
+#ifdef CONFIG_MULTIBOOT2
 #define BZIMG_EFIMMAP_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K + MEM_4K + MEM_2K)
+#endif
 
 /* TODO:
  * The value is referenced from Linux boot protocal for old kernels,

@@ -228,7 +228,9 @@ HW_C_SRCS += common/irq.c
 HW_C_SRCS += common/softirq.c
 HW_C_SRCS += common/schedule.c
 HW_C_SRCS += common/event.c
+ifeq ($(CONFIG_MULTIBOOT2),y)
 HW_C_SRCS += common/efi_mmap.c
+endif
 HW_C_SRCS += common/sbuf.c
 ifeq ($(CONFIG_SGX_ENABLED),y)
 HW_C_SRCS += arch/x86/sgx.c

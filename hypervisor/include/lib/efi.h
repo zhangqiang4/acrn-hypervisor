@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2020-2022 Intel Corporation.
+ * Copyright (C) 2020-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef EFI_H
 #define EFI_H
+
+#ifdef CONFIG_MULTIBOOT2
 
 /* EFI Memory Attribute values: */
 #define EFI_MEMORY_UC			0x0000000000000001UL	/* uncached */
@@ -52,6 +54,8 @@ struct efi_memory_desc {
 	uint64_t num_pages;
 	uint64_t attribute;
 };
+
+#endif /* CONFIG_MULTIBOOT2 */
 
 struct efi_info {
 	uint32_t loader_signature;	/* 0x1c0 */

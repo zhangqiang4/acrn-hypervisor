@@ -136,6 +136,7 @@ static void insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, ui
 	hv_e820[index].type = type;
 }
 
+#ifdef CONFIG_MULTIBOOT2
 static void init_e820_from_efi_mmap(void)
 {
 	uint32_t i, e820_idx = 0U;
@@ -209,6 +210,7 @@ static void init_e820_from_efi_mmap(void)
 	hv_e820_entries_nr = e820_idx;
 
 }
+#endif
 
 /* HV read multiboot header to get E820 entries info and calc total RAM info */
 static void init_e820_from_mmap(struct acrn_boot_info *abi)
@@ -342,10 +344,13 @@ void init_e820(void)
 {
 	struct acrn_boot_info *abi = get_acrn_boot_info();
 
+#ifdef CONFIG_MULTIBOOT2
 	if (boot_from_uefi(abi)) {
 		init_efi_mmap_entries(&abi->uefi_info);
 		init_e820_from_efi_mmap();
-	} else {
+	} else
+#endif
+	{
 		init_e820_from_mmap(abi);
 	}
 
