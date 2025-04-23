@@ -8,9 +8,16 @@
 #define VPIC_H
 
 /**
- * @file vpic.h
+ * @addtogroup vp-dm_vperipheral
  *
- * @brief public APIs for virtual PIC
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Definitions for virtual 8259 Programmable Interrupt Controller (PIC)
+ *
+ * This file defines macros, data structure and functions for virtual 8259 Programmable Interrupt Controller (PIC).
  */
 
 struct acrn_vm;
@@ -19,6 +26,5 @@ void vpic_hide(struct acrn_vm *vm);
 /**
  * @}
  */
-/* End of acrn_vpic */
 
 #endif /* VPIC_H */

@@ -911,11 +911,13 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/page.h \
                           ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
+                          ../hypervisor/include/dm/vpic.h \
                           ../hypervisor/include/dm/ivshmem.h \
                           ../hypervisor/common/irq.c \
                           ../hypervisor/common/softirq.c \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
+                          ../hypervisor/dm/vpic.c \
                           ../hypervisor/dm/vpci/vpci_bridge.c \
                           ../hypervisor/dm/vpci/ivshmem.c \
                           ../hypervisor/dm/vpci/vhostbridge.c \

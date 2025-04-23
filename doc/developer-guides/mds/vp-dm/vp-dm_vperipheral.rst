@@ -24,6 +24,12 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 .. doxygenfile:: vrtc.c
    :project: Project ACRN
 
+[File] dm/vpic.c
+======================================================================
+
+.. doxygenfile:: vpic.c
+   :project: Project ACRN
+
 [File] dm/vpci/vhostbridge.c
 ======================================================================
 
@@ -52,4 +58,10 @@ This section contains the documentation of the module `vp-dm.vperipheral`.
 ======================================================================
 
 .. doxygenfile:: vrtc.h
+   :project: Project ACRN
+
+[File] include/dm/vpic.h
+======================================================================
+
+.. doxygenfile:: vpic.h
    :project: Project ACRN
