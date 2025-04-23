@@ -11,6 +11,19 @@
     </xs:annotation>
   </xs:assert>
 
+  <xs:assert test="every $tee_vm in /acrn-config/vm[.//vm_type = 'TEE_VM'] satisfies
+                   $tee_vm/load_order = 'PRE_LAUNCHED_VM'">
+    <xs:annotation acrn:severity="error" acrn:report-on="$tee_vm">
+      <xs:documentation>TEE_VM must be PRE_LAUNCHED_VM</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="count(/acrn-config/vm[.//vm_type = 'TEE_VM']) &lt;= 1">
+    <xs:annotation acrn:severity="error" acrn:report-on="//vm[.//vm_type = 'TEE_VM']">
+      <xs:documentation>There may be at most one TEE VM, but more than one was configured. Verify only one VM's VM type is set to TEE_VM.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
   <xs:assert test="every $pre_vm in /acrn-config/vm[.//load_order = 'PRE_LAUNCHED_VM'] satisfies
                    every $svm in /acrn-config/vm[.//load_order = 'SERVICE_VM'] satisfies
                    $pre_vm/@id &lt; $svm/@id">
