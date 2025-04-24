@@ -856,6 +856,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/dm/vacpi.h \
                           ../hypervisor/include/dm/io_req.h \
                           ../hypervisor/include/common/hypercall.h \
+                          ../hypervisor/include/common/hv_main.h \
                           ../hypervisor/include/common/irq.h \
                           ../hypervisor/include/common/softirq.h \
                           ../hypervisor/include/common/ticks.h \

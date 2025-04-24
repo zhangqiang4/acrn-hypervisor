@@ -262,7 +262,7 @@ void schedule(void);
  * @pre next_sp != NULL
  */
 void arch_switch_to(void *prev_sp, void *next_sp);
-void run_idle_thread(void);
+
 #endif /* SCHEDULE_H */
 
 /**

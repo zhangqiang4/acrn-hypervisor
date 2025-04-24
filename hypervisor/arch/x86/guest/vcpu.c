@@ -23,6 +23,7 @@
 #include <asm/lapic.h>
 #include <asm/irq.h>
 #include <console.h>
+#include <hv_main.h>
 
 /* stack_frame is linked with the sequence of stack operation in arch_switch_to() */
 struct stack_frame {

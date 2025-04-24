@@ -9,6 +9,7 @@
 #include <asm/guest/vmcs.h>
 #include <asm/guest/vmexit.h>
 #include <asm/guest/virq.h>
+#include <hv_main.h>
 #include <schedule.h>
 #include <profiling.h>
 #include <sprintf.h>

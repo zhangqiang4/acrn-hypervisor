@@ -14,6 +14,7 @@
 #include <logmsg.h>
 #include <boot.h>
 #include <dmi.h>
+#include <hv_main.h>
 
 /**
  * @addtogroup init

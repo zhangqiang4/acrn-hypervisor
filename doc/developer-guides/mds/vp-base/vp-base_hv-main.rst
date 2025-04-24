@@ -41,3 +41,9 @@ This section contains the documentation of the module `vp-base.hv-main`.
 
 .. doxygenfile:: vmcs.h
    :project: Project ACRN
+
+[File] include/common/hv_main.h
+======================================================================
+
+.. doxygenfile:: hv_main.h
+   :project: Project ACRN
