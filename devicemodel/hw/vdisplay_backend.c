@@ -1541,8 +1541,7 @@ int vdpy_parse_cmd_option(const char *opts)
 		} else if (tmp && strcasestr(str, "projection=")) {
 			scr->name = "projection";
 			vdpy.scrs_num++;
-			vdpy.pipe_num++;
-			scr->is_pipe_vblank = true;
+			scr->is_pipe_vblank = false;
 		} else if (tmp && strcasestr(str, "plane-display=")) {
 			scr->name = "plane-display";
 			vdpy.scrs_num++;
