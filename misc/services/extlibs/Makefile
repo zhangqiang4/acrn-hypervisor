@@ -33,7 +33,7 @@ $(CAMERA_CONFIG): $(CAMERA_CONFIG_STATIC_LIB)
 
 # Unified rule for building shared libraries
 $(TARGET_SHARED_LIBS): %.so: %.a $(CAMERA_CONFIG)
-	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) -Wl,--whole-archive $< -Wl,--no-whole-archive $(LDFLAGS) -Wl,--hash-style=gnu,-soname=$@.$(MAJOR_VERSION)
+	$(CXX) $(CFLAGS) -shared -o $@.$(MAJOR_VERSION).$(MINOR_VERSION) -Wl,--whole-archive $< -Wl,--no-whole-archive $(LDFLAGS) -Wl,--hash-style=gnu,-soname,$@.$(MAJOR_VERSION)
 
 # Rule for building the binary
 $(CAMERA_MANAGER_BIN): libcamera_manager.a $(CAMERA_CONFIG)
