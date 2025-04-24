@@ -27,6 +27,13 @@
  * $FreeBSD$
  */
 
+
+/**
+ * @brief define a common prefix for log messages related to the vioapic module
+ *
+ * This helps in identifying and filtering log messages specific to vioapic when debugging or analyzing logs
+ *
+ */
 #define pr_prefix	"vioapic: "
 
 #include <asm/guest/vm.h>
@@ -37,20 +44,85 @@
 #include <logmsg.h>
 #include <asm/ioapic.h>
 
-#define	RTBL_RO_BITS	((uint32_t)0x00004000U | (uint32_t)0x00001000U) /*Remote IRR and Delivery Status bits*/
+/**
+ * @defgroup vp-dm_vioapic vp-dm.vioapic
+ * @ingroup vp-dm
+ *
+ * @brief The definition and implementation of virtual IOAPIC.
+ *
+ * It provides external APIs for the operation on the virtual IOAPIC
+ * @{
+ */
 
-#define DBG_LEVEL_VIOAPIC	6U
-#define ACRN_IOAPIC_VERSION	0x11U
+ /**
+ * @file vioapic.c
+ *
+ * @brief implement APIs for virtual IOAPIC
+ *
+ * This file implement the interface to operate virtual IOAPIC device.
+ *
+ */
 
-#define MASK_ALL_INTERRUPTS   0x0000000000010000UL
+ /**
+ * @brief Macro to mark the read-only bits in the IOAPIC redirection table.
+ *
+ * This macro is to mark the read-only bits within the IOAPIC redirection
+ * table entries. Specifically, it highlights the Remote IRR and Delivery
+ * Status bits, which are crucial for managing interrupt delivery and
+ * acknowledgment in a virtualized environment.
+ *
+ */
+#define	RTBL_RO_BITS	((uint32_t)0x00004000U | (uint32_t)0x00001000U)
 
+#define DBG_LEVEL_VIOAPIC	6U /**< Debug level for virtual IOAPIC operations */
+#define ACRN_IOAPIC_VERSION	0x11U /**< Version number for ACRN IOAPIC */
+
+#define MASK_ALL_INTERRUPTS   0x0000000000010000UL /**< Mask to disable all interrupts */
+
+/**
+ * @brief Retrieve the pointer to the VIOAPICs structure associated with a VM.
+ *
+ * This function accesses the specific VM structure to obtain the VIOAPICs structure,
+ * which is responsible for managing virtual IOAPICs within the VM.
+ * The VIOAPICs structure is crucial for handling INTx interrupt requests and routing
+ * them appropriately within the virtualized environment.
+ *
+ * @param[in] vm vm Pointer to the ACRN VM structure, this parameter represents the
+ *               virtual machine for which the VIOAPICs structure is being retrieved.
+ *
+ * @return Pointer to the ACRN VIOAPICs structure.
+ *
+ */
 static inline struct acrn_vioapics *vm_ioapics(struct acrn_vm *vm)
 {
 	return (struct acrn_vioapics *)&(vm->arch_vm.vioapics);
 }
 
 /**
+ * @brief Generate an interrupt on a specified VIOAPIC pin.
+ *
+ * This function is responsible for generating an interrupt on a specified pin
+ * of a virtual IOAPIC (VIOAPIC), it only raises the interrupt when:
+ *
+ * (1) the IOAPIC PIN is unmask
+ * (2) for a level trigger INTx, only when remote irr is not set.
+ *
+ * If all these conditions met, it will call vlapic_receive_intr to inject the INTx to
+ * virtual local APIC, for level trigger INTx, it also needs set remote irr before
+ * injecting this INTx to the virtual local APIC.
+ *
  * @pre pin < vioapic->chipinfo.nr_pins
+ *
+ * @param[in] vioapic Pointer to the ACRN single VIOAPIC structure.
+ *                    This parameter provides access to the VIOAPIC instance where the
+ *                    interrupt is to be generated, allowing the function to interact
+ *                    with its configuration and state.
+ * @param[in] pin The pin number on the VIOAPIC to generate the interrupt.
+ *                This parameter specifies which pin should be used for the
+ *                interrupt generation, and must be a valid pin number.
+ *
+ * @return None
+ *
  */
 static void
 vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
@@ -61,6 +133,9 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
 
 	rte = vioapic->rtbl[pin];
 
+	/*
+	* Checks if the specified pin is masked.
+	*/
 	if (rte.bits.intr_mask == IOAPIC_RTE_MASK_SET) {
 		dev_dbg(DBG_LEVEL_VIOAPIC, "ioapic pin%hhu: masked", pin);
 	} else {
@@ -86,7 +161,30 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
 }
 
 /**
+ * @brief set the state of a given pin
+ *
+ * This function set the state of a given pin on the VIOAPIC, it's used to emulate the
+ * voltage level state of a pin on the virtual machine, this function first checks whether
+ * the passed pin less then the nr_pins to detect whether it is a valid value.
+ *
+ * If the pin is valid, it obtains the corresponding RTE for the pin and then clear the bit for
+ * low state or set the bit for hight state, that clear or set not relying on old states.
+ *
+ * Once the setting is complete, it determines whether to generate an interrupt base on the
+ * Interrupt Input Pin Polarity bit in the I/O REDIRECTION TABLE REGISTER, if the pin state
+ * changes low to high for High active or if the pin state changes high to low for Low active,
+ * an interrupt will be generated.
+ *
  * @pre pin < vioapic->chipinfo.nr_pins
+ *
+ * @param[in] vioapic Pointer to the ACRN single VIOAPIC structure. This structure contains the
+ *                    configuration and state information for the virtual IOAPIC.
+ * @param[in] pin The pin number on the VIOAPIC to update. This identifies which pin's state is being set.
+ * @param[in] level The new state of the pin. A value of 0 represents a low state, while a non-zero value
+ *                  represents a high state.
+ *
+ * @return None
+ *
  */
 static void
 vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t level)
@@ -115,6 +213,31 @@ vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t
 	}
 }
 
+/**
+ * @brief convert a VGSI to a VIOAPIC and VPIN.
+ *
+ * The function retrieves the corresponding vioapic using the given GSI value.
+ * For Service VM, ACRN Hypervisor exposes the native APIC ACPI Table to it, it may contain
+ * multiple IOAPICs. So it first calls the "get_gsi_to_ioapic_index" to obtain the index of
+ * the IOAPIC corresponding to the current vgsi, then gets the specific Pin value by calling
+ * "gsi_to_ioapic_pin".
+ *
+ * For a Guest VM, since only one vioapic is emulated, the vioapic_index is 0, and there is
+ * no need to look up a table. The vgsi and vpin have a 1:1 mapping.
+ *
+ * After determining the values of vioapic_index and vpin, use the ioapic_index to find the
+ * corresponding vioapic address from the vioapic_array array.
+ *
+ * @param[in] vm Pointer to the ACRN VM structure. This represents the virtual machine context
+ *               within which the VGSI conversion is performed. It must be a valid pointer to an
+ *               initialized VM structure.
+ * @param[in] vgsi The Target GSI number.
+ * @param[out] vpin Pointer to store the resulting VPIN. This may be NULL if the VPIN is not needed.
+ *                  If provided, it will be updated with the pin number corresponding to the VGSI.
+ *
+ * @return Pointer to the ACRN single VIOAPIC structure associated with the VGSI
+ *
+ */
 static struct acrn_single_vioapic *
 vgsi_to_vioapic_and_vpin(struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin)
 {
@@ -139,19 +262,34 @@ vgsi_to_vioapic_and_vpin(struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin)
 }
 
 /**
- * @brief Set vIOAPIC IRQ line status.
+ * @brief Set vIOAPIC IRQ line status without lock
  *
- * Similar with vioapic_set_irqline_lock(),but would not make sure
- * operation be done with ioapic lock.
+ * This function emulates setting vIOAPIC IRQ line status without lock.
+ * For Level trigger Mode interrupt, just set the pin state to high or low.
+ * For Edge trigger Mode interrupt, set the pin state to low then high to emulate a falling pulse
+ * on the IRQ line, set the pin state to high then low to emulate a rising pulse on the IRQ line.
  *
- * @param[in] vm        Pointer to target VM
- * @param[in] vgsi   	Target GSI number
- * @param[in] operation Action options: GSI_SET_HIGH/GSI_SET_LOW/
- *			GSI_RAISING_PULSE/GSI_FALLING_PULSE
+ * This assumes that the device driver would set the default Pin Polarity to high before asserting
+ * a falling pulse to trigger an interrupt or set the default Pin Polarity to low before asserting
+ * a raising pulse to trigger an interrupt.
+ *
+ * Base on the Interrupt Input Pin Polarity bit in the I/O REDIRECTION TABLE REGISTER, there may trigger an interrupt
+ * if the pin state changes low to high for High active or if the pin state changes high to low for Low active.
+ *
+ * @param[in] vm Pointer to the target VM structure. This represents the virtual machine context
+ *               within which the IRQ line state is being set.
+ * @param[in] vgsi The Target GSI number.
+ * @param[in] operation The action to perform on the IRQ line. Valid options are:
+ *                      - GSI_SET_HIGH: Set the IRQ line to a high state.
+ *                      - GSI_SET_LOW: Set the IRQ line to a low state.
+ *                      - GSI_RAISING_PULSE: emulate a rising pulse on the IRQ line.
+ *                      - GSI_FALLING_PULSE: emulate a falling pulse on the IRQ line.
  *
  * @pre vgsi < get_vm_gsicount(vm)
  * @pre vm != NULL
+ *
  * @return None
+ *
  */
 void
 vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
@@ -185,15 +323,24 @@ vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation
 }
 
 /**
- * @brief Set vIOAPIC IRQ line status.
+ * @brief Set vIOAPIC IRQ line status with lock.
  *
- * @param[in] vm        Pointer to target VM
- * @param[in] vgsi  	Target GSI number
- * @param[in] operation Action options: GSI_SET_HIGH/GSI_SET_LOW/
- *			GSI_RAISING_PULSE/GSI_FALLING_PULSE
+ * Similar with vioapic_set_irqline_nolock(),but make sure operation be done with ioapic lock.
+ *
+ * @param[in] vm Pointer to the target VM structure. This represents the virtual machine context
+ *               within which the IRQ line state is being set.
+ * @param[in] vgsi The Target GSI number
+ * @param[in] operation The action to perform on the IRQ line. Valid options are:
+ *                      - GSI_SET_HIGH: Set the IRQ line to a high state.
+ *                      - GSI_SET_LOW: Set the IRQ line to a low state.
+ *                      - GSI_RAISING_PULSE: emulate a rising pulse on the IRQ line.
+ *                      - GSI_FALLING_PULSE: emulate a falling pulse on the IRQ line.
  *
  * @pre vgsi < get_vm_gsicount(vm)
  * @pre vm != NULL
+ *
+ * @return none
+ *
  */
 void
 vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
@@ -207,6 +354,28 @@ vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
 	spinlock_irqrestore_release(&(vioapic->lock), rflags);
 }
 
+/**
+ * @brief Reads a register from the Virtual IOAPIC (VIOAPIC).
+ *
+ * This function just returns the cached value for the target writable register diretly.
+ *
+ * For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
+ * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
+ * for the IOAPIC minus one.
+ *
+ * For Read-only bit Remote IRR— in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
+ * EOI would not trigger VM-exit. So virtual 'Remote IRR' would not be updated. Needs to read physical
+ * IOxAPIC RTE to update virtual 'Remote IRR' field each time when guest wants to read I/O REDIRECTION
+ * TABLE REGISTERS
+ *
+ * @param[in] vioapic Pointer to the VIOAPIC device structure. This structure contains the
+ *                    configuration and state information for the virtual I/O APIC.
+ * @param[in] addr Address of the register to read. This specifies the register within the VIOAPIC
+ *                 that is being accessed, and determines the type of data returned.
+ *
+ * @return The value of the read register.
+ *
+ */
 static uint32_t
 vioapic_indirect_read(struct acrn_single_vioapic *vioapic, uint32_t addr)
 {
@@ -267,6 +436,29 @@ vioapic_indirect_read(struct acrn_single_vioapic *vioapic, uint32_t addr)
 	return ret;
 }
 
+/**
+ * @brief Checks if an interrupt is needed for a specific pin on the VIOAPIC.
+ *
+ * This function determines whether to generate an interrupt by checking if the pin state
+ * matches the settings of Interrupt polarity.
+ *
+ * If the Interrupt polarity setting is active high and the pin state is high or the Interrupt
+ * polarity setting is active low and the pin state is low, return true, otherwise, return
+ * false.
+ *
+ * @param[in] vioapic Pointer to the VIOAPIC device structure. This structure contains the
+ *                    configuration and state information for the virtual I/O APIC.
+ * @param[in] pin The pin number to check. This identifies which pin's interrupt condition is
+ *                being evaluated, and must be within the valid range of pins for the VIOAPIC.
+ *
+ * @return true if an interrupt is needed, false otherwise.
+ *
+ * @remark This function is intended for internal use within the vioapic module and it is a
+ *         necessary condition for final deciding whether an interrupt should be generated.
+ *         When calling this function, it is necessary to check whetherthe pin is not masked
+ *         and that the previous interrupt has been EOIed (Remote IRR status is 0).
+ *
+ */
 static inline bool vioapic_need_intr(const struct acrn_single_vioapic *vioapic, uint16_t pin)
 {
 	uint32_t lvl;
@@ -283,10 +475,35 @@ static inline bool vioapic_need_intr(const struct acrn_single_vioapic *vioapic, 
 	return ret;
 }
 
-/*
- * Due to the race between vcpus and vioapic->lock could be accessed from softirq, ensure to do
- * spinlock_irqsave_obtain(&(vioapic->lock), &rflags) & spinlock_irqrestore_release(&(vioapic->lock), rflags)
- * by caller.
+/**
+ * @brief Writes to the indirect registers of the VIOAPIC.
+ *
+ * This function will ignore the write operation to read-only register and read-only bits in register.
+ * For writable bits or register, it will cache the write value.
+ * And For I/O REDIRECTION TABLE REGISTER:
+ * 1 Set Trigger Mode to Edge will clear Remote IRR for some OSes will use EOI Register to clear it for 0x20
+ * version IOAPIC, otherwise use switch Trigger Mode to Edge Sensitive to clear it.
+ * 2 if Interrupt Mask is changed, it will call ptirq_intx_pin_remap to do INTx interrupt remapping for passthrough
+ * device
+ * 3 call vlapic_receive_intr to generate an interrupt if the following conditions are met:
+ * - pin is not masked
+ * - Remote IRR is clear to zero
+ * - pin level is asserted
+ *
+ * @param[inout] vioapic Pointer to the acrn_single_vioapic structure. This structure contains the
+ *                       configuration and state information for the virtual I/O APIC, and is
+ *                       modified by this function.
+ * @param[in] addr The address of the register to write to. This specifies the register within the
+ *                 VIOAPIC that is being accessed, and determines the type of data written.
+ * @param[in] data The data to write to the specified register. This is a 32-bit value representing
+ *                 the new configuration or state for the register.
+ * @remark In some special scenarios, the LAPIC somehow hasn't send EOI to IOAPIC which cause the Remote
+ *         IRR bit can't be clear.
+ *         To clear it, some OSes will use EOI Register to clear it for  0x20 version IOAPIC, otherwise
+ *         use switch Trigger Mode to Edge Sensitive to clear it.
+ *
+ * @return none
+ *
  */
 static void vioapic_indirect_write(struct acrn_single_vioapic *vioapic, uint32_t addr, uint32_t data)
 {
@@ -365,6 +582,64 @@ static void vioapic_indirect_write(struct acrn_single_vioapic *vioapic, uint32_t
 	}
 }
 
+/**
+ * @brief Reads or writes to the VIOAPIC MMIO registers.
+ *
+ * This function emulates read/write the Accessing IOAPIC Registers under lock protection, refers to
+ * "Table 1. Memory Mapped Registers For Accessing IOAPIC Registers, 82093AA I/O ADVANCED PROGRAMMABLE
+ * INTERRUPT CONTROLLER (IOAPIC).
+ *
+ * For I/O Register Select Register, just return the cached value for read operation or cache the write
+ * value for write operation.
+ *
+ * For I/O Window Register, just emulate the IOAPIC Registers read/write operation, refers to "Table 2.
+ * IOAPIC Registers 82093AA I/O ADVANCED PROGRAMMABLE INTERRUPT CONTROLLER (IOAPIC).
+ *
+ * For the reading process:
+ * 1 Returns the cached value for the target writable register diretly
+ *
+ * 2 For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
+ * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
+ * for the IOAPIC minus one.
+ *
+ * 3 For Read-only bit Remote IRR— in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
+ * EOI would not trigger VM-exit. So virtual 'Remote IRR' would not be updated. Needs to read physical
+ * IOxAPIC RTE to update virtual 'Remote IRR' field each time when guest wants to read I/O REDIRECTION
+ * TABLE REGISTERS
+ *
+ * For the writing process:
+ * 1 Ignore the write operation to read-only register and read-only bits in register, for writable bits
+ *   or register, it will cache the write value.
+ *
+ * 2 For I/O REDIRECTION TABLE REGISTER:
+ * 1) Set Trigger Mode to Edge will clear Remote IRR for some OSes will use EOI Register to clear it for 0x20
+ * version IOAPIC, otherwise use switch Trigger Mode to Edge Sensitive to clear it.
+ * 2) if Interrupt Mask is changed, it will call ptirq_intx_pin_remap to do INTx interrupt remapping for passthrough
+ * device
+ * 3) call vlapic_receive_intr to generate an interrupt if the following conditions are met:
+ * - pin is not masked
+ * - Remote IRR is clear to zero
+ * - pin level is asserted
+ *
+ * If the offset is neither of the above values, return 0xFFFFFFFFU to indicate a read/write error.
+ *
+ * @param[inout] vioapic Pointer to the VIOAPIC instance, representing the virtualized IOAPIC.
+ * @param[in] gpa Guest physical address indicating the MMIO register to access.
+ * @param[inout] data Pointer to the 32-bit data buffer used for reading from or writing to the register.
+ * @param[in] do_read Boolean flag indicating the operation type: true for read, false for write.
+ *
+ * @pre vioapic != NULL
+ * @pre data != NULL
+ * @pre (gpa >= vioapic->chipinfo.addr) && (gpa < (vioapic->chipinfo.addr + VIOAPIC_SIZE))
+ *
+ * @remark The IOAPIC specification allows 32-bit wide accesses to the IOAPIC_REGSEL (offset 0)
+ *         and IOAPIC_WINDOW (offset 16) registers.
+ *         On read, *data contains the value from the specified MMIO address.
+ *         On write, the specified MMIO address is updated with the value in *data.
+ *
+ * @return none
+ *
+ */
 static void
 vioapic_mmio_rw(struct acrn_single_vioapic *vioapic, uint64_t gpa,
 		uint32_t *data, bool do_read)
@@ -406,8 +681,30 @@ vioapic_mmio_rw(struct acrn_single_vioapic *vioapic, uint64_t gpa,
 	spinlock_irqrestore_release(&(vioapic->lock), rflags);
 }
 
-/*
- * @pre vm != NULL
+/**
+ * @brief Processes an EOI for a specific vector.
+ *
+ * This function first get the ioapic pin by the EOI vector and Remote IRR bit.
+ * Then it call ptirq_intx_ack which acknowledge a virtual INTx interrupt for passthrough device.
+ *
+ * After acknowledge the above virtual INTx interrupt, it will get the vioapic->lock and clear the Remote IRR
+ * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr to receive an interrupt from the
+ * IOAPIC and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there becuase of this
+ * Remote IRR and then release the lock.
+ *
+ * @param[inout] vioapic Pointer to the VIOAPIC instance, representing the virtualized IOAPIC.
+ * @param[in] vector The interrupt vector for which to process the EOI, indicating the specific
+ *                   interrupt to acknowledge.
+ *
+ * @pre vioapic != NULL
+ * @pre vioapic->vm != NULL
+ * @pre (vector >= VECTOR_DYNAMIC_START) && (vector <= NR_MAX_VECTOR)
+ *
+ * @remark The Remote IRR bit is cleared for any pin associated with the specified vector.
+ * @remark If a pin needs an interrupt after processing the EOI, an interrupt is generated.
+ *
+ * @return none
+ *
  */
 static void
 vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
@@ -455,6 +752,33 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
 	spinlock_irqrestore_release(&(vioapic->lock), rflags);
 }
 
+/**
+ * @brief Broadcasts an EOI to all VIOAPICs in the VM.
+ *
+ * This function emulates the behavior of broadcasting an EOI message from the Local APIC (LAPIC) to
+ * all IO-APICs in a physical platform.
+ *
+ * It iterates over all virtual IOAPICs (VIOAPICs) associated with the specified VM and processes the
+ * EOI for the given interrupt vector on all these VIOAPICs.
+ *
+ * For each VIOAPIC，call ptirq_intx_ack which will call an lock protection interface "vioapic_set_irqline_lock"
+ * to acknowledge a virtual INTx interrupt for passthrough device with this IOAPIC pin and clear the Remote IRR
+ * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr receive an interrupt from the IOAPIC
+ * and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there becuase of this Remote IRR
+ * and then release the lock.
+ *
+ * @param[in] vm Pointer to the VM instance, representing the virtual machine containing the VIOAPICs.
+ * @param[in] vector The interrupt vector for which to broadcast the EOI, indicating the specific
+ *                   interrupt to acknowledge across all VIOAPICs.
+ *
+ * @pre vm != NULL
+ * @pre (vector >= VECTOR_DYNAMIC_START) && (vector <= NR_MAX_VECTOR)
+ *
+ * @remark Each VIOAPIC in the VM processes the EOI for the specified vector.
+ *
+ * @return none
+ *
+ */
 void vioapic_broadcast_eoi(struct acrn_vm *vm, uint32_t vector)
 {
 	struct acrn_single_vioapic *vioapic;
@@ -471,6 +795,29 @@ void vioapic_broadcast_eoi(struct acrn_vm *vm, uint32_t vector)
 	}
 }
 
+/**
+ * @brief Resets a single VIOAPIC instance.
+ *
+ * This function resets the specified virtual IOAPIC (VIOAPIC) instance, ensuring that it returns
+ * to a known default state.
+ *
+ * It masks all interrupt redirection entries, sets the CHIPINFO ID and IOREGSEL register to 0.
+ *
+ * This is typically used during VM initialization or when reconfiguring the VIOAPIC to ensure a
+ * clean state.
+ *
+ * @param[out] vioapic Pointer to the VIOAPIC instance to reset, representing the virtualized IOAPIC
+ *                     that needs to be returned to its default state.
+ *
+ * @pre vioapic != NULL
+ *
+ * @remark All redirection entries are masked.
+ * @remark The ID of CHIPINFO is set to 0.
+ * @remark The IOREGSEL register is set to 0.
+ *
+ * @return none
+ *
+ */
 static void reset_one_vioapic(struct acrn_single_vioapic *vioapic)
 {
 	uint32_t pin, pincount;
@@ -484,6 +831,28 @@ static void reset_one_vioapic(struct acrn_single_vioapic *vioapic)
 	vioapic->ioregsel = 0U;
 }
 
+/**
+ * @brief Resets all VIOAPICs in the VM.
+ *
+ * This function iterates over all VIOAPICs associated with the specified VM and reset the IOAPIC’s
+ * internal logic and sets the register bits to their default value..
+ *
+ * It ensures that all VIOAPICs are returned to a known, clean state, and it is a necessary step
+ * for VM reset.
+ *
+ * It masks all interrupt redirection entries, sets the CHIPINFO ID and IOREGSEL register to 0.
+ *
+ * @param[in] vm Pointer to the VM instance, representing the virtual machine containing the VIOAPICs
+ *               that need to be reset.
+ *
+ * @pre vm != NULL
+ *
+ * @remark Each VIOAPIC in the VM is reset.
+ *
+ * @return none
+ *
+ */
+
 void reset_vioapics(struct acrn_vm *vm)
 {
 	struct acrn_vioapics *vioapics = vm_ioapics(vm);
@@ -495,6 +864,36 @@ void reset_vioapics(struct acrn_vm *vm)
 }
 
 static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *handler_private_data);
+
+/**
+ * @brief Initializes the VIOAPICs for a specific VM.
+ *
+ * This function sets up the VIOAPICs for the given VM, ensuring that they are properly initialized
+ * and registered for memory-mapped I/O (MMIO) emulation. It determines the number of IOAPICs based
+ * on whether the VM is a service VM and configures each VIOAPIC accordingly.
+ *
+ * - For a service VM, it is the same as the one on the physical platform.
+ * - For other VMs, only one virtual IOAPIC is provided, simplifying the emulation setup.
+ *
+ * The initialization is mainly completed in three steps:
+ * 1 Reset all the vioapics.
+ * 2 Register callback function for the address range of the vioapic.
+ * 3 Remove the address range of the vioapic from the EPT table.
+ *
+ * The function also computes the number of GSIs for the specified VM, the Maximum number of GSI is
+ * computed as GSI base of the IOAPIC i.e. enumerated last in ACPI MADT plus the number of interrupt
+ * pins of that IOAPIC.
+ *
+ * @param[in] vm Pointer to the VM instance to initialize, representing the virtual machine for
+ *               which the VIOAPICs need to be set up.
+ * @pre vm != NULL
+ *
+ * @remark Each VIOAPIC in the VM is initialized and registered for MMIO emulation.
+ * @remark The number of GSIs is computed and set for the VM.
+ *
+ * @return none
+ *
+ */
 void
 vioapic_init(struct acrn_vm *vm)
 {
@@ -507,9 +906,17 @@ vioapic_init(struct acrn_vm *vm)
 	uint8_t vioapic_index;
 	struct acrn_single_vioapic *vioapic = NULL;
 
+	/*
+	* Check if the given VM is a service virtual machine.
+	* If it is, retrieve the platform IOAPIC (Input/Output Advanced Programmable Interrupt Controller) information
+	* and set the IOAPIC count for the virtual machine (vm).
+	*/
 	if (is_service_vm(vm)) {
 		vm->arch_vm.vioapics.ioapic_num = get_platform_ioapic_info(&vioapic_info);
 	} else {
+		/*
+		* If it is not, set the IOAPIC count to a default of 1 and use the virtual IOAPIC information.
+		*/
 		vm->arch_vm.vioapics.ioapic_num = 1U;
 		vioapic_info = &virt_ioapic_info;
 	}
@@ -536,14 +943,51 @@ vioapic_init(struct acrn_vm *vm)
 	}
 }
 
+/**
+ * @brief Gets the total number of GSIs for the VM.
+ *
+ * This function returns the total number of GSIs configured for the specified VM. GSIs are used to
+ * manage interrupt routing within the VM, and the count is determined during the initialization of
+ * the VM's virtual IOAPICs (VIOAPICs).
+ *
+ * @param[in] vm Pointer to the VM instance, representing the virtual machine for which the GSI count
+ *               needs to be retrieved.
+ * @pre vm != NULL
+ *
+ * @return The total number of GSIs for the VM.
+ *
+ */
 uint32_t
 get_vm_gsicount(const struct acrn_vm *vm)
 {
 	return vm->arch_vm.vioapics.nr_gsi;
 }
 
-/*
+/**
+ * @brief Handles MMIO access requests to the VIOAPIC.
+ *
+ * This function is a callback function for the vioapic address range and will be registed by the
+ * "register_mmio_emulation_handler" when the vioapic init, it will processes MMIO access requests
+ * directed at the VIOAPIC, supporting both read and write operations, it ensures that all accesses
+ * are 32-bit in size, as required by the IOAPIC specification.
+ *
+ * Whether to read or write is determined by the direction specified in the struct acrn_mmio_request:
+ * - ACRN_IOREQ_DIR_READ, read
+ * - ACRN_IOREQ_DIR_WRITE, write
+ *
+ * @param[in] io_req Pointer to the IO request structure, containing details of the MMIO operation
+ *                   such as the address, size, direction, and value.
+ * @param[out] handler_private_data Private data passed to the handler, which is a pointer to the
+ *                                  VIOAPIC instance being accessed.
+ *
+ * @return 0 on success, -EINVAL on invalid access.
+ *
+ * @pre io_req != NULL
  * @pre handler_private_data != NULL
+ *
+ * @remark On read, io_req->reqs.mmio_request.value is updated with the read data.
+ * @remark On write, the specified MMIO address in the VIOAPIC is updated.
+ *
  */
 static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *handler_private_data)
 {
@@ -573,9 +1017,28 @@ static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *hand
 }
 
 /**
+ * @brief Gets the RTE for a specific vgsi.
+ *
+ * This function accesses the VIOAPIC associated with the given VM and retrieves the RTE for the specified
+ * virtual GSI (vgsi), first, get the correct vioapic and the pin id by vgsi, then the pin will be an index
+ * of the rtbl to get the RTE.
+ *
+ * The RTE contains configuration details for interrupt redirection, such as the
+ * interrupt vector, delivery mode, and destination. The function ensures that the RTE is correctly
+ * retrieved and stored in the provided `rte` pointer.
+ *
+ * @param[in] vm Pointer to the VM instance, representing the virtual machine containing the VIOAPICs.
+ * @param[in] vgsi The Target GSI number.
+ * @param[out] rte Pointer to store the retrieved RTE, providing access to the interrupt configuration.
+ *
  * @pre vm->arch_vm.vioapics != NULL
  * @pre vgsi < get_vm_gsicount(vm)
  * @pre rte != NULL
+ *
+ * @remark *rte contains the RTE for the specified vgsi.
+ *
+ * @return none
+ *
  */
 void vioapic_get_rte(struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte)
 {
@@ -585,3 +1048,7 @@ void vioapic_get_rte(struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte)
 
 	*rte = vioapic->rtbl[pin];
 }
+/**
+ *
+ * @}
+ */

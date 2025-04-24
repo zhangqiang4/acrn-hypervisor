@@ -30,85 +30,153 @@
 #ifndef VIOAPIC_H
 #define VIOAPIC_H
 
-/**
- * @file vioapic.h
- *
- * @brief public APIs for virtual I/O APIC
- */
-
 #include <asm/apicreg.h>
 #include <asm/ioapic.h>
 #include <util.h>
 
-#define	VIOAPIC_BASE	0xFEC00000UL
-#define	VIOAPIC_SIZE	4096UL
-
-#define REDIR_ENTRIES_HW	120U /* Service VM align with native ioapic */
-#define STATE_BITMAP_SIZE	INT_DIV_ROUNDUP(REDIR_ENTRIES_HW, 64U)
-
-#define IOAPIC_RTE_LOW_INTVEC	((uint32_t)IOAPIC_RTE_INTVEC)
-
-/*
- * id field is used to emulate the IOAPIC_ID register of vIOAPIC
- */
-
-struct acrn_single_vioapic {
-	spinlock_t	lock;
-	struct acrn_vm  *vm;
-	struct ioapic_info chipinfo;
-	uint32_t	ioregsel;
-	union ioapic_rte rtbl[REDIR_ENTRIES_HW];
-	/* pin_state status bitmap: 1 - high, 0 - low */
-	uint64_t pin_state[STATE_BITMAP_SIZE];
-};
-
-/*
- * ioapic_num represents the number of IO-APICs emulated for the VM.
- * nr_gsi represents the maximum number of GSI emulated for the VM.
- */
-struct acrn_vioapics {
-	uint8_t ioapic_num;
-	uint32_t nr_gsi;
-	struct acrn_single_vioapic vioapic_array[CONFIG_MAX_IOAPIC_NUM];
-};
-
-void dump_vioapic(struct acrn_vm *vm);
-void vioapic_init(struct acrn_vm *vm);
-void reset_vioapics(struct acrn_vm *vm);
-
-
 /**
- * @brief virtual I/O APIC
- *
- * @addtogroup acrn_vioapic ACRN vIOAPIC
+ * @addtogroup vp-dm_vioapic
  * @{
  */
 
 /**
- * @brief Set vIOAPIC IRQ line status.
+ * @file vioapic.h
  *
- * @param[in] vm        Pointer to target VM
- * @param[in] vgsi	GSI for the virtual interrupt
- * @param[in] operation Action options: GSI_SET_HIGH/GSI_SET_LOW/
- *			GSI_RAISING_PULSE/GSI_FALLING_PULSE
+ * @brief public APIs for virtual IOAPIC
  *
- * @pre irqline < vioapic_pincount(vm)
+ * This file define the interface to operate virtual IOAPIC device.
+ *
  */
-void	vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
+
+#define	VIOAPIC_BASE	0xFEC00000UL /**< Base address for the virtual IOAPIC */
+#define	VIOAPIC_SIZE	4096UL /**< Size of the virtual IOAPIC memory region in bytes */
 
 /**
- * @brief Set vIOAPIC IRQ line status.
+ * @brief Define the number of redirection entries for hardware
  *
- * Similar with vioapic_set_irqline_lock(),but would not make sure
- * operation be done with ioapic lock.
+ * The number should aligned with native IOAPIC for Service VM
  *
- * @param[in] vm        Pointer to target VM
- * @param[in] vgsi      GSI for the virtual interrupt
- * @param[in] operation Action options: GSI_SET_HIGH/GSI_SET_LOW/
- *			GSI_RAISING_PULSE/GSI_FALLING_PULSE
- *
- * @pre irqline < vioapic_pincount(vm)
  */
+#define REDIR_ENTRIES_HW	120U
+
+/**
+ * @brief Define the size of the state bitmap
+ *
+ * The size calculated by rounding up the division of redirection entries by 64
+ *
+ */
+#define STATE_BITMAP_SIZE	INT_DIV_ROUNDUP(REDIR_ENTRIES_HW, 64U)
+
+/**
+ * @brief Represents a single virtual IOAPIC instance.
+ *
+ * This structure is used to emulate the behavior of an IOAPIC for a virtual machine.
+ * It includes information about the associated VM, the IOAPIC chip, and the state of
+ * the redirection table entries and pin states.
+ *
+ * @remark Access to the fields of this structure should be protected by the `lock` to
+ * ensure thread safety.
+ */
+struct acrn_single_vioapic {
+	/**
+	 * @brief Spinlock to protect access to the fields of this structure.
+	 *
+	 * Ensures thread safety during operations by preventing concurrent
+	 * modifications to the vIOAPIC's state and configuration.
+	 *
+	 */
+	spinlock_t	lock;
+
+	/**
+	 * @brief Pointer to the virtual machine associated with this vIOAPIC.
+	 *
+	 * Links the vIOAPIC to its corresponding VM context, allowing it to
+	 * interact with the VM's virtualized environment.
+	 *
+	 */
+	struct acrn_vm  *vm;
+
+	/**
+	 * @brief Information about the IOAPIC chip being emulated.
+	 *
+	 * Includes details such as the IOAPIC's ID, address, and configuration
+	 * settings, which are necessary for accurate emulation.
+	 *
+	 */
+	struct ioapic_info chipinfo;
+	/**
+	 * @brief Register selector for IOAPIC operations.
+	 *
+	 * Used to select which register is being accessed or modified during
+	 * IOAPIC operations, facilitating register-based interactions.
+	 *
+	 */
+	uint32_t	ioregsel;
+	/**
+	 * @brief Array of redirection table entries.
+	 *
+	 * Represents the state and configuration of each interrupt input pin,
+	 * allowing the vIOAPIC to manage and route interrupts within the VM.
+	 *
+	 */
+	union ioapic_rte rtbl[REDIR_ENTRIES_HW];
+	/**
+	 * @brief Bitmap representing the state of each pin.
+	 *
+	 * Tracks the current status of IOAPIC pins, where 1 indicates high and
+	 * 0 indicates low, providing a snapshot of pin states for interrupt
+	 * management.
+	 */
+	uint64_t pin_state[STATE_BITMAP_SIZE];
+};
+
+/**
+ * @brief Represents a collection of virtual IOAPICs for a VM.
+ *
+ * This structure holds the number of IOAPICs and the maximum number of GSIs
+ * emulated for a virtual machine. It also contains an array of individual
+ * virtual IOAPIC instances.
+ *
+ * @consistency The `ioapic_num` represents the number of IO-APICs emulated for the VM.
+ * The `nr_gsi` represents the maximum number of GSI emulated for the VM.
+ * @alignment 8
+ *
+ * @remark Ensure that the number of IOAPICs does not exceed `CONFIG_MAX_IOAPIC_NUM`.
+ */
+struct acrn_vioapics {
+	/**
+	 * @brief Number of IOAPICs emulated for the virtual machine.
+	 *
+	 * This value should not exceed `CONFIG_MAX_IOAPIC_NUM`, ensuring that
+	 * the emulation stays within the configured limits for the VM.
+	 *
+	 */
+	uint8_t ioapic_num;
+
+	/**
+	 * @brief Maximum number of Global System Interrupts (GSIs) emulated for the virtual machine.
+	 *
+	 * Represents the total interrupt capacity of the emulated IOAPICs, allowing
+	 * the VM to handle a specified number of interrupts through its virtualized
+	 * IOAPICs.
+	 *
+	 */
+	uint32_t nr_gsi;
+	/**
+	 * @brief Array of individual virtual IOAPIC instances.
+	 *
+	 * Each element in the array represents an emulated IOAPIC for the virtual machine,
+	 * providing the necessary infrastructure to manage interrupts within the VM's
+	 * virtualized environment.
+	 *
+	 */
+	struct acrn_single_vioapic vioapic_array[CONFIG_MAX_IOAPIC_NUM];
+};
+
+void vioapic_init(struct acrn_vm *vm);
+void reset_vioapics(struct acrn_vm *vm);
+
+void	vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
 void	vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
 
 uint32_t get_vm_gsicount(const struct acrn_vm *vm);
