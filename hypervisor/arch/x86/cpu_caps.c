@@ -1051,6 +1051,7 @@ static int32_t check_essential_vmx_caps(void)
  * - Support for 1GB large pages if physical address width is greater than 39 bits
  * - Invariant TSC (Time Stamp Counter)
  * - TSC deadline timer
+ * - Support IA32_TSC_ADJUST MSR
  * - Execute Disable (NX) feature
  * - Supervisor-Mode Execution Prevention (SMEP)
  * - Supervisor-Mode Access Prevention (SMAP)
@@ -1108,6 +1109,10 @@ int32_t detect_hardware_support(void)
 	} else if (!pcpu_has_cap(X86_FEATURE_TSC_DEADLINE)) {
 		/* lapic TSC deadline timer */
 		printf("%s, TSC deadline not supported\n", __func__);
+		ret = -ENODEV;
+	} else if (!pcpu_has_cap(X86_FEATURE_TSC_ADJ)) {
+		/* IA32_TSC_ADJUST MSR */
+		printf("%s, IA32_TSC_ADJUST MSR not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_NX)) {
 		/* Execute Disable */
