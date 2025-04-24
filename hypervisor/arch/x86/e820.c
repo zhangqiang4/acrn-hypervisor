@@ -120,15 +120,15 @@ uint64_t e820_alloc_memory(uint64_t size_arg, uint64_t max_addr)
 	return ret;
 }
 
-static void insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, uint64_t type)
+static void insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, uint32_t type)
 {
 	uint32_t i;
 
 	hv_e820_entries_nr++;
 	ASSERT(hv_e820_entries_nr <= E820_MAX_ENTRIES, "E820 entry overflow");
 
-	for (i = hv_e820_entries_nr - 1; i > index; i--) {
-		hv_e820[i] = hv_e820[i-1];
+	for (i = hv_e820_entries_nr - 1U; i > index; i--) {
+		hv_e820[i] = hv_e820[i - 1U];
 	}
 
 	hv_e820[index].baseaddr = addr;
@@ -239,7 +239,7 @@ static void calculate_e820_top_address(void)
 {
         uint32_t i;
 
-        for(i = 0; i < hv_e820_entries_nr; i++){
+        for(i = 0U; i < hv_e820_entries_nr; i++){
                 dev_dbg(DBG_LEVEL_E820, "hv_e820[%d]:type: 0x%x Base: 0x%016lx length: 0x%016lx", i,
                                 hv_e820[i].type, hv_e820[i].baseaddr, hv_e820[i].length);
 
@@ -263,7 +263,8 @@ static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 		entry_end = hv_e820[e820_index].baseaddr + hv_e820[e820_index].length;
 
 		/* No need handle in these cases*/
-		if ((hv_e820[e820_index].type != E820_TYPE_RAM) || (entry_end <= start_hpa) || (entry_start >= end_hpa)) {
+		if ((hv_e820[e820_index].type != E820_TYPE_RAM) ||
+			 (entry_end <= start_hpa) || (entry_start >= end_hpa)) {
 			continue;
 		}
 
