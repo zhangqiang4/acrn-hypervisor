@@ -51,7 +51,7 @@ from breathe.renderer.filter import (
 from settings import (
     UPDATED_SECTION_NAMES, SKIPPED_ITEMS, TAB, TAB_SIZE,
     NEED_DEFINED_SORTING, SECTIONS_SORTING_SEQUENCE, MAX_INDENTATION_NUMBERS,
-    NEW_LINE, NL_REPL, NL, PERIOD, ESCAPE_SYMBOLS, REDEFINED_TYPES
+    NEW_LINE, NL_REPL, CR, PERIOD, ESCAPE_SYMBOLS, REDEFINED_TYPES, SPACE, LINE_BREAKER
 )
 from hookit import HookManager
 
@@ -875,9 +875,103 @@ class BreatheRenderer:
         def add_definition(declarator: Declarator) -> None:
             if node.initializer and self.app.config.breathe_show_define_initializer:
                 declarator.append(nodes.Text(f" {TAB * TAB_SIZE}"))  # add spaces to seperate macro name and value
-                declarator.extend(self.render(node.initializer))
+                declarator.extend(self.make_initializer_for_define(node))
 
         return self.handle_declaration(node, declaration, declarator_callback=add_definition)
+
+    def make_initializer_for_define(self, node) -> str:
+        initializer = node.initializer
+        signature: List[Node] = []
+        if initializer:
+            render_nodes = self.render(initializer)
+
+            # step 1. tackle simple macros, eg. #define XXX "hello world"
+            if len(render_nodes) == 1:
+                signature.extend(render_nodes)
+                return signature
+
+            self.macro_depth = 0
+
+            # step 2. make lines separated by \\ for macro
+            all_lines, lines = [], []
+            # 1.extract all text nodes
+            for p in render_nodes:
+                if isinstance(p, nodes.Text):
+                    lines.append(p)
+                if isinstance(p, addnodes.pending_xref):
+                    lines.append(p)
+                if isinstance(p, nodes.paragraph):
+                    lines.append(nodes.Text(p.astext()))
+
+            # 2.reformatting data line by line
+            cache = []
+            for i, n in enumerate(lines):
+                if isinstance(n, addnodes.pending_xref):
+                    cache.append(n)
+                elif isinstance(n, nodes.Text):
+                    content = n.astext()
+                    nl = content.rsplit(LINE_BREAKER, maxsplit=1)
+
+                    if len(nl) == 2:
+                        cache.append(nl[0].strip(CR).replace(TAB, SPACE * TAB_SIZE) + LINE_BREAKER)
+                        if nl[1].strip(CR) != '':
+                            cache.append(nl[1].strip(CR).replace(TAB, SPACE * TAB_SIZE))
+                    elif len(nl) == 1 and nl[0].strip(CR) != '':
+                        cache.append(nl[0].strip(CR).replace(TAB, SPACE * TAB_SIZE))
+
+            t = []
+            # generated result looks like as below:
+            # [
+            #   <paragraph: <#text: ...>,
+            #   <paragraph: <#text: ...><pending_xref...><#text: ...>>,
+            #   ...
+            # ]
+            # one paragraph represented for one line on HTML and
+            # only two sorts of element ONLY should be put into "box", that is, text & pending_xref(i.e. hyperlink)
+            for i, c in enumerate(cache):
+                if isinstance(c, str) and c.endswith(LINE_BREAKER):
+                    t.append(nodes.Text(c))
+                    nodes_ = []
+                    while t:
+                        nodes_.append(t.pop(0))
+
+                    separator = ''
+                    for c in nodes_:  # add indents relatively
+                        if isinstance(c, nodes.Text):
+                            if '{' in c:
+                                self.macro_depth += 1
+                                separator = SPACE * TAB_SIZE * (self.macro_depth - 1)
+                            elif '}' in c:
+                                self.macro_depth -= 1
+                                separator = SPACE * TAB_SIZE * (self.macro_depth - 1)
+                            else:
+                                separator = SPACE * TAB_SIZE * self.macro_depth
+
+                    # TODO: normly we should do some special treatment for first line in one macro,
+                    #  so I will give a relative pr later on
+                    if isinstance(nodes_[0], addnodes.pending_xref):
+                        nodes_.insert(0, nodes.Text(separator))
+                    elif isinstance(nodes_[0], nodes.Text):
+                        tmp = nodes_[0].astext()
+                        nodes_.pop(0)
+                        nodes_.insert(0, nodes.Text(separator + tmp))
+
+                    all_lines.append(nodes.paragraph("", "", *nodes_))
+                else:
+                    if isinstance(c, addnodes.pending_xref):
+                        t.append(c)
+                    else:
+                        t.append(nodes.Text(c))
+
+            # step 3. collect all lines into list and return
+            nd_ = []
+            while t:
+                nd_.append(t.pop(0))
+            all_lines.append(nodes.paragraph("", "", *nd_))
+
+            for p in all_lines:
+                signature.append(p)
+            return signature
 
     def visit_sectiondef(self, node) -> List[Node]:
         self.context = cast(RenderContext, self.context)
@@ -1081,13 +1175,14 @@ class BreatheRenderer:
         elif is_passed_equal and (re.match(ident_re, raw_line_pre) or re.match(string_re, raw_line_pre)):
             raw_ = raw_.replace(raw_line, raw_line)
 
-        return NEW_LINE.join(raw_.split(NL)).replace(PERIOD * 2, PERIOD)
+        return NEW_LINE.join(raw_.split(CR)).replace(PERIOD * 2, PERIOD)
 
     # some methods should be modified and not be contained in `methods`
     meth = {
+        "visit_variable": visit_variable,
         "make_initializer": make_initializer,
         "visit_define": visit_define,
-        "visit_variable": visit_variable
+        "make_initializer_for_define": make_initializer_for_define
     }
 
     # some methods should be modified and be contained in `methods`

@@ -18,7 +18,10 @@ SKIPPED_ITEMS = [
 
 # you can enlarge width between macro's name and its value by increase TAB_SIZE
 TAB = '\t'
-TAB_SIZE = 2
+TAB_SIZE = 8
+LINE_BREAKER = '\\'
+CR = '\n'
+SPACE = ' '
 
 #  MAX_INDENTATION_NUMBERS tag determines the maximum number of indentations
 #  that the depth of embedded components can have for it to appear in
@@ -40,14 +43,14 @@ SECTIONS_SORTING_SEQUENCE = [
     'union',
     'struct',
     'func',
-    'public-attrib',  # should be added or no contents of structs/unions will be shown, please place after struct & union
+    'public-attrib',
+    # should be added or no contents of structs/unions will be shown, please place after struct & union
 ]
 
 # modify initializer's rendering style & make it closer to c code
-NL = '\n'
 PERIOD = ','
 NL_REPL = '__NL__'
-NEW_LINE = PERIOD + NL_REPL+PERIOD
+NEW_LINE = PERIOD + NL_REPL + PERIOD
 
 # support intervals in initializers, i.e., [beg..end] = {1,2,...}
 ESCAPE_SYMBOLS = {
