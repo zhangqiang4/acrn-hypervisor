@@ -10,6 +10,7 @@
 #include <asm/irq.h>
 #include <trace.h>
 #include <asm/guest/virq.h>
+#include <asm/mce.h>
 
 /**
  * @defgroup hwmgmt_mce hwmgmt.mce

@@ -200,6 +200,8 @@ void vprintf(const char *fmt, va_list args);
 		pr_fatal(__VA_ARGS__); 					\
 		while (true) { asm_pause(); }; } while (false)
 
+extern uint16_t mem_loglevel;
+
 /**
  * @}
  */

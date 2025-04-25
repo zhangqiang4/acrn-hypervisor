@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
+#include <asm/cpu.h>
 #include <asm/lib/bits.h>
 #include <asm/page.h>
 #include <asm/e820.h>
@@ -33,7 +33,6 @@
 #include <ivshmem.h>
 #include <reloc.h>
 #include <asm/tsc.h>
-#include <ticks.h>
 #include <delay.h>
 #include <thermal.h>
 #include <asm/mce.h>

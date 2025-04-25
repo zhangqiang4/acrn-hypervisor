@@ -74,6 +74,8 @@ bool request_irq_arch(uint32_t irq);
 void pre_irq_arch(const struct irq_desc *desc);
 void post_irq_arch(const struct irq_desc *desc);
 
+extern uint64_t irq_alloc_bitmap[IRQ_ALLOC_BITMAP_SIZE];
+extern struct irq_desc irq_desc_array[NR_IRQS];
 /**
  * @}
  */

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <asm/lib/bits.h>
 #include <asm/lib/spinlock.h>
 #include <asm/per_cpu.h>

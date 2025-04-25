@@ -5,6 +5,7 @@
  */
 
 #include <asm/guest/vm.h>
+#include <dm/vpic.h>
 
 /**
  * @addtogroup vp-dm_vperipheral

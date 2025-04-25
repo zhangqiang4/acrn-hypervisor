@@ -142,6 +142,8 @@ struct acpi_reset_reg *get_host_reset_reg_data(void);
 void reset_host(bool warm);
 void init_frequency_policy(void);
 void apply_frequency_policy(void);
+extern struct cpu_context cpu_ctx;
+void restore_msrs(void);
 
 #endif	/* HOST_PM_H */
 

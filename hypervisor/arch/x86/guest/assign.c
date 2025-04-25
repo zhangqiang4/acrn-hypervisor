@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
+#include <asm/guest/assign.h>
 #include <errno.h>
 #include <asm/lib/bits.h>
 #include <asm/guest/vm.h>
 #include <asm/vtd.h>
-#include <ptdev.h>
 #include <asm/per_cpu.h>
 #include <asm/ioapic.h>
 #include <asm/pgtable.h>

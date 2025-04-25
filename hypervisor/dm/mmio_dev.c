@@ -11,6 +11,7 @@
 #include <asm/guest/vm.h>
 #include <asm/guest/ept.h>
 #include <logmsg.h>
+#include <dm/mmio_dev.h>
 
 /**
  * @addtogroup vp-dm_mmio-dev

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <pci.h>
+#include <uart16550.h>
 
 /**
  * @addtogroup debug

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
+#include <common/ticks.h>
 #include <util.h>
 #include <asm/cpuid.h>
 #include <asm/cpu_caps.h>

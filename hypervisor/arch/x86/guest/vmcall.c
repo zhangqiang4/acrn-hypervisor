@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <errno.h>
 #include <asm/lib/spinlock.h>
 #include <asm/guest/vcpu.h>
 #include <asm/guest/vm.h>
+#include <asm/guest/vmexit.h>
 #include <asm/guest/virq.h>
 #include <acrn_hv_defs.h>
 #include <hypercall.h>

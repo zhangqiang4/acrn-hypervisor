@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <pci.h>
 #include <console.h>
+#include <dbg_cmd.h>
+#include <shell.h>
 
 /**
  * @addtogroup debug

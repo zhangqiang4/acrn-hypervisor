@@ -9,6 +9,7 @@
 #include <trace.h>
 #include <asm/guest/virq.h>
 #include <hw/hw_thermal.h>
+#include <common/thermal.h>
 /**
  * @addtogroup hwmgmt_thermal
  *

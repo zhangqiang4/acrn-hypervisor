@@ -254,6 +254,7 @@ def gen_clos_array(cache_list, config):
             elif cache_level == "3":
                 cat_mask_list = get_mask_list(cache_level, cache_id)
 
+                print("extern union clos_config platform_l3_clos_array_{0}[{1}];".format(int(cache_id, 16), clos_number), file=config)
                 print("union clos_config platform_l3_clos_array_{0}[{1}] = {{".format(int(cache_id, 16), clos_number), file=config)
 
                 populate_clos_mask_msr("L3", cat_mask_list, config)
@@ -269,12 +270,6 @@ def gen_clos_array(cache_list, config):
                 err_dic['board config: generate board.c failed'] = "The input of {} was corrupted!".format(acrn_config_utilities.BOARD_INFO_FILE)
                 return err_dic
 
-        if res_present[RDT.L2.value] == 0:
-            print("union clos_config platform_l2_clos_array[MAX_CACHE_CLOS_NUM_ENTRIES];", file=config)
-        if res_present[RDT.L3.value] == 0:
-            print("union clos_config platform_l3_clos_array[MAX_CACHE_CLOS_NUM_ENTRIES];", file=config)
-        if res_present[RDT.MBA.value] == 0:
-            print("union clos_config platform_mba_clos_array[MAX_MBA_CLOS_NUM_ENTRIES];", file=config)
     return 0
 
 def gen_rdt_res(config):
@@ -307,6 +302,8 @@ def gen_rdt_res(config):
     cache_list = board_etree.xpath(f"//cache[capability/@id = 'CAT' and @level = '3']")
     if len(cache_list) > 0:
         res_present[RDT.L3.value] = len(cache_list)
+        rdt_ins_proto = "rdt_ins_l3[" + str(len(cache_list)) + "]"
+        print("extern struct rdt_ins {};".format(rdt_ins_proto), file=config)
         rdt_ins_name = "rdt_ins_l3[" + str(len(cache_list)) + "] = {"
         print("struct rdt_ins {}".format(rdt_ins_name), file=config)
         for idx, cache in enumerate(cache_list):

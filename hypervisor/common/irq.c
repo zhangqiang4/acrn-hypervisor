@@ -6,9 +6,9 @@
 
 #include <errno.h>
 #include <asm/lib/bits.h>
-#include <irq.h>
 #include <common/softirq.h>
 #include <asm/irq.h>
+#include <common/irq.h>
 #include <asm/per_cpu.h>
 
 /**

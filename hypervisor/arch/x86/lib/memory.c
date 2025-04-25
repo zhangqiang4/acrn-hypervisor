@@ -2,7 +2,7 @@
  * Copyright (C) 2018-2025 Intel Corporation.
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#include <types.h>
+#include <lib/rtl.h>
 
 /**
  * @addtogroup lib_util

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 #include <types.h>
-#include <asm/guest/vm.h>
+#include <asm/guest/optee.h>
 #include <asm/guest/virq.h>
 #include <asm/vm_config.h>
 #include <logmsg.h>

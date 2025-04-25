@@ -6,6 +6,7 @@
 
 #include <types.h>
 #include <acrn_hv_defs.h>
+#include <npk_log.h>
 
 /**
  * @addtogroup debug

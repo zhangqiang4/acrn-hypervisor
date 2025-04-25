@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
+#include <common/logmsg.h>
 /**
  * @addtogroup debug
  *

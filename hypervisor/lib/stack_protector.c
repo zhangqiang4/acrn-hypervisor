@@ -17,6 +17,7 @@
  * for stack protector feature of hwmgmt.security module.
  */
 
+void __stack_chk_fail(void);
 /**
  * @brief Callback function for stack protector.
  *

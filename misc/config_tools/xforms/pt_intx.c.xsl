@@ -49,6 +49,7 @@
 
       <xsl:choose>
 	<xsl:when test="$length">
+	  <xsl:value-of select="acrn:extern('struct pt_intx_config', concat('vm', @id, '_pt_intx'), concat($length, 'U'))" />
 	  <xsl:value-of select="acrn:array-initializer('struct pt_intx_config', concat('vm', @id, '_pt_intx'), concat($length, 'U'))" />
 	  <xsl:for-each select="$pt_intx">
 	    <xsl:call-template name="format_remappings">
@@ -59,6 +60,7 @@
 	  <xsl:value-of select="$end_of_array_initializer" />
 	</xsl:when>
 	<xsl:otherwise>
+	  <xsl:value-of select="acrn:extern('struct pt_intx_config', concat('vm', @id, '_pt_intx'), '1U')" />
 	  <xsl:value-of select="acrn:array-initializer('struct pt_intx_config', concat('vm', @id, '_pt_intx'), '1U')" />
 	  <xsl:value-of select="$end_of_array_initializer" />
 	</xsl:otherwise>

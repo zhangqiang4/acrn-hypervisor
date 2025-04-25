@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <asm/guest/vcpu.h>
+#include <profiling.h>
 
 /**
  * @addtogroup debug

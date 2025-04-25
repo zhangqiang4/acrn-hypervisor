@@ -423,6 +423,9 @@
 #define	CPU_CONTEXT_OFFSET_IDTR			192U /**< Offset of IDTR register in CPU context. */
 #define	CPU_CONTEXT_OFFSET_LDTR			216U /**< offset of LDTR register in CPU context. */
 
+#define VER_INFO_MAX_LENGTH	512	/**< maximum length of verion_info array */
+extern const char version_info[VER_INFO_MAX_LENGTH];
+
 #ifndef ASSEMBLER
 
 #define ALL_CPUS_MASK		((1UL << get_pcpu_nums()) - 1UL) /**< Mask of all CPUs */

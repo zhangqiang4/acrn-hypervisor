@@ -12,6 +12,7 @@
 #include <asm/guest/vcpu.h>
 #include <asm/guest/virq.h>
 #include <asm/guest/vm.h>
+#include <asm/guest/vmexit.h>
 #include <asm/vmx.h>
 #include <asm/sgx.h>
 #include <asm/guest/guest_pm.h>

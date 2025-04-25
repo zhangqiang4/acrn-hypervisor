@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <types.h>
 #include <asm/irq.h>
+#include <dump.h>
 
 /**
  * @addtogroup debug
