@@ -19,6 +19,7 @@
 #define MAX_LOADER_NAME_SIZE		32U
 #define MAX_PROTOCOL_NAME_SIZE		16U
 #define MAX_MOD_STRING_SIZE		2048U
+#define MAX_MOD_TAG_LEN			32U /**< Maximum length of module tag */
 
 /* The modules in multiboot are: Pre-launched VM: kernel/ramdisk/acpi; Service VM: kernel/ramdisk */
 #define MAX_MODULE_NUM			(3U * PRE_VM_NUM + 2U * SERVICE_VM_NUM)
@@ -67,6 +68,7 @@ static inline bool boot_from_uefi(struct acrn_boot_info *abi)
 }
 
 void get_boot_mods_range(uint64_t *p_start, uint64_t *p_end);
+struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag);
 
 int32_t init_multiboot_info(uint32_t *registers);
 
@@ -101,5 +103,4 @@ static inline uint64_t get_hv_image_size(void)
 	return (uint64_t)(&ld_ram_end - &ld_ram_start);
 }
 
-struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag);
 #endif	/* BOOT_H */

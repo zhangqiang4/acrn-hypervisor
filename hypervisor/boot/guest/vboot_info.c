@@ -16,7 +16,6 @@
 #include <asm/guest/vm.h>
 #include <asm/guest/ept.h>
 #include <logmsg.h>
-#include <vboot.h>
 #include <vacpi.h>
 
 #define DBG_LEVEL_BOOT	6U
@@ -108,40 +107,6 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 
 	vm->sw.bootargs_info.size = strnlen_s((const char *)vm->sw.bootargs_info.src_addr, (MAX_BOOTARGS_SIZE - 1U)) + 1U;
 
-}
-
-/* @pre abi != NULL && tag != NULL
- */
-struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag)
-{
-	uint32_t i;
-	struct abi_module *mod = NULL;
-	struct abi_module *mods = (struct abi_module *)(&abi->mods[0]);
-	uint32_t tag_len = strnlen_s(tag, MAX_MOD_TAG_LEN);
-
-	for (i = 0U; i < abi->mods_count; i++) {
-		const char *string = (char *)hpa2hva((uint64_t)(mods + i)->string);
-		uint32_t str_len = strnlen_s(string, MAX_MOD_TAG_LEN);
-		const char *p_chr = string + tag_len; /* point to right after the end of tag */
-
-		/* The tag must be located at the first word in string and end with SPACE/TAB or EOL since
-		 * when do file stitch by tool, the tag in string might be followed by EOL(0x0d/0x0a).
-		 */
-		if ((str_len >= tag_len) && (strncmp(string, tag, tag_len) == 0)
-				&& (is_space(*p_chr) || is_eol(*p_chr))) {
-			mod = mods + i;
-			break;
-		}
-	}
-	/* GRUB might put module at address 0 or under 1MB in the case that the module size is less then 1MB
-	 * ACRN will not support these cases
-	 */
-	if ((mod != NULL) && (mod->start == NULL)) {
-		pr_err("Unsupported module: start at HPA 0, size 0x%x .", mod->size);
-		mod = NULL;
-	}
-
-	return mod;
 }
 
 /* @pre vm != NULL && abi != NULL

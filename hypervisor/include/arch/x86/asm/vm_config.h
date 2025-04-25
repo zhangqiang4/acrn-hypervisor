@@ -45,7 +45,6 @@
 #define AFFINITY_CPU(n)		(1UL << (n))
 #define MAX_VCPUS_PER_VM	MAX_PCPU_NUM /**< Maximum number of vCPUs for each VM */
 #define MAX_VM_OS_NAME_LEN	32U /**< Maximum length of VM name */
-#define MAX_MOD_TAG_LEN		32U /**< Maximum length of module tag */
 
 /**
  * @brief Default Service VM IDLE command line switch
