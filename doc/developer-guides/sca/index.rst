@@ -60,6 +60,18 @@ While helpful, the macro causes Coverity to complain due to the following rules.
  - Rule 14.2	A for loop shall be well-formed
  - Rule 15.6	The body of an iteration-statement or a selection-statement shall be a compound statement
 
+The corresponding rules in ACRN Coding Guidelines are:
+
+ - C-PP-02: Function-like MACRO shall be used with restrictions
+ - C-EP-21: The comma operator shall not be used
+ - C-EP-19: ++ or -- operation shall be used with restrictions
+ - C-CU-01: Only one assignment shall be on a single line
+ - C-EP-01: The initialization expression of a for loop shall be simple
+ - C-EP-02: The controlling expression of a for loop shall not be empty
+ - C-EP-03: The third expression of a for loop shall be simple
+ - C-ST-07: The for loop counter shall not be changed inside the loop body
+ - C-ST-02: The loop body shall be enclosed with brackets
+
 In the version under test foreach_vcpu is used 15 times in the code. As a result, there are 30 violations to Rule 12.3,
 15 violations to Rule 13.3, 30 violations to Rule 13.4, 15 violations to Rule 14.2, 15 violations to Rule 15.6,
 15 violations to Directive 4.9.
@@ -100,6 +112,13 @@ While helpful, the macro causes Coverity to complain due to the following rules.
  - Rule 13.4	The result of an assignment operator should not be used
  - Rule 14.2	A for loop shall be well-formed
 
+The corresponding rules in ACRN Coding Guidelines are:
+
+ - C-PP-02: Function-like MACRO shall be used with restrictions
+ - C-EP-21: The comma operator shall not be used
+ - C-CU-01: Only one assignment shall be on a single line
+ - C-ST-02: The loop body shall be enclosed with brackets
+
 In the version under test list_for_each_safe is used once in the code. As a result, there are
 2 violations to Rule 12.3, 3 violations to Rule 13.4, 1 violations to Rule 14.2, 1 violations to Directive 4.9.
 
@@ -110,14 +129,26 @@ to benefit the code scalability in the future.
 The macro definition has been reviewed not to rely on any non-deterministic or implementation-specific behavior in C99.
 There are no potential risks observed due to this specific deviation in the list_for_each_safe macro.
 
+
 JD_003: Use of # operator
 -------------------------
 
 The # operator is used to convert a user-given token into a string. It is directly used only by the STRINGIFY macro,
 which is further used by CPU_SEG_READ, CPU_CR_READ, CPU_CR_WRITE, CPU_XMM_READ, and CPU_XMM_WRITE macros.
 Without using # operator, the implementation needs to add a series of functions having similar code for
-the same functionality. It has been reviewed that the ## operator is not used together with the # operator.
+the same functionality.
+
+While helpful, it causes Coverity to complain due to the following rule.
+
+ - Rule 20.10	The # and ## preprocessor operators should not be used
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-PP-01: ## or # operators shall be used with restrictions
+
+It has been reviewed that the ## operator is not used together with the # operator.
 Thus the behavior is well defined in C99.
+
 
 JD_004: Use of ## operator
 --------------------------
@@ -146,9 +177,19 @@ All the reported violations are classified and justified into below categories:
 The operator is used here to simplify the parameters of the macro.
 If not using the ## operator, the saving/loading of such VMCS fields, and the build time sanity checks
 for the hard-coded offset can be lengthy, tedious and harder to maintain.
+
+While helpful, it causes Coverity to complain due to the following rule.
+
+ - Rule 20.10	The # and ## preprocessor operators should not be used
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-PP-01: ## or # operators shall be used with restrictions
+
 It has been reviewed that the ## operator is not used together with the # operator. Also the
 operator is used to concatenate at most 2 parts into a token. Thus the behavior is well defined
 in C99.
+
 
 JD_005: Externally linked function and variable used in a single translation unit
 ---------------------------------------------------------------------------------
@@ -199,6 +240,15 @@ All the reported violations are classified and justified into below categories:
       They are initialized in the generated `build/configs/scenarios/mbl-rvp-fusa/pci_dev.c`
       since it is determined by the configuration data.
 
+While necessary, it causes Coverity to complain due to the following rule.
+
+ - Rule 8.7	Functions and objects should not be defined with external linkage if they are referenced
+   in only one translation unit
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-TY-11: A variable shall be declared as static if it is used only in the file where it is declared
+
 JD_006: Violations due to pointer arithmetic beyond the array bound
 -------------------------------------------------------------------
 
@@ -223,6 +273,10 @@ following rule.
 
  - Rule 18.1	A pointer resulting from arithmetic on a pointer operand shall address an element of the same array as
    that pointer operand
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-EP-23: Pointer arithmetic shall be used with restrictions
 
 The codes logic has been reviewed not to point to different elements or corrupt/misinterpret adjacent memory locations.
 This is achieved by the same order of segment selectors defined in the struct ext_context and struct acrn_regs as below.
@@ -252,6 +306,7 @@ This is achieved by the same order of segment selectors defined in the struct ex
 	};
 
 There are no potential risks observed due to this specific deviation.
+
 
 JD_007: Macro parameters are safely used without parentheses in macro expansion
 -------------------------------------------------------------------------------
@@ -285,8 +340,19 @@ The parameters passed (e.g., bitmap_set_nolock, "q", uint64_t, and "") are names
 and not expected to be arithmetic expressions. Wrapping these in parentheses would not provide additional
 safety and could actually lead to incorrect syntax when token pasting or stringification is involved.
 
+While necessary, it causes Coverity to complain due to the following rule.
+
+ - Rule 20.7	Expressions resulting from the expansion of macro parameters shall be enclosed in parentheses
+
+The corresponding rules in ACRN Coding Guidelines are:
+
+ - C-EP-05: Parentheses shall be used to set the operator precedence explicitly
+ - C-PP-04: Parentheses shall be used when referencing a MACRO parameter
+
 The macro usages and its expansions have been reviewed to avoid side effects. Therefore, those instances
 are considered safe and does not compromise the maintainability or correctness of the code.
+
+
 
 Explanations to False Positives
 ===============================
@@ -294,16 +360,32 @@ Explanations to False Positives
 FP_001: Return value is not tested
 ----------------------------------
 
-False alarms reported by Coverity.
+False alarms reported by Coverity, due to the following rule.
+
+ - Directive 4.7	If a function returns error information, then that error information shall be tested
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-FN-17: The return value of a non-void function shall be either used or discarded
+
 All the reported violations are classified and justified into below categories:
 
- - The return value of the function `segment_override` is checked to determine if the segment register is overrided.
+ - The return value of the function `segment_override` is checked in code to determine if the segment register
+   is overrided.
 
 
 FP_002: Function and variable with external linkage only used in one translation unit
 -------------------------------------------------------------------------------------
 
-False alarms reported by Coverity.
+False alarms reported by Coverity, due to the following rule.
+
+ - Rule 8.7	Functions and objects should not be defined with external linkage if they are referenced
+   in only one translation unit
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-TY-11: A variable shall be declared as static if it is used only in the file where it is declared
+
 All the reported violations are classified and justified into below categories:
 
  - Function `__stack_chk_fail` is the interface to the compiler stack protector.
@@ -319,6 +401,7 @@ All the reported violations are classified and justified into below categories:
     - Function `restore_msrs` is used in `arch/x86/pm.c` and `arch/x86/wakeup.S`.
     - Variable `cpu_ctx` is used in `arch/x86/pm.c` and `arch/x86/wakeup.S`.
 
+
 Explanations to Overly Aggressive Alarms
 ========================================
 
@@ -327,7 +410,11 @@ OAA_001: Use of allowed language extensions
 
 The ACRN coding guidelines define a limited set of allowed language extensions for the project,
 to ensure the limited and documented-only use of compiler-specific features.
-Coverity warns all the usage of the language extensions, which is too restrictive in the context of ACRN.
+
+Coverity warns all the usage of the language extensions (due to the following rule),
+which is too restrictive in the context of ACRN.
+
+ - Rule 1.2	Language extensions should not be used
 
 All the reported violations are classified and justified into below categories:
 
