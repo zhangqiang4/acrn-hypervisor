@@ -805,6 +805,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/mmu.c \
                           ../hypervisor/arch/x86/tsc.c \
                           ../hypervisor/arch/x86/security.c \
+                          ../hypervisor/arch/x86/guest/vmtrr.c \
                           ../hypervisor/common/delay.c \
                           ../hypervisor/common/hv_main.c \
                           ../hypervisor/common/ticks.c \

@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2018-2022 Intel Corporation.
+ * Copyright (C) 2018-2025 Intel Corporation.
+ *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
@@ -14,21 +15,101 @@
 #include <logmsg.h>
 #include <vacpi.h>
 
+/**
+ * @addtogroup vp-base_vmtrr
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Virtual Memory Type Range Register (MTRR) implementation
+ *
+ * This file provides functions to initialize and manage virtual MTRRs for VMs, handling MTRR related
+ * MSR read and write operations.
+ */
+
+/**
+ * @brief Check if the MSR is a IA32_MTRR_PHYSMASKn register.
+ *
+ * Determines if the given MSR address corresponds to one of the MTRR physical mask registers.
+ * These registers are at addresses 0x201, 0x203, 0x205,..., 0x213 (odd-numbered addresses
+ * in the range).
+ *
+ * @param[in] msr MSR address to check
+ *
+ * @return Whether the MSR is a physical mask register
+ *
+ * @retval true The MSR is a IA32_MTRR_PHYSMASKn register
+ * @retval false The MSR is not a IA32_MTRR_PHYSMASKn register
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool is_mtrr_mask_register(uint32_t msr)
 {
 	return ((msr >= MSR_IA32_MTRR_PHYSMASK_0) && (msr <= MSR_IA32_MTRR_PHYSMASK_9) && ((msr % 2U) != 0U));
 }
 
+/**
+ * @brief Check if the MSR is a IA32_MTRR_PHYSBASEn register.
+ *
+ * Determines if the given MSR address corresponds to one of the MTRR physical base registers.
+ * These registers are at addresses 0x200, 0x202, 0x204,..., 0x212 (even-numbered addresses
+ * in the range).
+ *
+ * @param[in] msr MSR address to check
+ *
+ * @return Whether the MSR is a physical base register
+ *
+ * @retval true The MSR is a IA32_MTRR_PHYSBASEn register
+ * @retval false The MSR is not a IA32_MTRR_PHYSBASEn register
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool is_mtrr_base_register(uint32_t msr)
 {
 	return ((msr >= MSR_IA32_MTRR_PHYSBASE_0) && (msr <= MSR_IA32_MTRR_PHYSBASE_9) && ((msr % 2U) == 0U));
 }
 
+/**
+ * @brief Get the index of the variable MTRR register.
+ *
+ * Calculates the index (0-9) of the variable MTRR register pair based on the MSR address.
+ * Used to index into the variable_range array in the acrn_vmtrr structure.
+ *
+ * @param[in] msr MSR address of one variable MTRR register
+ *
+ * @return The index of the variable MTRR register
+ *
+ * @pre msr >= MSR_IA32_MTRR_PHYSBASE_0 && msr <= MSR_IA32_MTRR_PHYSMASK_9
+ *
+ * @post N/A
+ */
 static inline uint32_t get_variable_mtrr_index(uint32_t msr)
 {
 	return (msr - MSR_IA32_MTRR_PHYSBASE_0) / 2U;
 }
 
+/**
+ * @brief Round up the variable MTRR size to the nearest valid size.
+ *
+ * Variable MTRR sizes must be powers of 2, and the base address alignment must be equal to or greater than
+ * the size. This function rounds up the given size to the next power of 2 starting from 4KB.
+ *
+ * Refer to Chapter 12.11.4 Range Size and Alignment Requirement, Vol.3, SDM 325462-078 for more details.
+ *
+ * @param[in] val The size value to be rounded up
+ *
+ * @return The rounded up size (power of 2 value)
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static uint64_t round_variable_mtrr_size_up(uint64_t val)
 {
 	/*
@@ -56,7 +137,31 @@ static uint64_t round_variable_mtrr_size_up(uint64_t val)
 	return size;
 }
 
-/* initialize virtual MTRR for a VM */
+/**
+ * @brief Initialize the virtual MTRR for a VM.
+ *
+ * This function initializes the virtual MTRR for a VM. In vMTRR implementation, use \p vm->arch_vm.vmtrr to emulate
+ * the MTRR related MSRs. This function sets proper value in this structure based on the VM type.
+ *
+ * For Service VM, exposes Variable MTRRs and default MTRR:
+ * - Reads and caches the native MTRR MSRs(IA32_MTRR_CAP, IA32_MTRR_DEF_TYPE, IA32_MTRR_PHYSBASEn,
+ *   IA32_MTRR_PHYSMASKn).
+ * - Hide fixed MTRRs, SMRR, PRMRR by clearing the corresponding bits in \p vmtrr->cap and \p vmtrr->def_type.
+ *
+ * For Pre-launch VM and Post-launch VM, emulate Variables MTRRs and default MTRR:
+ * - Initializes \p vmtrr->cap and \p vmtrr->def_type to zero to hide all MTRR features at first.
+ * - Set \p vmtrr->def_type.bits.enable to 1U to enable the default MTRR.
+ * - Set \p vmtrr->def_type.bits.type to MTRR_MEM_TYPE_WB to set the default memory type to WB.
+ * - Add MMIO (2G-4G) and (256G-512G) to the variable MTRR with type UC.
+ *
+ * @param[inout] vm The pointer to the specified VM
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 void init_vmtrr(struct acrn_vm *vm)
 {
 	struct acrn_vmtrr *vmtrr = &vm->arch_vm.vmtrr;
@@ -109,6 +214,29 @@ void init_vmtrr(struct acrn_vm *vm)
 	pr_dbg("init vMTRR for vm%d", vm->vm_id);
 }
 
+/**
+ * @brief Add one variable MTRR to the VM.
+ *
+ * This function adds one variable MTRR to the specified VM.
+ *
+ * A memory region must meet the follow requirements that will add to the variable MTRR:
+ * - The VM must be in \p VM_CREATED or \p VM_POWERED_OFF state.
+ * - The size of the region must be non-zero.
+ * - The memory type must be EPT_UNCACHED.
+ * - The size will be rounded up to the next power of 2 if needed.
+ * - The current variable MTRR count must be less than the maximum count.
+ *
+ * @param[inout] vm The pointer to the VM to which the MTRR is added
+ * @param[in] base The base address of the memory region
+ * @param[in] size The size of the memory region
+ * @param[in] type The type of the memory region
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_t type)
 {
 	uint64_t idx;
@@ -143,12 +271,41 @@ void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_
 	}
 }
 
-/*
- * virtual MTRR MSR write API.
- * Supports these MSRs:
- * 	MSR_IA32_MTRR_DEF_TYPE
- *	MSR_IA32_MTRR_PHYSBASEn
- *	MSR_IA32_MTRR_PHYSMASKn
+/**
+ * @brief Write to the virtual MTRR MSR.
+ *
+ * This function writes to the virtual MTRR MSR. It only supports writing the default MTRR type.
+ * - If writing to IA32_MTRR_PHYSBASEn or IA32_MTRR_PHYSMASKn, it will ignore the write.
+ * - If writing to IA32_MTRR_DEF_TYPE register:
+ *   - Returns -EACCES if the write attempts to modify reserved bits
+ *   - For default type UC or when MTRR is disabled: Overrides the guest's PAT register with \p PAT_ALL_UC_VALUE.
+ *     This value sets configures all PAT entries to use UC type, effectively making all memory accesses uncached
+ *     regardless of page table memory type settings.
+ *   - For default type WB: Restores the guest's PAT register to its original PAT MSR value. This allows memory
+ *     caching to occur according to the guest's intended PAT configurations, effectively enabling normal caching
+ *     behavior.
+ *   - Ignores writes that attempt to set other memory types (currently not supported by ACRN hypervisor).
+ *
+ * PAT modifications only occur when CR0.CD (cache disable) is clear. When CR0.CD is set, caching is
+ * already globally disabled by the processor, so no PAT modifications are needed.
+ *
+ * These write operations are virtualized, meaning they do not affect the physical MTRR MSRs.
+ *
+ * Refer to Chapter 12.12 PAGE ATTRIBUTE TABLE (PAT), Volume 3, SDM 325462-078 for more details.
+ *
+ * @param[inout] vcpu The pointer to the vCPU accessing the MTRR MSR.
+ * @param[in] msr The MSR address.
+ * @param[in] value The value to be written to the MSR.
+ *
+ * @return error number, indicates the success or failure of the write operation.
+ *
+ * @retval 0 Success
+ * @retval -EACCES Error caused by modifying reserved bits
+ *
+ * @pre vcpu != NULL
+ * @pre msr == MSR_IA32_MTRR_DEF_TYPE || msr == MSR_IA32_MTRR_PHYSBASEn || msr == MSR_IA32_MTRR_PHYSMASKn
+ *
+ * @post N/A
  */
 int32_t write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value)
 {
@@ -204,7 +361,27 @@ int32_t write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value)
 	return err;
 }
 
-/* virtual MTRR MSR read API */
+/**
+ * @brief Read from the virtual MTRR MSR.
+ *
+ * This function handles reads from virtual MTRR MSRs, returning predefined values rather than reading from
+ * physical MSRs. It supports reading:
+ * - IA32_MTRR_CAP
+ * - IA32_MTRR_DEF_TYPE
+ * - IA32_MTRR_PHYSBASEn
+ * - IA32_MTRR_PHYSMASKn
+ *
+ * @param[in] vcpu The pointer to the vCPU accessing the MTRR MSR.
+ * @param[in] msr The MSR address to read.
+ *
+ * @return The value read from the emulated MTRR MSR.
+ *
+ * @pre vcpu != NULL
+ * @pre msr == MSR_IA32_MTRR_CAP || msr == MSR_IA32_MTRR_DEF_TYPE ||
+ *      msr == MSR_IA32_MTRR_PHYSBASEn || msr == MSR_IA32_MTRR_PHYSMASKn
+ *
+ * @post N/A
+ */
 uint64_t read_vmtrr(const struct acrn_vcpu *vcpu, uint32_t msr)
 {
 	const struct acrn_vmtrr *vmtrr = &vcpu->vm->arch_vm.vmtrr;
@@ -225,3 +402,7 @@ uint64_t read_vmtrr(const struct acrn_vcpu *vcpu, uint32_t msr)
 
 	return ret;
 }
+
+/**
+ * @}
+ */
