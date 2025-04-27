@@ -182,7 +182,6 @@ struct vm_arch {
 	struct iwkey iwkey_backup;	/**< IWKey backup structure */
 
 	/* Reference to virtual platform to come here (as needed) */
-	bool vm_mwait_cap; /**< Whether VM monitor is supported */
 } __aligned(PAGE_SIZE);
 
 /**

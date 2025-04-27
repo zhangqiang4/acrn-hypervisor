@@ -622,13 +622,12 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 		*ecx &= ~CPUID_ECX_PCID;
 	}
 
-	/* guest monitor/mwait is supported only if it is allowed('vm_mwait_cap' is true)
-	 * and MSR_IA32_MISC_ENABLE_MONITOR_ENA bit of guest MSR_IA32_MISC_ENABLE is set,
+	/* guest monitor/mwait is supported only if MSR_IA32_MISC_ENABLE_MONITOR_ENA bit
+	 * of guest MSR_IA32_MISC_ENABLE is set,
 	 * else clear cpuid.01h[3].
 	 */
 	*ecx &= ~CPUID_ECX_MONITOR;
-	if (vcpu->vm->arch_vm.vm_mwait_cap &&
-		((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL)) {
+	if ((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) {
 		*ecx |= CPUID_ECX_MONITOR;
 	}
 
