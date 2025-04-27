@@ -138,20 +138,20 @@ static inline const struct vcpuid_entry *find_vcpuid_entry(const struct acrn_vcp
 
 	entry = local_find_vcpuid_entry(vcpu, leaf, subleaf);
 	if (entry == NULL) {
-		uint32_t limit;
 		struct acrn_vm *vm = vcpu->vm;
 
-		if ((leaf & 0x80000000U) != 0U) {
-			limit = vm->vcpuid_xlevel;
-		} else {
-			limit = vm->vcpuid_level;
-		}
-
-		if (leaf > limit) {
-			/* Intel documentation states that invalid EAX input
-			 * will return the same information as EAX=cpuid_level
-			 * (Intel SDM Vol. 2A - Instruction Set Reference -
-			 * CPUID)
+		/*
+		 * When it comes here, the required CPUID leaf/subleaf is either not existing or too
+		 * large for basic or extended function. For the former case, return NULL to caller
+		 * as all supported CPUID entries have been set in vm->vcpuid_entries[]. For the
+		 * latter case, return the highest basic information leaf to caller.
+		 */
+		if (((leaf > vm->vcpuid_level) && (leaf < 0x40000000))  || (leaf > vm->vcpuid_xlevel)) {
+			/*
+			 * Refer to Intel SDM Vol. 2A - Instruction Set Reference - CPUID:
+			 * If a value entered for CPUID.EAX is higher than the maximum input
+			 * value for basic or extended function for that processor then the
+			 * data for the highest *basic information leaf* is returned.
 			 */
 			leaf = vm->vcpuid_level;
 			entry = local_find_vcpuid_entry(vcpu, leaf, subleaf);
