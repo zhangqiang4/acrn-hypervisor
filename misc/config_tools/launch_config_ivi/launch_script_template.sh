@@ -507,6 +507,159 @@ fi
 # End of dGPU VF enabling critical section
 )19>/var/lock/acrn/acrn_enable_dgpu_vf.lock
 
+function parse_vdisplay_cfg() {
+	local pname=$1
+	local params=$2
+	local out=""
+
+	local ptype="direct"
+	local res=""
+	local pt_params=""
+
+	for kv in $(echo $params | sed 's/,/ /g'); do
+		k=${kv%%=*}; v=${kv##*=};
+		case $k in
+			"type") ptype=$v ;;
+			"res") res=$v ;;
+			*) pt_params="$pt_params:$k=$v" ;;
+		esac
+	done
+
+	case $ptype in
+		"direct")
+			# vdisplay-direct doesn't need res=xxx params, ignore it
+			out="pipe-display=${pname}${pt_params}"
+			;;
+		"sdl")
+			local connected=$(wayland-info -i wl_output | grep "name:" | grep -v "version")
+			if [ -z "$connected" ]; then
+				log2stderr "Error: No connected display found for type 'sdl'."
+			elif [ -n "$res" ]; then
+				if [ "$pname" != "_" ]; then
+					log2stderr "Warning: 'res' specified for pipe type 'sdl'. Ignoring specified pipe $pname."
+					log2stderr "Warning: Display window will be positioned by display server."
+					log2stderr "Warning: To suppress this warning for using windowed virtual display, specify '_' as pipe name."
+					log2stderr "Warning: E.g., _,type=sdl,res=$res"
+				fi
+				out="geometry=${res}${pt_params}"
+			else
+				local pscreen=$(echo $connected | grep -n -w $pname | cut -d: -f1 | xargs)
+				if [ -z $pscreen ]; then
+						log2stderr "Error: Pipe $pname doesn't exist, or is disconnected, or is not assigned to SOS."
+				else
+					out="geometry=fullscreen:$((pscreen-1))${pt_params}"
+				fi
+			fi
+			;;
+		"plane")
+			if [ -n "$res" ]; then
+				out="plane-display=${res}:port=${pname}${pt_params}"
+			else
+				log2stderr "Error: $pname: resolution not specified for type 'plane'."
+				log2stderr "Error: Example: $pname,type=plane,res=1920x1080"
+			fi
+			;;
+		*)
+			log2stderr "Error: Unsupported type $ptype."
+			log2stderr "Error: Supported types: sdl, direct, plane"
+			;;
+	esac
+
+	[ -z $out ] && log2stderr "Error: Skipping this pipe ($pname)." || echo $out
+}
+
+# Below three takes input from stdin instead of arguments
+card2pcibdf() { echo $(find -L /dev/dri/by-path/ -samefile /dev/dri/$(cat) -printf '%f' 2>/dev/null | sed -e 's/pci-//' -e 's/-card//'); }
+pipe2card()   { echo $(find /sys/class/drm -name "*$(cat)" -printf "%f" | cut -d'-' -f1); }
+is_bdf_igpu() { [ $(cat) = "0000:00:02.0" ] && printf "1" || printf "0"; }
+
+function pnames2hex() {
+	local bstr=""
+	for p in $(echo $1 | sed 's/,/ /g'); do
+		bstr="${bstr}$(echo $p | pipe2card | card2pcibdf | is_bdf_igpu)"
+	done
+	printf "0x%x\n" "$((2#$bstr))"
+}
+
+function dgpu_sriov_params() {
+	local valid_pnames=$1
+	local accconf=$2
+
+	for cfg in $(echo $accconf | sed 's/,/ /g'); do
+		card=${cfg%%-*}; dev=${cfg##*-}; cardbdf="$(echo $card | card2pcibdf)";
+		if [ -n "$cardbdf" ] && [ "$cardbdf" != "0000:00:02.0" ]; then
+			echo ",dgpu-vfid=${dev#vf}:$(pnames2hex $valid_pnames)"
+			break
+		fi
+	done
+}
+
+function accel_pt() {
+	local slot=$1
+	local conf=$2
+	local out=""
+
+	local ind=1
+	for accelcfg in $(echo $conf | sed 's/,/ /g'); do
+		card=${accelcfg%%-*}; dev=${accelcfg##*-};
+		pbdf=$(echo $card | card2pcibdf | sed "s/\.[0-9]$/.$(echo $dev | sed 's/vf//')/g")
+		if [ -n "$pbdf" ]; then
+			out="${out} $(add_passthrough_device "$slot.$ind" $pbdf)"
+			ind=$((ind+1))
+		else
+			log2stderr "Error: $card doesn't exist. Skip accel $accelcfg."
+		fi
+	done
+
+	echo $out
+}
+
+function add_vdisplay() {
+	# If we reach here we assume iGPU SR-IOV is enabled, and dGPU SR-IOV is enabled if supported.
+	pipe_name_regex="(?<pname>(([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)|[\_]))"
+	key_val_regex="(?<key>[a-zA-Z0-9]+)=(?<val>[^,|\'\"\=\s]+)"
+	pipe_conf_regex="(?<pcfg>($pipe_name_regex(?<params>(,$key_val_regex)*)))"
+	accel_card_regex="(?<accname>card(?<card>[0-9])-(?<dev>(vf[0-9])))"
+	accel_conf_regex="accel=(?<accconf>$accel_card_regex(,$accel_card_regex)*)"
+	regex="(?<fullpcfg>^($pipe_conf_regex)(\|$pipe_conf_regex)*)(\|$accel_conf_regex)?$"
+
+	slot=$1
+	input=$2
+
+	local out=""
+	local parts=($(perl -e "if ('$input' =~ /$regex/g) { print \"$+{fullpcfg} $+{accconf}\"}"))
+	local fullpcfg=${parts[0]}
+	local accconf=${parts[1]}
+
+	if [ -z $fullpcfg ]; then
+		log2stderr "Invalid argument: $input"
+	else
+		valid_pnames=""
+		for pipecfg in $(echo $fullpcfg | sed 's/|/ /g'); do
+			parts=($(perl -e "if ('$pipecfg' =~ /$pipe_conf_regex/g) { print \"$+{pname} $+{params}\"}"))
+			pname=${parts[0]}; params=${parts[1]};
+			local p=$(parse_vdisplay_cfg $pname $params)
+			if [ -n "$p" ]; then
+				out="${out}${p},"
+				valid_pnames="${valid_pnames}${pname},"
+			fi
+		done
+
+		# Remove trailing comma
+		out="${out%,}"
+
+		if [ -n "$valid_pnames" ] && [ -n "$accconf" ] && [ "$USE_DGPU_SRIOV" = "1" ]; then
+			out="${out}$(dgpu_sriov_params $valid_pnames $accconf)"
+		fi
+
+		if [ -n "$valid_pnames" ]; then
+			out=$(add_virtual_device "$slot.0" "virtio-gpu" "$out")
+			out="${out} $(accel_pt $slot $accconf)"
+		fi
+	fi
+	echo $out
+}
+
 wayland_display="$(find /run/user -name wayland-1)"
 if [ -z $wayland_display ]; then
 	wayland_display="/run/user/0/wayland-1"
