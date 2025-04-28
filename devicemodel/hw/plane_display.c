@@ -36,6 +36,8 @@
 
 #define PD_PLANE_COUNT	3
 
+#define MAX_DOMAIN_CNT 4
+
 /**
  * @brief Read Time Stamp Counter (TSC).
  *
@@ -57,6 +59,7 @@ struct pd_param {
 	char output_name[32];
 	int domain_idx;
 	int domain_cnt;
+	int slave[MAX_DOMAIN_CNT];
 };
 
 struct pd_plane_buffer {
@@ -86,6 +89,7 @@ struct pd_plane_buffer {
 enum pd_command {
 	PD_COMMAND_UPDATE_LAYERS = 0x01,
 	PD_COMMAND_FINISH = 0x02,
+	PD_COMMAND_SETUP,
 };
 
 struct pd_msg_hdr {
@@ -105,6 +109,18 @@ struct pd_msg_hdr {
 struct pd_msg_crtc_info {
 	 dev_t dev;
 	 uint32_t crtc_id;
+};
+
+struct client_sock {
+       uint32_t cl_id;
+       uint32_t offset_x;
+       uint32_t offset_y;
+       uint32_t plane_cnt;
+};
+
+struct setup_buffer {
+       uint32_t client_dom_cnt;
+       struct client_sock cl[MAX_DOMAIN_CNT];
 };
 
 struct pd_screen {
@@ -338,8 +354,8 @@ pd_display_info(void *backend, struct display_info *display)
 	for (int i = 0; i < global_pd_info.num; ++i) {
 		param = &global_pd_info.window_param[i];
 		if (global_pd_info.pd_screen_array[i] == pd) {
-			display->xoff = param->org_x;
-			display->yoff = param->org_y;
+			display->xoff = 0;
+			display->yoff = 0;
 			display->width = param->guest_width;
 			display->height = param->guest_height;
 			return;
@@ -698,7 +714,6 @@ receive_memfd(int fd)
 	memfd = * (int *) CMSG_DATA(cmsg);
 	return memfd;
 }
-
 static int
 receive_crtc_info(int fd, struct pd_msg_crtc_info *crtc_info)
 {
@@ -881,6 +896,30 @@ pd_server_connect(struct pd_screen *pd)
 	return 0;
 }
 
+
+static bool
+pd_server_setup(struct pd_screen *pd)
+{
+	struct setup_buffer setup;
+
+	if(pd->domain_cnt > MAX_DOMAIN_CNT)
+		return false;
+
+	setup.client_dom_cnt = pd->domain_cnt;
+	for(int i = 0; i < pd->domain_cnt; i++) {
+		struct pd_param *param =
+			&global_pd_info.window_param[pd->param->slave[i]];
+		setup.cl[i].offset_x = param->org_x;
+		setup.cl[i].offset_y = param->org_y;
+		setup.cl[i].plane_cnt = 1;
+	}
+	send_command(pd->data_socket_fd,
+			PD_COMMAND_SETUP, &setup, sizeof(setup),
+			NULL, 0, 0, 0);
+	return true;
+
+}
+
 static int
 pd_server_init(struct pd_screen *pd)
 {
@@ -898,6 +937,9 @@ pd_server_init(struct pd_screen *pd)
 	ret = pd_server_get_crtc_info(pd);
 	if (ret < 0)
 		return ret;
+
+	if(!pd_server_setup(pd))
+		return -1;
 
 	return 0;
 }
@@ -917,6 +959,42 @@ pd_server_destroy(struct pd_screen *pd)
 		close(pd->data_socket_fd);
 		pd->data_socket_fd = -1;
 	}
+}
+
+static bool
+assign_domain_idx()
+{
+	int max = global_pd_info.num;
+	pr_err("max:%d \r\n",max);
+
+	for (int i = 0; i < max; i++) {
+		struct pd_param *param1 =
+			&global_pd_info.window_param[i];
+		if(param1->domain_idx > 0)
+			continue;
+
+		param1->domain_idx  = 0;
+		param1->domain_cnt = 1;
+		param1->slave[param1->domain_idx] = i;
+
+		for (int j = i + 1; j < max; j++) {
+			struct pd_param *param2 =
+				&global_pd_info.window_param[j];
+			if(param2->domain_idx > 0)
+				continue;
+			if (strncmp(param1->output_name, param2->output_name, 32) == 0) {
+				param2->domain_idx = param1->domain_cnt;
+				param1->slave[param2->domain_idx] = j;
+				param1->domain_cnt ++;
+				if(param1->domain_cnt > MAX_DOMAIN_CNT) {
+					pr_err("max domain number is overflowed \r\n");
+					return false;
+
+				}
+			}
+		}
+	}
+	return true;
 }
 
 static int
@@ -939,6 +1017,8 @@ pd_init()
 	}
 	global_pd_info.pd_screen_array = pd_array;
 
+	if(!assign_domain_idx())
+		return -1;
 
 	for (i = 0; i < global_pd_info.num; ++i) {
 		pd = calloc(1, sizeof(struct pd_screen));
@@ -1068,10 +1148,8 @@ pd_parse_cmd(char *tmp)
 {
 	int snum;
 	char *curr;
-	static int at = -1;
 	struct pd_param *cmd_param =
 		&global_pd_info.window_param[global_pd_info.num];
-	struct pd_param *cmd_param_master;
 
 	snum = sscanf(tmp, PD_BACKEND_NAME"=%dx%d+%d+%d",
 			&cmd_param->guest_width, &cmd_param->guest_height,
@@ -1095,23 +1173,12 @@ pd_parse_cmd(char *tmp)
 			continue;
 		}
 
-		if (strncmp(curr, "share", 5) == 0) {
-			if (at == -1) {
-				pr_warn("display(%s) is not available\n", curr);
-				return -1;
-			}
-			cmd_param_master =
-				&global_pd_info.window_param[at];
-			cmd_param->domain_idx = cmd_param_master->domain_cnt++;
-			continue;
-		}
 		if (strncmp(curr, "port=", strlen("port=")) == 0) {
 			const int start = strlen("port=");
 			const int end = strlen(curr);
 
 			if (!pd_check_screen_state(curr + start)) {
 				pr_warn("display(%s) is not available\n", curr);
-				at = -1;
 				return -1;
 			}
 
@@ -1122,10 +1189,6 @@ pd_parse_cmd(char *tmp)
 			} else {
 				strncpy(cmd_param->output_name, curr + start,
 					end - start);
-
-				cmd_param->domain_idx = 0;
-				at = global_pd_info.num;
-				cmd_param->domain_cnt = 1;
 			}
 			continue;
 		}
