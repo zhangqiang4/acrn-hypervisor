@@ -13,11 +13,31 @@ Justifications for Static Code Analysis Violations
 
 This section summarizes the justifications for static code analysis violations.
 
-The existing violations are classified into three categories.
+The existing violations are classified into three categories, as shown in
+:numref:`sca_violation_categories` below.
 
- - Justified Deviation
- - False Positives
- - Overly Aggressive Alarms
+.. table:: Static code analysis violation categories
+   :align: center
+   :widths: 20 40 40
+   :name: sca_violation_categories
+
+   +--------------------------+------------------------------------------+------------------------------------------------+
+   | Category                 | Explanation                              | Follow-up Actions                              |
+   +==========================+==========================================+================================================+
+   | Justified Deviation      | A violation is to be deviated if it does | Justify the deviation by explaining the        |
+   |                          | violate the coding guidelines, but its   | necessity, consequence, and follow-up actions  |
+   |                          | necessity and safety can be justified.   | that avoid safety impacts.                     |
+   +--------------------------+------------------------------------------+------------------------------------------------+
+   | False Positive           | A violation is a false positive of a     | Justify why the implementation cannot behave   |
+   |                          | rule if the implementation can never     | in a way that violates the rule.               |
+   |                          | behave in a way that violates the rule.  |                                                |
+   +--------------------------+------------------------------------------+------------------------------------------------+
+   | Overly Aggressive Alarm  | A violation is overaggressive if it is   | Justify why the violation is within the        |
+   |                          | in the scope of the rule implemented by  | scope of the Coverity rule but does not hold   |
+   |                          | Coverity, but out of the scope of the    | under the ACRN coding guidelines.              |
+   |                          | ACRN coding guidelines.                  |                                                |
+   +--------------------------+------------------------------------------+------------------------------------------------+
+
 
 The following sections provide justifications for each category.
 
