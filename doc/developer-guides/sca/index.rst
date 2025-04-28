@@ -353,6 +353,31 @@ The macro usages and its expansions have been reviewed to avoid side effects. Th
 are considered safe and does not compromise the maintainability or correctness of the code.
 
 
+JD_008: Names starting with underscore
+--------------------------------------
+
+ACRN hypervisor defines the following names starting with underscore.
+
+ - __aligned, __packed and __unused which are macros wrapping compiler attributes.
+ - __stack_chk_fail which is the interface to the compiler stack protector.
+
+The macros wrapping compiler attributes conventionally start with underscores to reflect its
+close relationship to compiler-specific attributes. The name __stack_chk_fail follows the
+defined compiler interface.
+
+While necessary, it causes Coverity to complain due to the following rule.
+
+ - Rule 21.1	#define and #undef shall not be used on a reserved identifier or reserved macro name
+ - Rule 21.2	A reserved identifier or macro name shall not be declared
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-ID-07: Names defined by developers shall not start with underscore
+
+The names starting with underscores are known not to be reserved either by C99 or by the
+compiler. Thus there is no further consequence due to the non-compliance and no follow-up
+actions required.
+
 
 Explanations to False Positives
 ===============================
@@ -426,4 +451,35 @@ All the reported violations are classified and justified into below categories:
    `C-LE-03: Use of extended type attributes is allowed`.
  - Use of `__builtin_va_arg`, `__builtin_va_start`, `__builtin_va_end`, and `_builtin_offsetof`,
    refer to ACRN coding guidelines `C-LE-04: Use of extended builtin-function is allowed`.
+
+
+OAA_002: Use of standard library-like names
+-------------------------------------------
+
+As a system software running directly on bare metal, ACRN Hypervisor operates in a freestanding environment
+and does not rely on any standard C libraries.
+Because of this, ACRN Hypervisor must define its own versions of certain names that are traditionally
+provided by the standard library in hosted environments.
+
+It defines the following names that are same as the one in standard library.
+
+ - NULL, true, false, offsetof, va_start, and va_end which are macros wrapping compiler attributes.
+ - LONG_MIN which is a macro to represent the maximum positive value a long can hold.
+ - bool which is a typedef to represent an Boolean type expected in C code.
+ - memset, printf, vprintf, strchr, strcmp, strncmp, snprintf, and vsnprintf which are functions with
+   custom implementations to provide basic memory and string manipulation, and formatted output functionality.
+ - random, errno, and assert which are variables that the hypervisor uses internally to handle randomness,
+   error reporting, and interrupt assert/de-assert, respectively.
+
+Coverity warns such usage due to the following rules.
+
+ - Rule 21.1	#define and #undef shall not be used on a reserved identifier or reserved macro name
+ - Rule 21.2	A reserved identifier or macro name shall not be declared
+
+These rules are designed to ensure compatibility and prevent conflicts with the standard library in hosted environments.
+However, in the context of ACRN Hypervisor, these warnings are overly restrictive and not applicable, because:
+
+ - ACRN Hypervisor operates without any external standard library, ensuring no conflicts can occur.
+ - Re-implementing these functionalities is necessary to provide basic C language support in a bare-metal,
+   freestanding environment.
 
