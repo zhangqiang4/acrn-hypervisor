@@ -50,6 +50,12 @@ doxy:
 # including rst content and xsd files from the /misc folder that we'll
 # use to generate config option documentation
 
+scacontent:
+	@echo making rst content for Static Code Analysis Violations Justifications
+	$(Q)mkdir -p $(SOURCEDIR)
+	$(Q)rsync -rt --exclude=$(BUILDDIR) --exclude-from=etc/sca_only_exclude_list.txt . $(SOURCEDIR)
+	$(Q)mv $(SOURCEDIR)/etc/sca_only_index.rst.txt $(SOURCEDIR)/index.rst
+
 dscontent:
 	@echo making rst content for pure Design Spec from code
 	$(Q)mkdir -p $(SOURCEDIR)
@@ -75,6 +81,10 @@ gen_html: doxy
 	$(Q)./scripts/show-versions.py
 	-$(Q)$(SPHINXBUILD) -t $(DOC_TAG) -b html -d $(BUILDDIR)/doctrees $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS) $(OPTS) >> $(BUILDDIR)/doc.log 2>&1
 	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
+
+scahtml: scacontent
+	$(MAKE) gen_html
+	@echo Static Code Analysis Violations Justifications in HTML generated
 
 mdshtml: dscontent
 	$(MAKE) gen_html
