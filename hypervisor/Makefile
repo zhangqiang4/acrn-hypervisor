@@ -17,6 +17,7 @@ BASEDIR := $(shell pwd)
 HV_OBJDIR ?= $(CURDIR)/build
 HV_MODDIR ?= $(HV_OBJDIR)/modules
 HV_FILE := acrn
+BSP_MOD_DIR ?= $(CURDIR)/../bsp
 
 LIB_MOD = $(HV_MODDIR)/lib_mod.a
 BOOT_MOD = $(HV_MODDIR)/boot_mod.a
@@ -27,6 +28,7 @@ VP_HCALL_MOD = $(HV_MODDIR)/vp_hcall_mod.a
 LIB_DEBUG = $(HV_MODDIR)/libdebug.a
 LIB_RELEASE = $(HV_MODDIR)/librelease.a
 SYS_INIT_MOD = $(HV_MODDIR)/sys_init_mod.a
+BSP_MOD = $(HV_MODDIR)/bsp_mod.a
 
 # initialize the flags we used
 CFLAGS :=
@@ -150,6 +152,7 @@ INCLUDE_PATH += $(HV_OBJDIR)/include
 INCLUDE_PATH += $(BOARD_INFO_DIR)
 INCLUDE_PATH += $(BOARD_CFG_DIR)
 INCLUDE_PATH += $(SCENARIO_CFG_DIR)
+INCLUDE_PATH += $(BSP_MOD_DIR)
 
 CC ?= gcc
 AS ?= as
@@ -159,7 +162,7 @@ OBJCOPY ?= objcopy
 
 export CC AS AR LD OBJCOPY
 export CFLAGS ASFLAGS ARFLAGS LDFLAGS ARCH_CFLAGS ARCH_ASFLAGS ARCH_ARFLAGS ARCH_LDFLAGS
-export HV_OBJDIR HV_MODDIR CONFIG_RELEASE INCLUDE_PATH
+export HV_OBJDIR HV_MODDIR CONFIG_RELEASE INCLUDE_PATH BSP_MOD
 export LIB_DEBUG LIB_RELEASE
 
 # library componment
@@ -380,6 +383,7 @@ LIB_BUILD = $(LIB_DEBUG)
 LIB_MK = debug/Makefile
 endif
 MODULES += $(SYS_INIT_MOD)
+MODULES += $(BSP_MOD)
 
 DISTCLEAN_OBJS := $(shell find $(BASEDIR) -name '*.o')
 VERSION := $(HV_OBJDIR)/include/version.h
@@ -427,7 +431,7 @@ $(SERIAL_CONF): $(HV_CONFIG_TIMESTAMP) $(HV_ALLOCATION_XML)
 	@echo "generate the serial configuration file for service VM ..."
 	python3 ../misc/config_tools/service_vm_config/serial_config.py --allocation $(HV_ALLOCATION_XML) --scenario $(HV_SCENARIO_XML) --out $(SERIAL_CONF)
 
-.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-hcall-mod sys-init-mod
+.PHONY: lib-mod boot-mod hw-mod vp-base-mod vp-dm-mod vp-hcall-mod sys-init-mod bsp-mod
 $(LIB_MOD): $(LIB_C_OBJS) $(LIB_S_OBJS)
 	$(AR) $(ARFLAGS) $(LIB_MOD) $(LIB_C_OBJS) $(LIB_S_OBJS)
 
@@ -463,6 +467,11 @@ $(SYS_INIT_MOD): $(SYS_INIT_C_OBJS)
 
 sys-init-mod: $(SYS_INIT_MOD)
 
+$(BSP_MOD):
+	$(MAKE) -C $(BSP_MOD_DIR)
+
+bsp-mod: $(BSP_MOD)
+
 .PHONY: lib
 
 $(LIB_BUILD): $(HEADERS)
@@ -486,6 +495,7 @@ $(HV_OBJDIR)/$(HV_FILE).out: $(MODULES)
 clean:
 	rm -f $(VERSION)
 	rm -rf $(HV_OBJDIR)
+	$(MAKE) -C $(BSP_MOD_DIR) clean
 
 .PHONY: distclean
 distclean:
