@@ -18,7 +18,7 @@ SKIPPED_ITEMS = [
 
 # you can enlarge width between macro's name and its value by increase TAB_SIZE
 TAB = '\t'
-TAB_SIZE = 8
+TAB_SIZE = 2
 LINE_BREAKER = '\\'
 CR = '\n'
 SPACE = ' '

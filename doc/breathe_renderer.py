@@ -10,6 +10,7 @@ from docutils.nodes import Element, Node, TextElement, Text
 from sphinx import addnodes
 from sphinx.addnodes import pending_xref
 from sphinx.builders import Builder
+from sphinx.builders.latex.nodes import footnotetext
 from sphinx.environment import BuildEnvironment
 from sphinx.util.cfamily import (DefinitionError, verify_description_mode)
 from sphinx.domains.c import (
@@ -33,6 +34,7 @@ from sphinx.util.cfamily import (
     identifier_re
 )
 from sphinx.writers.html5 import HTML5Translator
+from sphinx.writers.latex import LaTeXTranslator
 
 from breathe.renderer import RenderContext
 from breathe.renderer.sphinxrenderer import SphinxRenderer, \
@@ -472,6 +474,67 @@ class BreatheHTML5Translator:
 
     meth = {
         'visit_Text': visit_Text
+    }
+
+
+class BreatheLaTeXTranslator:
+    def visit_Text(self, node: Text) -> None:
+        text = node.astext()
+        nbsps = ['&nbsp;' * TAB_SIZE * 2 * i for i in range(1, MAX_INDENTATION_NUMBERS + 1)]
+
+        def fn(arr, e):
+            for i, j in enumerate(arr):
+                if e == j: return i
+
+        if text.startswith(SPACE * 4) or text.startswith(SPACE * 2):
+            encoded = "\\hspace*{2em}" + self.encode(text)
+        elif text == '<br/>':
+            encoded = "\\newline"
+        elif (k := fn(nbsps, text)) is not None:
+            encoded = "\\hspace*{" + str((k + 1) * TAB_SIZE) + "em}"
+        elif text.endswith('\\'):
+            encoded = self.encode(text) + '\\newline'
+        else:  # general situation
+            encoded = self.encode(text).replace(CR, '')
+
+        self.body.append(encoded)
+
+    def visit_title_reference(self, node: Element) -> None:
+        pass
+
+    def depart_title_reference(self, node: Element) -> None:
+        pass
+
+    def visit_paragraph(self, node: Element) -> None:
+        index = node.parent.index(node)
+        if (index > 0 and isinstance(node.parent, nodes.compound) and
+                not isinstance(node.parent[index - 1], nodes.paragraph) and
+                not isinstance(node.parent[index - 1], nodes.compound)):
+            # insert blank line, if the paragraph follows a non-paragraph node in a compound
+            self.body.append(r'\noindent' + CR)
+        elif index == 1 and isinstance(node.parent, (nodes.footnote, footnotetext)):
+            # don't insert blank line, if the paragraph is second child of a footnote
+            # (first one is label node)
+            pass
+        elif isinstance(node.parent, nodes.list_item):
+            pass
+        elif isinstance(node, nodes.paragraph):
+            self.body.extend([CR, r'~\newline', CR])
+        else:
+            # the \sphinxAtStartPar is to allow hyphenation of first word of
+            # a paragraph in narrow contexts such as in a table cell
+            # added as two items (cf. line trimming in depart_entry())
+            self.body.extend([CR, r'\sphinxAtStartPar' + CR])
+
+    def depart_paragraph(self, node: Element) -> None:
+        pass
+
+    meth = {
+        'visit_paragraph': visit_paragraph,
+        'depart_paragraph': depart_paragraph,
+        'visit_Text': visit_Text,
+        'visit_title_reference': visit_title_reference,
+        'depart_title_reference': depart_title_reference
     }
 
 
@@ -1389,6 +1452,7 @@ def setup():
     HookManager(CDomain).hook(mapping=BreatheCDomain.meth)
     HookManager(DefinitionParser).hook(mapping=BreatheDefinitionParser.meth)
     HookManager(HTML5Translator).hook(mapping=BreatheHTML5Translator.meth)
+    HookManager(LaTeXTranslator).hook(mapping=BreatheLaTeXTranslator.meth)
     HookManager(ASTBracedInitList).hook(mapping=BreatheASTBracedInitList.meth)
     HookManager(SphinxRenderer).hook(mapping=BreatheRenderer.meth)
     HookManager(_BaseFileDirective).hook(mapping=BreatheBaseFileDirective.meth)
