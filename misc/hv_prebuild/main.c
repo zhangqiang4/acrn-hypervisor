@@ -12,10 +12,10 @@ int32_t main(void)
 	int32_t ret = 0;
 
 	if (!sanitize_vm_config()) {
-		printf("VM configuration check fail!\n");
+		(void)printf("VM configuration check fail!\n");
 		ret = -1;
 	} else {
-		printf("VM configuration check pass!\n");
+		(void)printf("VM configuration check pass!\n");
 		ret = 0;
 	}
 	return ret;

@@ -32,7 +32,7 @@ static bool check_vm_clos_config(uint16_t vm_id)
 	struct acrn_vm_config *vm_config = get_vm_config(vm_id);
 
 	if((vm_config->name[0] != '\0') && (vm_config->num_pclosids == 0U)) {
-		printf("vm%u: invalid num_closids(0), pls check CAT configuration in Configurator tool\n",
+		(void)printf("vm%u: invalid num_closids(0), pls check CAT configuration in Configurator tool\n",
 			vm_id);
 		ret = false;
 	}
@@ -41,7 +41,7 @@ static bool check_vm_clos_config(uint16_t vm_id)
 		for (i = 0U; i < vm_config->num_pclosids; i++) {
 			if (((platform_clos_num != 0U) && (vm_config->pclosids[i] == platform_clos_num))
 					|| (vm_config->pclosids[i] > platform_clos_num)) {
-				printf("vm%u: vcpu%u clos(%u) exceed the max clos(%u).",
+				(void)printf("vm%u: vcpu%u clos(%u) exceed the max clos(%u).",
 					vm_id, i, vm_config->pclosids[i], platform_clos_num);
 				ret = false;
 				break;
@@ -67,7 +67,7 @@ static bool check_vm_vuart_config(uint16_t vm_id)
 			(vu_config->addr.port_base == INVALID_COM_BASE)) {
 			if ((vu_config->t_vuart.vm_id >= CONFIG_MAX_VM_NUM) ||
 				(vu_config->t_vuart.vm_id == vm_id)) {
-				printf("%s invalid vuart configuration for VM %d\n", __func__, vm_id);
+				(void)printf("%s invalid vuart configuration for VM %d\n", __func__, vm_id);
 				ret = false;
 			}
 		}
@@ -94,7 +94,7 @@ bool sanitize_vm_config(void)
 
 		if ((vm_config->name[0] != '\0')
 			&& ((vm_config->cpu_affinity == 0UL) || ((vm_config->cpu_affinity & ~PLATFORM_CPUS_MASK) != 0UL))) {
-			printf("%s: vm%u assigns invalid PCPU (affinity: 0x%016x)\n", __func__, vm_id, vm_config->cpu_affinity);
+			(void)printf("%s: vm%u assigns invalid PCPU (affinity: 0x%016x)\n", __func__, vm_id, vm_config->cpu_affinity);
 			ret = false;
 		}
 
