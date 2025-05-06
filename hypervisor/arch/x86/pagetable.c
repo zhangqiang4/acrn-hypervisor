@@ -170,7 +170,7 @@ static void try_to_free_pgtable_page(const struct pgtable *table,
  *
  * @post N/A
  */
-static void split_large_page(uint64_t *pte, enum _page_table_level level,
+static void split_large_page(uint64_t *pte, enum page_table_level level,
 		__unused uint64_t vaddr, const struct pgtable *table)
 {
 	uint64_t *pbase;

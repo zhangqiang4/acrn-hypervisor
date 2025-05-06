@@ -64,7 +64,7 @@ static uint64_t get_ppt_page_num(void)
 static struct page_pool ppt_page_pool;
 
 /* @pre: The PPT and EPT have same page granularity */
-static inline bool ppt_large_page_support(enum _page_table_level level, __unused uint64_t prot)
+static inline bool ppt_large_page_support(enum page_table_level level, __unused uint64_t prot)
 {
 	bool support;
 

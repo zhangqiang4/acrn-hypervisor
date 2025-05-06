@@ -115,7 +115,7 @@ static struct page_pool ept_page_pool[CONFIG_MAX_VM_NUM];				/**< Per-VM EPT pag
  *
  * @return Large page supported on given page level or not
  */
-static inline bool ept_large_page_support(enum _page_table_level level, __unused uint64_t prot)
+static inline bool ept_large_page_support(enum page_table_level level, __unused uint64_t prot)
 {
 	bool support;
 
