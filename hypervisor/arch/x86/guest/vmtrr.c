@@ -16,17 +16,17 @@
 
 static inline bool is_mtrr_mask_register(uint64_t msr)
 {
-	return ((msr >= MSR_IA32_MTRR_PHYSMASK_0) && (msr <= MSR_IA32_MTRR_PHYSMASK_9) && (msr % 2U));
+	return ((msr >= MSR_IA32_MTRR_PHYSMASK_0) && (msr <= MSR_IA32_MTRR_PHYSMASK_9) && ((msr % 2U) != 0UL));
 }
 
 static inline bool is_mtrr_base_register(uint64_t msr)
 {
-	return ((msr >= MSR_IA32_MTRR_PHYSBASE_0) && (msr <= MSR_IA32_MTRR_PHYSBASE_9) && !(msr % 2U));
+	return ((msr >= MSR_IA32_MTRR_PHYSBASE_0) && (msr <= MSR_IA32_MTRR_PHYSBASE_9) && ((msr % 2U) == 0UL));
 }
 
 static inline uint64_t get_variable_mtrr_index(uint64_t msr)
 {
-	return (msr - MSR_IA32_MTRR_PHYSBASE_0) / 2U;
+	return (msr - MSR_IA32_MTRR_PHYSBASE_0) / 2UL;
 }
 
 static uint64_t round_variable_mtrr_size_up(uint64_t val)
