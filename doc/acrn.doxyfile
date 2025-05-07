@@ -814,6 +814,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/dm/mmio_dev.c \
                           ../hypervisor/lib/stack_protector.c \
                           ../hypervisor/arch/x86/lib/retpoline-thunk.S \
+			  ../hypervisor/include/lib/efi.h \
                           ../hypervisor/include/arch/x86/asm/guest/guest_memory.h \
                           ../hypervisor/include/arch/x86/asm/e820.h \
                           ../hypervisor/include/arch/x86/asm/guest/ept.h \
@@ -889,8 +890,15 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/cpu_caps.h \
                           ../hypervisor/include/arch/x86/asm/cpufeatures.h \
                           ../hypervisor/include/arch/x86/asm/default_acpi_info.h \
+                          ../hypervisor/include/arch/x86/asm/boot/ld_sym.h \
+                          ../hypervisor/include/arch/x86/asm/trampoline.h \
+                          ../hypervisor/boot/include/boot.h \
                           ../hypervisor/boot/include/acpi.h \
+                          ../hypervisor/boot/include/multiboot_std.h \
+                          ../hypervisor/boot/multiboot/multiboot_priv.h \
+                          ../hypervisor/boot/multiboot/multiboot.c \
                           ../hypervisor/boot/acpi_base.c \
+                          ../hypervisor/boot/boot.c \
                           ../hypervisor/acpi_parser/dmar_parse.c \
                           ../hypervisor/acpi_parser/acpi_ext.c \
                           ../hypervisor/arch/x86/guest/ept.c \
@@ -905,6 +913,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \
                           ../hypervisor/arch/x86/guest/virq.c \
+			  ../hypervisor/arch/x86/trampoline.c \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
                           ../hypervisor/arch/x86/irq.c \
