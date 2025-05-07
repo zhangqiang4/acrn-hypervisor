@@ -492,8 +492,8 @@ class BreatheLaTeXTranslator:
             encoded = "\\newline"
         elif (k := fn(nbsps, text)) is not None:
             encoded = "\\hspace*{" + str((k + 1) * TAB_SIZE) + "em}"
-        elif text.endswith('\\'):
-            encoded = self.encode(text) + '\\newline'
+        # elif text.endswith('\\'):  # dont add additional newline
+        #     encoded = self.encode(text) + '\\newline'
         else:  # general situation
             encoded = self.encode(text).replace(CR, '')
 
@@ -529,12 +529,30 @@ class BreatheLaTeXTranslator:
     def depart_paragraph(self, node: Element) -> None:
         pass
 
+    def visit_inline(self, node: Element) -> None:
+        classes = node.get('classes', [])
+        if classes in [['menuselection']]:
+            self.body.append(r'\sphinxmenuselection{')
+            self.context.append('}')
+        elif classes in [['guilabel']]:
+            self.body.append(r'\sphinxguilabel{')
+            self.context.append('}')
+        elif classes in [['accelerator']]:
+            self.body.append(r'\sphinxaccelerator{')
+            self.context.append('}')
+        elif classes and not self.in_title:
+            self.body.append(r'\DUrole{%s}{' % ','.join(classes))
+            self.context.append(' }')  # add space to separate crossref and text
+        else:
+            self.context.append('')
+
     meth = {
         'visit_paragraph': visit_paragraph,
         'depart_paragraph': depart_paragraph,
         'visit_Text': visit_Text,
         'visit_title_reference': visit_title_reference,
-        'depart_title_reference': depart_title_reference
+        'depart_title_reference': depart_title_reference,
+        'visit_inline': visit_inline
     }
 
 
