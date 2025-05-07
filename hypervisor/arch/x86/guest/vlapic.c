@@ -474,24 +474,6 @@ vlapic_reset_tmr(struct acrn_vlapic *vlapic)
 	vcpu_reset_eoi_exit_bitmaps(vlapic2vcpu(vlapic));
 }
 
-static void apicv_basic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
-{
-	struct lapic_regs *lapic;
-	struct lapic_reg *irrptr;
-	uint32_t idx;
-
-	lapic = &(vlapic->apic_page);
-	idx = vector >> 5U;
-	irrptr = &lapic->irr[0];
-
-	/* If the interrupt is set, don't try to do it again */
-	if (!bitmap32_test_and_set_lock((uint16_t)(vector & 0x1fU), &irrptr[idx].v)) {
-		/* update TMR if interrupt trigger mode has changed */
-		vlapic_set_tmr(vlapic, vector, level);
-		vcpu_make_request(vlapic2vcpu(vlapic), ACRN_REQUEST_EVENT);
-	}
-}
-
 static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 {
 	/* update TMR if interrupt trigger mode has changed */
@@ -1129,79 +1111,6 @@ static inline uint32_t vlapic_find_highest_irr(const struct acrn_vlapic *vlapic)
 	return vec;
 }
 
-/**
- * @brief Find a deliverable virtual interrupts for vLAPIC in irr.
- *
- * @param[in]    vlapic Pointer to target vLAPIC data structure
- * @param[inout] vecptr Pointer to vector buffer and will be filled
- *               with eligible vector if any.
- *
- * @retval false There is no deliverable pending vector.
- * @retval true There is deliverable vector.
- *
- * @remark The vector does not automatically transition to the ISR as a
- *	   result of calling this function.
- *	   This function is only for case that APICv/VID is NOT supported.
- */
-static bool vlapic_find_deliverable_intr(const struct acrn_vlapic *vlapic, uint32_t *vecptr)
-{
-	const struct lapic_regs *lapic = &(vlapic->apic_page);
-	uint32_t vec;
-	bool ret = false;
-
-	vec = vlapic_find_highest_irr(vlapic);
-	if (prio(vec) > prio(lapic->ppr.v)) {
-		ret = true;
-		if (vecptr != NULL) {
-			*vecptr = vec;
-		}
-	}
-
-	return ret;
-}
-
-/**
- * @brief Get a deliverable virtual interrupt from irr to isr.
- *
- * Transition 'vector' from IRR to ISR. This function is called with the
- * vector returned by 'vlapic_find_deliverable_intr()' when the guest is able to
- * accept this interrupt (i.e. RFLAGS.IF = 1 and no conditions exist that
- * block interrupt delivery).
- *
- * @param[in] vlapic Pointer to target vLAPIC data structure
- * @param[in] vector Target virtual interrupt vector
- *
- * @pre vlapic != NULL
- */
-static void vlapic_get_deliverable_intr(struct acrn_vlapic *vlapic, uint32_t vector)
-{
-	struct lapic_regs *lapic = &(vlapic->apic_page);
-	struct lapic_reg *irrptr, *isrptr;
-	uint32_t idx;
-
-	/*
-	 * clear the ready bit for vector being accepted in irr
-	 * and set the vector as in service in isr.
-	 */
-	idx = vector >> 5U;
-
-	irrptr = &lapic->irr[0];
-	bitmap32_clear_lock((uint16_t)(vector & 0x1fU), &irrptr[idx].v);
-
-	vlapic_dump_irr(vlapic, "vlapic_get_deliverable_intr");
-
-	isrptr = &lapic->isr[0];
-	bitmap32_set_nolock((uint16_t)(vector & 0x1fU), &isrptr[idx].v);
-	vlapic_dump_isr(vlapic, "vlapic_get_deliverable_intr");
-
-	vlapic->isrv = vector;
-
-	/*
-	 * Update the PPR
-	 */
-	vlapic_update_ppr(vlapic);
-}
-
 static void
 vlapic_write_svr(struct acrn_vlapic *vlapic)
 {
@@ -1775,19 +1684,9 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 	return 0;
 }
 
-static bool apicv_basic_x2apic_read_msr_may_valid(uint32_t offset)
-{
-	return (offset != APIC_OFFSET_DFR) && (offset != APIC_OFFSET_ICR_HI);
-}
-
 static bool apicv_advanced_x2apic_read_msr_may_valid(uint32_t offset)
 {
 	return (offset == APIC_OFFSET_TIMER_CCR);
-}
-
-static bool apicv_basic_x2apic_write_msr_may_valid(uint32_t offset)
-{
-	return (offset != APIC_OFFSET_DFR) && (offset != APIC_OFFSET_ICR_HI);
 }
 
 static bool apicv_advanced_x2apic_write_msr_may_valid(uint32_t offset)
@@ -1947,23 +1846,6 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
 	return hva2hpa(&(vlapic->apic_page));
 }
 
-static void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic);
-static void apicv_basic_inject_intr(struct acrn_vlapic *vlapic,
-		bool guest_irq_enabled, bool injected)
-{
-	uint32_t vector = 0U;
-
-	if (guest_irq_enabled && (!injected)) {
-		vlapic_update_ppr(vlapic);
-		if (vlapic_find_deliverable_intr(vlapic, &vector)) {
-			exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, VMX_INT_INFO_VALID | vector);
-			vlapic_get_deliverable_intr(vlapic, vector);
-		}
-	}
-
-	vlapic_update_tpr_threshold(vlapic);
-}
-
 /*
  * @brief Send a Posted Interrupt to itself.
  *
@@ -2003,22 +1885,6 @@ void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool
 	vlapic->ops->inject_intr(vlapic, guest_irq_enabled, injected);
 }
 
-static bool apicv_basic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
-{
-	uint32_t vector;
-	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
-
-	vlapic_update_ppr(vlapic);
-
-	/* check and raise request if we have a deliverable irq in LAPIC IRR */
-	if (vlapic_find_deliverable_intr(vlapic, &vector)) {
-		/* we have pending IRR */
-		vcpu_make_request(vcpu, ACRN_REQUEST_EVENT);
-	}
-
-	return vcpu->arch.pending_req != 0UL;
-}
-
 static bool apicv_advanced_has_pending_delivery_intr(__unused struct acrn_vcpu *vcpu)
 {
 	return false;
@@ -2040,14 +1906,9 @@ static uint32_t vlapic_get_next_pending_intr(struct acrn_vcpu *vcpu)
 	return vector;
 }
 
-static bool apicv_basic_has_pending_intr(struct acrn_vcpu *vcpu)
-{
-	return vlapic_get_next_pending_intr(vcpu) != 0UL;
-}
-
 static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
 {
-	return apicv_basic_has_pending_intr(vcpu);
+	return vlapic_get_next_pending_intr(vcpu) != 0UL;
 }
 
 bool vlapic_clear_pending_intr(struct acrn_vcpu *vcpu, uint32_t vector)
@@ -2135,23 +1996,6 @@ static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
 	}
 }
 
-/*
- * TPR threshold (32 bits). Bits 3:0 of this field determine the threshold
- * below which bits 7:4 of VTPR (see Section 29.1.1) cannot fall.
- */
-static void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic)
-{
-	uint32_t irr, tpr, threshold;
-
-	tpr = vlapic->apic_page.tpr.v;
-	tpr = ((tpr & 0xf0U) >> 4U);
-	irr = vlapic_find_highest_irr(vlapic);
-	irr >>= 4U;
-	threshold = (irr > tpr) ? 0U : irr;
-
-	exec_vmwrite32(VMX_TPR_THRESHOLD, threshold);
-}
-
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	vcpu_make_request(vcpu, ACRN_REQUEST_EVENT);
@@ -2159,15 +2003,6 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 
 	return 0;
 }
-
-static const struct acrn_apicv_ops apicv_basic_ops = {
-	.accept_intr = apicv_basic_accept_intr,
-	.inject_intr = apicv_basic_inject_intr,
-	.has_pending_delivery_intr = apicv_basic_has_pending_delivery_intr,
-	.has_pending_intr = apicv_basic_has_pending_intr,
-	.x2apic_read_msr_may_valid = apicv_basic_x2apic_read_msr_may_valid,
-	.x2apic_write_msr_may_valid = apicv_basic_x2apic_write_msr_may_valid,
-};
 
 static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.accept_intr = apicv_advanced_accept_intr,
@@ -2183,9 +2018,5 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
  */
 void vlapic_set_apicv_ops(void)
 {
-	if (is_apicv_advanced_feature_supported()) {
-		apicv_ops = &apicv_advanced_ops;
-	} else {
-		apicv_ops = &apicv_basic_ops;
-	}
+	apicv_ops = &apicv_advanced_ops;
 }

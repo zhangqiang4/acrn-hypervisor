@@ -433,9 +433,7 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	/* enable external interrupt VM Exit */
 	value32 = check_vmx_ctrl(MSR_IA32_VMX_PINBASED_CTLS, VMX_PINBASED_CTLS_IRQ_EXIT);
 
-	if (is_apicv_advanced_feature_supported()) {
-		value32 |= VMX_PINBASED_CTLS_POST_IRQ;
-	}
+	value32 |= VMX_PINBASED_CTLS_POST_IRQ;
 
 	exec_vmwrite32(VMX_PIN_VM_EXEC_CONTROLS, value32);
 	pr_dbg("VMX_PIN_VM_EXEC_CONTROLS: 0x%x ", value32);
@@ -496,20 +494,8 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 		value32 &= ~VMX_PROCBASED_CTLS2_INVPCID;
 	}
 
-	if (is_apicv_advanced_feature_supported()) {
-		value32 |= VMX_PROCBASED_CTLS2_VIRQ;
-		value32 |= VMX_PROCBASED_CTLS2_VAPIC_REGS;
-	} else {
-		/*
-		 * This field exists only on processors that support
-		 * the 1-setting  of the "use TPR shadow"
-		 * VM-execution control.
-		 *
-		 * Set up TPR threshold for virtual interrupt delivery
-		 * - pg 3955 25.6.8
-		 */
-		exec_vmwrite32(VMX_TPR_THRESHOLD, 0U);
-	}
+	value32 |= VMX_PROCBASED_CTLS2_VIRQ;
+	value32 |= VMX_PROCBASED_CTLS2_VAPIC_REGS;
 
 	if ((value32 & VMX_PROCBASED_CTLS2_XSVE_XRSTR) != 0U) {
 		exec_vmwrite64(VMX_XSS_EXITING_BITMAP_FULL, 0UL);
@@ -543,19 +529,16 @@ static void init_exec_ctrl(struct acrn_vcpu *vcpu)
 	value64 = vlapic_apicv_get_apic_page_addr(vcpu_vlapic(vcpu));
 	exec_vmwrite64(VMX_VIRTUAL_APIC_PAGE_ADDR_FULL, value64);
 
-	if (is_apicv_advanced_feature_supported()) {
-		/* Disable all EOI VMEXIT by default and
-		 * clear RVI and SVI.
-		 */
-		exec_vmwrite64(VMX_EOI_EXIT0_FULL, 0UL);
-		exec_vmwrite64(VMX_EOI_EXIT1_FULL, 0UL);
-		exec_vmwrite64(VMX_EOI_EXIT2_FULL, 0UL);
-		exec_vmwrite64(VMX_EOI_EXIT3_FULL, 0UL);
+	/* Assume advanced APICs feature is supported, disable all
+	 * EOI VMEXIT by default and clear RVI and SVI.
+	 */
+	exec_vmwrite64(VMX_EOI_EXIT0_FULL, 0UL);
+	exec_vmwrite64(VMX_EOI_EXIT1_FULL, 0UL);
+	exec_vmwrite64(VMX_EOI_EXIT2_FULL, 0UL);
+	exec_vmwrite64(VMX_EOI_EXIT3_FULL, 0UL);
 
-		exec_vmwrite16(VMX_GUEST_INTR_STATUS, 0U);
-		exec_vmwrite16(VMX_POSTED_INTR_VECTOR, (uint16_t)vcpu->arch.pid.control.bits.nv);
-		exec_vmwrite64(VMX_PIR_DESC_ADDR_FULL, hva2hpa(get_pi_desc(vcpu)));
-	}
+	exec_vmwrite16(VMX_POSTED_INTR_VECTOR, (uint16_t)vcpu->arch.pid.control.bits.nv);
+	exec_vmwrite64(VMX_PIR_DESC_ADDR_FULL, hva2hpa(get_pi_desc(vcpu)));
 
 	/* Load EPTP execution control
 	 * TODO: introduce API to make this data driven based
@@ -860,10 +843,9 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 		/* Disable external interrupt exiting */
 		value32 = exec_vmread32(VMX_PIN_VM_EXEC_CONTROLS);
 		value32 &= ~VMX_PINBASED_CTLS_IRQ_EXIT;
-		if (is_apicv_advanced_feature_supported()) {
-			/* Disable posted interrupt processing */
-			value32 &= ~VMX_PINBASED_CTLS_POST_IRQ;
-		}
+
+		/* Disable posted interrupt processing */
+		value32 &= ~VMX_PINBASED_CTLS_POST_IRQ;
 
 		exec_vmwrite32(VMX_PIN_VM_EXEC_CONTROLS, value32);
 
@@ -885,11 +867,11 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 		value32 = exec_vmread32(VMX_PROC_VM_EXEC_CONTROLS2);
 		value32 &= ~VMX_PROCBASED_CTLS2_PAUSE_LOOP;
 		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC;
-		if (is_apicv_advanced_feature_supported()) {
-			/* Disable Register Virtualization and virtual interrupt delivery */
-			value32 &= ~VMX_PROCBASED_CTLS2_VIRQ;
-			value32 &= ~VMX_PROCBASED_CTLS2_VAPIC_REGS;
-		}
+
+		/* Disable Register Virtualization and virtual interrupt delivery */
+		value32 &= ~VMX_PROCBASED_CTLS2_VIRQ;
+		value32 &= ~VMX_PROCBASED_CTLS2_VAPIC_REGS;
+
 		exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS2, value32);
 	} else {
 		/* Enable x2apic mode */

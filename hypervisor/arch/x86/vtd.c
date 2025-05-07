@@ -638,7 +638,7 @@ static int32_t register_hrhd_units(void)
 			break;
 		}
 
-		if ((iommu_cap_pi(drhd_rt->cap) == 0U) || (!is_apicv_advanced_feature_supported())) {
+		if ((iommu_cap_pi(drhd_rt->cap) == 0U)) {
 			platform_caps.pi = false;
 		}
 	}
