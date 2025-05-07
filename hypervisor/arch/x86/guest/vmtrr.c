@@ -14,19 +14,19 @@
 #include <logmsg.h>
 #include <vacpi.h>
 
-static inline bool is_mtrr_mask_register(uint64_t msr)
+static inline bool is_mtrr_mask_register(uint32_t msr)
 {
-	return ((msr >= MSR_IA32_MTRR_PHYSMASK_0) && (msr <= MSR_IA32_MTRR_PHYSMASK_9) && ((msr % 2U) != 0UL));
+	return ((msr >= MSR_IA32_MTRR_PHYSMASK_0) && (msr <= MSR_IA32_MTRR_PHYSMASK_9) && ((msr % 2U) != 0U));
 }
 
-static inline bool is_mtrr_base_register(uint64_t msr)
+static inline bool is_mtrr_base_register(uint32_t msr)
 {
-	return ((msr >= MSR_IA32_MTRR_PHYSBASE_0) && (msr <= MSR_IA32_MTRR_PHYSBASE_9) && ((msr % 2U) == 0UL));
+	return ((msr >= MSR_IA32_MTRR_PHYSBASE_0) && (msr <= MSR_IA32_MTRR_PHYSBASE_9) && ((msr % 2U) == 0U));
 }
 
-static inline uint64_t get_variable_mtrr_index(uint64_t msr)
+static inline uint32_t get_variable_mtrr_index(uint32_t msr)
 {
-	return (msr - MSR_IA32_MTRR_PHYSBASE_0) / 2UL;
+	return (msr - MSR_IA32_MTRR_PHYSBASE_0) / 2U;
 }
 
 static uint64_t round_variable_mtrr_size_up(uint64_t val)
@@ -76,10 +76,10 @@ void init_vmtrr(struct acrn_vm *vm)
 		vmtrr->cap.value = msr_read(MSR_IA32_MTRR_CAP);
 		vmtrr->def_type.value = msr_read(MSR_IA32_MTRR_DEF_TYPE);
 		/* Hide fixed MTRRs, SMRR, PRMRR for Service VM */
-		vmtrr->cap.bits.fix = 0U;
-		vmtrr->def_type.bits.fixed_enable = 0U;
-		vmtrr->cap.bits.smrr = 0U;
-		vmtrr->cap.bits.prmrr = 0U;
+		vmtrr->cap.bits.fix = 0UL;
+		vmtrr->def_type.bits.fixed_enable = 0UL;
+		vmtrr->cap.bits.smrr = 0UL;
+		vmtrr->cap.bits.prmrr = 0UL;
 
 		for (i = 0U; i < vmtrr->cap.bits.vcnt; i++) {
 			vmtrr->variable_range[i].physbase.value = msr_read(MSR_IA32_MTRR_PHYSBASE_0 + (2U * i));
@@ -90,9 +90,9 @@ void init_vmtrr(struct acrn_vm *vm)
 		}
 	} else {
 		/* Emulate Variale MTRRs for pre-launch and post-launch VMs */
-		vmtrr->cap.value = 0U;
-		vmtrr->def_type.value = 0U;
-		vmtrr->def_type.bits.enable = 1U;
+		vmtrr->cap.value = 0UL;
+		vmtrr->def_type.value = 0UL;
+		vmtrr->def_type.bits.enable = 1UL;
 		vmtrr->def_type.bits.type = MTRR_MEM_TYPE_WB;
 		/*
 		 * PCI hole (2G-3.5G): UC
@@ -109,25 +109,25 @@ void init_vmtrr(struct acrn_vm *vm)
 	pr_dbg("init vMTRR for vm%d", vm->vm_id);
 }
 
-void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint8_t type)
+void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_t type)
 {
-	uint16_t idx;
+	uint64_t idx;
 	struct acrn_vmtrr *vmtrr = &vm->arch_vm.vmtrr;
 	/* This function can be called only before VM_RUNNING. */
 	if (is_created_vm(vm) || is_poweroff_vm(vm)) {
 		/* TODO: Support more memory types */
 		if ((size != 0UL) && (type == EPT_UNCACHED)) {
 			/* vmtrr->cap.value[7:0] atomically increase 1 and get the index of PHYSBASEn/PHYSMASKn */
-			idx = ((uint64_t)atomic_inc64_return((int64_t *)&vmtrr->cap.value) & MTRR_VARIABLE_CNT) - 1U;
+			idx = (atomic_incu64_return(&vmtrr->cap.value) & MTRR_VARIABLE_CNT) - 1UL;
 			if (idx < VARIABLE_RANGE_MTRR_NUM_MAX) {
 
 				vmtrr->variable_range[idx].physbase.value = base;
 				vmtrr->variable_range[idx].physbase.bits.type = MTRR_MEM_TYPE_UC;
 
 				vmtrr->variable_range[idx].physmask.value =
-					~(round_variable_mtrr_size_up(size) - 1U);
-				vmtrr->variable_range[idx].physmask.bits.valid = 1U;
-				vmtrr->variable_range[idx].physmask.bits.res1 = 0U;
+					~(round_variable_mtrr_size_up(size) - 1UL);
+				vmtrr->variable_range[idx].physmask.bits.valid = 1UL;
+				vmtrr->variable_range[idx].physmask.bits.res1 = 0UL;
 
 				pr_dbg("vm%d variable-range MTRR[%u]: base:%16lx mask:%16lx", vm->vm_id, idx,
 					vmtrr->variable_range[idx].physbase.value,
@@ -179,7 +179,7 @@ int32_t write_vmtrr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t value)
 			err = -EACCES;
 		}
 
-		if (((value & MSR_IA32_MTRR_DEF_TYPE_ENABLE) == 0U) ||
+		if (((value & MSR_IA32_MTRR_DEF_TYPE_ENABLE) == 0UL) ||
 			 ((value & MSR_IA32_MTRR_DEF_TYPE_TYPE) == MTRR_MEM_TYPE_UC)) {
 			/* Set all memory type to UC */
 			if ((vcpu_get_cr0(vcpu) & CR0_CD) == 0UL) {

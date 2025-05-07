@@ -408,6 +408,7 @@ build_atomic_cmpxchg(atomic_cmpxchg64, "q", uint64_t)
  * - build_atomic_xadd(atomic_xadd16, "w", uint16_t)
  * - build_atomic_xadd(atomic_xadd32, "l", int32_t)
  * - build_atomic_xadd(atomic_xadd64, "q", int64_t)
+ * - build_atomic_xadd(atomic_xaddu64, "q", uint64_t)
  *
  * Inputs in these functions are defined as:
  * - input param [inout]: ptr The pointer to the memory region.
@@ -480,6 +481,22 @@ build_atomic_xadd(atomic_xadd32, "l", int32_t)
  * @post N/A
  */
 build_atomic_xadd(atomic_xadd64, "q", int64_t)
+
+/**
+ * @brief Performs an atomic fetch-and-add on an unsigned 64-bit memory region.
+ *
+ * This function performs an atomic fetch-and-add operation on the specified unsigned 64-bit memory region.
+ *
+ * @param[inout] ptr The pointer to the unsigned 64-bit memory region.
+ * @param[in] v The value to add to the memory region.
+ *
+ * @return The original value of the memory region before the fetch-and-add operation.
+ *
+ * @pre ptr != NULL
+ *
+ * @post N/A
+ */
+build_atomic_xadd(atomic_xaddu64, "q", uint64_t)
 
 /**
  * @brief Adds a value to a 32-bit integer and returns the result.
@@ -627,6 +644,43 @@ static inline int64_t atomic_inc64_return(int64_t *v)
 static inline int64_t atomic_dec64_return(int64_t *v)
 {
 	return atomic_sub64_return(v, 1);
+}
+
+/**
+ * @brief Adds a value to an unsigned 64-bit integer and returns the result.
+ *
+ * This function atomically adds a specified value to an unsigned 64-bit integer and returns the result.
+ *
+ * @param[inout] p The pointer to the unsigned 64-bit integer.
+ * @param[in] v The value to add.
+ *
+ * @return The result of the addition.
+ *
+ * @pre p != NULL
+ *
+ * @post N/A
+ */
+static inline uint64_t atomic_addu64_return(uint64_t *p, uint64_t v)
+{
+	return (atomic_xaddu64(p, v) + v);
+}
+
+/**
+ * @brief Increments a 64-bit unsigned integer by 1 and returns the result.
+ *
+ * This function atomically increments an unsigned 64-bit integer by 1 and returns the result.
+ *
+ * @param[inout] v The pointer to the unsigned 64-bit integer.
+ *
+ * @return The result of the increment.
+ *
+ * @pre v != NULL
+ *
+ * @post N/A
+ */
+static inline uint64_t atomic_incu64_return(uint64_t *v)
+{
+	return atomic_addu64_return(v, 1UL);
 }
 
 #endif /* ATOMIC_H*/

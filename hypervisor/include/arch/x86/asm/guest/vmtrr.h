@@ -19,51 +19,51 @@
  * @{
  */
 
-#define VARIABLE_RANGE_MTRR_NUM_MAX	10U
+#define VARIABLE_RANGE_MTRR_NUM_MAX	10UL
 
 union mtrr_cap_reg {
 	uint64_t value;
 	struct {
-		uint32_t vcnt:8;
-		uint32_t fix:1;
-		uint32_t res0:1;
-		uint32_t wc:1;
-		uint32_t smrr:1;
-		uint32_t prmrr:1;
-		uint32_t res1:19;
-		uint32_t res2:32;
+		uint64_t vcnt:8;
+		uint64_t fix:1;
+		uint64_t res0:1;
+		uint64_t wc:1;
+		uint64_t smrr:1;
+		uint64_t prmrr:1;
+		uint64_t res1:19;
+		uint64_t res2:32;
 	} bits;
 };
 
 union mtrr_def_type_reg {
 	uint64_t value;
 	struct {
-		uint32_t type:8;
-		uint32_t res0:2;
-		uint32_t fixed_enable:1;
-		uint32_t enable:1;
-		uint32_t res1:20;
-		uint32_t res2:32;
+		uint64_t type:8;
+		uint64_t res0:2;
+		uint64_t fixed_enable:1;
+		uint64_t enable:1;
+		uint64_t res1:20;
+		uint64_t res2:32;
 	} bits;
 };
 
 union mtrr_physbase{
 	uint64_t value;
 	struct {
-		uint32_t type:8;
-		uint32_t res0:4;
+		uint64_t type:8;
+		uint64_t res0:4;
 		uint64_t physbase:(MAXIMUM_PA_WIDTH - 8 - 4);
-		uint32_t res1:(64 - MAXIMUM_PA_WIDTH);
+		uint64_t res1:(64 - MAXIMUM_PA_WIDTH);
 	} bits;
 };
 
 union mtrr_physmask{
 	uint64_t value;
 	struct {
-		uint32_t res0:11;
-		uint32_t valid:1;
+		uint64_t res0:11;
+		uint64_t valid:1;
 		uint64_t physmask:(MAXIMUM_PA_WIDTH - 8 - 4);
-		uint32_t res1:(64 - MAXIMUM_PA_WIDTH);
+		uint64_t res1:(64 - MAXIMUM_PA_WIDTH);
 	} bits;
 };
 
@@ -105,7 +105,7 @@ uint64_t read_vmtrr(const struct acrn_vcpu *vcpu, uint32_t msr);
  * @param[inout] vm The pointer that points VM data structure
  */
 void init_vmtrr(struct acrn_vm *vm);
-void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint8_t type);
+void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_t type);
 
 /**
  * @}
