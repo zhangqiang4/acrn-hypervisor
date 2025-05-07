@@ -60,6 +60,8 @@
 #define LOGICAL_ID_MASK		0xFU
 #define CLUSTER_ID_MASK		0xFFFF0U
 
+#define PID_TABLE_ENTRY_VALID	1UL
+
 #define DBG_LEVEL_VLAPIC		6U
 
 static inline struct acrn_vcpu *vlapic2vcpu(const struct acrn_vlapic *vlapic)
@@ -1756,7 +1758,6 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 	vlapic->vapic_id = per_cpu(lapic_id, pcpu_id);
 
 	if (can_ipiv_enabled(vcpu->vm)) {
-#define PID_TABLE_ENTRY_VALID	1UL
 		/* PID_ADDR[5:0] ≠ 000001b // PID pointer not valid or reserved bits set */
 		vcpu->vm->arch_vm.pid_table[vlapic->vapic_id] = hva2hpa(get_pi_desc(vcpu)) | PID_TABLE_ENTRY_VALID;
 		if (vcpu->vm->arch_vm.max_lapic_id < vlapic->vapic_id) {
