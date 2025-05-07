@@ -12,3 +12,12 @@ $(document).ready(function(){
        $(this).attr('title', $(this).attr('alt'));
    });
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("div.docutils.container").forEach(function (el) {
+    const text = el.textContent.trim();
+    if (text.startsWith("#include ")) {
+      el.style.display = "none";
+    }
+  });
+});
