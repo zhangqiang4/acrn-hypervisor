@@ -82,8 +82,8 @@ void init_vmtrr(struct acrn_vm *vm)
 		vmtrr->cap.bits.prmrr = 0U;
 
 		for (i = 0U; i < vmtrr->cap.bits.vcnt; i++) {
-			vmtrr->variable_range[i].physbase.value = msr_read(MSR_IA32_MTRR_PHYSBASE_0 + 2U * i);
-			vmtrr->variable_range[i].physmask.value = msr_read(MSR_IA32_MTRR_PHYSMASK_0 + 2U * i);
+			vmtrr->variable_range[i].physbase.value = msr_read(MSR_IA32_MTRR_PHYSBASE_0 + (2U * i));
+			vmtrr->variable_range[i].physmask.value = msr_read(MSR_IA32_MTRR_PHYSMASK_0 + (2U * i));
 			pr_dbg("vm%d variable-range MTRR[%u]: %16lx %16lx", vm->vm_id, i,
 				vmtrr->variable_range[i].physbase.value,
 				vmtrr->variable_range[i].physmask.value);
