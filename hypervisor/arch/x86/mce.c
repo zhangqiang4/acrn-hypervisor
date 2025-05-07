@@ -98,7 +98,7 @@ void inject_mc_event_to_governing_vcpu(uint16_t pcpu_id, bool is_cmci)
 
 		if (is_mc_pt_enabled(vcpu)) {
 			if (is_cmci) {
-				(void)vlapic_set_local_intr(vcpu->vm, vcpu->vcpu_id, APIC_LVT_CMCI);
+				(void)vlapic_set_local_intr(vcpu, APIC_LVT_CMCI);
 				injected = true;
 			} else {
 				if ((vcpu_get_cr4(vcpu) & CR4_MCE) != 0) {

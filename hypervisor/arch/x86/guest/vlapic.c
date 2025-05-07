@@ -1513,9 +1513,7 @@ vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level)
 /**
  * @brief Triggers LAPIC local interrupt(LVT).
  *
- * @param[in] vm           Pointer to VM data structure
- * @param[in] vcpu_id_arg  ID of vCPU, BROADCAST_CPU_ID means triggering
- *			   interrupt to all vCPUs.
+ * @param[in] vcpu           Pointer to vcpu data structure
  * @param[in] lvt_index    The index which LVT would be to be fired.
  *
  * @retval 0 on success.
@@ -1524,34 +1522,9 @@ vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level)
  * @pre vm != NULL
  */
 int32_t
-vlapic_set_local_intr(struct acrn_vm *vm, uint16_t vcpu_id_arg, uint32_t lvt_index)
+vlapic_set_local_intr(struct acrn_vcpu *vcpu, uint32_t lvt_index)
 {
-	struct acrn_vlapic *vlapic;
-	uint64_t dmask = 0UL;
-	int32_t error;
-	uint16_t vcpu_id = vcpu_id_arg;
-
-	if ((vcpu_id != BROADCAST_CPU_ID) && (vcpu_id >= vm->hw.created_vcpus)) {
-	        error = -EINVAL;
-	} else {
-		if (vcpu_id == BROADCAST_CPU_ID) {
-			dmask = vm_active_cpus(vm);
-		} else {
-			bitmap_set_nolock(vcpu_id, &dmask);
-		}
-		error = 0;
-		for (vcpu_id = 0U; vcpu_id < vm->hw.created_vcpus; vcpu_id++) {
-			if ((dmask & (1UL << vcpu_id)) != 0UL) {
-				vlapic = vm_lapic_from_vcpu_id(vm, vcpu_id);
-				error = vlapic_trigger_lvt(vlapic, lvt_index);
-				if (error != 0) {
-					break;
-				}
-			}
-		}
-	}
-
-	return error;
+	return vlapic_trigger_lvt(vcpu_vlapic(vcpu), lvt_index);
 }
 
 /**
