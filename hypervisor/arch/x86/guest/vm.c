@@ -16,7 +16,6 @@
 #include <asm/e820.h>
 #include <boot.h>
 #include <asm/vtd.h>
-#include <reloc.h>
 #include <asm/guest/ept.h>
 #include <asm/guest/guest_pm.h>
 #include <console.h>
@@ -43,7 +42,6 @@
 #ifdef CONFIG_SECURITY_VM_FIXUP
 #include <quirks/security_vm_fixup.h>
 #endif
-#include <asm/boot/ld_sym.h>
 #include <asm/guest/optee.h>
 
 /**

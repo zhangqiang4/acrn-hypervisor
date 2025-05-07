@@ -23,7 +23,6 @@
 #include <asm/mmu.h>
 #include <asm/guest/vm.h>
 #include <asm/guest/ept.h>
-#include <reloc.h>
 #include <vacpi.h>
 #include <logmsg.h>
 #include <ptdev.h>

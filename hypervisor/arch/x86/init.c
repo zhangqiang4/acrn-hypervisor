@@ -12,7 +12,6 @@
 #include <asm/vmx.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>
-#include <asm/boot/ld_sym.h>
 #include <boot.h>
 #include <dmi.h>
 

@@ -33,9 +33,8 @@
 #include <asm/cpu_caps.h>
 #include <asm/mmu.h>
 #include <asm/vmx.h>
-#include <reloc.h>
+#include <boot.h>
 #include <asm/guest/vm.h>
-#include <asm/boot/ld_sym.h>
 #include <logmsg.h>
 #include <misc_cfg.h>
 

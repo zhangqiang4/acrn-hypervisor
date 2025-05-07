@@ -8,7 +8,6 @@
 #include <asm/vmx.h>
 #include <schedule.h>
 #include <version.h>
-#include <reloc.h>
 #include <asm/vtd.h>
 #include <asm/per_cpu.h>
 #include <asm/lapic.h>

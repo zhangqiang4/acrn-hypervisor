@@ -10,6 +10,7 @@
 #include <multiboot_std.h>
 #include <efi.h>
 #include <vm_configurations.h>
+#include <asm/boot/ld_sym.h>
 
 /* TODO: MAX_MMAP_ENTRIES shall be config by config tool, and same as E820_MAX_ENTRIES */
 #define MAX_MMAP_ENTRIES		32U
@@ -72,6 +73,33 @@ int32_t init_multiboot_info(uint32_t *registers);
 void init_acrn_boot_info(uint32_t *registers);
 int32_t sanitize_acrn_boot_info(struct acrn_boot_info *abi);
 struct acrn_boot_info *get_acrn_boot_info(void);
+
+/* get the delta between CONFIG_HV_RAM_START and the actual load address */
+static inline uint64_t get_hv_image_delta(void)
+{
+	uint64_t addr;
+
+	asm volatile (" call 0f\n"
+		"0: pop %%rax\n"
+		"	sub $0b, %%rax\n"
+		"	mov %%rax, %0\n"
+		: "=m" (addr)
+		:
+		: "%rax");
+
+	return addr;
+}
+
+/* get the actual Hypervisor load address (HVA) */
+static inline uint64_t get_hv_image_base(void)
+{
+	return (get_hv_image_delta() + CONFIG_HV_RAM_START);
+}
+
+static inline uint64_t get_hv_image_size(void)
+{
+	return (uint64_t)(&ld_ram_end - &ld_ram_start);
+}
 
 struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag);
 #endif	/* BOOT_H */

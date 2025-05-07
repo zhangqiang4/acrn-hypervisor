@@ -8,8 +8,7 @@
 #include <asm/mmu.h>
 #include <asm/per_cpu.h>
 #include <asm/trampoline.h>
-#include <reloc.h>
-#include <asm/boot/ld_sym.h>
+#include <boot.h>
 #include <asm/e820.h>
 
 static uint64_t trampoline_start16_paddr;

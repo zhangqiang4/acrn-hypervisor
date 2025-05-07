@@ -31,7 +31,7 @@
 #include <uart16550.h>
 #include <vpci.h>
 #include <ivshmem.h>
-#include <reloc.h>
+#include <boot.h>
 #include <asm/tsc.h>
 #include <delay.h>
 #include <thermal.h>

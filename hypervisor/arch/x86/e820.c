@@ -10,7 +10,6 @@
 #include <asm/e820.h>
 #include <asm/mmu.h>
 #include <boot.h>
-#include <reloc.h>
 #include <efi_mmap.h>
 #include <logmsg.h>
 #include <asm/guest/ept.h>

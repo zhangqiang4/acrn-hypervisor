@@ -15,7 +15,7 @@
 #include <asm/host_pm.h>
 #include <logmsg.h>
 #include <dump.h>
-#include <reloc.h>
+#include <boot.h>
 #include <config.h>
 
 #define CALL_TRACE_HIERARCHY_MAX    20U

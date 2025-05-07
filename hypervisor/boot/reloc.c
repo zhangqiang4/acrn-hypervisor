@@ -6,7 +6,7 @@
 
 #include <types.h>
 #include <reloc.h>
-#include <asm/boot/ld_sym.h>
+#include <boot.h>
 
 #ifdef CONFIG_RELOC
 #define DT_NULL		0U	/* end of .dynamic section */
@@ -32,33 +32,6 @@ static inline uint64_t elf64_r_type(uint64_t i)
 	return (i & 0xffffffffUL);
 }
 #endif
-
-/* get the delta between CONFIG_HV_RAM_START and the actual load address */
-uint64_t get_hv_image_delta(void)
-{
-	uint64_t addr;
-
-	asm volatile (" call 0f\n"
-		"0: pop %%rax\n"
-		"	sub $0b, %%rax\n"
-		"	mov %%rax, %0\n"
-		: "=m" (addr)
-		:
-		: "%rax");
-
-	return addr;
-}
-
-/* get the actual Hypervisor load address (HVA) */
-uint64_t get_hv_image_base(void)
-{
-	return (get_hv_image_delta() + CONFIG_HV_RAM_START);
-}
-
-inline uint64_t get_hv_image_size(void)
-{
-	return (uint64_t)(&ld_ram_end - &ld_ram_start);
-}
 
 void relocate(void)
 {
