@@ -437,10 +437,10 @@ static time_t rtc_to_secs(const struct acrn_vrtc *vrtc)
 	uint32_t century = 0, year = 0;
 
 	do {
-		if ((rtcget(rtc, rtc->sec, &ct.sec) < 0) || (rtcget(rtc, rtc->min, &ct.min) < 0) ||
-				(rtcget(rtc, rtc->day_of_month, &ct.day) < 0) ||
-				(rtcget(rtc, rtc->month, &ct.mon) < 0) || (rtcget(rtc, rtc->year, &year) < 0) ||
-				(rtcget(rtc, rtc->century, &century) < 0)) {
+		if ((rtcget(rtc, rtc->sec, &ct.sec) != 0) || (rtcget(rtc, rtc->min, &ct.min) != 0) ||
+				(rtcget(rtc, rtc->day_of_month, &ct.day) != 0) ||
+				(rtcget(rtc, rtc->month, &ct.mon) != 0) || (rtcget(rtc, rtc->year, &year) != 0) ||
+				(rtcget(rtc, rtc->century, &century) != 0)) {
 			pr_err("Invalid RTC sec %#x hour %#x day %#x mon %#x year %#x century %#x\n",
 					rtc->sec, rtc->min, rtc->day_of_month, rtc->month,
 					rtc->year, rtc->century);

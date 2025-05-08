@@ -269,7 +269,10 @@ static void ivshmem_server_notify_peer(struct ivshmem_device *src_ivs_dev, uint1
 			if ((entry->vector_control & PCIM_MSIX_VCTRL_MASK) == 0U) {
 
 				dest_vm = vpci2vm(dest_ivs_dev->pcidev->vpci);
-				vlapic_inject_msi(dest_vm, entry->addr, entry->data);
+				if (vlapic_inject_msi(dest_vm, entry->addr, entry->data) != 0) {
+					pr_err("%s, vm%d faild injecting msi msi_addr:0x%lx msi_data:0x%x",
+						__func__, dest_vm->vm_id, entry->addr, entry->data);
+				}
 			} else {
 				pr_err("%s,target msix entry [%d] is masked.\n",
 					__func__, vector_index);
