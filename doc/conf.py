@@ -55,7 +55,7 @@ extlinks = {
 # (We only need to link to an archive that has the older release notes)
 
 intersphinx_mapping = {
-        'v2.7': ('https://projectacrn.github.io/2.7', None),
+        'v2.7': ('https://projectacrn.github.io/2.7', 'static/v2.7_objects.inv'),
         }
 
 graphviz_output_format='png'
