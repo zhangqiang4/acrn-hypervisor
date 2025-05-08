@@ -124,14 +124,14 @@ int32_t init_multiboot_info(uint32_t *registers)
 
 	if (boot_from_multiboot(magic, info)) {
 		if (multiboot_to_acrn_bi(abi, hpa2hva_early((uint64_t)info)) == 0) {
-			strncpy_s(abi->protocol_name, MAX_PROTOCOL_NAME_SIZE,
+			(void)strncpy_s(abi->protocol_name, MAX_PROTOCOL_NAME_SIZE,
 					"Multiboot", (MAX_PROTOCOL_NAME_SIZE - 1U));
 			ret = 0;
 		}
 #ifdef CONFIG_MULTIBOOT2
 	} else if (boot_from_multiboot2(magic)) {
 		if (multiboot2_to_acrn_bi(abi, hpa2hva_early((uint64_t)info)) == 0) {
-			strncpy_s(abi->protocol_name, MAX_PROTOCOL_NAME_SIZE,
+			(void)strncpy_s(abi->protocol_name, MAX_PROTOCOL_NAME_SIZE,
 					"Multiboot2", (MAX_PROTOCOL_NAME_SIZE - 1U));
 			ret = 0;
 		}

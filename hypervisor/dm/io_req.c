@@ -144,7 +144,7 @@ int remove_asyncio(struct acrn_vm *vm, const struct acrn_asyncio_info *async_inf
 					&& ((info->match_data == 0U) == (async_info->match_data == 0U))
 					&& (info->data == async_info->data)) {
 				list_del_init(&(desc->list));
-				memset(desc, 0, sizeof(vm->aio_desc[0]));
+				(void)memset(desc, 0, sizeof(vm->aio_desc[0]));
 				ret = 0;
 				break;
 			}

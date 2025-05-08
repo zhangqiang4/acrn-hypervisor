@@ -1193,7 +1193,7 @@ void vpci_deinit_vdev(struct pci_vdev *vdev)
 
 	hlist_del(&vdev->link);
 	bitmap_clear_nolock((vdev->id & 0x3FU), &vdev->vpci->vdev_bitmaps[vdev->id >> 6U]);
-	memset(vdev, 0U, sizeof(struct pci_vdev));
+	(void)memset(vdev, 0U, sizeof(struct pci_vdev));
 }
 
 /**

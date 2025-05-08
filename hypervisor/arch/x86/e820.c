@@ -324,7 +324,7 @@ static void alloc_mods_memory(void)
 			target_index++;
 		}
 	}
-	memset(&hv_e820[target_index], 0, (hv_e820_entries_nr - target_index) * sizeof(struct e820_entry));
+	(void)memset(&hv_e820[target_index], 0, (hv_e820_entries_nr - target_index) * sizeof(struct e820_entry));
 	hv_e820_entries_nr = target_index;
 }
 

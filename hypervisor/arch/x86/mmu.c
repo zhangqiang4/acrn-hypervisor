@@ -462,7 +462,7 @@ void allocate_ppt_pages(void)
 	ppt_page_pool.bitmap_size = bitmap_size / sizeof(uint64_t);
 	ppt_page_pool.dummy_page = NULL;
 
-	memset(ppt_page_pool.bitmap, 0U, bitmap_size);
+	(void)memset(ppt_page_pool.bitmap, 0U, bitmap_size);
 }
 
 /**

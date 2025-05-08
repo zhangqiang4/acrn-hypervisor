@@ -111,7 +111,7 @@ static void mem_log(uint16_t pcpu_id, char *buffer)
 
 		if (*temp_count < TEMP_LOG_BUFFER_SIZE) {
 			(*temp_count)++;
-			memcpy_s(temp_buffer[(*temp_count) - 1U], LOG_MESSAGE_MAX_SIZE, buffer, msg_len);
+			(void)memcpy_s(temp_buffer[(*temp_count) - 1U], LOG_MESSAGE_MAX_SIZE, buffer, msg_len);
 		}
 	}
 }

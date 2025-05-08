@@ -166,7 +166,7 @@ void init_ept_pgtable(struct pgtable *table, uint16_t vm_id)
 	ept_page_pool[vm_id].dummy_page = &ept_dummy_pages[vm_id];
 
 	spinlock_init(&ept_page_pool[vm_id].lock);
-	memset((void *)ept_page_pool[vm_id].bitmap, 0, ept_page_pool[vm_id].bitmap_size * sizeof(uint64_t));
+	(void)memset((void *)ept_page_pool[vm_id].bitmap, 0, ept_page_pool[vm_id].bitmap_size * sizeof(uint64_t));
 	ept_page_pool[vm_id].last_hint_id = 0UL;
 
 	table->pool = &ept_page_pool[vm_id];

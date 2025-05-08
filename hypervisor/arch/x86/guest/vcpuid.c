@@ -768,7 +768,7 @@ static inline void percpu_cpuid_init(void)
 		CPUID_V2_EXTEND_TOPOLOGY, CPUID_EXTEND_FUNCTION_1};
 
 	pcpu_cpuids.leaf_nr = sizeof(percpu_leaves)/sizeof(uint32_t);
-	memcpy_s(pcpu_cpuids.leaves, sizeof(percpu_leaves),
+	(void)memcpy_s(pcpu_cpuids.leaves, sizeof(percpu_leaves),
 		 percpu_leaves, sizeof(percpu_leaves));
 
 	/* hybrid related percpu leaves*/
@@ -778,7 +778,7 @@ static inline void percpu_cpuid_init(void)
 			CPUID_THERMAL_POWER, CPUID_TRACE, CPUID_FREQ,
 			CPUID_ADDR_TRANS, CPUID_MODEL_ID, CPUID_LAST_BRANCH_RECORD,
 			CPUID_EXTEND_CACHE};
-		memcpy_s(pcpu_cpuids.leaves + pcpu_cpuids.leaf_nr,
+		(void)memcpy_s(pcpu_cpuids.leaves + pcpu_cpuids.leaf_nr,
 			 sizeof(hybrid_leaves), hybrid_leaves, sizeof(hybrid_leaves));
 		pcpu_cpuids.leaf_nr += sizeof(hybrid_leaves)/sizeof(uint32_t);
 	}

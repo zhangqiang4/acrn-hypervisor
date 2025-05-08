@@ -127,7 +127,7 @@ static void *do_load_elf64(struct acrn_vm *vm)
 			p_sec_name = p_shstr_tbl + p_sec_tbl_head64->sh_name;
 			if ((strncmp(p_sec_name, "bss", 3) == 0) || (strncmp(p_sec_name, ".bss", 4) == 0)) {
 				p_elf_bss = gpa2hva(vm, p_sec_tbl_head64->sh_addr);
-				memset(p_elf_bss, 0U, p_sec_tbl_head64->sh_size);
+				(void)memset(p_elf_bss, 0U, p_sec_tbl_head64->sh_size);
 			}
 			p_sec_tbl_head64++;
 		}
@@ -193,7 +193,7 @@ static void *do_load_elf32(struct acrn_vm *vm)
 			p_sec_name = p_shstr_tbl + p_sec_tbl_head32->sh_name;
 			if ((strncmp(p_sec_name, "bss", 3) == 0) || (strncmp(p_sec_name, ".bss", 4) == 0)) {
 				p_elf_bss = gpa2hva(vm, p_sec_tbl_head32->sh_addr);
-				memset(p_elf_bss, 0U, p_sec_tbl_head32->sh_size);
+				(void)memset(p_elf_bss, 0U, p_sec_tbl_head32->sh_size);
 			}
 			p_sec_tbl_head32++;
 		}
