@@ -1,14 +1,7 @@
 /*
- * Copyright (C) 2021-2022 Intel Corporation.
+ * Copyright (C) 2021-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
- */
-
-/* multiboot_std.h - Multiboot standard header file. */
-/*
- * Reference:
- * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html
- * https://www.gnu.org/software/grub/manual/multiboot2/multiboot.html
  */
 
 /*   Copyright (C) 1999,2003,2007,2008,2009,2010  Free Software Foundation, Inc.
@@ -33,114 +26,441 @@
 
 #ifndef MULTIBOOT_STD_H
 #define MULTIBOOT_STD_H
+/**
+ * @addtogroup boot
+ *
+ * @{
+ */
 
+/**
+ * @file
+ * @brief MACRO and structure definitions for multiboot/multiboot2 standard protocol
+ *
+ * The file provides MACRO and structure definitions for multiboot/multiboot2 standard protocol.
+ * The multiboot and multiboot2 protocol can be referenced below:
+ * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html
+ * https://www.gnu.org/software/grub/manual/multiboot2/multiboot.html
+ */
+
+/**
+ * @brief Multiboot Header Magic Number
+ *
+ * This macro defines the magic number used to identify a Multiboot header. It is
+ * a required field in the Multiboot header structure and is used by Multiboot-compliant
+ * bootloaders to recognize the header as conforming to the Multiboot specification.
+ *
+ * The magic number is a constant value that must be set to `0x1BADB002U`. This value
+ * is specifically chosen to help ensure that the header is correctly identified and
+ * processed by the bootloader.
+ */
 #define	MULTIBOOT_HEADER_MAGIC				0x1BADB002U
+/**
+ * @brief Multiboot Information Magic Number
+ *
+ * This macro defines the magic number used to identify a Multiboot information
+ * structure. It is a key value passed by a Multiboot-compliant bootloader to the
+ * operating system kernel to indicate that the boot information provided is valid
+ * and conforms to the Multiboot specification.
+ *
+ * The magic number is a constant value that must be set to `0x2BADB002U`. This value
+ * is specifically chosen to help ensure that the information structure is correctly
+ * identified and processed by the operating system.
+ */
 #define	MULTIBOOT_INFO_MAGIC				0x2BADB002U
 
 /* MULTIBOOT HEADER FLAGS */
+/**
+ * @brief Multiboot Header Need Memory Information Flag
+ *
+ * This macro defines a flag used in the Multiboot header to indicate that the
+ * operating system kernel requires memory information from the bootloader. When
+ * this flag is set, the bootloader is expected to provide details about the
+ * system's memory layout, which is essential for the kernel's memory management
+ * and initialization processes.
+ *
+ * The flag is represented by the value `0x00000002U`. It is used as part of the
+ * `flags` field in the Multiboot header to specify the kernel's requirements.
+ */
 #define	MULTIBOOT_HEADER_NEED_MEMINFO			0x00000002U
 
+/* Unused MULTIBOOT HEADER FLAGS:
+ * #define MULTIBOOT_HEADER_PAGE_ALIGN			0x00000001U
+ * #define MULTIBOOT_HEADER_VIDEO_MODE			0x00000004U
+ * #define MULTIBOOT_HEADER_AOUT_KLUDGE			0x00010000U
+ */
+
 /* MULTIBOOT INFO FLAGS */
+/**
+ * @brief Multiboot Information Has Command Line Flag
+ *
+ * This macro defines a flag used in the Multiboot information structure to indicate
+ * that a command line is available. When this flag is set, the bootloader provides
+ * a command line string that the operating system kernel can use for configuration
+ * and initialization purposes.
+ *
+ * The flag is represented by the value `0x00000004U`. It is used as part of the
+ * `mi_flags` field in the Multiboot information structure to specify the presence
+ * of a command line.
+ */
 #define	MULTIBOOT_INFO_HAS_CMDLINE			0x00000004U
+/**
+ * @brief Multiboot Information Has Modules Flag
+ *
+ * This macro defines a flag used in the Multiboot information structure to indicate
+ * that one or more modules are available. When this flag is set, the bootloader provides
+ * information about additional modules that have been loaded, which the operating system
+ * kernel can use for various purposes, such as loading drivers or additional components.
+ *
+ * The flag is represented by the value `0x00000008U`. It is used as part of the
+ * `mi_flags` field in the Multiboot information structure to specify the presence
+ * of modules.
+ */
 #define	MULTIBOOT_INFO_HAS_MODS				0x00000008U
+/**
+ * @brief Multiboot Information Has Memory Map Flag
+ *
+ * This macro defines a flag used in the Multiboot information structure to indicate
+ * that a memory map is available. When this flag is set, the bootloader provides
+ * detailed information about the system's memory layout, including the types and
+ * attributes of each memory region. This information is crucial for the operating
+ * system kernel to manage memory effectively.
+ *
+ * The flag is represented by the value `0x00000040U`. It is used as part of the
+ * `mi_flags` field in the Multiboot information structure to specify the presence
+ * of a memory map.
+ */
 #define	MULTIBOOT_INFO_HAS_MMAP				0x00000040U
+/**
+ * @brief Multiboot Information Has Loader Name Flag
+ *
+ * This macro defines a flag used in the Multiboot information structure to indicate
+ * that the name of the bootloader is available. When this flag is set, the bootloader
+ * provides a string containing its name, which can be used by the operating system
+ * kernel for informational or diagnostic purposes.
+ *
+ * The flag is represented by the value `0x00000200U`. It is used as part of the
+ * `mi_flags` field in the Multiboot information structure to specify the presence
+ * of the bootloader's name.
+ */
 #define	MULTIBOOT_INFO_HAS_LOADER_NAME			0x00000200U
+
+/* Unused MULTIBOOT INFO FLAGS:
+ * #define MULTIBOOT_INFO_HAS_MEMINFO			0x00000001U
+ * #define MULTIBOOT_INFO_HAS_BOOTDEV			0x00000002U
+ * #define MULTIBOOT_INFO_HAS_AOUT_SYMS			0x00000010U
+ * #define MULTIBOOT_INFO_HAS_ELF_SHDR			0X00000020U
+ * #define MULTIBOOT_INFO_HAS_DRIVES			0x00000080U
+ * #define MULTIBOOT_INFO_HAS_CONFIG_TABLE		0x00000100U
+ * #define MULTIBOOT_INFO_HAS_APM_TABLE			0x00000400U
+ * #define MULTIBOOT_INFO_HAS_VBE_INFO			0x00000800U
+ * #define MULTIBOOT_INFO_HAS_FB_INFO			0x00001000U
+ */
 
 #ifndef ASSEMBLER
 
+/**
+ * @brief Multiboot Header Structure
+ *
+ * This structure defines the multiboot header used by boot loaders to boot
+ * operating systems in a standardized way. It includes fields for magic number,
+ * feature flags, and checksum, as well as optional fields for specific boot
+ * configurations such as a.out kludge and video mode settings. The checksum
+ * ensures that the sum of the first three fields is zero modulo 2^32, which
+ * is a requirement for multiboot compliance.
+ *
+ * @remark This structure shall be packed.
+ */
 struct multiboot_header {
-	/* Must be MULTIBOOT_MAGIC - see above. */
-	uint32_t magic;
+	uint32_t magic;	       /**< Must be MULTIBOOT_MAGIC - identifies the multiboot header. */
+	uint32_t flags;        /**< Feature flags indicating supported options and requirements. */
+	uint32_t checksum;     /**< Ensures the sum of the first three fields is zero modulo 2^32. */
 
-	/* Feature flags. */
-	uint32_t flags;
+	/**
+	 * @defgroup MULTIBOOT_AOUT_KLUDGE Fields related to MULTIBOOT_HEADER_AOUT_KLUDGE
+	 * @brief Valid if MULTIBOOT_HEADER_AOUT_KLUDGE flag is set in the Multiboot Header flags.
+	 *
+	 * These fields specify memory addresses related to loading the kernel and
+	 * setting up the execution environment when the a.out kludge is used.
+	 *
+	 * @{
+	 */
+	uint32_t header_addr;  /**< Address of the multiboot header itself. */
+	uint32_t load_addr;    /**< Address where the kernel image should be loaded. */
+	uint32_t load_end_addr;/**< Address marking the end of the loaded kernel image. */
+	uint32_t bss_end_addr; /**< Address marking the end of the BSS segment. */
+	uint32_t entry_addr;   /**< Entry point address for the kernel. */
+	/**
+	 * @}
+	 */
 
-	/* The above fields plus this one must equal 0 mod 2^32. */
-	uint32_t checksum;
-
-	/* These are only valid if MULTIBOOT_AOUT_KLUDGE is set. */
-	uint32_t header_addr;
-	uint32_t load_addr;
-	uint32_t load_end_addr;
-	uint32_t bss_end_addr;
-	uint32_t entry_addr;
-
-	/* These are only valid if MULTIBOOT_VIDEO_MODE is set. */
-	uint32_t mode_type;
-	uint32_t width;
-	uint32_t height;
-	uint32_t depth;
+	/**
+	 * @defgroup MULTIBOOT_VIDEO_MODE Fields related to MULTIBOOT_HEADER_VIDEO_MODE
+	 * @brief Valid if MULTIBOOT_HEADER_VIDEO_MODE flag is set in the Multiboot Header flags.
+	 *
+	 * These fields specify the desired video mode settings for the boot loader
+	 * to configure the display environment.
+	 *
+	 * @{
+	 */
+	uint32_t mode_type;    /**< Type of video mode to be set. */
+	uint32_t width;        /**< Width of the display in pixels. */
+	uint32_t height;       /**< Height of the display in pixels. */
+	uint32_t depth;        /**< Color depth of the display in bits per pixel. */
+	/**
+	 * @}
+	 */
 } __packed;
 
+/**
+ * @brief Multiboot Memory Available Type
+ *
+ * This macro defines a constant used in the Multiboot memory map to indicate
+ * that a memory region is available for use by the operating system. Memory
+ * regions marked with this type are considered usable RAM and can be allocated
+ * for various purposes, such as loading the kernel, user applications, or other
+ * data structures.
+ *
+ * The constant is represented by the value `1U`. It is used in the `type` field
+ * of memory map entries within the Multiboot information structure to specify
+ * that the memory region is available.
+ */
 #define MULTIBOOT_MEMORY_AVAILABLE			1U
+/**
+ * @brief Multiboot Memory Reserved Type
+ *
+ * This macro defines a constant used in the Multiboot memory map to indicate
+ * that a memory region is reserved and should not be used by the operating system.
+ * Memory regions marked with this type are typically reserved for system use or
+ * hardware devices and should not be allocated for general-purpose use by the OS.
+ *
+ * The constant is represented by the value `2U`. It is used in the `type` field
+ * of memory map entries within the Multiboot information structure to specify
+ * that the memory region is reserved.
+ */
 #define MULTIBOOT_MEMORY_RESERVED			2U
+/**
+ * @brief Multiboot Memory ACPI Reclaimable Type
+ *
+ * This macro defines a constant used in the Multiboot memory map to indicate
+ * that a memory region is ACPI reclaimable. Memory regions marked with this type
+ * contain ACPI (Advanced Configuration and Power Interface) tables that are needed
+ * during the boot process but can be reclaimed and used by the operating system
+ * after the tables have been processed.
+ *
+ * The constant is represented by the value `3U`. It is used in the `type` field
+ * of memory map entries within the Multiboot information structure to specify
+ * that the memory region is ACPI reclaimable.
+ */
 #define MULTIBOOT_MEMORY_ACPI_RECLAIMABLE		3U
+/**
+ * @brief Multiboot Memory Non-Volatile Storage (NVS) Type
+ *
+ * This macro defines a constant used in the Multiboot memory map to indicate
+ * that a memory region is designated as Non-Volatile Storage (NVS). Memory regions
+ * marked with this type are used by the firmware to store data that must be preserved
+ * across reboots, such as certain configuration settings or system state information.
+ * The operating system should not use or overwrite these regions.
+ *
+ * The constant is represented by the value `4U`. It is used in the `type` field
+ * of memory map entries within the Multiboot information structure to specify
+ * that the memory region is NVS.
+ */
 #define MULTIBOOT_MEMORY_NVS				4U
+/**
+ * @brief Multiboot Memory Bad RAM Type
+ *
+ * This macro defines a constant used in the Multiboot memory map to indicate
+ * that a memory region is considered bad RAM. Memory regions marked with this
+ * type are known to be defective or unreliable and should not be used by the
+ * operating system for any purpose. The presence of bad RAM entries helps the
+ * operating system avoid using these regions, preventing potential data corruption
+ * or system instability.
+ *
+ * The constant is represented by the value `5U`. It is used in the `type` field
+ * of memory map entries within the Multiboot information structure to specify
+ * that the memory region is bad RAM.
+ */
 #define MULTIBOOT_MEMORY_BADRAM				5U
+/**
+ * @brief Multiboot Memory Map Entry Structure
+ *
+ * This structure defines an entry in the memory map provided by a Multiboot-compliant
+ * bootloader. Each entry describes a contiguous block of physical memory, including
+ * its base address, length, and type.
+ *
+ * @remark This structure shall be packed.
+ */
 struct multiboot_mmap {
-	uint32_t	size;
-	uint64_t	baseaddr;
-	uint64_t	length;
-	uint32_t	type;
+	uint32_t size;       /**< Size of the structure, excluding this field. */
+	uint64_t baseaddr;   /**< Base address of the memory region. */
+	uint64_t length;     /**< Length of the memory region in bytes. */
+	uint32_t type;       /**< Type of the memory region. */
 } __packed;
 
+/**
+ * @brief Multiboot Module Structure
+ *
+ * This structure defines a module loaded by a Multiboot-compliant bootloader.
+ * Each module entry provides information about the module's memory location
+ * and an optional string description.
+ *
+ * @remark This structure shall be packed.
+ */
 struct multiboot_module {
-	uint32_t	mm_mod_start;
-	uint32_t	mm_mod_end;
-	uint32_t	mm_string;
-	uint32_t	mm_reserved;
+	uint32_t mm_mod_start; /**< Starting address of the module in memory. */
+	uint32_t mm_mod_end;   /**< Ending address of the module in memory. */
+	uint32_t mm_string;    /**< Address of a null-terminated string description. */
+	uint32_t mm_reserved;  /**< Reserved field, should be set to zero. */
 } __packed;
 
+
+/**
+ * @brief Multiboot Information Structure
+ *
+ * This structure provides information from a Multiboot-compliant bootloader to
+ * the operating system kernel. The fields in this structure are conditionally
+ * valid based on the flags set in `mi_flags`.
+ *
+ * @remark This structure shall be packed.
+ */
 struct multiboot_info {
-	uint32_t	mi_flags;
+	uint32_t mi_flags;                   /**< Flags indicating valid fields. */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_MEMORY. */
-	uint32_t	mi_mem_lower;
-	uint32_t	mi_mem_upper;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_MEMINFO Fields related to MULTIBOOT_INFO_HAS_MEMINFO
+	 * @brief Valid if MULTIBOOT_INFO_HAS_MEMINFO flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_mem_lower;               /**< Lower memory in kilobytes. */
+	uint32_t mi_mem_upper;               /**< Upper memory in kilobytes. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_BOOT_DEVICE. */
-	uint8_t		mi_boot_device_part3;
-	uint8_t		mi_boot_device_part2;
-	uint8_t		mi_boot_device_part1;
-	uint8_t		mi_boot_device_drive;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_BOOTDEV Fields related to MULTIBOOT_INFO_HAS_BOOTDEV
+	 * @brief Valid if MULTIBOOT_INFO_HAS_BOOTDEV flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint8_t  mi_boot_device_part3;       /**< Boot device partition 3. */
+	uint8_t  mi_boot_device_part2;       /**< Boot device partition 2. */
+	uint8_t  mi_boot_device_part1;       /**< Boot device partition 1. */
+	uint8_t  mi_boot_device_drive;       /**< Boot device drive number. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_CMDLINE. */
-	uint32_t	mi_cmdline;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_CMDLINE Fields related to MULTIBOOT_INFO_HAS_CMDLINE
+	 * @brief Valid if MULTIBOOT_INFO_HAS_CMDLINE flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_cmdline;                 /**< Address of kernel command line. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_MODS. */
-	uint32_t	mi_mods_count;
-	uint32_t	mi_mods_addr;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_MODS Fields related to MULTIBOOT_INFO_HAS_MODS
+	 * @brief Valid if MULTIBOOT_INFO_HAS_MODS flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_mods_count;              /**< Number of modules loaded. */
+	uint32_t mi_mods_addr;               /**< Address of first module structure. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_{AOUT,ELF}_SYMS. */
-	uint32_t	mi_elfshdr_num;
-	uint32_t	mi_elfshdr_size;
-	uint32_t	mi_elfshdr_addr;
-	uint32_t	mi_elfshdr_shndx;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_ELF_SHDR Fields related to MULTIBOOT_INFO_HAS_ELF_SHDR
+	 * @brief Valid if MULTIBOOT_INFO_HAS_ELF_SHDR flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_elfshdr_num;             /**< Number of ELF section headers. */
+	uint32_t mi_elfshdr_size;            /**< Size of each ELF section header. */
+	uint32_t mi_elfshdr_addr;            /**< Address of ELF section headers. */
+	uint32_t mi_elfshdr_shndx;           /**< ELF section header string table index. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_MMAP. */
-	uint32_t	mi_mmap_length;
-	uint32_t	mi_mmap_addr;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_MMAP Fields related to MULTIBOOT_INFO_HAS_MMAP
+	 * @brief Valid if MULTIBOOT_INFO_HAS_MMAP flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_mmap_length;             /**< Length of the memory map. */
+	uint32_t mi_mmap_addr;               /**< Address of the memory map. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_DRIVES. */
-	uint32_t	mi_drives_length;
-	uint32_t	mi_drives_addr;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_DRIVES Fields related to MULTIBOOT_INFO_HAS_DRIVES
+	 * @brief Valid if MULTIBOOT_INFO_HAS_DRIVES flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_drives_length;           /**< Length of the drive information. */
+	uint32_t mi_drives_addr;             /**< Address of the drive information. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_CONFIG_TABLE. */
-	uint32_t	unused_mi_config_table;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_CONFIG_TABLE Fields related to MULTIBOOT_INFO_HAS_CONFIG_TABLE
+	 * @brief Valid if MULTIBOOT_INFO_HAS_CONFIG_TABLE flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t unused_mi_config_table;     /**< Reserved for future use. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_LOADER_NAME. */
-	uint32_t	mi_loader_name;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_LOADER_NAME Fields related to MULTIBOOT_INFO_HAS_LOADER_NAME
+	 * @brief Valid if MULTIBOOT_INFO_HAS_LOADER_NAME flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t mi_loader_name;             /**< Address of bootloader name. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_APM. */
-	uint32_t	unused_mi_apm_table;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_APM_TABLE Fields related to MULTIBOOT_INFO_HAS_APM_TABLE
+	 * @brief Valid if MULTIBOOT_INFO_HAS_APM_TABLE flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t unused_mi_apm_table;        /**< Reserved for future use. */
+	/**
+	 * @}
+	 */
 
-	/* Valid if mi_flags sets MULTIBOOT_INFO_HAS_VBE. */
-	uint32_t	unused_mi_vbe_control_info;
-	uint32_t	unused_mi_vbe_mode_info;
-	uint16_t	unused_mi_vbe_mode;
-	uint16_t	unused_mi_vbe_interface_seg;
-	uint16_t	unused_mi_vbe_interface_off;
-	uint16_t	unused_mi_vbe_interface_len;
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_VBE_INFO Fields related to MULTIBOOT_INFO_HAS_VBE_INFO
+	 * @brief Valid if MULTIBOOT_INFO_HAS_VBE_INFO flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	uint32_t unused_mi_vbe_control_info; /**< Reserved for future use. */
+	uint32_t unused_mi_vbe_mode_info;    /**< Reserved for future use. */
+	uint16_t unused_mi_vbe_mode;         /**< Reserved for future use. */
+	uint16_t unused_mi_vbe_interface_seg;/**< Reserved for future use. */
+	uint16_t unused_mi_vbe_interface_off;/**< Reserved for future use. */
+	uint16_t unused_mi_vbe_interface_len;/**< Reserved for future use. */
+	/**
+	 * @}
+	 */
 } __packed;
 #endif
 
@@ -254,5 +574,7 @@ struct multiboot2_tag_efi_mmap {
 #endif
 
 #endif /* CONFIG_MULTIBOOT2 */
-
+/**
+ * @}
+ */
 #endif /*  MULTIBOOT2_STD_H */

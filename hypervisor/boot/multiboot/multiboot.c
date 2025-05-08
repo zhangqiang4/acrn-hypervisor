@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Intel Corporation.
+ * Copyright (C) 2020-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -9,9 +9,39 @@
 #include <asm/pgtable.h>
 #include <boot.h>
 #include "multiboot_priv.h"
+/**
+ * @addtogroup boot
+ *
+ * @{
+ */
 
 /**
+ * @file
+ * @brief initialize ACRN boot info structure when system boot from multiboot protocol
+ *
+ * The file will convert the multiboot info structure to the ACRN boot info structure when
+ * the system boots from the multiboot protocol.
+ */
+
+/**
+ * @brief Convert Multiboot Information to ACRN Boot Information
+ *
+ * This function converts the Multiboot information structure into an ACRN boot
+ * information structure. It extracts command line arguments, loader name, memory
+ * map entries, and module information from the Multiboot structure and populates
+ * the corresponding fields in the ACRN boot information structure.
+ *
+ * @param[inout] abi A pointer to the ACRN boot information structure to be populated.
+ * @param[in] mb_info A pointer to the Multiboot information structure provided by
+ *                the bootloader.
+ *
+ * @return Always returns 0 indicating conversion of the Multiboot information to the ACRN boot
+ *              information structure is always successful.
+ *
  * @pre abi != NULL
+ * @pre mb_info != NULL
+ *
+ * @post N/A
  */
 static int32_t multiboot_to_acrn_bi(struct acrn_boot_info *abi, void *mb_info) {
 	uint32_t i;
@@ -65,6 +95,26 @@ static int32_t multiboot_to_acrn_bi(struct acrn_boot_info *abi, void *mb_info) {
 	return 0;
 }
 
+/**
+ * @brief Initialize Multiboot Information
+ *
+ * This function initializes the ACRN boot information structure based on the Multiboot or Multiboot2 protocol.
+ * It uses the magic number and information structure address provided in the `registers` array to determine
+ * the boot protocol and populate the `acrn_boot_info` structure accordingly.
+ *
+ * @param[in] registers A pointer to an array of uint32_t values, where registers[0] contains the magic number
+ *                  and registers[1] contains the address of the boot information structure.
+ *
+ * @return Returns 0 on successful initialization of the boot information structure.
+ *              Returns -ENODEV if the boot protocol is not recognized or initialization fails.
+ *
+ * @retval -ENODEV if the boot protocol is not recognized or initialization fails.
+ * @retval 0 if successfully initialized the boot information structure.
+ *
+ * @pre registers != NULL
+ *
+ * @post N/A
+ */
 int32_t init_multiboot_info(uint32_t *registers)
 {
 	int32_t ret = -ENODEV;
@@ -91,3 +141,6 @@ int32_t init_multiboot_info(uint32_t *registers)
 	}
 	return ret;
 }
+/**
+ * @}
+ */
