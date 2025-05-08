@@ -973,7 +973,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 
 	ret = create_vcpu(pcpu_id, vm, &vcpu);
 	if (ret == 0) {
-		snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
+		(void)snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 		(void)strncpy_s(vcpu->thread_obj.name, 16U, thread_name, 16U);
 		vcpu->thread_obj.sched_ctl = &per_cpu(sched_ctl, pcpu_id);
 		vcpu->thread_obj.thread_entry = vcpu_thread;

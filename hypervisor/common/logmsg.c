@@ -160,12 +160,12 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 
 		(void)memset(buffer, 0U, LOG_MESSAGE_MAX_SIZE);
 		/* Put time-stamp, CPU ID and severity into buffer */
-		snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
+		(void)snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
 				timestamp, pcpu_id, current->name, severity, atomic_inc_return(&log_seq));
 
 		/* Put message into remaining portion of local buffer */
 		va_start(args, fmt);
-		vsnprintf(buffer + strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE),
+		(void)vsnprintf(buffer + strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE),
 			LOG_MESSAGE_MAX_SIZE
 			- strnlen_s(buffer, LOG_MESSAGE_MAX_SIZE), fmt, args);
 		va_end(args);
