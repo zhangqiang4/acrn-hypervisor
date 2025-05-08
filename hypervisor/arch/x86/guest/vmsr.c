@@ -1009,8 +1009,6 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (is_x2apic_msr(msr)) {
 			err = vlapic_x2apic_read(vcpu, msr, &v);
 		} else {
-			pr_warn("%s(): vm%d vcpu%d reading MSR %x not supported",
-				__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
 			err = -EACCES;
 			v = 0UL;
 		}
@@ -1022,8 +1020,10 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		/* Store the MSR contents in RAX and RDX */
 		vcpu_set_gpreg(vcpu, CPU_REG_RAX, v & 0xffffffffU);
 		vcpu_set_gpreg(vcpu, CPU_REG_RDX, v >> 32U);
+	} else {
+		pr_warn("%s(): vm%d vcpu%d reading MSR %x not supported\n",
+			__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
 	}
-
 	TRACE_2L(TRACE_VMEXIT_RDMSR, msr, v);
 	return err;
 }
@@ -1457,14 +1457,15 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (is_x2apic_msr(msr)) {
 			err = vlapic_x2apic_write(vcpu, msr, v);
 		} else {
-			pr_warn("%s(): vm%d vcpu%d writing MSR %x not supported",
-				__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
 			err = -EACCES;
 		}
 		break;
 	}
 	}
-
+	if (err != 0) {
+		pr_warn("%s(): vm%d vcpu%d writing MSR %x fail\n",
+			__func__, vcpu->vm->vm_id, vcpu->vcpu_id, msr);
+	}
 	TRACE_2L(TRACE_VMEXIT_WRMSR, msr, v);
 	return err;
 }
