@@ -107,7 +107,6 @@ SRCS += lib/work.c
 
 # hw
 SRCS += hw/block_if.c
-SRCS += hw/usb_core.c
 SRCS += hw/uart_core.c
 SRCS += hw/vdisplay_backend.c
 SRCS += hw/sdl.c
@@ -121,8 +120,6 @@ SRCS += hw/pci/virtio/virtio_kernel.c
 SRCS += hw/pci/virtio/vhost_user.c
 SRCS += hw/pci/virtio/vhost_kernel.c
 SRCS += hw/pci/virtio/vhost.c
-SRCS += hw/platform/usb_mouse.c
-SRCS += hw/platform/usb_pmapper.c
 SRCS += hw/platform/atkbdc.c
 SRCS += hw/platform/ps2mouse.c
 SRCS += hw/platform/rtc.c
@@ -147,7 +144,6 @@ SRCS += hw/platform/tpm/tpm.c
 SRCS += hw/platform/debugexit.c
 SRCS += hw/pci/wdt_i6300esb.c
 SRCS += hw/pci/lpc.c
-SRCS += hw/pci/xhci.c
 SRCS += hw/pci/core.c
 SRCS += hw/pci/virtio/virtio_console.c
 SRCS += hw/pci/virtio/virtio_block.c
