@@ -222,7 +222,7 @@ void init_sched(uint16_t pcpu_id)
 	ctl->scheduler = &sched_prio;
 #endif
 	if (ctl->scheduler->init != NULL) {
-		ctl->scheduler->init(ctl);
+		(void)ctl->scheduler->init(ctl);
 	}
 }
 
@@ -401,9 +401,9 @@ void schedule(void)
 	/* If we picked different sched object, switch context */
 	if (prev != next) {
 		if (prev != NULL) {
-			memcpy_erms(name, prev->name, 4);
-			memcpy_erms(name + 4, next->name, 4);
-			memset(name + 8, 0, sizeof(name) - 8);
+			memcpy_erms(name, prev->name, 4U);
+			memcpy_erms(name + 4U, next->name, 4U);
+			(void)memset(name + 8U, 0U, sizeof(name) - 8U);
 			TRACE_16STR(TRACE_SCHED_NEXT, name);
 			if (prev->switch_out != NULL) {
 				prev->switch_out(prev);
