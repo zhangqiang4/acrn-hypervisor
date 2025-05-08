@@ -767,7 +767,9 @@ void stop_pcpus(void)
 	 *   If target cpu received a NMI and panic, it has called cpu_dead and make_pcpu_offline success.
 	 *   If target cpu is running, an IPI will be delivered to it and then call cpu_dead.
 	 */
-	wait_pcpus_offline(mask);
+	if (wait_pcpus_offline(mask) == -ETIMEDOUT) {
+		pr_err("%s: Stop pCPUs timeout\n", __func__);
+	}
 }
 
 
