@@ -238,7 +238,7 @@ static uint64_t hpet_calibrate_tsc(uint32_t cal_ms_arg)
 
 	CPU_INT_ALL_DISABLE(&rflags);
 	tsc1 = tsc_read_hpet(&hpet1);
-	pit_calibrate_tsc(cal_ms_arg);
+	(void)pit_calibrate_tsc(cal_ms_arg);
 	tsc2 = tsc_read_hpet(&hpet2);
 	CPU_INT_ALL_RESTORE(rflags);
 
