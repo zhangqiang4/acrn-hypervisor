@@ -11,6 +11,7 @@
 #include <boot.h>
 #include <rtl.h>
 #include <dmi.h>
+#include <sprintf.h>
 
 /* The region after the first 64kb is currently not used. On some platforms,
  * there might be an TPM2 event log region starting from VIRT_ACPI_NVS_ADDR + 0xB0000.
@@ -174,16 +175,16 @@ static int32_t dmi_save_string(uint8_t *string_section, char *target, uint8_t fo
 
     while (*current_string) {
         if (string_index == formatted_index) {
-            (void)strncpy_s(target, STRLEN, (const char *)current_string, STRLEN);
+            (void)strncpy_s(target, DMI_STRLEN, (const char *)current_string, DMI_STRLEN);
             break;
         }
-        if ((current_string + strnlen_s((char *)current_string, STRLEN) + 1) >= end) {
+        if ((current_string + strnlen_s((char *)current_string, DMI_STRLEN) + 1) >= end) {
             /* Prevent running out of bounds */
             ret = -EINVAL;
             pr_err("DMI string parsing section out of bounds");
             break;
         }
-        current_string += strnlen_s((char *)current_string, STRLEN) + 1;
+        current_string += strnlen_s((char *)current_string, DMI_STRLEN) + 1;
         string_index++;
     }
 
@@ -238,10 +239,23 @@ static int32_t parse_runtime_smbios_structures(struct smbios_info *si)
         case PLATFORM_FIRMWARE_INFORMATION_STRUCTURE:
             ret = dmi_save_string(ptr + header->length, (char *)&runtime.bios_version[0],
                  formatted[FIRMWARE_VERSION], end);
-            return ret;
-        /* TODO: Save processor information */
+            break;
+
+        case PROCESSOR_INFORMATION_STRUCTURE:
+
+            snprintf(runtime.processor_core_count, DMI_STRLEN, "%d", formatted[PROCESSOR_CORE_COUNT]);
+            snprintf(runtime.processor_core_enabled, DMI_STRLEN, "%d", formatted[PROCESSOR_CORE_ENABLED]);
+            snprintf(runtime.processor_thread_count, DMI_STRLEN, "%d", formatted[PROCESSOR_THREAD_COUNT]);
+
+            ret = dmi_save_string(ptr + header->length, (char *)&runtime.processor_version[0],
+                 formatted[PROCESSOR_VERSION], end);
+
+            break;
+
         case END_STRUCTURE:
+
             return ret;
+
         default:
             pr_dbg("Unhandled SMBIOS type %d\n", header->type);
         }
@@ -257,18 +271,20 @@ static int32_t parse_runtime_smbios_structures(struct smbios_info *si)
     return ret;
 }
 
-uint32_t compare_smbios_info(struct smbios_board_info *runtime, struct smbios_board_info *board)
+static uint32_t compare_smbios_info(dmi_checkoption* dmi_checklist, uint64_t check_count)
 {
-    uint32_t ret = 0;
+    uint32_t ret = 0U;
+    uint64_t i;
 
-    if (strcmp((const char *)runtime->bios_version, (const char *)board->bios_version) != 0) {
-        ret |= MISMATCH_FIRMWARE_VERSION;
+    for (i = 0U; i < check_count; i++) {
+        dmi_checkoption *dc = &dmi_checklist[i];
+        pr_dbg("Comparing %s: buildtime=%s, runtime=%s\n", dc->desc, dc->buildtime, dc->runtime);
+        if (strcmp(dc->buildtime, dc->runtime) != 0) {
+            ret |= 1U << i;
+        }
     }
 
-    /* TODO: Compare processor information */
-
     return ret;
-
 }
 
 bool is_strict_dmi_check(void) {
@@ -284,34 +300,63 @@ bool is_strict_dmi_check(void) {
 	return strstr_s(cmd_src, MAX_BOOTARGS_SIZE, "strict_dmi_check=True", 24U) != NULL;
 }
 
+static void warn_on_mismatch(dmi_checkoption *dc)
+{
+    if ((strnlen_s(dc->buildtime, DMI_STRLEN) == 0U) && (strnlen_s(dc->runtime, DMI_STRLEN) != 0U)) {
+        /*
+         * board.xml does not have this information but runtime has extracted this.
+         * User needs to update board_inspector to get this information. 
+         */
+        pr_warn("%s info missing: Outdated board_inspector detected.", dc->desc);
+    } else {
+        pr_warn("%s mismatch.", dc->desc);
+        pr_warn("Hypervisor build-time %s is: %s", dc->desc, dc->buildtime);
+        pr_warn("Run-time %s is: %s", dc->desc, dc->runtime);
+    }
+}
+
 void check_board_dmi_info(struct acrn_boot_info *abi)
 {
     struct smbios_info si;
     uint32_t result = 0U;
+    uint32_t i;
+    uint64_t check_count;
     memset(&si, 0, sizeof(struct smbios_info));
+    
     if (probe_smbios_table(abi, &si) && (parse_runtime_smbios_structures(&si) == 0)) {
-        result = compare_smbios_info(get_runtime_smbios_info(), get_smbios_info_from_board());
+        dmi_checkoption dmi_checklist[] = {
+            {"Firmware version", get_smbios_info_from_board()->bios_version,
+                 get_runtime_smbios_info()->bios_version},
+            {"Processor version", get_smbios_info_from_board()->processor_version,
+                 get_runtime_smbios_info()->processor_version},
+            {"Processor core count", get_smbios_info_from_board()->processor_core_count,
+                 get_runtime_smbios_info()->processor_core_count},
+            {"Processor core enabled", get_smbios_info_from_board()->processor_core_enabled,
+                 get_runtime_smbios_info()->processor_core_enabled},
+            {"Processor thread count", get_smbios_info_from_board()->processor_thread_count,
+                 get_runtime_smbios_info()->processor_thread_count}
+        };
+        check_count = ARRAY_SIZE(dmi_checklist);
+        result = compare_smbios_info(dmi_checklist, check_count);
+
+        if (result != 0U) {
+            pr_warn("Hypervisor was built with board information different from current running hardware."
+                "This might incur potential compatibility issue.");
+
+            for (i = 0U; i < check_count; i++) {
+                if (result & (1U << i)) {
+                    warn_on_mismatch(&dmi_checklist[i]);
+                }
+            }
+
+            if (is_strict_dmi_check()) {
+                panic("strict_dmi_check turned on. Panicking Hypervisor.");
+            } else {
+                pr_warn("To enforce strict checking, add \"strict_dmi_check=True\" to ACRN command line.");
+            }
+        }
     } else {
         pr_warn("SMBIOS table not found or parsing failed. Stop comparing SMBIOS info."
             "This might incur potential compatibility issue.");
-    }
-
-    if (result != 0U) {
-        pr_warn("Hypervisor was built with board information different from current running hardware."
-            "This might incur potential compatibility issue.");
-
-        if (result & MISMATCH_FIRMWARE_VERSION) {
-            pr_warn("Firmware version mismatch.");
-            pr_warn("Hypervisor build-time firmware verison is: %s", get_smbios_info_from_board()->bios_version);
-            pr_warn("Run-time firmware version is: %s", get_runtime_smbios_info()->bios_version);
-        }
-
-        /* TODO: Compare processor information */
-
-        if (is_strict_dmi_check()) {
-            panic("strict_dmi_check turned on. Panicking Hypervisor.");
-        } else {
-            pr_warn("To enforce strict checking, add \"strict_dmi_check=True\" to ACRN command line.");
-        }
     }
 }

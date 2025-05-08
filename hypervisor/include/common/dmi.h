@@ -13,19 +13,28 @@
 #include <boot.h>
 #include <asm/board.h>
 
-#define STRLEN 128U
+#define DMI_STRLEN 128U
 #define HEADER_OFFSET 0x4U
 
 #define PLATFORM_FIRMWARE_INFORMATION_STRUCTURE 0U
+#define PROCESSOR_INFORMATION_STRUCTURE 4U
 #define END_STRUCTURE 127U
 
 /* Type 0 platform firmware information structure */
 #define FIRMWARE_VERSION (0x5U - HEADER_OFFSET)
 #define FIRMWARE_RELEASE_DATE (0x8U - HEADER_OFFSET)
 
-/* TODO: Add Type 4 Processor information */
+/* Type 4 Processor information */
+#define PROCESSOR_VERSION (0x10U - HEADER_OFFSET)
+#define PROCESSOR_CORE_COUNT (0x23U - HEADER_OFFSET)
+#define PROCESSOR_CORE_ENABLED (0x24U - HEADER_OFFSET)
+#define PROCESSOR_THREAD_COUNT (0x25U - HEADER_OFFSET)
 
-#define MISMATCH_FIRMWARE_VERSION (0x1U << 0U)
+typedef struct {
+    const char *desc;
+    const void *buildtime;
+    const void *runtime;
+} dmi_checkoption;
 
 typedef struct {
     uint32_t  Data1;
@@ -112,15 +121,12 @@ struct smbios_header {
     uint16_t handle;
 };
 
-struct smbios_type_0 {
-    struct smbios_header header;
-    uint8_t vendor;
-    uint8_t version;
-};
-
 struct smbios_board_info {
-    char bios_version[STRLEN];
-    /* TODO: Add processor information */
+    char bios_version[DMI_STRLEN];
+    char processor_version[DMI_STRLEN];
+    char processor_core_count[DMI_STRLEN];
+    char processor_core_enabled[DMI_STRLEN];
+    char processor_thread_count[DMI_STRLEN];
 };
 
 struct smbios_board_info* get_runtime_smbios_info(void);

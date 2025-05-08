@@ -308,6 +308,57 @@ def get_bios_version():
     for bios_line in bios_lines:
         if bios_line.split(':', 1)[0].strip() == "Version":
             ret = bios_line.split(':', 1)[1].strip()
+
+    ret = "\"" + ret + "\""
+
+    return ret
+
+def get_processor_version():
+    processor_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PROCESSOR_INFO>", "</PROCESSOR_INFO>")
+    ret = ""
+    if processor_lines is not None:
+        for processor_line in processor_lines:
+            if processor_line.split(':', 1)[0].strip() == "Version":
+                ret = processor_line.split(':', 1)[1].strip()
+
+    ret = "\"" + ret + "\""
+
+    return ret
+
+def get_processor_core_count():
+    processor_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PROCESSOR_INFO>", "</PROCESSOR_INFO>")
+    ret = ""
+    if processor_lines is not None:
+        for processor_line in processor_lines:
+            if processor_line.split(':', 1)[0].strip() == "Core Count":
+                ret = processor_line.split(':', 1)[1].strip()
+
+    ret = "\"" + ret + "\""
+
+    return ret
+
+def get_processor_thread_count():
+    processor_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PROCESSOR_INFO>", "</PROCESSOR_INFO>")
+    ret = ""
+    if processor_lines is not None:
+        for processor_line in processor_lines:
+            if processor_line.split(':', 1)[0].strip() == "Thread Count":
+                ret = processor_line.split(':', 1)[1].strip()
+
+    ret = "\"" + ret + "\""
+
+    return ret
+
+def get_processor_core_enabled():
+    processor_lines = get_info(acrn_config_utilities.BOARD_INFO_FILE, "<PROCESSOR_INFO>", "</PROCESSOR_INFO>")
+    ret = ""
+    if processor_lines is not None:
+        for processor_line in processor_lines:
+            if processor_line.split(':', 1)[0].strip() == "Core Enabled":
+                ret = processor_line.split(':', 1)[1].strip()
+
+    ret = "\"" + ret + "\""
+
     return ret
 
 def get_pci_info(board_info):
