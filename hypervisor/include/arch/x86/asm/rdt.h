@@ -16,19 +16,10 @@
  * @brief Defines macros, data structures and APIs related to support Intel Resource Director Technology (RDT).
  */
 
-/**
- * @brief Enumeration representing the resource types of Resource Director Technology (RDT).
- */
-enum {
-	RDT_RESOURCE_L3, /**< Resource type representing L3 Cache Allocation Technology (CAT). */
-	RDT_RESOURCE_L2, /**< Resource type representing L2 Cache Allocation Technology (CAT). */
-	RDT_RESOURCE_MBA, /**< Resource type representing Memory Bandwidth Allocation (MBA). */
-	RDT_NUM_RESOURCES /**< Number of resource types, must be the last. */
-};;
-
-#define RDT_RESID_L3    1U /**< Macro representing the resource ID of L3 Cache Allocation Technology (CAT). */
-#define RDT_RESID_L2    2U /**< Macro representing the resource ID of L2 Cache Allocation Technology (CAT). */
-#define RDT_RESID_MBA   3U /**< Macro representing the resource ID of Memory Bandwidth Allocation (MBA). */
+#define RDT_NUM_RESOURCES	3U /**< Number of RDT resource types. */
+#define RDT_RESID_L3    	1U /**< Macro representing the resource ID of L3 Cache Allocation Technology (CAT). */
+#define RDT_RESID_L2    	2U /**< Macro representing the resource ID of L2 Cache Allocation Technology (CAT). */
+#define RDT_RESID_MBA   	3U /**< Macro representing the resource ID of Memory Bandwidth Allocation (MBA). */
 
 /* External constant representing the hypervisor CLOS (Class of Service). */
 extern const uint16_t hv_clos;

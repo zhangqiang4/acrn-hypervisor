@@ -70,15 +70,15 @@ static void setup_res_clos_msr(uint16_t pcpu_id, struct rdt_type *info, struct r
 
 	for (i = 0U; i < ins->num_clos_config; i++) {
 		switch (res) {
-		case RDT_RESOURCE_L3:
-		case RDT_RESOURCE_L2:
+		case RDT_RESID_L3:
+		case RDT_RESID_L2:
 			val = (uint64_t)cfg[i].clos_mask;
 			break;
-		case RDT_RESOURCE_MBA:
+		case RDT_RESID_MBA:
 			val = (uint64_t)cfg[i].mba_delay;
 			break;
 		default:
-			ASSERT(res < RDT_NUM_RESOURCES, "Support only 3 RDT resources. res=%d is invalid", res);
+			panic("Support only 3 RDT resources. res_id=%d is invalid", res);
 			break;
 		}
 		msr_index = info->msr_base + i;
@@ -191,13 +191,14 @@ static bool is_rdt_type_capable(struct rdt_type *info)
 bool is_platform_rdt_capable(void)
 {
 	bool ret = false;
-
-	if (is_rdt_type_capable(&res_cap_info[RDT_RESOURCE_L3]) ||
-	    is_rdt_type_capable(&res_cap_info[RDT_RESOURCE_L2]) ||
-	    is_rdt_type_capable(&res_cap_info[RDT_RESOURCE_MBA])) {
-		ret = true;
+	uint16_t i;
+	/* Check if any of the RDT resources are capable */
+	for (i = 0U; i < RDT_NUM_RESOURCES; i++) {
+		if (is_rdt_type_capable(&res_cap_info[i])) {
+			ret = true;
+			break;
+		}
 	}
-
 	return ret;
 }
 #else
