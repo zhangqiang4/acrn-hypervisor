@@ -405,7 +405,7 @@ void init_irq_descs_arch(struct irq_desc *descs)
 		irq_data[irq].vector = vr;
 		vector_to_irq[vr] = irq;
 
-		reserve_irq_num(irq);
+		(void)reserve_irq_num(irq);
 	}
 }
 
