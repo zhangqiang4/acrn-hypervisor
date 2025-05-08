@@ -12,8 +12,8 @@
 #include <types.h>
 #include <acrn_common.h>
 
-int32_t init_vm_event(struct acrn_vm *vm, struct shared_buf *sbuf);
-int32_t send_vm_event(struct acrn_vm *vm, struct vm_event *event);
+void init_vm_event(struct acrn_vm *vm, struct shared_buf *sbuf);
+void send_vm_event(struct acrn_vm *vm, struct vm_event *event);
 
 #endif
 

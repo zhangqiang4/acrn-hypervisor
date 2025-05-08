@@ -322,7 +322,7 @@ static int32_t create_ivshmem_device(struct pci_vdev *vdev)
 	 * states after VM reboot.
 	 */
 	if (i < IVSHMEM_DEV_NUM) {
-		memset(&ivshmem_dev[i].mmio, 0U, sizeof(uint32_t) * 4U);
+		(void)memset(&ivshmem_dev[i].mmio, 0U, sizeof(uint32_t) * 4U);
 		ret = 0;
 	} else {
 		pr_err("Failed to allocate ivshmem device slot due to already %d devices.", IVSHMEM_DEV_NUM);
@@ -550,7 +550,7 @@ static int32_t write_ivshmem_vdev_cfg(struct pci_vdev *vdev, uint32_t offset, ui
 		vpci_update_one_vbar(vdev, pci_bar_index(offset), val,
 			ivshmem_vbar_map, ivshmem_vbar_unmap);
 	} else if (msixcap_access(vdev, offset)) {
-		write_vmsix_cap_reg(vdev, offset, bytes, val);
+		(void)write_vmsix_cap_reg(vdev, offset, bytes, val);
 	} else {
 		pci_vdev_write_vcfg(vdev, offset, bytes, val);
 	}
@@ -681,7 +681,7 @@ static void init_ivshmem_vdev(struct pci_vdev *vdev)
 			pci_vdev_write_vcfg(vdev, PCIV_SUB_SYSTEM_ID, 2U, region->region_id);
 		}
 
-		add_vmsix_capability(vdev, MAX_IVSHMEM_MSIX_TBL_ENTRY_NUM, IVSHMEM_MSIX_BAR);
+		(void)add_vmsix_capability(vdev, MAX_IVSHMEM_MSIX_TBL_ENTRY_NUM, IVSHMEM_MSIX_BAR);
 
 		/* initialize ivshmem bars */
 		vdev->nr_bars = 4U;

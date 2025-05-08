@@ -98,7 +98,7 @@ static int32_t write_vmcs9900_cfg(struct pci_vdev *vdev, uint32_t offset,
 		vpci_update_one_vbar(vdev, pci_bar_index(offset), val,
 			map_vmcs9900_vbar, unmap_vmcs9900_vbar);
 	} else if (msixcap_access(vdev, offset)) {
-		write_vmsix_cap_reg(vdev, offset, bytes, val);
+		(void)write_vmsix_cap_reg(vdev, offset, bytes, val);
 	} else {
 		pci_vdev_write_vcfg(vdev, offset, bytes, val);
 	}
@@ -125,7 +125,7 @@ static void init_vmcs9900(struct pci_vdev *vdev)
 	pci_vdev_write_vcfg(vdev, PCIR_SUBCLASS, 1U, 0x0U);
 	pci_vdev_write_vcfg(vdev, PCIR_CLASS_CODE, 1U, 0x2U);
 
-	add_vmsix_capability(vdev, 1, MCS9900_MSIX_BAR);
+	(void)add_vmsix_capability(vdev, 1, MCS9900_MSIX_BAR);
 
 	/* initialize vuart-pci mem bar */
 	mmio_vbar->size = 0x1000U;

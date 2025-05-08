@@ -296,7 +296,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 				break;
 #ifdef CONFIG_VMEVENT_ENABLED
 			case ACRN_VM_EVENT:
-				ret = init_vm_event(vm, sbuf);
+				init_vm_event(vm, sbuf);
 				break;
 #endif
 			default:
