@@ -10,6 +10,7 @@
 # Helper functions
 vm_name="@@__VM_NAME__@@"
 start_time=$(date +%s%N)    # End time in nanoseconds
+mkdir -p /var/lock/acrn
 
 function log2stderr() {
     echo "[${vm_name}]launchscript: $@" >&2
@@ -332,6 +333,10 @@ function add_mandatory_passthrough_device() {
     __add_passthrough_device "mandatory" "$@"
 }
 
+# flock protected critical section. Wait timeout 20s, fd 18
+# Start of iGPU VF enabling critical section
+(flock -w 20 18
+
 # Enable VF
 autoprobe_file=/sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
 numvfs_file=/sys/bus/pci/devices/0000\:00\:02.0/sriov_numvfs
@@ -409,6 +414,9 @@ function enable_vf() {
 }
 enable_vf
 
+# End of iGPU VF enabling critical section
+)18>/var/lock/acrn/acrn_enable_igpu_vf.lock
+
 check_existence() {
 	local file_path=$1
 	if [ ! -f "$file_path" ]; then
@@ -416,6 +424,10 @@ check_existence() {
 		exit 1
 	fi
 }
+
+# flock protected critical section. Wait timeout 20s, fd 19
+# Start of dGPU VF enabling critical section
+(flock -w 20 19
 
 function enable_dgpu_vf() {
 	local dgpu_path="/sys/class/drm/card1"
@@ -491,6 +503,9 @@ USE_DGPU_SRIOV=@@__USE_DGPU_SRIOV__@@
 if [ "$USE_DGPU_SRIOV" = "1" ]; then
 	enable_dgpu_vf
 fi
+
+# End of dGPU VF enabling critical section
+)19>/var/lock/acrn/acrn_enable_dgpu_vf.lock
 
 wayland_display="$(find /run/user -name wayland-1)"
 if [ -z $wayland_display ]; then
