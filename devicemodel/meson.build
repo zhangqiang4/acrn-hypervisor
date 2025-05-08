@@ -10,6 +10,7 @@ sources = [
     'hw/usb/core.c',
     'hw/usb/pmapper.c',
     'hw/usb/host_libusb.c',
+    'hw/usb/testdev.c',
     'hw/uart_core.c',
     'hw/vdisplay_backend.c',
     'hw/sdl.c',
