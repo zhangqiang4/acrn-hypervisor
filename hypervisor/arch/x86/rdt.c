@@ -37,36 +37,6 @@ const uint16_t hv_clos = 0U;
  * each resource's clos max value to have consistent allocation.
  */
 #ifdef CONFIG_RDT_ENABLED
-
-/**
- * @brief Retrieve the RDT resource instance for a specified resource and physical CPU ID.
- *
- * This function searches through the instances of a specified RDT resource defined in res_cap_info to find the
- * instance associated with the given physical CPU ID.
- *
- * @param[in] res The resource identifier.
- * @param[in] pcpu_id The physical CPU ID.
- *
- * @return A pointer to the RDT resource instance if found, otherwise NULL.
- *
- * @pre res == RDT_RESOURCE_L3 || res == RDT_RESOURCE_L2 || res == RDT_RESOURCE_MBA
- * @post N/A
- */
-const struct rdt_ins *get_rdt_res_ins(int res, uint16_t pcpu_id)
-{
-	uint32_t i;
-	struct rdt_type *info = &res_cap_info[res];
-	struct rdt_ins *ins = NULL;
-
-	for (i = 0U; i < info->num_ins; i++) {
-		if (bitmap_test(pcpu_id, &info->ins_array[i].cpu_mask)) {
-			ins = &info->ins_array[i];
-			break;
-		}
-	}
-	return ins;
-}
-
 /**
  * @brief Setup RDT CLOS MSRs for a given physical CPU.
  *

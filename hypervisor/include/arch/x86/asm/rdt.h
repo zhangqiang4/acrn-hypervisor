@@ -75,7 +75,6 @@ struct rdt_type {
 void setup_clos(uint16_t pcpu_id);
 uint64_t clos2pqr_msr(uint16_t clos);
 bool is_platform_rdt_capable(void);
-const struct rdt_ins *get_rdt_res_ins(int res, uint16_t pcpu_id);
 
 #endif	/* RDT_H */
 /**

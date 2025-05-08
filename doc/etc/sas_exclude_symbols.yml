@@ -61,7 +61,7 @@ EXCLUDE_SYMBOLS += CPU_LTR_EXECUTE CPU_XMM_READ CPU_XMM_WRITE asm_hlt \
                    asm_monitor asm_mwait asm_safe_hlt cpu_msr_write \
                    cpu_rbp_get cpu_rdtscp_execute cpu_regs_t cpu_rsp_get \
                    cpu_sp_write descriptor_table enable_ac_for_splitlock enable_gp_for_uclock \
-                   get_pcpu_id_from_lapic_id get_rdt_res_ins host_gdt host_gdt_descriptor \
+                   get_pcpu_id_from_lapic_id host_gdt host_gdt_descriptor \
                    init_keylocker init_pcpu_xsave init_percpu_lapic_id is_rdt_type_capable \
                    load_gdt max_lapic_id msr_data_struct msr_read_pcpu \
                    msr_write_pcpu pcpu_active_bitmap pcpu_set_current_state pcpu_sync \
