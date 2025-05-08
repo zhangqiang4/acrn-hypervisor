@@ -61,11 +61,13 @@ dscontent:
 	$(Q)mkdir -p $(SOURCEDIR)
 	$(Q)rsync -rt --exclude=$(BUILDDIR) --exclude-from=etc/mds_only_exclude_list.txt . $(SOURCEDIR)
 	$(Q)mv $(SOURCEDIR)/etc/mds_only_index.rst.txt $(SOURCEDIR)/index.rst
+	$(Q)mv $(SOURCEDIR)/etc/mds_conf.py $(SOURCEDIR)/conf.py
 
 sascontent: dscontent
 	@echo preparing rst content for SAS
 	$(Q)cat $(SOURCEDIR)/etc/sas_exclude_symbols.yml >> $(SOURCEDIR)/acrn.doxyfile
 	$(Q)mv $(SOURCEDIR)/etc/sas.rst.txt $(SOURCEDIR)/developer-guides/mds/index.rst
+	$(Q)mv $(SOURCEDIR)/etc/sas_conf.py $(SOURCEDIR)/conf.py
 
 content:
 	@echo making rst content for all documentation
@@ -116,29 +118,27 @@ singlehtml: content
 	$(MAKE) gen_singlehtml
 	@echo Full documentation single HTML generated
 
-DS_PDF  = $(BUILDDIR)/design_spec.pdf
-MDS_PDF = $(BUILDDIR)/acrn_mds.pdf
-SAS_PDF = $(BUILDDIR)/acrn_sas.pdf
-
-dspdf:
-	@echo making $(DS_PDF)
-	$(Q)wkhtmltopdf --enable-local-file-access --disable-javascript $(BUILDDIR)/html/index.html $(DS_PDF)
-
-mdspdf: mds_singlehtml
-	$(MAKE) dspdf
-	@echo making $(MDS_PDF)
-	$(Q)mv $(DS_PDF) $(MDS_PDF)
-
-saspdf: sas_singlehtml
-	$(MAKE) dspdf
-	@echo making $(SAS_PDF)
-	$(Q)mv $(DS_PDF) $(SAS_PDF)
+latex_pdf:
+	$(Q)make -silent latexpdf LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
 
 pdf: html
 	@echo now making $(BUILDDIR)/latex/acrn.pdf
-	$(Q)make -silent latexpdf LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
-	$(Q)./scripts/filter-doc-log.sh $(BUILDDIR)/doc.log
+	$(MAKE) latex_pdf
 
+filter_includes:
+	@echo "Filter misleading #include <...> in struct/union docs and rebuild"
+	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i '/\\#include <.*>/d' {} +
+	$(Q)make -silent -C $(BUILDDIR)/latex LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
+
+mdspdf: mdshtml
+	@echo making $(BUILDDIR)/latex/Detailed_Design_of_Modules.pdf
+	$(MAKE) latex_pdf
+	$(MAKE) filter_includes
+
+saspdf: sashtml
+	@echo making $(BUILDDIR)/latex/Design_of_Module_External_Interfaces.pdf
+	$(MAKE) latex_pdf
+	$(MAKE) filter_includes
 
 # Remove generated content (Sphinx and doxygen)
 

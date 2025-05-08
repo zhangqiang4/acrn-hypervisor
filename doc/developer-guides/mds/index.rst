@@ -1,7 +1,7 @@
 .. _acrn_mds:
 
-Module Design Specification
-###########################
+Detailed Design of Modules
+##########################
 
 ACRN hypervisor is decomposed into a series of components,
 some of which are further decomposed into several modules.
