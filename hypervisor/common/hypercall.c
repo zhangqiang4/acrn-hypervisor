@@ -165,6 +165,7 @@ static spinlock_t vcpu_hotplug_lock = { .head = 0U, .tail = 0U, };
  *
  * @retval 0 On success.
  * @retval -1 If attempting to offline the BSP or the current vCPU.
+ * @retval -ETIMEDOUT offline pcpu or start cpu timeout.
  *
  * @pre is_service_vm(vcpu->vm) == true
  */
@@ -195,8 +196,15 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 
 			/* restart pcpu so that it restores all its states */
 			make_pcpu_offline(pcpu_id);
-			wait_pcpus_offline(mask);
-			start_pcpus(mask);
+			if (wait_pcpus_offline(mask) == -ETIMEDOUT) {
+				ret = -ETIMEDOUT;
+				break;
+			}
+
+			if (!start_pcpus(mask)) {
+				ret = -ETIMEDOUT;
+				break;
+			}
 		}
 	}
 	spinlock_release(&vcpu_hotplug_lock);
@@ -333,7 +341,7 @@ int32_t hcall_create_vm(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint6
 	}
 
 	if (((ret != 0) || (cv.vmid == ACRN_INVALID_VMID)) && (!is_static_configured_vm(target_vm))) {
-		memset(vm_config->name, 0U, MAX_VM_NAME_LEN);
+		(void)memset(vm_config->name, 0U, MAX_VM_NAME_LEN);
 	}
 
 	return ret;
