@@ -1,16 +1,16 @@
 /*-
  * Copyright (c) 2012 Sandvine, Inc.
  * Copyright (c) 2012 NetApp, Inc.
- * Copyright (c) 2017-2022 Intel Corporation.
+ * Copyright (c) 2017-2025 Intel Corporation.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -27,6 +27,21 @@
  * $FreeBSD$
  */
 
+
+ /**
+ * @addtogroup vp-dm_io-req
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Instruction emulation
+ *
+ * Simulate the execution of machine-level instructions which are trapped by EPT violations
+ * or APIC access, etc.
+ */
+
 #include <types.h>
 #include <errno.h>
 #include <asm/guest/instr_emul.h>
@@ -37,68 +52,88 @@
 #include <logmsg.h>
 #include <asm/guest/virq.h>
 
-#define CPU_REG_FIRST			CPU_REG_RAX
-#define CPU_REG_LAST			CPU_REG_GDTR
-#define CPU_REG_GENERAL_FIRST		CPU_REG_RAX
-#define CPU_REG_GENERAL_LAST		CPU_REG_R15
-#define CPU_REG_NONGENERAL_FIRST	CPU_REG_CR0
-#define CPU_REG_NONGENERAL_LAST	CPU_REG_GDTR
-#define CPU_REG_NATURAL_FIRST		CPU_REG_CR0
-#define CPU_REG_NATURAL_LAST		CPU_REG_RFLAGS
-#define CPU_REG_64BIT_FIRST		CPU_REG_EFER
-#define CPU_REG_64BIT_LAST		CPU_REG_PDPTE3
-#define CPU_REG_SEG_FIRST		CPU_REG_ES
-#define CPU_REG_SEG_LAST		CPU_REG_GS
+#define CPU_REG_FIRST			CPU_REG_RAX	/**< The first register. */
+#define CPU_REG_LAST			CPU_REG_GDTR	/**< The last register. */
+#define CPU_REG_GENERAL_FIRST		CPU_REG_RAX	/**< The first general-purpose register. */
+#define CPU_REG_GENERAL_LAST		CPU_REG_R15	/**< The last general-purpose register. */
+#define CPU_REG_NONGENERAL_FIRST	CPU_REG_CR0	/**< The first non-general-purpose register. */
+#define CPU_REG_NONGENERAL_LAST		CPU_REG_GDTR	/**< The last non-general-purpose register. */
+#define CPU_REG_NATURAL_FIRST		CPU_REG_CR0	/**< The first natural-width register. */
+#define CPU_REG_NATURAL_LAST		CPU_REG_RFLAGS	/**< The last natural-width register. */
+#define CPU_REG_64BIT_FIRST		CPU_REG_EFER	/**< The first 64-bit register. */
+#define CPU_REG_64BIT_LAST		CPU_REG_PDPTE3	/**< The last 64-bit register. */
+#define CPU_REG_SEG_FIRST		CPU_REG_ES	/**< The first segment register. */
+#define CPU_REG_SEG_LAST		CPU_REG_GS	/**< The last segment register. */
 
-#define	PSL_C		0x00000001U	/* carry bit */
-#define	PSL_PF		0x00000004U	/* parity bit */
-#define	PSL_AF		0x00000010U	/* bcd carry bit */
-#define	PSL_Z		0x00000040U	/* zero bit */
-#define	PSL_N		0x00000080U	/* negative bit */
-#define	PSL_D		0x00000400U	/* string instruction direction bit */
-#define	PSL_V		0x00000800U	/* overflow bit */
-#define	PSL_AC		0x00040000U	/* alignment checking */
+#define	PSL_C		0x00000001U	/**< carry bit */
+#define	PSL_PF		0x00000004U	/**< parity bit */
+#define	PSL_AF		0x00000010U	/**< bcd carry bit */
+#define	PSL_Z		0x00000040U	/**< zero bit */
+#define	PSL_N		0x00000080U	/**< negative bit */
+#define	PSL_D		0x00000400U	/**< string instruction direction bit */
+#define	PSL_V		0x00000800U	/**< overflow bit */
+#define	PSL_AC		0x00040000U	/**< alignment checking */
 
 /*
  * Protections are chosen from these bits, or-ed together
  */
-#define	PROT_READ	0x01U	/* pages can be read */
-#define	PROT_WRITE	0x02U	/* pages can be written */
+#define	PROT_READ	0x01U	/**< pages can be read */
+#define	PROT_WRITE	0x02U	/**< pages can be written */
 
-/* struct vie_op.op_type */
-#define VIE_OP_TYPE_NONE	0U
-#define VIE_OP_TYPE_MOV		1U
-#define VIE_OP_TYPE_MOVSX	2U
-#define VIE_OP_TYPE_MOVZX	3U
-#define VIE_OP_TYPE_AND		4U
-#define VIE_OP_TYPE_OR		5U
-#define VIE_OP_TYPE_SUB		6U
-#define VIE_OP_TYPE_TWO_BYTE	7U
-#define VIE_OP_TYPE_PUSH	8U
-#define VIE_OP_TYPE_CMP		9U
-#define VIE_OP_TYPE_POP		10U
-#define VIE_OP_TYPE_MOVS	11U
-#define VIE_OP_TYPE_GROUP1	12U
-#define VIE_OP_TYPE_STOS	13U
-#define VIE_OP_TYPE_BITTEST	14U
-#define VIE_OP_TYPE_TEST	15U
-#define VIE_OP_TYPE_XCHG	16U
+/**
+ * @defgroup VIE_OP_TYPE vie_op.op_type
+ *
+ * Operation types of the Virtual Instruction Emulation.
+ *
+ * @{
+ */
+#define VIE_OP_TYPE_NONE	0U  /**< No operation type. */
+#define VIE_OP_TYPE_MOV		1U  /**< Move operation. */
+#define VIE_OP_TYPE_MOVSX	2U  /**< Move with sign-extension operation. */
+#define VIE_OP_TYPE_MOVZX	3U  /**< Move with zero-extension operation. */
+#define VIE_OP_TYPE_AND		4U  /**< Logical AND operation. */
+#define VIE_OP_TYPE_OR		5U  /**< Logical OR operation. */
+#define VIE_OP_TYPE_SUB		6U  /**< Subtract operation. */
+#define VIE_OP_TYPE_TWO_BYTE	7U  /**< Two-byte opcode operation. */
+#define VIE_OP_TYPE_PUSH		8U  /**< Push operation. */
+#define VIE_OP_TYPE_CMP			9U  /**< Compare operation. */
+#define VIE_OP_TYPE_POP			10U /**< Pop operation. */
+#define VIE_OP_TYPE_MOVS		11U /**< Move string operation. */
+#define VIE_OP_TYPE_GROUP1		12U /**< Group 1 operation. */
+#define VIE_OP_TYPE_STOS		13U /**< Store string operation. */
+#define VIE_OP_TYPE_BITTEST		14U /**< Bit test operation. */
+#define VIE_OP_TYPE_TEST		15U /**< Test operation. */
+#define VIE_OP_TYPE_XCHG		16U /**< Exchange operation. */
+/**
+ * @}
+ */
 
-/* struct vie_op.op_flags */
-#define VIE_OP_F_IMM		(1U << 0U)  /* 16/32-bit immediate operand */
-#define VIE_OP_F_IMM8		(1U << 1U)  /* 8-bit immediate operand */
-#define VIE_OP_F_MOFFSET	(1U << 2U)  /* 16/32/64-bit immediate moffset */
-#define VIE_OP_F_NO_MODRM	(1U << 3U)
-#define VIE_OP_F_CHECK_GVA_DI	(1U << 4U)  /* for movs, need to check DI */
-/*
+/**
+ * @defgroup VIE_OP_FLAG vie_op.op_flags
+ *
  * The VIE_OP_F_BYTE_OP only set when the instruction support
  * Encoding of Operand Size (w) Bit and the w bit of opcode is 0.
  * according B.2 GENERAL-PURPOSE INSTRUCTION FORMATS AND ENCODINGS
  * FOR NON-64-BIT MODES, Vol 2, Intel SDM.
+ *
+ * @{
  */
-#define VIE_OP_F_BYTE_OP	(1U << 5U)  /* 8-bit operands. */
-#define VIE_OP_F_WORD_OP	(1U << 6U)  /* 16-bit operands. */
+#define VIE_OP_F_IMM		(1U << 0U)  /**< 16/32-bit immediate operand */
+#define VIE_OP_F_IMM8		(1U << 1U)  /**< 8-bit immediate operand */
+#define VIE_OP_F_MOFFSET	(1U << 2U)  /**< 16/32/64-bit immediate moffset */
+#define VIE_OP_F_NO_MODRM	(1U << 3U)	/**< No ModR/M byte */
+#define VIE_OP_F_CHECK_GVA_DI	(1U << 4U)  /**< for movs, need to check DI */
+#define VIE_OP_F_BYTE_OP	(1U << 5U)  /**< 8-bit operands. */
+#define VIE_OP_F_WORD_OP	(1U << 6U)  /**< 16-bit operands. */
+/**
+ * @}
+ */
 
+/**
+ * @brief Define two-byte opcode operations which ACRN Hypervisor supports to emulate.
+ *
+ * This array defines the operation types and flags for specific two-byte opcodes.
+ */
 static const struct instr_emul_vie_op two_byte_opcodes[256] = {
 	[0xB6] = {
 		.op_type = VIE_OP_TYPE_MOVZX,
@@ -118,6 +153,11 @@ static const struct instr_emul_vie_op two_byte_opcodes[256] = {
 	},
 };
 
+/**
+ * @brief Define one-byte opcode operations which ACRN Hypervisor supports to emulate.
+ *
+ * This array defines the operation types and flags for specific one-byte opcodes.
+ */
 static const struct instr_emul_vie_op one_byte_opcodes[256] = {
 	[0x0F] = {
 		.op_type = VIE_OP_TYPE_TWO_BYTE
@@ -218,16 +258,71 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
 	},
 };
 
-/* struct vie.mod */
-#define	VIE_MOD_INDIRECT		0U
-#define	VIE_MOD_INDIRECT_DISP8		1U
-#define	VIE_MOD_INDIRECT_DISP32		2U
-#define	VIE_MOD_DIRECT			3U
+/**
+ * @brief Indirect addressing mode.
+ *
+ * This macro represents the indirect addressing mode in the `mod` field in Instruction
+ * (refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
+ * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * In this mode, the effective address is computed using a base register without any displacement.
+ */
+ #define VIE_MOD_INDIRECT 0U
 
-/* struct vie.rm */
-#define	VIE_RM_SIB			4U
-#define	VIE_RM_DISP32			5U
+ /**
+  * @brief Indirect addressing with 8-bit displacement.
+  *
+  * This macro represents the indirect addressing mode with an 8-bit displacement in the `mod` field
+  * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
+  * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the
+  * effective address is computed using a base register and an 8-bit displacement.
+  */
+ #define VIE_MOD_INDIRECT_DISP8 1U
 
+ /**
+  * @brief Indirect addressing with 32-bit displacement.
+  *
+  * This macro represents the indirect addressing mode with a 32-bit displacement in the `mod` field
+  * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
+  * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the
+  * effective address is computed using a base register and a 32-bit displacement.
+  */
+ #define VIE_MOD_INDIRECT_DISP32 2U
+
+ /**
+  * @brief Direct addressing mode.
+  *
+  * This macro represents the direct addressing mode in the `mod` field in Instruction(refer to Figure 2-1.
+  * Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures Software
+  * Developer’s Manual Order Number: 325462-078US). In this mode, of the `vie` structure. In this mode, the
+  * effective address is directly specified by the instruction.
+  */
+ #define VIE_MOD_DIRECT 3U
+
+ /**
+  * @brief Scale-Index-Base (SIB) addressing mode.
+  *
+  * This macro represents the Scale-Index-Base (SIB) addressing mode in the `rm` field in Instruction(refer
+  * to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures
+  * Software Developer’s Manual Order Number: 325462-078US). This mode allows for complex address calculations
+  * using a combination of base, index, and scale factors.
+  */
+ #define VIE_RM_SIB 4U
+
+ /**
+  * @brief 32-bit displacement without base register.
+  *
+  * This macro represents an addressing mode with a 32-bit displacement and no base register in the `rm` field
+  * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and
+  * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the effective
+  * address is computed using only the 32-bit displacement.
+  */
+ #define VIE_RM_DISP32 5U
+
+/**
+ * @brief Define masks for different operand sizes.
+ *
+ * This array defines bit masks for various operand sizes (1, 2, 4, and 8 bytes).
+ */
 static uint64_t size2mask[9] = {
 	[1] = (1UL << 8U) - 1UL,
 	[2] = (1UL << 16U) - 1UL,
@@ -235,51 +330,141 @@ static uint64_t size2mask[9] = {
 	[8] = ~0UL,
 };
 
-#define VMX_INVALID_VMCS_FIELD  0xffffffffU
+/**
+ * @brief Invalid VMCS field value.
+ *
+ * This macro defines a constant used to represent an invalid field value
+ * in the Virtual Machine Control Structure (VMCS). However, we return this
+ * MACRO in one function, but we didn't check the return value.
+ */
+ #define VMX_INVALID_VMCS_FIELD 0xffffffffU
 
-/*
- * This struct vmcs_seg_field is defined separately to hold the vmcs field
- * address of segment selector.
+/**
+ * @brief Structure representing VMCS segment fields.
+ *
+ * This structure is used to hold the VMCS field addresses related to a segment
+ * selector in a virtualized environment. It encapsulates the base, limit, and
+ * access rights fields of a segment, which are essential for managing segment
+ * descriptors in the Virtual Machine Control Structure (VMCS).
  */
 struct vmcs_seg_field {
-	uint32_t	base_field;
-	uint32_t	limit_field;
-	uint32_t	access_field;
+	uint32_t	base_field;   /**< The base address field of the segment. */
+	uint32_t	limit_field;  /**< The limit field of the segment, defining its size. */
+	uint32_t	access_field; /**< The access rights field, indicating the segment's permissions and type. */
 };
 
-/*
- * The 'access' field has the format specified in Table 21-2 of the Intel
- * Architecture Manual vol 3b.
+/**
+ * @brief Structure representing a segment descriptor.
  *
- * XXX The contents of the 'access' field are architecturally defined except
- * bit 16 - Segment Unusable.
+ * This structure is used to define a segment descriptor, which is a data structure
+ * used in x86 architecture to define the characteristics of a segment. The segment
+ * descriptor includes the base address, limit, and access rights of the segment.
  */
 struct seg_desc {
-	uint64_t	base;
-	uint32_t	limit;
-	uint32_t	access;
+	uint64_t	base;	/**< The base address of the segment. */
+	uint32_t	limit;	/**< The limit of the segment, defining its size. */
+	uint32_t	access;	/**< Access rights and attributes of the segment. */
 };
 
+/**
+ * @brief Segment type
+ *
+ * Get segment type and descriptor type from the access rights field.
+ * The access rights field is contained in the guest-state area of the VMCS(refer
+ * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual Order Number 325462-078US).
+ *
+ * @param[in] access Value of access rights.
+ *
+ * @return Segment type.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline uint32_t seg_desc_type(uint32_t access)
 {
 	return (access & 0x001fU);
 }
 
+/**
+ * @brief Segment present
+ *
+ * Get segment present from the access rights field.
+ * The access rights field is contained in the guest-state area of the VMCS(refer
+ * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual Order Number 325462-078US).
+ *
+ * @param[in] access Value of access rights.
+ *
+ * @return Segment present value.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 __unused static inline bool seg_desc_present(uint32_t access)
 {
 	return ((access & 0x0080U) != 0U);
 }
 
+/**
+ * @brief Default operation size
+ *
+ * Get the default operation size from the access rights field.
+ * The access rights field is contained in the guest-state area of the VMCS(refer
+ * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual Order Number 325462-078US).
+ *
+ * @param[in] access Value of access rights.
+ *
+ * @return true for 32-bit default, false for 16-bit default.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool seg_desc_def32(uint32_t access)
 {
 	return ((access & 0x4000U) != 0U);
 }
 
+/**
+ * @brief Segment unusable
+ *
+ * Get the segment unusable value from the access rights field.
+ * The access rights field is contained in the guest-state area of the VMCS(refer
+ * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual Order Number 325462-078US).
+ *
+ * @param[in] access Value of access rights.
+ *
+ * @return true if unusable, false if usable.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 __unused static inline bool seg_desc_unusable(uint32_t access)
 {
 	return ((access & 0x10000U) != 0U);
 }
 
+/**
+ * @brief Get segment descriptor field register VMCS address for a Segment.
+ *
+ * Get the segment register field address. These fields lie in the guest-state area of the VMCS. If the
+ * segment register is not in VMCS, all fields set to '0'.
+ *
+ * @param[in] seg Segment register name to read.
+ * @param[out] desc Pointer to the segment field description.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void encode_vmcs_seg_desc(enum cpu_reg_name seg,
 	struct vmcs_seg_field *desc)
 {
@@ -344,19 +529,21 @@ static void encode_vmcs_seg_desc(enum cpu_reg_name seg,
 }
 
 /**
+ * @brief Convert register name to field index in VMCS
  *
- *Description:
- *This local function is to covert register names into
- *the corresponding field index MACROs in VMCS.
+ * This local function is to convert register names into the corresponding field index MACROs in VMCS.
  *
- *Post Condition:
- *In the non-general register names group (CPU_REG_CR0~CPU_REG_GDTR),
- *for register names CPU_REG_CR2, CPU_REG_IDTR and CPU_REG_GDTR,
- *this function returns VMX_INVALID_VMCS_FIELD;
- *for other register names, it returns correspoding field index MACROs
- *in VMCS.
+ * @param[in] ident Register name to convert.
  *
- **/
+ * @return For register names CPU_REG_CR2, CPU_REG_IDTR, and CPU_REG_GDTR, this function returns VMX_INVALID_VMCS_FIELD.
+ * @return For other register names, it returns the corresponding field index MACROs in VMCS.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark \p ident is in the non-general register names group (CPU_REG_CR0~CPU_REG_GDTR).
+ */
 static uint32_t get_vmcs_field(enum cpu_reg_name ident)
 {
 	uint32_t ret;
@@ -431,9 +618,21 @@ static uint32_t get_vmcs_field(enum cpu_reg_name ident)
 }
 
 /**
- * @pre vcpu != NULL
+ * @brief Read register.
+ *
+ * Read register values.
+ * For general registers, the value is read from the vCPU's \p run_context, which is saved when the VM traps.
+ * For non-general registers, the value is read from the guest-state area of the VMCS.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] reg Register name of the vCPU.
+ *
+ * @return Register value, 0 on unsupported.
+ *
  * @pre ((reg <= CPU_REG_LAST) && (reg >= CPU_REG_FIRST))
  * @pre ((reg != CPU_REG_CR2) && (reg != CPU_REG_IDTR) && (reg != CPU_REG_GDTR))
+ *
+ * @post N/A
  */
 static uint64_t vm_get_register(const struct acrn_vcpu *vcpu, enum cpu_reg_name reg)
 {
@@ -459,9 +658,23 @@ static uint64_t vm_get_register(const struct acrn_vcpu *vcpu, enum cpu_reg_name 
 }
 
 /**
- * @pre vcpu != NULL
+ * @brief Set register.
+ *
+ * Set register values.
+ * For general registers, the value is set to the vCPU's \p run_context, which will be restored
+ * when the VM enters. For non-general registers, the value is set to the guest-state area of
+ * the VMCS.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] reg Register name of the vCPU.
+ * @param[in] val Value to set.
+ *
+ * @return None.
+ *
  * @pre ((reg <= CPU_REG_LAST) && (reg >= CPU_REG_FIRST))
  * @pre ((reg != CPU_REG_CR2) && (reg != CPU_REG_IDTR) && (reg != CPU_REG_GDTR))
+ *
+ * @post N/A
  */
 static void vm_set_register(struct acrn_vcpu *vcpu, enum cpu_reg_name reg,
 								uint64_t val)
@@ -486,10 +699,22 @@ static void vm_set_register(struct acrn_vcpu *vcpu, enum cpu_reg_name reg,
 }
 
 /**
- * @pre vcpu != NULL
- * @pre desc != NULL
- * @pre seg must be one of segment register (CPU_REG_CS/ES/DS/SS/FS/GS)
- *      or CPU_REG_TR/LDTR
+ * @brief Get segment descriptor field value from VMCS for a Segment
+ *
+ * Read segment register fields. These fields lie in the guest-state area of the VMCS.
+ * This information is used to calculate the linear address in the guest VM.
+ *
+ * @param[in] seg Segment register name to read.
+ * @param[out] desc Description pointer for the segment state.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark seg must be one of the segment registers (CPU_REG_CS/ES/DS/SS/FS/GS)
+ *	  or CPU_REG_TR/LDTR
  */
 static void vm_get_seg_desc(enum cpu_reg_name seg, struct seg_desc *desc)
 {
@@ -503,6 +728,24 @@ static void vm_get_seg_desc(enum cpu_reg_name seg, struct seg_desc *desc)
 	desc->access = exec_vmread32(tdesc.access_field);
 }
 
+/**
+ * @brief Canonical check
+ *
+ * In 64-bit mode, check if the memory address is in a non-canonical form.
+ * For IA-32 processors with Intel 64 architecture, which supports a 48-bit linear address, a canonical address
+ * must have bits 63 through 48 set to zeros or ones (depending on whether bit 47 is a zero or one).
+ *
+ * @param[in] cpu_mode vCPU's CPU mode.
+ * @param[in] gla Guest linear address.
+ *
+ * @return 0 on canonical, 1 on non-canonical.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark In a non-canonical form, inject an exception (SS or GP) to the guest VM.
+ */
 static int32_t vie_canonical_check(enum vm_cpu_mode cpu_mode, uint64_t gla)
 {
 	int32_t ret = 0;
@@ -524,6 +767,21 @@ static int32_t vie_canonical_check(enum vm_cpu_mode cpu_mode, uint64_t gla)
 	return ret;
 }
 
+/**
+ * @brief Check permissions for a segment is valid
+ *
+ * Check the segment access rights descriptor in the Guest-state area.
+ * Determine whether it's a valid access rights type and if R/W access right is available.
+ *
+ * @param[in] desc Pointer to the segment descriptor.
+ * @param[in] prot Requested protection bits.
+ *
+ * @return True on valid, false on invalid.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static bool is_desc_valid(const struct seg_desc *desc, uint32_t prot)
 {
 	bool ret = true;
@@ -560,10 +818,29 @@ static bool is_desc_valid(const struct seg_desc *desc, uint32_t prot)
 	return ret;
 }
 
-/*
- *@pre seg must be segment register index
- *@pre length_arg must be 1, 2, 4 or 8
- *@pre prot must be PROT_READ or PROT_WRITE
+
+/**
+ * @brief Calculate guest linear address
+ *
+ * Calculate the guest linear address by adding the offset to the segment base address
+ * in the register.
+ *
+ * @param[in] cpu_mode vCPU's CPU mode.
+ * @param[in] seg Segment register index.
+ * @param[in] desc Description of the segment register.
+ * @param[in] offset Linear address offset from the segment base.
+ * @param[in] addrsize Address size.
+ * @param[out] gla Pointer to return the guest linear address.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark seg must be a segment register index.
+ * @remark addrsize must be 1, 2, 4, or 8.
+ * @remark prot must be PROT_READ or PROT_WRITE.
  */
 static void vie_calculate_gla(enum vm_cpu_mode cpu_mode, enum cpu_reg_name seg,
 	const struct seg_desc *desc, uint64_t offset, uint8_t addrsize, uint64_t *gla)
@@ -579,7 +856,7 @@ static void vie_calculate_gla(enum vm_cpu_mode cpu_mode, enum cpu_reg_name seg,
 	 * base address of 0.
 	 */
 	if ((cpu_mode == CPU_MODE_64BIT) && (seg != CPU_REG_FS) &&
-	    (seg != CPU_REG_GS)) {
+		(seg != CPU_REG_GS)) {
 		segbase = 0UL;
 	} else {
 		segbase = desc->base;
@@ -593,22 +870,68 @@ static void vie_calculate_gla(enum vm_cpu_mode cpu_mode, enum cpu_reg_name seg,
 	*gla = (segbase + firstoff) & size2mask[glasize];
 }
 
-/*
- * @pre vcpu != NULL
+/**
+ * @brief Get mmio_request value
+ *
+ * Get the value of mmio_request.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[out] rval Pointer to return the mmio_request value.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static inline void vie_mmio_read(const struct acrn_vcpu *vcpu, uint64_t *rval)
 {
 	*rval = vcpu->req.reqs.mmio_request.value;
 }
 
-/*
- * @pre vcpu != NULL
+/**
+ * @brief Write mmio_request value
+ *
+ * Write a value to mmio_request.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] wval Value to write to mmio_request.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static inline void vie_mmio_write(struct acrn_vcpu *vcpu, uint64_t wval)
 {
 	vcpu->req.reqs.mmio_request.value = wval;
 }
 
+/**
+ * @brief Calculate byte register index.
+ *
+ * Calculate byte register index(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate General-Purpose
+ * Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * For 16-bit mode, refers to Table 2-1. 16-Bit Addressing Forms with the ModR/M Byte (r8(/r) and (In binary) REG =),
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-087US. Use Bits 0-1 of
+ * \p REG as the Register Index and Bit 2 of \p REG as the indicator for legacy high byte registers (lhbr).
+ * For 32-bit mode, refers to Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (r8(/r) and (In binary) REG =),
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-087US. Use Bits 0-1 of
+ * \p REG as the Register Index and Bit 2 of \p REG as the indicator for legacy high byte registers (lhbr).
+ * For 64-bit mode, With a REX prefix in 64-bit mode, attempts to access AH, BH, CH, or DH will instead access SPL,
+ * DIL, BPL, or SIL, respectively. Just use Bits 0-2 of \p REG as the Register Index.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[out] reg Pointer to return the register index.
+ * @param[out] lhbr Pointer to mask the legacy high byte register.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void vie_calc_bytereg(const struct instr_emul_vie *vie,
 					enum cpu_reg_name *reg, int32_t *lhbr)
 {
@@ -635,6 +958,24 @@ static void vie_calc_bytereg(const struct instr_emul_vie *vie,
 	}
 }
 
+/**
+ * @brief Read byte register.
+ *
+ * Read a byte from byte register.(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate
+ * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * Order Number: 325462-078US)
+ * For legacy high byte registers (lhbr) (AH, CH, DH, or BH), shift the base register right by 8 bits.
+ * Otherwise, return the value directly.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] vie Pointer to instruction emulation information.
+ *
+ * @return The value read from the register.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static uint8_t vie_read_bytereg(const struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t lhbr;
@@ -658,6 +999,25 @@ static uint8_t vie_read_bytereg(const struct acrn_vcpu *vcpu, const struct instr
 	return reg_val;
 }
 
+/**
+ * @brief Write a byte to a byte register.
+ *
+ * Write a byte to byte register.(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate
+ * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * Order Number: 325462-078US)
+ * For legacy high byte registers (lhbr) (AH, CH, DH, or BH), shift left by 8 bits to store 'byte' in high-byte
+ * register. Otherwise, write the value directly.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[in] byte The value to write.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void vie_write_bytereg(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie,
 								uint8_t byte)
 {
@@ -683,10 +1043,25 @@ static void vie_write_bytereg(struct acrn_vcpu *vcpu, const struct instr_emul_vi
 }
 
 /**
- * @pre vcpu != NULL
- * @pre size = 1, 2, 4 or 8
+ * @brief Update register.
+ *
+ * Update the register values.
+ * For general registers, the value is updated to the vCPU's \p run_context, which will be restored
+ * when the VM enters. For non-general registers, the value is updated to the guest-state area of
+ * the VMCS.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] reg Register name of the vCPU.
+ * @param[in] val_arg Value to set.
+ * @param[in] size Register size (bytes).
+ *
+ * @return None.
+ *
+ * @pre size == 1 || size == 2 || size == 4 || size == 8
  * @pre ((reg <= CPU_REG_LAST) && (reg >= CPU_REG_FIRST))
  * @pre ((reg != CPU_REG_CR2) && (reg != CPU_REG_IDTR) && (reg != CPU_REG_GDTR))
+ *
+ * @post N/A
  */
 static void vie_update_register(struct acrn_vcpu *vcpu, enum cpu_reg_name reg,
 					uint64_t val_arg, uint8_t size)
@@ -711,8 +1086,35 @@ static void vie_update_register(struct acrn_vcpu *vcpu, enum cpu_reg_name reg,
 	vm_set_register(vcpu, reg, val);
 }
 
-#define	RFLAGS_STATUS_BITS    (PSL_C | PSL_PF | PSL_AF | PSL_Z | PSL_N | PSL_V)
+/**
+ * @brief Mask for status bits in the RFLAGS register.
+ *
+ * This macro defines a bitmask for the status flags within the RFLAGS
+ * register of the x86 architecture. The status flags include:
+ * - PSL_C: Carry Flag
+ * - PSL_PF: Parity Flag
+ * - PSL_AF: Auxiliary Carry Flag
+ * - PSL_Z: Zero Flag
+ * - PSL_N: Sign Flag
+ * - PSL_V: Overflow Flag
+ */
+#define	RFLAGS_STATUS_BITS	(PSL_C | PSL_PF | PSL_AF | PSL_Z | PSL_N | PSL_V)
 
+/**
+ * @brief Update RFLAGS
+ *
+ * Set the specific status bits in RFLAGS, which is in the vCPU's \p run_context.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] rflags2 Value to update.
+ * @param[in] psl Specific bits mask for rflags.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void vie_update_rflags(struct acrn_vcpu *vcpu, uint64_t rflags2, uint64_t psl)
 {
 	uint8_t size;
@@ -727,8 +1129,25 @@ static void vie_update_rflags(struct acrn_vcpu *vcpu, uint64_t rflags2, uint64_t
 	vie_update_register(vcpu, CPU_REG_RFLAGS, rflags, size);
 }
 
-/*
- * Return the status flags that would result from doing (x - y).
+/**
+ * @brief Template for getting status flags.
+ *
+ * This macro serves as a template to obtain RFLAGS by performing (x - y).
+ *
+ * The following functions are included:
+ * - build_getcc(getcc8, uint8_t)
+ * - build_getcc(getcc16, uint16_t)
+ * - build_getcc(getcc32, uint32_t)
+ * - build_getcc(getcc64, uint64_t)
+ *
+ * @param[in] name The name of the function.
+ * @param[in] type The C type of the variable (uint8_t, uint16_t, uint32_t, uint64_t).
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 #define build_getcc(name, type)					\
 static uint64_t name(type x, type y)				\
@@ -739,13 +1158,87 @@ static uint64_t name(type x, type y)				\
 			"=r" (rflags), "+r" (x) : "m" (y));	\
 	return rflags;						\
 }
+
+/**
+ * @brief Get RFLAGS for 8-bit operands.
+ *
+ * Perform a subtraction operation to 8-bit operands and return the RFLAGS.
+ *
+ * @param[in] x Operand which is the minuend.
+ * @param[in] y Operand which is the subtrahend.
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 build_getcc(getcc8, uint8_t)
+
+/**
+ * @brief Get RFLAGS for 16-bit operands.
+ *
+ * Perform a subtraction operation to 16-bit operands and return the RFLAGS.
+ *
+ * @param[in] x Operand which is the minuend.
+ * @param[in] y Operand which is the subtrahend.
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 build_getcc(getcc16, uint16_t)
+
+/**
+ * @brief Get RFLAGS for 32-bit operands.
+ *
+ * Perform a subtraction operation to 32-bit operands and return the RFLAGS.
+ *
+ * @param[in] x Operand which is the minuend.
+ * @param[in] y Operand which is the subtrahend.
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 build_getcc(getcc32, uint32_t)
+
+/**
+ * @brief Get RFLAGS for 64-bit operands.
+ *
+ * Perform a subtraction operation to 64-bit operands and return the RFLAGS.
+ *
+ * @param[in] x Operand which is the minuend.
+ * @param[in] y Operand which is the subtrahend.
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 build_getcc(getcc64, uint64_t)
 
 /**
- * @pre opsize = 1, 2, 4 or 8
+ * @brief Get RFLAGS.
+ *
+ * Perform a subtraction operation and return the RFLAGS.
+ *
+ * @param[in] opsize Size of operands.
+ * @param[in] x Operand which is the minuend.
+ * @param[in] y Operand which is the subtrahend.
+ *
+ * @return RFLAGS content.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark opsize = 1, 2, 4, or 8
  */
 static uint64_t getcc(uint8_t opsize, uint64_t x, uint64_t y)
 {
@@ -768,6 +1261,22 @@ static uint64_t getcc(uint8_t opsize, uint64_t x, uint64_t y)
 	return rflags;
 }
 
+/**
+ * @brief Emulate MOV instruction.
+ *
+ * Emulate Move instruction (Refer to MOV—Move, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
+ * Architectures Software Developer’s Manual Order Number: 325462-078US). In this function, copies the
+ * source operand to the destination operand.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_mov(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -876,6 +1385,26 @@ static int32_t emulate_mov(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 	return error;
 }
 
+/**
+ * @brief Emulate MOV With Extend instruction.
+ *
+ * Emulate Move With Extend(Refer to MOVZX—Move With Zero-Extend, MOVSX/MOVSXD—Move With
+ * Sign-Extension, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s
+ * Manual Order Number: 325462-078US). 
+ * In this function, copies the source operand to the destination operand and extends the value.
+ * The size of the converted value depends on the operand-size attribute.
+ * - For MOVZX, zero extends the value.
+ * - For MOVSX, sign extends the value.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_movx(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -962,14 +1491,26 @@ static int32_t emulate_movx(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 }
 
 /**
- * @pre only called by instruction emulation and check was done during
- *      instruction decode
+ * @brief Get GVA from RSI without check.
  *
- * @remark This function can only be called in instruction emulation and
- * suppose always success because the check was done during instruction
- * decode.
+ * Get the GVA from the segment without any check. In this function, base address is got from the segment
+ * register, and linear address offset is got from RSI register saved in vCPU's \p run_context. Then call
+ * \p vie_calculate_gla to calculate the guest linear address by adding the offset to the segment base address
+ * in the register.
  *
- * It's only used by MOVS/STO
+ * This function is only used by MOVS during instruction emulation to get GVA from RSI without check.
+ * This check was done during instruction decode.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] addrsize Address size.
+ * @param[in] seg Segment register name.
+ * @param[out] gva Pointer to return the guest virtual address.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static void get_gva_si_nocheck(const struct acrn_vcpu *vcpu, uint8_t addrsize,
 		enum cpu_reg_name seg, uint64_t *gva)
@@ -987,13 +1528,30 @@ static void get_gva_si_nocheck(const struct acrn_vcpu *vcpu, uint8_t addrsize,
 	return;
 }
 
-/*
- * @pre only called during instruction decode phase
+/**
+ * @brief Check GVA from ES:(E)DI
  *
- * @remark This function get gva from ES:DI. And do check the failure
- * condition and inject exception to guest accordingly.
+ * Get the GVA from the segment and check. Get the base address from \p CPU_REG_ES, and get the linear address
+ * offset from \p CPU_REG_RDI. Call \p vie_calculate_gla to calculate the GVA, then call \p vie_canonical_check
+ * to perform a canonical check and call \p gva2gpa to check if the GPA is valid. If any check fails during this
+ * process, inject an exception to the guest.
  *
- * It's only used by MOVS/STO
+ * This function is only used by MOVS instruction emulation during the decode phase.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[inout] vie Pointer to instruction emulation information.
+ * @param[in] addrsize Address size.
+ * @param[out] gva Pointer to return the guest virtual address.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -EFAULT if a page fault occurs.
+ * @retval -EINVAL if an invalid parameter is encountered.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static int32_t get_gva_di_check(struct acrn_vcpu *vcpu, struct instr_emul_vie *vie,
 		uint8_t addrsize, uint64_t *gva)
@@ -1054,20 +1612,39 @@ static int32_t get_gva_di_check(struct acrn_vcpu *vcpu, struct instr_emul_vie *v
 	return ret;
 }
 
-/* MOVs gets the operands from RSI and RDI. Both operands could be memory.
- * With VMX enabled, one of the operand triggers EPT voilation.
+/**
+ * @brief Emulate Move Data from String to String.
  *
- * If it's RSI access trigger EPT voilation, it's source operands and always
- * read operations. Not neccesary to check whether need to inject fault (done
+ * Emulate Move Data From String to String (Refer to MOVS/MOVSB/MOVSW/MOVSD/MOVSQ—Move Data From
+ * String to String, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s
+ * Manual Order Number: 325462-078US).
+ * Moves the byte, word, or doubleword from the source operand to the destination operand. Then update
+ * RSI (source operand), RDI (destination operand), and RCX (count) for the next instruction. If the
+ * count register (RCX) is not zero, retain RIP and repeat this instruction.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return Always return 0 to indicate a successful emulation of MMIO read/write.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark MOVS gets the operands from RSI and RDI. Both operands could be memory.
+ * With VMX enabled, one of the operands triggers an EPT violation.
+ *
+ * If it's an RSI access that triggers the EPT violation, it's the source operand and always
+ * a read operation. It is not necessary to check whether to inject a fault (done
  * by VMX already). We do need to check the RDI.
  *
- * If it's RDI access trigger EPT voilation, we need to check RDI because it's
- * always write operations and VMX doens't cover write access check.
- * Not neccesary to check RSI, because VMX cover it for us.
+ * If it's an RDI access that triggers the EPT violation, we need to check RDI because it's
+ * always a write operation and VMX doesn't cover write access checks.
+ * It is not necessary to check RSI, because VMX covers it for us.
  *
  * In summary,
- * For MOVs instruction, we always check RDI during instruction decoding phase.
- * And access RSI without any check during instruction emulation phase.
+ * For the MOVS instruction, we always check RDI during the instruction decoding phase.
+ * And access RSI without any check during the instruction emulation phase.
  */
 static int32_t emulate_movs(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
@@ -1154,6 +1731,26 @@ static int32_t emulate_movs(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 	return 0;
 }
 
+
+/**
+ * @brief Emulate Store String
+ *
+ * Emulate store string instruction (Refer to STOS/STOSB/STOSW/STOSD/STOSQ—Store String, in 4.3
+ * Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number:
+ * 325462-078US). In this function, stores a byte, word, or doubleword from the RAX register into the
+ * destination operand. The destination operand is a memory location, the address of which is read from
+ * RDI. Then update RDI for the next instruction. If the count register (RCX) is not zero, retain RIP and
+ * repeat this instruction.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return Always return 0 to indicate a successful emulation of MMIO read/write.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_stos(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	bool done = false;
@@ -1209,6 +1806,23 @@ static int32_t emulate_stos(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 	return 0;
 }
 
+/**
+ * @brief Emulate Logical Compare.
+ *
+ * Computes the bit-wise logical AND of operands and sets RFLAGS (SF, ZF, PF) according to the result.
+ * Emulate Test instruction (Refer to TEST—Logical Compare, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
+ * Architectures Software Developer’s Manual Order Number: 325462-078US). In this function, computes the
+ * bit-wise logical AND of the two source operands and update RFLAGS according to the result.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_test(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -1273,6 +1887,23 @@ static int32_t emulate_test(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 	return error;
 }
 
+/**
+ * @brief Emulate logical AND instruction.
+ *
+ * Emulate the logical AND instruction (Refer to AND—Logical AND, in 3.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * instruction, and calculate the logical AND result. Write the result to \p mmio_request or target register and
+ * update RFLAGS.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_and(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -1356,6 +1987,22 @@ static int32_t emulate_and(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 	return error;
 }
 
+/**
+ * @brief Emulate logical OR instruction.
+ *
+ * Emulate the logical OR instruction (Refer to OR—Logical Inclusive OR, in 4.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * instruction, and calculate the logical OR result. Write the result to \p mmio_request and update RFLAGS.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_or(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -1400,8 +2047,8 @@ static int32_t emulate_or(struct acrn_vcpu *vcpu, const struct instr_emul_vie *v
 		/*
 		 * OR mem (ModRM:r/m) with reg (ModRM:reg) and store the
 		 * result in mem.
-		 * 09/r:    OR r/m16, r16
-		 * 09/r:    OR r/m32, r32
+		 * 09/r:	OR r/m16, r16
+		 * 09/r:	OR r/m32, r32
 		 */
 
 		/* get the first operand */
@@ -1442,6 +2089,22 @@ static int32_t emulate_or(struct acrn_vcpu *vcpu, const struct instr_emul_vie *v
 	return error;
 }
 
+/**
+ * @brief Emulate compare two operands.
+ *
+ * Emulate the compare instruction (Refer to CMP—Compare Two Operands, in 3.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * instruction, compare them, and update RFLAGS.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_cmp(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t ret = 0;
@@ -1529,6 +2192,22 @@ static int32_t emulate_cmp(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 	return ret;
 }
 
+/**
+ * @brief Emulate Subtract.
+ *
+ * Emulate the substract instruction (Refer to SUB—Subtract, in 4.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Subtracts the source operand
+ * from the destination operand and stores the result in the destination operand. Then update RFLAGS (OF, CF).
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported opcodes.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_sub(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -1544,9 +2223,9 @@ static int32_t emulate_sub(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 		/*
 		 * SUB r/m from r and store the result in r
 		 *
-		 * 2B/r            SUB r16, r/m16
-		 * 2B/r            SUB r32, r/m32
-		 * REX.W + 2B/r    SUB r64, r/m64
+		 * 2B/r			SUB r16, r/m16
+		 * 2B/r			SUB r32, r/m32
+		 * REX.W + 2B/r	SUB r64, r/m64
 		 */
 
 		/* get the first operand */
@@ -1579,6 +2258,24 @@ static int32_t emulate_sub(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 	return error;
 }
 
+/**
+ * @brief Emulate a group of instructions.
+ *
+ * Emulate a group of instructions with first opcodes 0x80, 0x81, and 0x83 (Refers to AND—Logical AND, CMP—Compare
+ * Two Operands, in 3.3 instructions; OR—Logical Inclusive OR, in 4.3 instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). These instructions have
+ * two operands: an immediate data and the content of a general-purpose register. And the second opcode
+ * is defined by the ModR/M Opcode field.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported operation type.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_group1(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	int32_t error;
@@ -1601,6 +2298,23 @@ static int32_t emulate_group1(struct acrn_vcpu *vcpu, const struct instr_emul_vi
 	return error;
 }
 
+/**
+ * @brief Emulate Bit Test.
+ *
+ * Emulate Bit Test instruction (Refer to BT—Bit Test, in 3.3 Instructions, Vol 2, Intel®
+ * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). This
+ * function selects the bit in a bit string at the bit-position designated by the bit offset
+ * and stores the value of the bit in the CF flag.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EINVAL for unsupported operation type.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t emulate_bittest(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	uint64_t val, rflags, bitmask;
@@ -1643,6 +2357,23 @@ static int32_t emulate_bittest(struct acrn_vcpu *vcpu, const struct instr_emul_v
 }
 
 #ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
+/**
+ * @brief Emulate Exchange Rigester/Memory with Register.
+ *
+ * Emulate XCHG instruction (Refer to XCHG—Exchange Register/Memory With Register, in 4.3 Instructions,
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In
+ * this function, exchanges the contents of the destination and source operands. Inject an exception (PF)
+ * to the VM if a page fault occurs.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, non-zero for data copy fail.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_vcpu *vcpu, const struct instr_emul_vie *vie)
 {
 	enum cpu_reg_name reg;
@@ -1673,6 +2404,24 @@ static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_
 }
 #endif
 
+/**
+ * @brief Fetch instruction from guest memory.
+ *
+ * Copy the instruction from guest memory using the guest virtual address.
+ * If a page fault occurs, inject an exception (PF) to the VM.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -EFAULT on GVA page fault.
+ * @retval -EINVAL on invalid instruction length.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 {
 	uint32_t fetch_len;
@@ -1691,7 +2440,7 @@ static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 
 	err_code = PAGE_FAULT_ID_FLAG;
 	ret = copy_from_gva(vie->vcpu, vie->inst + vie->num_valid, fetch_gva, fetch_len,
-			    &err_code, &fault_addr);
+				&err_code, &fault_addr);
 	if (ret < 0) {
 		(void)handle_gva_translation_error(ret, vie->vcpu, fault_addr, err_code);
 	} else {
@@ -1702,6 +2451,27 @@ static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Initialize instruction emulation information.
+ *
+ * This function would first clear all the vie structure. Then use the CS as the segment, the RIP as the segment
+ * offset, call \p vie_calculate_gla to calculate the guest linear address by adding the offset to the segment
+ * base address in the register. Then call \p vie_fetch_instruction to copy the instruction from the gla.
+ * If a page fault occurs, inject an exception (PF) to the VM.
+ *
+ * @param[out] vie Pointer to instruction emulation information.
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -EFAULT on GVA page fault.
+ * @retval -EINVAL on invalid instruction length.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t vie_init(struct instr_emul_vie *vie, struct acrn_vcpu *vcpu)
 {
 	enum vm_cpu_mode cpu_mode;
@@ -1726,6 +2496,21 @@ static int32_t vie_init(struct instr_emul_vie *vie, struct acrn_vcpu *vcpu)
 	return vie_fetch_instruction(vie);
 }
 
+/**
+ * @brief Get one byte of instruction to emulate.
+ *
+ * Get a byte of instruction which is saved in the \p inst array. The instruction is copied from guest memory
+ * when initializing \p vie.
+ *
+ * @param[in] vie Pointer to instruction emulation information.
+ * @param[out] x Pointer to instruction byte.
+ *
+ * @return 0 on success, or -1 if it fails to fetch the instruction from the guest.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t vie_peek(struct instr_emul_vie *vie, uint8_t *x)
 {
 	int32_t ret;
@@ -1747,12 +2532,40 @@ static int32_t vie_peek(struct instr_emul_vie *vie, uint8_t *x)
 	return ret;
 }
 
+/**
+ * @brief Add processed number.
+ *
+ * Add the processed number after decoding a byte.
+ *
+ * @param[out] vie Pointer to instruction emulation information.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void vie_advance(struct instr_emul_vie *vie)
 {
 
 	vie->num_processed++;
 }
 
+/**
+ * @brief Decode segment override.
+ *
+ * Decode segment override for Group 2 Instruction Prefixes(Refer to 2.1.1 Instruction Prefixes, Vol 2,
+ * Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US)
+ *
+ * @param[in] x Instruction prefix code.
+ * @param[out] seg Pointer to return the segment register name.
+ *
+ * @return true on segment override, false on no segment override.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static bool segment_override(uint8_t x, enum cpu_reg_name *seg)
 {
 	bool override = true;
@@ -1782,6 +2595,24 @@ static bool segment_override(uint8_t x, enum cpu_reg_name *seg)
 	return override;
 }
 
+/**
+ * @brief Decode address and operand size.
+ *
+ * Decode address size and operand size from the prefix field.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ * @param[in] cpu_mode vCPU's CPU mode.
+ * @param[in] cs_d Guest CS default bits: true for 32-bit default, false for 16-bit default.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark vie->addrsize must be 1, 2, 4, or 8
+ * @remark vie->opsize must be 1, 2, 4, or 8
+ */
 static void decode_op_and_addr_size(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mode, bool cs_d)
 {
 	/*
@@ -1811,10 +2642,32 @@ static void decode_op_and_addr_size(struct instr_emul_vie *vie, enum vm_cpu_mode
 	}
 
 }
+
+/**
+ * @brief Decode Instruction Prefixes.
+ *
+ * This function decodes instruction prefixes and the REX prefix according to SDM definitions and sets members in
+ * the \p instr_emul_vie.
+ * - There are four groups of instruction prefixes (Refer to 2.1.1 Instruction Prefixes, Vol 2, Intel® 64 and IA-32
+ *   Architectures Software Developer’s Manual Order Number: 325462-078US). These four groups may be placed in any
+ *   order relative to each other.
+ * - In 64-bit mode, the REX prefix may be used (Refer to 2.2.1 REX Prefixes, Vol 2, Intel® 64 and IA-32
+ *   Architectures Software Developer’s Manual Order Number: 325462-078US).
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ * @param[in] cpu_mode vCPU's CPU mode.
+ * @param[in] cs_d Guest CS default bits: true for 32-bit default, false for 16-bit default.
+ *
+ * @return 0 on success, -1 if instruction is less than legacy prefix size.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_prefixes(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mode, bool cs_d)
 {
 	uint8_t x, i;
-	int32_t ret  = 0;
+	int32_t ret = 0;
 
 	for (i = 0U; i < VIE_PREFIX_SIZE; i++) {
 		if (vie_peek(vie, &x) != 0) {
@@ -1862,6 +2715,19 @@ static int32_t decode_prefixes(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_
 	return ret;
 }
 
+/**
+ * @brief Decode two-byte opcodes.
+ *
+ * Get the second byte of opcodes and decode the operation type.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return 0 on success, or -1 if it fails to fetch the instruction.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_two_byte_opcode(struct instr_emul_vie *vie)
 {
 	int32_t ret = 0;
@@ -1883,6 +2749,24 @@ static int32_t decode_two_byte_opcode(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode opcodes.
+ *
+ * This function decodes opcodes (Refer to 2.1.2 Opcode, Vol 2, Intel® 64 and IA-32 Architectures Software
+ * Developer’s Manual Order Number: 325462-078US) and translates them to \p instr_emul_vie_op. One-byte and
+ * two-byte opcode decoding is supported.
+ * - One-byte opcodes are translated by \p one_byte_opcodes.
+ * - Two-byte opcodes are translated by \p two_byte_opcodes, consisting of an escape opcode byte 0x0F as the
+ *   primary opcode and a second opcode byte.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return 0 on success, -1 on failure to get instruction or invalid op_type.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_opcode(struct instr_emul_vie *vie)
 {
 	int32_t ret = 0;
@@ -1908,6 +2792,27 @@ static int32_t decode_opcode(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode ModR/M byte.
+ *
+ * Decode the addressing-form specifier byte called the ModR/M (Refer to 2.1.3 ModR/M and SIB Bytes, Vol 2, Intel®
+ * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). The ModR/M byte contains
+ * three fields of information.
+ * Bits 6-7 for the mod field, which specifies direct addressing or indirect addressing.
+ * Bits 5-3 for the Reg/Opcode field, which specifies a register number or three more bits of opcode information.
+ * Bits 2-0 for the R/M field, which specifies a register as an operand or combines with the mod field to encode an
+ * addressing mode.
+ * The combination of REX and ModR/M is decoded here.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ * @param[in] cpu_mode vCPU's CPU mode.
+ *
+ * @return 0 on success, -1 on failure to get instruction or indirect addressing mode.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mode)
 {
 	uint8_t x;
@@ -1992,6 +2897,24 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
 	return ret;
 }
 
+/**
+ * @brief Decode SIB byte.
+ *
+ * This function decodes the SIB byte (Refer to 2.1.3 ModR/M and SIB Bytes, Vol 2, Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual Order Number: 325462-078US). SIB is a second addressing byte:
+ * - Bits 6-7 for the scale field, which specifies the scale factor.
+ * - Bits 5-3 for the index field, which specifies the register number of the index register.
+ * - Bits 2-0 for the base field, which specifies the register number of the base register.
+ * The combination of REX and SIB is decoded here.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return 0 on success, -1 on failure to get instruction.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_sib(struct instr_emul_vie *vie)
 {
 	uint8_t x;
@@ -2024,13 +2947,13 @@ static int32_t decode_sib(struct instr_emul_vie *vie)
 			/*
 			 * All possible values of 'vie->mod':
 			 * 1. VIE_MOD_DIRECT
-			 *    has been handled at the start of this function
+			 *	has been handled at the start of this function
 			 * 2. VIE_MOD_INDIRECT_DISP8
-			 *    has been handled in prior case clauses
+			 *	has been handled in prior case clauses
 			 * 3. VIE_MOD_INDIRECT_DISP32
-			 *    has been handled in prior case clauses
+			 *	has been handled in prior case clauses
 			 * 4. VIE_MOD_INDIRECT
-			 *    will be handled later after this switch statement
+			 *	will be handled later after this switch statement
 			 */
 			break;
 		}
@@ -2073,6 +2996,25 @@ static int32_t decode_sib(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode Displacement Bytes.
+ *
+ * Decode the Displacement and Immediate Bytes (Refer to 2.1.4 Displacement and Immediate Bytes, Vol 2, Intel® 64
+ * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the displacement bytes
+ * which can be 1, 2, or 4 bytes; it is defined by ModR/W and SIB.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -1 on failure to get instruction
+ * @retval -EINVAL on displacement bytes error.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_displacement(struct instr_emul_vie *vie)
 {
 	uint8_t n, i, x;
@@ -2114,6 +3056,25 @@ static int32_t decode_displacement(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode Immediate bytes.
+ *
+ * Decode the Immediate Bytes (Refer to 2.1.4 Displacement and Immediate Bytes, Vol 2, Intel® 64
+ * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the Immediate bytes
+ * which can be 1, 2, or 4 bytes; it is consistent with operand size which define by Instruction Prefixes.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -1 on failure to get instruction
+ * @retval -EINVAL on immediate operand size error.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_immediate(struct instr_emul_vie *vie)
 {
 	uint8_t i, n, x;
@@ -2178,6 +3139,26 @@ static int32_t decode_immediate(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode direct memory-offset.
+ *
+ * Decode the Direct Memory-Offset(Refer to 2.2.1.4 Direct Memory-Offset MOVs, Vol 2, Intel® 64
+ * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * In 64-bit mode, direct memory-offset forms of the MOV instruction are extended to specify a 64-bit immediate
+ * absolute address. For MOV instructions, the size of the memory offset follows the address-size.
+ *
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -1 on failure to get instruction
+ * @retval -EINVAL on address size error.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t decode_moffset(struct instr_emul_vie *vie)
 {
 	uint8_t i, n, x;
@@ -2216,6 +3197,27 @@ static int32_t decode_moffset(struct instr_emul_vie *vie)
 	return ret;
 }
 
+/**
+ * @brief Decode instruction.
+ *
+ * Decode the instruction saved in the VIE pointer. (The instruction format refers to Figure 2-1, Intel 64 and
+ * IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * Order Number: 325462-078US) The instruction consists of optional prefixes, primary opcode bytes, an
+ * addressing-form specifier consisting of the ModR/M byte and the SIB, a displacement, an immediate data field,
+ * and sometimes a memory offset. Instruction encodings are a subset of these bytes.
+ * In this function, the instruction is examined byte by byte, translated according to definitions in the SDM,
+ * and set to members in the \p instr_emul_vie.
+ *
+ * @param[in] cpu_mode vCPU's CPU mode.
+ * @param[in] cs_d Guest CS default bits: true for 32-bit default, false for 16-bit default.
+ * @param[inout] vie Pointer to instruction emulation information.
+ *
+ * @return 0 on success, -1 on decode instruction failure.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int32_t local_decode_instruction(enum vm_cpu_mode cpu_mode,
 				bool cs_d, struct instr_emul_vie *vie)
 {
@@ -2243,7 +3245,24 @@ static int32_t local_decode_instruction(enum vm_cpu_mode cpu_mode,
 	return ret;
 }
 
-/* for instruction MOVS/STO, check the gva gotten from DI/SI. */
+/**
+ * @brief Check destination operand.
+ *
+ * Check the destination operand for MOVS, which addresses in ES:(E)DI. If unavailable, inject an exception to
+ * the guest accordingly. In late instruction emulation, it will always succeed.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return 0 on success, -EFAULT for GVA check failure.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark For MOVS only.
+ * @remark Inject an exception to the guest accordingly on failure.
+ * @remark During the instruction decode phase only.
+ */
 static int32_t instr_check_di(struct acrn_vcpu *vcpu)
 {
 	int32_t ret;
@@ -2261,6 +3280,28 @@ static int32_t instr_check_di(struct acrn_vcpu *vcpu)
 	return ret;
 }
 
+/**
+ * @brief Check guest virtual address.
+ *
+ * This function first calculate the GVA base on the CPU mode, then it check whether GVA is valid
+ * by the guest memory page tables. If this GVA is not translated by the guest memory page tables, it
+ * would inject an exception(PF) to the guest accordingly.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] cpu_mode vCPU's CPU mode.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -EFAULT on canonical check failure or paging fault.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark Inject an exception to the guest accordingly on failure.
+ * @remark During the instruction decode phase only.
+ */
 static int32_t instr_check_gva(struct acrn_vcpu *vcpu, enum vm_cpu_mode cpu_mode)
 {
 	int32_t ret = 0;
@@ -2344,13 +3385,33 @@ static int32_t instr_check_gva(struct acrn_vcpu *vcpu, enum vm_cpu_mode cpu_mode
 	return ret;
 }
 
- /* @retval >=0 on success
-  * @retval -EINVAL on any failure if (full_decode == true).
-  * @retval -EINVAL on any failure except unknown instruction if (full_decode == false).
-  * @retval -1 for unknown instruction if (full_decode == false).
-  *
-  * For unknown instruction, when full_decode is false, will keep retval = -1, and do not inject #UD
-  */
+/**
+ * @brief Decode VM instruction.
+ *
+ * This function decodes the instruction which causes VM-exit.
+ * It first copy the instruction from this Guest RIP, then it decodes the instructions following Vol 2, Intel® 64
+ * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US. Now ACRN only supports \p CMP,
+ * \p MOV, \p MOVZX, \p MOVSX, \p MOVS, \p STOS, \p AND, \p TEST, \p OR, \p SUB, \p BT, XCHG.
+ * It also performs some checks during the decode, such as whether the GVA is valid: is it a valid canonical
+ * address, and whether di/si is valid for MOVS. If any check fails, inject an exception accordingly.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ * @param[in] full_decode Inject exception (UD) for unknown instruction.
+ *
+ * @return A value to indicate whether the operation succeeds or not.
+ *
+ * @retval 0 on success.
+ * @retval -1 if the instruction is unknown and full_decode is false, or the cpu is in real mode.
+ * @retval -EFAULT on paging fault while fetching instruction or operand.
+ * @retval memory_operand_byte_size if instruction check fails.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark For unknown instructions, when full_decode is false, will keep retval = -1, and do not inject exception(UD).
+ * @remark If decoding the instruction is successful, instruction emulation will always succeed.
+ */
 int32_t decode_instruction(struct acrn_vcpu *vcpu, bool full_decode)
 {
 	struct instr_emul_ctxt *emul_ctxt;
@@ -2419,6 +3480,23 @@ int32_t decode_instruction(struct acrn_vcpu *vcpu, bool full_decode)
 	return retval;
 }
 
+/**
+ * @brief Emulate instruction which caused a trap.
+ *
+ * This function emulates the instruction behavior following  Vol 2, Intel® 64 and IA-32 Architectures Software
+ * Developer’s Manual Order Number: 325462-078US. Current ACRN Hypervisor only supports \p CMP, \p MOV, \p MOVZX,
+ * \p MOVSX, \p MOVS, \p STOS, \p AND, \p TEST, \p OR, \p SUB, \p BT, XCHG.
+ *
+ * @param[inout] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @retval 0       Success
+ * @retval -EINVAL Unsupported opcodes or error occurs during copy process.
+ * @retval -EFAULT A page fault occurs during GPA to GPA address translation.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 {
 	struct instr_emul_vie *vie = &vcpu->inst_ctxt.vie;
@@ -2480,7 +3558,25 @@ int32_t emulate_instruction(struct acrn_vcpu *vcpu)
 	return error;
 }
 
+/**
+ * @brief Check if the opcode is XCHG (Exchange).
+ *
+ * Check the instruction to emulate for a vCPU. If the opcode is XCHG (Exchange the contents of operands),
+ * return true.
+ *
+ * @param[in] vcpu Pointer to the vCPU that processes the instruction.
+ *
+ * @return True if the opcode is exchange, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 bool is_current_opcode_xchg(struct acrn_vcpu *vcpu)
 {
 	return (vcpu->inst_ctxt.vie.op.op_type == VIE_OP_TYPE_XCHG);
 }
+
+/**
+ * @}
+ */
