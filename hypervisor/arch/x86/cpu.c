@@ -542,7 +542,7 @@ void init_pcpu_post(uint16_t pcpu_id)
 	init_sched(pcpu_id);
 
 #ifdef CONFIG_RDT_ENABLED
-	setup_clos(pcpu_id);
+	setup_clos();
 #endif
 
 	enable_smep();

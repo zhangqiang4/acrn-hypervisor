@@ -38,12 +38,11 @@ const uint16_t hv_clos = 0U;
  */
 #ifdef CONFIG_RDT_ENABLED
 /**
- * @brief Setup RDT CLOS MSRs for a given physical CPU.
+ * @brief Setup RDT CLOS MSRs for current physical CPU.
  *
  * This function configures the MSRs for the specified RDT resource and CLOS configurations. It handles enabling Code
  * and Data Prioritization (CDP) if required and sets the appropriate MSR values based on the resource type.
  *
- * @param[in] pcpu_id The physical CPU ID on which to set the MSRs.
  * @param[in] info Pointer to the rdt_type structure containing resource type information.
  * @param[in] ins Pointer to the rdt_ins structure containing CLOS configuration array.
  *
@@ -53,7 +52,7 @@ const uint16_t hv_clos = 0U;
  * @pre ins != NULL
  * @post N/A
  */
-static void setup_res_clos_msr(uint16_t pcpu_id, struct rdt_type *info, struct rdt_ins *ins)
+static void setup_res_clos_msr(struct rdt_type *info, struct rdt_ins *ins)
 {
 	uint16_t i;
 	uint32_t msr_index;
@@ -82,42 +81,41 @@ static void setup_res_clos_msr(uint16_t pcpu_id, struct rdt_type *info, struct r
 			break;
 		}
 		msr_index = info->msr_base + i;
-		msr_write_pcpu(msr_index, val, pcpu_id);
+		msr_write(msr_index, val);
 	}
 }
 
 /**
- * @brief Set up Class of Service (CLOS) for a given physical CPU.
+ * @brief Set up Class of Service (CLOS) for current physical CPU.
  *
- * This function configures the CLOS for the specified physical CPU. It iterates through all RDT resources and their
- * instances defined in res_cap_info[], and sets up the CLOS MSRs for each instance that includes the given physical
+ * This function configures the CLOS for current physical CPU. It iterates through all RDT resources and their
+ * instances defined in res_cap_info[], and sets up the CLOS MSRs for each instance that includes current physical
  * CPU in its CPU mask. Finally, it sets the hypervisor RDT resource CLOS to MSR_IA32_PQR_ASSOC.
- *
- * @param[in] pcpu_id The ID of the physical CPU for which to set up the CLOS.
  *
  * @return None
  *
  * @pre N/A
  * @post N/A
  */
-void setup_clos(uint16_t pcpu_id)
+void setup_clos(void)
 {
 	uint16_t i, j;
 	struct rdt_type *info;
 	struct rdt_ins *ins;
+	uint16_t pcpu_id = get_pcpu_id();
 
 	for (i = 0U; i < RDT_NUM_RESOURCES; i++) {
 		info = &res_cap_info[i];
 		for (j = 0U; j < info->num_ins; j++) {
 			ins = &info->ins_array[j];
 			if (bitmap_test(pcpu_id, &ins->cpu_mask)) {
-				setup_res_clos_msr(pcpu_id, info, ins);
+				setup_res_clos_msr(info, ins);
 			}
 		}
 	}
 
 	/* set hypervisor RDT resource clos */
-	msr_write_pcpu(MSR_IA32_PQR_ASSOC, clos2pqr_msr(hv_clos), pcpu_id);
+	msr_write(MSR_IA32_PQR_ASSOC, clos2pqr_msr(hv_clos));
 }
 
 /**

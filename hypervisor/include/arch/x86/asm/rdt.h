@@ -63,7 +63,7 @@ struct rdt_type {
 	struct rdt_ins *ins_array;	/**< Pointer to an array of RDT instance structures. */
 };
 
-void setup_clos(uint16_t pcpu_id);
+void setup_clos(void);
 uint64_t clos2pqr_msr(uint16_t clos);
 bool is_platform_rdt_capable(void);
 
