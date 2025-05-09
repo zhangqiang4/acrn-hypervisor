@@ -863,6 +863,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/common/hv_main.h \
                           ../hypervisor/include/common/irq.h \
                           ../hypervisor/include/common/softirq.h \
+                          ../hypervisor/include/arch/x86/asm/guest/instr_emul.h \
                           ../hypervisor/include/common/ticks.h \
                           ../hypervisor/include/common/delay.h \
                           ../hypervisor/include/common/timer.h \
@@ -922,11 +923,13 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/arch/x86/platform_caps.c \
                           ../hypervisor/include/arch/x86/asm/platform_caps.h \
                           ../hypervisor/arch/x86/guest/ve820.c \
+                          ../hypervisor/arch/x86/guest/vmx_io.c \
                           ../hypervisor/arch/x86/guest/virq.c \
 			  ../hypervisor/arch/x86/trampoline.c \
                           ../hypervisor/arch/x86/guest/assign.c \
                           ../hypervisor/arch/x86/page.c \
                           ../hypervisor/arch/x86/pagetable.c \
+                          ../hypervisor/arch/x86/guest/instr_emul.c \
                           ../hypervisor/arch/x86/irq.c \
                           ../hypervisor/arch/x86/exception.c \
                           ../hypervisor/arch/x86/tsc_deadline_timer.c \
@@ -946,6 +949,8 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/arch/x86/asm/msr.h \
                           ../hypervisor/include/dm/mc146818rtc.h \
                           ../hypervisor/include/dm/vrtc.h \
+                          ../hypervisor/dm/vpic.c \
+                          ../hypervisor/dm/io_req.c \
                           ../hypervisor/include/dm/vpic.h \
                           ../hypervisor/include/dm/ivshmem.h \
                           ../hypervisor/common/irq.c \
@@ -953,7 +958,6 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/common/ptdev.c \
                           ../hypervisor/dm/vuart.c \
                           ../hypervisor/dm/vrtc.c \
-                          ../hypervisor/dm/vpic.c \
                           ../hypervisor/dm/vpci/vpci_bridge.c \
                           ../hypervisor/dm/vpci/ivshmem.c \
                           ../hypervisor/dm/vpci/vhostbridge.c \
@@ -2400,6 +2404,16 @@ static inline type name(type *ptr, type v) \
  : \"cc\", \"memory\"); \
  return v; \
 }"
+
+PREDEFINED             += "build_getcc(name, type)= \
+static uint64_t name(type x, type y) \
+{ \
+	uint64_t rflags; \
+	__asm __volatile(\"sub %2,%1; pushfq; popq %0\" : \
+			\"=r\" (rflags), \"+r\" (x) : \"m\" (y)); \
+	return rflags; \
+}"
+
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

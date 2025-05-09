@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Intel Corporation.
+ * Copyright (C) 2019-2025 Intel Corporation.
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
@@ -9,13 +9,44 @@
 #include <logmsg.h>
 #include <sbuf.h>
 
-#define DBG_LEVEL_IOREQ	6U
 
+/**
+ * @defgroup vp-dm_io-req vp-dm.io-req
+ * @ingroup vp-dm
+ * @brief PIO/MMIO read & write emulation module
+ *
+ * This module emulates I/O and MMIO based on the VMCS I/O bitmap and EPT. VMCS traps violate I/O and MMIO options
+ * to the hypervisor. Then the hypervisor determines if the emulation should be implemented by the hypervisor or
+ * the device model.
+ *
+ * @{
+ */
+
+ /**
+ * @file
+ * @brief I/O Emulation
+ *
+ * This file Emulate IO/MMIO base on VMCS I/O bitmap and EPT. VMCS trap violate IO/MMIO option to hypervisor.
+ *
+ */
+
+ #define DBG_LEVEL_IOREQ 6U /**< Debug level for I/O request logging. */
+
+ /**
+ * @brief Notification vector for Hypervisor Service Module.
+ *
+ * This global variable holds the vector number used for notifications related to Hypervisor Service Module (HSM)
+ * in the ACRN hypervisor. The HSM upcall is from the hypervisor to the guest VM. The hypervisor and Service VM
+ * both use the same vector (0xF3) by default, which is reserved as the x86 platform IPI vector for hypervisor
+ * notification to the Service VM.
+ */
 static uint32_t acrn_hsm_notification_vector = HYPERVISOR_CALLBACK_HSM_VECTOR;
-#define MMIO_DEFAULT_VALUE_SIZE_1	(0xFFUL)
-#define MMIO_DEFAULT_VALUE_SIZE_2	(0xFFFFUL)
-#define MMIO_DEFAULT_VALUE_SIZE_4	(0xFFFFFFFFUL)
-#define MMIO_DEFAULT_VALUE_SIZE_8	(0xFFFFFFFFFFFFFFFFUL)
+
+#define MMIO_DEFAULT_VALUE_SIZE_1 (0xFFUL) /**< Default MMIO value for 1-byte size. */
+#define MMIO_DEFAULT_VALUE_SIZE_2 (0xFFFFUL) /**< Default MMIO value for 2-byte size.. */
+#define MMIO_DEFAULT_VALUE_SIZE_4 (0xFFFFFFFFUL) /**< Default MMIO value for 4-byte size. */
+#define MMIO_DEFAULT_VALUE_SIZE_8 (0xFFFFFFFFFFFFFFFFUL) /**< Default MMIO value for 8-byte size. */
+
 
 #if defined(HV_DEBUG)
 __unused static void acrn_print_request(uint16_t vcpu_id, const struct acrn_io_request *req)
@@ -50,9 +81,18 @@ __unused static void acrn_print_request(uint16_t vcpu_id, const struct acrn_io_r
 #endif
 
 /**
- * @brief Reset all IO requests status of the VM
+ * @brief Reset all IO requests status of the VM.
  *
- * @param vm The VM whose IO requests to be reset
+ * Reset all IO requests status of the VM to ACRN_IOREQ_STATE_FREE.
+ * This function is called when reset a VM.
+ *
+ * @param[in] vm Pointer to a VM whose I/O requests needs to be reset.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 void reset_vm_ioreqs(struct acrn_vm *vm)
 {
@@ -64,7 +104,20 @@ void reset_vm_ioreqs(struct acrn_vm *vm)
 }
 
 /**
- * @pre vm->asyncio_lock is held
+ * @brief Check if there is conflicting asyncio information in the queue.
+ *
+ * Search the asyncio descriptor queue to find if there is conflicting asyncio information.
+ *
+ * @param[in] vm Pointer to the target VM to deliver asynchronous I/O.
+ * @param[in] async_info Pointer to asyncio information to check.
+ *
+ * @return true if a conflicting asyncio information is found, false if none.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark vm->asyncio_lock is held
  */
 static bool asyncio_is_conflict(struct acrn_vm *vm,
 	const struct acrn_asyncio_info *async_info)
@@ -90,6 +143,21 @@ static bool asyncio_is_conflict(struct acrn_vm *vm,
 	return ret;
 }
 
+/**
+ * @brief Add asyncio to queue.
+ *
+ * Search address in \p vm->aiodesc_queue. If not added, add the io address in the \p async_info
+ * to \p vm->aiodesc_queue.
+ *
+ * @param[in] vm Pointer to target VM data structure.
+ * @param[in] async_info Pointer to asyncio info to add.
+ *
+ * @return 0 on successfully adding asyncio information to the Async IO descriptor queue, otherwise returns -1.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 int add_asyncio(struct acrn_vm *vm, const struct acrn_asyncio_info *async_info)
 {
 	uint32_t i;
@@ -126,6 +194,21 @@ int add_asyncio(struct acrn_vm *vm, const struct acrn_asyncio_info *async_info)
 	return ret;
 }
 
+/**
+ * @brief Remove asyncio node.
+ *
+ * Search address in \p vm->aiodesc_queue. If matched, remove the io address in the \p async_info
+ * from \p vm->aiodesc_queue and clear \p aio_desc array.
+ *
+ * @param[in] vm Pointer to target VM data structure.
+ * @param[in] async_info Pointer to asyncio info to remove.
+ *
+ * @return 0 on successfully removing asyncio information from the Async IO descriptor queue, otherwise returns -1.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 int remove_asyncio(struct acrn_vm *vm, const struct acrn_asyncio_info *async_info)
 {
 	uint32_t i;
@@ -159,11 +242,38 @@ int remove_asyncio(struct acrn_vm *vm, const struct acrn_asyncio_info *async_inf
 	return ret;
 }
 
+/**
+ * @brief Check if the io request has finished processing.
+ *
+ * Read the state of io request in share memory. Check if DM has finish processing the io request.
+ *
+ * @param[in] vcpu Check IO requests state for the vCPU.
+ *
+ * @return True on complete, false on processing.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static inline bool has_complete_ioreq(const struct acrn_vcpu *vcpu)
 {
 	return (get_io_req_state(vcpu->vm, vcpu->vcpu_id) == ACRN_IOREQ_STATE_COMPLETE);
 }
 
+/**
+ * @brief Find match \p asyncio_desc.
+ *
+ * Find a match \p asyncio_desc which address is consistent with the io request.
+ *
+ * @param[in] vcpu Pointer to vcpu which process the io request.
+ * @param[in] io_req The I/O request holding the details of the IO access.
+ *
+ * @return Return \p asyncio_desc pointer on success, otherwise return NULL.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static struct asyncio_desc *get_asyncio_desc(struct acrn_vcpu *vcpu, const struct io_request *io_req)
 {
 	uint64_t addr = 0UL;
@@ -213,6 +323,22 @@ static struct asyncio_desc *get_asyncio_desc(struct acrn_vcpu *vcpu, const struc
 	return ret;
 
 }
+
+/**
+ * @brief Deliver async io request to Service VM.
+ *
+ * Copy the async io request to share memory and to then fire HSM Vector Interrupt to
+ * notify HSM to handle it. Return immediately after delivery.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access
+ * @param[in] asyncio_fd The I/O request holding the details of the MMIO access
+ *
+ * @return 0 on successful delivery of asyncio fd to the Service VM, -ENODEV if no shared buffer is available.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, uint64_t asyncio_fd)
 {
 	struct acrn_vm *vm = vcpu->vm;
@@ -238,13 +364,31 @@ static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, uint64_t asyncio_fd)
 	}
 	return ret;
 }
+
 /**
- * @brief Deliver \p io_req to Service VM and suspend \p vcpu till its completion
+ * @brief Deliver \p io_req to the Service VM.
  *
- * @param vcpu The virtual CPU that triggers the MMIO access
- * @param io_req The I/O request holding the details of the MMIO access
+ * Insert \p io_req into \p vm->sw.io_shared_page, which is memory shared between the hypervisor and the Service OS
+ * specifically for I/O requests. Then trigger the HSM interrupt. Suspend \p vcpu until its completion.
  *
- * @pre vcpu != NULL && io_req != NULL
+ * If I/O completion polling mode is enabled, periodically check whether the DM has completed the processing
+ * of the I/O request. The state used for checking is written inside shared memory between the Hypervisor and
+ * the Service OS.
+ * If I/O completion polling mode is disabled, the thread will sleep until it is awakened by the \p VCPU_EVENT_IOREQ
+ * event. When the DM finishes completing the I/O request, the HSM sends a hypercall as \p HC_NOTIFY_REQUEST_FINISH,
+ * which wakes the sleeping thread.
+ *
+ * Rescheduling will be conducted as needed in this process.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access
+ * @param[in] io_req The I/O request holding the details of the MMIO access
+ *
+ * @retval 0 Successfully insert the io request.
+ * @retval -EINVAL No usable buffer for io request.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_req)
 {
@@ -307,6 +451,21 @@ static int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_reque
 	return ret;
 }
 
+/**
+ * @brief Get IO requests state
+ *
+ * Get IO requests state for the vCPU. This state is used to synchronize the processing state
+ * of io request between HSM and hypervisor.
+ *
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] vcpu_id  'vcpu_id' for which vcpu to get IO requests state.
+ *
+ * @return The io request state for the vCPU.
+ *
+ * @pre vcpu_id < ACRN_IO_REQUEST_MAX
+ *
+ * @post N/A
+ */
 uint32_t get_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id)
 {
 	uint32_t state;
@@ -326,6 +485,22 @@ uint32_t get_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id)
 	return state;
 }
 
+/**
+ * @brief Set IO requests status
+ *
+ * Set IO requests state for the vCPU. This state is used to synchronize the processing state
+ * of io request between HSM and hypervisor.
+ *
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] vcpu_id 'vcpu_id' for which vcpu to set IO requests state.
+ * @param[in] state The state to set ioreq.
+ *
+ * @return None.
+ *
+ * @pre vcpu_id < ACRN_IO_REQUEST_MAX
+ *
+ * @post N/A
+ */
 void set_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id, uint32_t state)
 {
 	union acrn_io_request_buffer *req_buf = NULL;
@@ -346,6 +521,24 @@ void set_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id, uint32_t state)
 	}
 }
 
+/**
+ * @brief Initialize asyncio module.
+ *
+ * This function used to initialize asyncio module. Set the share memory address for asyncio,
+ * initialize \p aiodesc_queue and \p asyncio_lock.
+ *
+ * @param[in] vm Pointer to target VM data structure.
+ * @param[in] sbuf Pointer to the share memory.
+ *
+ * @return Always return 0 to indicate a successful emulation of MMIO read/write.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark Asyncio module initializes when Device Model set share memory address by hypercall.
+ * For a VM, it's effective only the first time this function execute.
+ */
 int init_asyncio(struct acrn_vm *vm, struct shared_buf *sbuf)
 {
 	vm->sw.asyncio_sbuf = sbuf;
@@ -355,11 +548,35 @@ int init_asyncio(struct acrn_vm *vm, struct shared_buf *sbuf)
 	return 0;
 }
 
+/**
+ * @brief Set HSM notifier vector.
+ *
+ * Switch the vector by which hypervisor notify HSM in the Service OS kernel.
+ *
+ * @param[in] vector Vector id used to call HSM.
+ *
+ * @return None.
+ *
+ * @pre vector < NR_MAX_VECTOR && vector > VECTOR_DYNAMIC_START
+ *
+ * @post N/A
+ */
 void set_hsm_notification_vector(uint32_t vector)
 {
 	acrn_hsm_notification_vector = vector;
 }
 
+/**
+ * @brief Get HSM notifier vector
+ *
+ * Get the vector by which hypervisor notify HSM in the Service OS kernel.
+ *
+ * @return Vector id used to notify HSM.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 uint32_t get_hsm_notification_vector(void)
 {
 	return acrn_hsm_notification_vector;
@@ -368,10 +585,18 @@ uint32_t get_hsm_notification_vector(void)
 /**
  * @brief General complete-work for MMIO emulation
  *
- * @param vcpu The virtual CPU that triggers the MMIO access
- * @param io_req The I/O request holding the details of the MMIO access
+ * This function is called in the completion workflow for MMIO operations emulated
+ * by the device model. For read operations, call emulate_instruction to do the
+ * instruction emulation for which caused a trap.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access
+ * @param[in] io_req The I/O request holding the details of the MMIO access
+ *
+ * @return None.
  *
  * @pre io_req->io_type == ACRN_IOREQ_TYPE_MMIO
+ *
+ * @post N/A
  *
  * @remark This function must be called when \p io_req is completed, after
  * either a previous call to emulate_io() returning 0 or the corresponding HSM
@@ -387,6 +612,23 @@ static void emulate_mmio_complete(struct acrn_vcpu *vcpu, const struct io_reques
 	}
 }
 
+/**
+ * @brief Common complete-work for all kinds of HSM requests for I/O emulation
+ *
+ * This function finishes the I/O request process which is emulated in the Service VM.
+ * First, it copies the I/O request result value from the shared memory between the hypervisor
+ * and the Service OS. Then, it clears the I/O request state for the vCPU to prepare for the
+ * next I/O request.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the IO access
+ * @param[in] io_req Pointer to the I/O operation request info.
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 static void complete_ioreq(struct acrn_vcpu *vcpu, struct io_request *io_req)
 {
 	union acrn_io_request_buffer *req_buf = NULL;
@@ -423,7 +665,19 @@ static void complete_ioreq(struct acrn_vcpu *vcpu, struct io_request *io_req)
 /**
  * @brief Complete-work of HSM requests for port I/O emulation
  *
+ * This is the completion workflow for port I/O operations emulated by the device model. In the process,
+ * copies the I/O request result value from the shared memory between the hypervisor and the Service OS,
+ * and clear the I/O request state in the shared memory to prepare for the next I/O request. Then, for
+ * read operations, call emulate_pio_complete to emulate the behavior of the trapped
+ * instruction and update the RAX in the guest context.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access.
+ *
+ * @return None.
+ *
  * @pre vcpu->req.io_type == ACRN_IOREQ_TYPE_PORTIO
+ *
+ * @post N/A
  *
  * @remark This function must be called after the HSM request corresponding to
  * \p vcpu being transferred to the COMPLETE state.
@@ -440,9 +694,18 @@ static void dm_emulate_pio_complete(struct acrn_vcpu *vcpu)
 /**
  * @brief Complete-work of HSM requests for MMIO emulation
  *
- * @param vcpu The virtual CPU that triggers the MMIO access
+ * This is the completion workflow for port I/O operations emulated by the device model. In the process,
+ * copies the I/O request result value from the shared memory between the hypervisor and the Service OS,
+ * and clear the I/O request state in the shared memory to prepare for the next I/O request. Then, for
+ * read operations, call emulate_mmio_complete to do the instruction emulation for which caused a trap.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access.
+ *
+ * @return None.
  *
  * @pre vcpu->req.io_type == ACRN_IOREQ_TYPE_MMIO
+ *
+ * @post N/A
  *
  * @remark This function must be called after the HSM request corresponding to
  * \p vcpu being transferred to the COMPLETE state.
@@ -459,7 +722,23 @@ static void dm_emulate_mmio_complete(struct acrn_vcpu *vcpu)
 /**
  * @brief General complete-work for all kinds of HSM requests for I/O emulation
  *
- * @param vcpu The virtual CPU that triggers the MMIO access
+ * This is the general completion workflow for I/O operations emulated by the device model.
+ * If vcpu is in Zombie state and will be destroyed soon, just mark ioreq done and don't resume vcpu.
+ * In other states, this function processes the completion according to io type:
+ * - For \p ACRN_IOREQ_TYPE_MMIO, call \p dm_emulate_mmio_complete to obtain the result value from the
+ * Service OS, and clear the I/O request state in the shared memory to prepare for the next I/O request.
+ * For read operations, emulate the behavior of the trapped instruction.
+ * - For \p ACRN_IOREQ_TYPE_PORTIO and \p ACRN_IOREQ_TYPE_PCICFG, call \p dm_emulate_pio_complete to
+ * obtain the result, mark ioreq done. For read operations, update the RAX register directly.
+ * - For other io types, call \p complete_ioreq to mark ioreq done.
+ *
+ * @param[in] vcpu The virtual CPU that triggers the MMIO access
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static void dm_emulate_io_complete(struct acrn_vcpu *vcpu)
 {
@@ -503,9 +782,20 @@ static void dm_emulate_io_complete(struct acrn_vcpu *vcpu)
 }
 
 /**
- * @pre width < 8U
- * @pre vcpu != NULL
- * @pre vcpu->vm != NULL
+ * @brief Set a default value to PIO read request.
+ *
+ * Default PIO read handler for Service VM and Pre-launch VM :
+ * - For PIO read,  set all bit to 1 as a default value.
+ *
+ * @param[in] vcpu Pointer to vCPU which receive the io request
+ * @param[in] addr Unused parameter in this function
+ * @param[in] width Bytes of the value.
+ *
+ * @return Always return true to indicate a successful emulation of PIO read.
+ *
+ * @pre width < 4U
+ *
+ * @post N/A
  */
 static bool pio_default_read(struct acrn_vcpu *vcpu,
 	__unused uint16_t addr, size_t width)
@@ -518,9 +808,21 @@ static bool pio_default_read(struct acrn_vcpu *vcpu,
 }
 
 /**
- * @pre width < 8U
- * @pre vcpu != NULL
- * @pre vcpu->vm != NULL
+ * @brief Set a default value to PIO write request.
+ *
+ * Default PIO write handler for Service VM and Pre-launch VM :
+ * - For PIO write,  do nothing just return success.
+ *
+ * @param[in] vcpu Pointer to vCPU which receive the io request.
+ * @param[in] addr Unused parameter in this function.
+ * @param[in] width Bytes of the value.
+ * @param[in] v Unused parameter in this function.
+ *
+ * @return Always return true to indicate a successful emulation of PIO write.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static bool pio_default_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t addr,
 	__unused size_t width, __unused uint32_t v)
@@ -529,8 +831,21 @@ static bool pio_default_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t
 }
 
 /**
+ * @brief Set a default value to MMIO read request.
+ *
+ * Default mmio handler for Service VM and Pre-launch VM.
+ * - For MMIO read,  set all bit to 1 as a default value.
+ * - For MMIO write, do nothing just return success.
+ *
+ * @param[in] io_req The I/O request holding the details of the IO access.
+ * @param[in] handler_private_data Unused parameter.
+ *
+ * @return Always return 0 to indicate a successful emulation of MMIO read/write.
+ *
  * @pre (io_req->reqs.mmio.size == 1U) || (io_req->reqs.mmio.size == 2U) ||
  *      (io_req->reqs.mmio.size == 4U) || (io_req->reqs.mmio.size == 8U)
+ *
+ * @post N/A
  */
 static int32_t mmio_default_access_handler(struct io_request *io_req,
 	__unused void *handler_private_data)
@@ -561,14 +876,24 @@ static int32_t mmio_default_access_handler(struct io_request *io_req,
 }
 
 /**
- * Try handling the given request by any port I/O handler registered in the
- * hypervisor.
+ * @brief Try emulating port I/O in the hypervisor.
  *
- * @pre io_req->io_type == ACRN_IOREQ_TYPE_PORTIO
+ * Search the port I/O nodes by address. If there is a node whose address range contains the
+ * accessing address, call the response read/write handler of the node to emulate the PIO.
+ * If there is no suitable node, return \p -ENODEV. Then the \p io_req will be delivered
+ * to the HSM, and the Service OS will emulate the I/O behavior.
+ *
+ * @param[in] vcpu Pointer to vCPU that initiates the hypercall.
+ * @param[in] io_req The I/O request holding the details of the IO access.
+ *
+ * @return An int32_t value indicating whether port I/O emulated by hypervisor successfully.
  *
  * @retval 0 Successfully emulated by registered handlers.
  * @retval -ENODEV No proper handler found.
- * @retval -EIO The request spans multiple devices and cannot be emulated.
+ *
+ * @pre io_req->io_type == ACRN_IOREQ_TYPE_PORTIO
+ *
+ * @post N/A
  */
 static int32_t
 hv_emulate_pio(struct acrn_vcpu *vcpu, struct io_request *io_req)
@@ -625,14 +950,26 @@ hv_emulate_pio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 }
 
 /**
- * Use registered MMIO handlers on the given request if it falls in the range of
- * any of them.
+ * @brief Try emulating MMIO in the hypervisor.
  *
- * @pre io_req->io_type == ACRN_IOREQ_TYPE_MMIO
+ * Search the MMIO nodes by address. If there is a node whose address range contains the
+ * accessing address, call the response read/write handler of the node to emulate the PIO.
+ * If there is no suitable node, return \p -ENODEV. If the request address spans multiple
+ * devices, return \p -EIO. Then the \p io_req will be delivered to the HSM, and the
+ * Service OS will emulate the I/O behavior.
+ *
+ * @param[in] vcpu Pointer to vCPU that initiates the hypercall.
+ * @param[in] io_req The I/O request holding the details of the IO access.
+ *
+ * @return An int32_t value indicating whether MMIO emulated by hypervisor successfully.
  *
  * @retval 0 Successfully emulated by registered handlers.
  * @retval -ENODEV No proper handler found.
  * @retval -EIO The request spans multiple devices and cannot be emulated.
+ *
+ * @pre io_req->io_type == ACRN_IOREQ_TYPE_MMIO || io_req->io_type == ACRN_IOREQ_TYPE_WP
+ *
+ * @post N/A
  */
 static int32_t
 hv_emulate_mmio(struct acrn_vcpu *vcpu, struct io_request *io_req)
@@ -694,23 +1031,27 @@ hv_emulate_mmio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 }
 
 /**
- * @brief Emulate \p io_req for \p vcpu
+ * @brief Emulation PIO/MMIO device behavior.
  *
  * Handle an I/O request by either invoking a hypervisor-internal handler or
  * deliver to HSM.
+ * Try emulating I/O in hypervisor first. If no proper handler found, send the request to
+ * HSM and devicemodle implements the emulation.
+ * Besides asyncio, the emulation finishes in this function.
  *
- * @pre vcpu != NULL
- * @pre vcpu->vm != NULL
- * @pre vcpu->vm->vm_id < CONFIG_MAX_VM_NUM
+ * @param[in] vcpu The pointer to vCPU that process the instruction.
+ * @param[in] io_req The pointer I/O request holding the details of the IO access.
  *
- * @param vcpu The virtual CPU that triggers the MMIO access
- * @param io_req The I/O request holding the details of the MMIO access
+ * @return An int32_t value indicating whether I/O request handle successfully.
  *
- * @retval 0 Successfully emulated by registered handlers.
- * @retval ACRN_IOREQ_STATE_PENDING The I/O request is delivered to HSM.
+ * @retval 0 The I/O request is delivered to HSM.
  * @retval -EIO The request spans multiple devices and cannot be emulated.
- * @retval -EINVAL \p io_req has an invalid io_type.
- * @retval <0 on other errors during emulation.
+ * @retval -EINVAL \p io_req has an invalid io_type or fail to deliver io_req to Seveice VM.
+ * @retval -ENODEV A pre-launched VM accessed an address that does not match any I/O address range.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 int32_t
 emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req)
@@ -775,12 +1116,25 @@ emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req)
 /**
  * @brief Register a port I/O handler
  *
- * @param vm      The VM to which the port I/O handlers are registered
- * @param pio_idx The emulated port io index
- * @param range   The emulated port io range
- * @param io_read_fn_ptr The handler for emulating reads from the given range
- * @param io_write_fn_ptr The handler for emulating writes to the given range
+ * This API registers a pio handler to vm.
+ * This function creates a pio emulate descriptor with an address range and read/write handlers.
+ * When Guest OS accesses PIO addresses, hypervisor searches in pio emulation array.
+ * If the address range matches, hypervisor calls the handler in the pio emulation descriptor and
+ * return emulation result.
+ * For Service OS has direct access to whole PIO by default, disable the direct access to the
+ * address range to trap this PIO access for Service OS.
+ *
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] pio_idx The emulated port io index
+ * @param[in] range The emulated port io range
+ * @param[in] io_read_fn_ptr The handler for emulating reads from the given range
+ * @param[in] io_write_fn_ptr The handler for emulating writes to the given range
+ *
+ * @return None.
+ *
  * @pre pio_idx < EMUL_PIO_IDX_MAX
+ *
+ * @post N/A
  */
 void register_pio_emulation_handler(struct acrn_vm *vm, uint32_t pio_idx,
 		const struct vm_io_range *range, io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr)
@@ -795,13 +1149,19 @@ void register_pio_emulation_handler(struct acrn_vm *vm, uint32_t pio_idx,
 }
 
 /**
- * @brief Find match MMIO node
+ * @brief Find MMIO node
  *
- * This API find match MMIO node from \p vm.
+ * This API find match MMIO node which address range is completely consistent in the VM.
  *
- * @param vm The VM to which the MMIO node is belong to.
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] start The base address of the range can emulate read/write.
+ * @param[in] end The end of the range (exclusive) can emulate read/write.
  *
  * @return If there's a match mmio_node return it, otherwise return NULL;
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static inline struct mem_io_node *find_match_mmio_node(struct acrn_vm *vm,
 				uint64_t start, uint64_t end)
@@ -832,9 +1192,13 @@ static inline struct mem_io_node *find_match_mmio_node(struct acrn_vm *vm,
  *
  * This API find a free MMIO node from \p vm.
  *
- * @param vm The VM to which the MMIO node is belong to.
+ * @param[in] vm Pointer that points to VM data structure.
  *
- * @return If there's a free mmio_node return it, otherwise return NULL;
+ * @return If there's a free mmio_node return it, otherwise return NULL.
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 static inline struct mem_io_node *find_free_mmio_node(struct acrn_vm *vm)
 {
@@ -854,13 +1218,25 @@ static inline struct mem_io_node *find_free_mmio_node(struct acrn_vm *vm)
 /**
  * @brief Register a MMIO handler
  *
- * This API registers a MMIO handler to \p vm
+ * This API registers a MMIO handler to vm.
+ * This function creates a mmio node with an address range and a callback handler.
+ * When Guest OS accesses MMIO addresses, hypervisor searches in mmio nodes. If the address range matches,
+ * hypervisor calls the handler in the mmio node and return emulation result.
  *
- * @param vm The VM to which the MMIO handler is registered
- * @param read_write The handler for emulating accesses to the given range
- * @param start The base address of the range \p read_write can emulate
- * @param end The end of the range (exclusive) \p read_write can emulate
- * @param handler_private_data Handler-specific data which will be passed to \p read_write when called
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] read_write The handler for emulating accesses to the given range.
+ * @param[in] start The base address of the range \p read_write can emulate.
+ * @param[in] end The end of the range (exclusive) \p read_write can emulate.
+ * @param[in] handler_private_data Handler-specific data which will be passed to \p read_write when called.
+ * @param[in] hold_lock Indicate whether hold the spin lock while hypervisor emulate MMIO read/write.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark A free mmio_node is required.
  */
 void register_mmio_emulation_handler(struct acrn_vm *vm,
 	hv_mem_io_handler_t read_write, uint64_t start,
@@ -888,11 +1264,17 @@ void register_mmio_emulation_handler(struct acrn_vm *vm,
 /**
  * @brief Unregister a MMIO handler
  *
- * This API unregisters a MMIO handler to \p vm
+ * This API unregisters an MMIO handler whose address range matches by resetting the mmio_node to 0.
  *
- * @param vm The VM to which the MMIO handler is unregistered
- * @param start The base address of the range which wants to unregister
- * @param end The end of the range (exclusive) which wants to unregister
+ * @param[in] vm Pointer that points to VM data structure.
+ * @param[in] start The base address of the range which wants to unregister
+ * @param[in] end The end of the range (exclusive) which wants to unregister
+ *
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
  */
 void unregister_mmio_emulation_handler(struct acrn_vm *vm,
 					uint64_t start, uint64_t end)
@@ -906,9 +1288,25 @@ void unregister_mmio_emulation_handler(struct acrn_vm *vm,
 	}
 	spinlock_release(&vm->emul_mmio_lock);
 }
-
+/**
+ * @brief Deinit IO emulation
+ *
+ * Deinit hypervisor IO emulation module. Reset PIO & MMIO emulate nodes to zero.
+ *
+ * @param[inout] vm The VM to which the IO nodes are belong to.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
 void deinit_emul_io(struct acrn_vm *vm)
 {
 	(void)memset(vm->emul_mmio, 0U, sizeof(vm->emul_mmio));
 	(void)memset(vm->emul_pio, 0U, sizeof(vm->emul_pio));
 }
+
+/**
+ * @}
+ */
