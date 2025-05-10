@@ -18,7 +18,7 @@
 
 #define DBG_LEVEL_VM_BZIMAGE	6U
 
-/* Define a memory block to store LaaG VM load params in guest address space
+/* Define a struct to store LaaG VM load params in guest address space
  * The params including:
  *	Init GDT entries : 1KB (must be 8byte aligned)
  *	Linux Zeropage : 4KB
@@ -26,21 +26,18 @@
  *	EFI memory map : MAX_EFI_MMAP_ENTRIES * sizeof(struct efi_memory_desc)
  *	Reserved region for trampoline code : 8KB
  * Each param should keep 8byte aligned and the total region should be able to put below MEM_1M.
- * Please note in Linux VM, the last 8KB space below MEM_1M is for trampoline code. The block
- * should be able to accommodate it so that avoid the trampoline corruption. So the params size is:
- * (MEM_1K + MEM_4K + MEM_2K + 40B * MAX_EFI_MMAP_ENTRIES + MEM_8K)
+ * Please note in Linux VM, the last 8KB space below MEM_1M is for trampoline code. The struct
+ * should accommodate it to avoid the trampoline corruption.
  */
+struct bzimage_boot_para {
+	char init_gdt[MEM_1K];
+	struct zero_page zeropage;
+	char cmdline[MAX_BOOTARGS_SIZE];
 #ifdef CONFIG_MULTIBOOT2
-#define BZIMG_LOAD_PARAMS_SIZE			(MEM_1K * 15U + MAX_EFI_MMAP_ENTRIES * sizeof(struct efi_memory_desc))
-#else
-#define BZIMG_LOAD_PARAMS_SIZE			(MEM_1K * 15U)
+	struct efi_memory_desc efi_mmap[MAX_EFI_MMAP_ENTRIES];
 #endif
-#define BZIMG_INITGDT_GPA(load_params_gpa)	((load_params_gpa) + 0UL)
-#define BZIMG_ZEROPAGE_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K)
-#define BZIMG_CMDLINE_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K + MEM_4K)
-#ifdef CONFIG_MULTIBOOT2
-#define BZIMG_EFIMMAP_GPA(load_params_gpa)	((load_params_gpa) + MEM_1K + MEM_4K + MEM_2K)
-#endif
+	char reserved_trampoline[MEM_4K * 2];
+} __packed __aligned(8);
 
 /* TODO:
  * The value is referenced from Linux boot protocal for old kernels,
@@ -274,13 +271,13 @@ static uint64_t create_zero_page(struct acrn_vm *vm, uint64_t load_params_gpa)
 	struct sw_module_info *ramdisk_info = &(vm->sw.ramdisk_info);
 	uint64_t gpa, addr;
 
-	gpa = BZIMG_ZEROPAGE_GPA(load_params_gpa);
+	gpa = load_params_gpa + offsetof(struct bzimage_boot_para, zeropage);
 	hva = (struct zero_page *)gpa2hva(vm, gpa);
 	zeropage = hva;
 
 	stac();
 	/* clear the zeropage */
-	(void)memset(zeropage, 0U, MEM_4K);
+	(void)memset(zeropage, 0U, sizeof(struct zero_page));
 
 #ifdef CONFIG_MULTIBOOT2
 	if (is_service_vm(vm)) {
@@ -288,7 +285,7 @@ static uint64_t create_zero_page(struct acrn_vm *vm, uint64_t load_params_gpa)
 
 		if (boot_from_uefi(abi)) {
 			struct efi_info *service_vm_efi_info = &zeropage->boot_efi_info;
-			uint64_t efi_mmap_gpa = BZIMG_EFIMMAP_GPA(load_params_gpa);
+			uint64_t efi_mmap_gpa = load_params_gpa + offsetof(struct bzimage_boot_para, efi_mmap);
 			struct efi_memory_desc *efi_mmap_desc = (struct efi_memory_desc *)gpa2hva(vm, efi_mmap_gpa);
 			uint16_t efi_mmap_desc_nr = create_service_vm_efi_mmap_desc(vm, efi_mmap_desc);
 
@@ -382,7 +379,7 @@ static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 		}
 	}
 
-	bootargs_info->load_addr = (void *)BZIMG_CMDLINE_GPA(load_params_gpa);
+	bootargs_info->load_addr = (void *)(load_params_gpa + offsetof(struct bzimage_boot_para, cmdline));
 
 	load_sw_module(vm, bootargs_info);
 
@@ -415,14 +412,15 @@ int32_t bzimage_loader(struct acrn_vm *vm)
 	int32_t ret = -ENOMEM;
 	/* get primary vcpu */
 	struct acrn_vcpu *vcpu = vcpu_from_vid(vm, BSP_CPU_ID);
-	uint64_t load_params_gpa = find_space_from_ve820(vm, BZIMG_LOAD_PARAMS_SIZE, MEM_4K, MEM_1M);
+	uint64_t load_params_gpa = find_space_from_ve820(vm, sizeof(struct bzimage_boot_para), MEM_4K, MEM_1M);
 
 	if (load_params_gpa != INVALID_GPA) {
 		uint64_t kernel_load_gpa = (uint64_t)get_bzimage_kernel_load_addr(vm);
 
 		if (kernel_load_gpa != 0UL) {
 			/* We boot bzImage from protected mode directly */
-			init_vcpu_protect_mode_regs(vcpu, BZIMG_INITGDT_GPA(load_params_gpa));
+			init_vcpu_protect_mode_regs(vcpu, (load_params_gpa +
+					offsetof(struct bzimage_boot_para, init_gdt)));
 
 			load_bzimage(vm, vcpu, load_params_gpa, kernel_load_gpa);
 
