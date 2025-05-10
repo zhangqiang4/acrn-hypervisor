@@ -35,73 +35,113 @@
 #include <asm/apicreg.h>
 
 /**
- * @file vlapic.h
+ * @addtogroup vp-base_vlapic
  *
- * @brief public APIs for virtual LAPIC
+ * @{
  */
 
+/**
+ * @file
+ * @brief This file contains the external data structures and APIs for the vp-base.vlapic module
+ *
+ */
 
-#define VLAPIC_MAXLVT_INDEX	APIC_LVT_CMCI
+#define VLAPIC_MAXLVT_INDEX	APIC_LVT_CMCI /**< Maximum index of Local Vector Table (LVT) registers. */
 
+/**
+ * @brief Data structure to define the virtual Local APIC timer.
+ *
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
+ */
 struct vlapic_timer {
-	struct hv_timer timer;
-	uint32_t mode;
-	uint32_t tmicr;
-	uint32_t divisor_shift;
+	struct hv_timer timer;  /**< hv_timer instance to emulate timer of vlapic */
+	uint32_t mode;  /**< timer mode,  */
+	uint32_t tmicr;  /**< value of Initial Count register (ICR) for timer */
+	uint32_t divisor_shift; /**< shift of Divide Configuration Register(DCR) value */
 };
 
+/**
+ * @brief Data structure to define the vlapic used in ACRN.
+ *
+ * @consistency N/A
+ * @alignment 4096
+ *
+ * @remark N/A
+ */
 struct acrn_vlapic {
-	/*
-	 * Please keep 'apic_page' as the first field in
-	 * current structure, as below alignment restrictions are mandatory
-	 * to support APICv features:
+	/**
+	 * @brief This field is used to cache the virtual LAPIC registers.
+	 *
+	 * Please keep 'apic_page' as the first field in current structure,
+	 * as below alignment restrictions are mandatory to support APICv features:
 	 * - 'apic_page' MUST be 4KB aligned.
+	 *
 	 * IRR, TMR and PIR could be accessed by other vCPUs when deliver
 	 * an interrupt to vLAPIC.
 	 */
 	struct lapic_regs	apic_page;
 
-	uint32_t		vapic_id;
-	uint32_t		esr_pending;
+	uint32_t		vapic_id; /**< Virtual Local APIC ID */
+	uint32_t		esr_pending; /**< Cache ESR(Error Status Register value */
+	/**
+	 * @brief  Injection status of ESR interrupt
+	 *
+	 * 0 means ESR interrupt injection is in-progress otherwise it is 1
+	 */
 	int32_t			esr_firing;
 
-	struct vlapic_timer	vtimer;
+	struct vlapic_timer	vtimer; /**< Emulated local APIC timer */
 
-	/*
-	 * isrv: vector number for the highest priority bit that is set in the ISR
-	 */
-	uint32_t	isrv;
+	uint32_t	isrv;  /**< Vector number for the highest priority bit that is set in the ISR */
 
-	uint64_t	msr_apicbase;
+	uint64_t	msr_apicbase; /**< Cache virtual IA32_APIC_BASE MSR which associates with the virtual LAPIC. */
 
-	const struct acrn_apicv_ops *ops;
+	const struct acrn_apicv_ops *ops; /**< Pointer to APICv callback instance of struct acrn_apicv_ops */
 
-	/*
-	 * Copies of some registers in the virtual APIC page. We do this for
-	 * a couple of different reasons:
-	 * - to be able to detect what changed (e.g. svr_last)
-	 * - to maintain a coherent snapshot of the register (e.g. lvt_last)
-	 */
-	uint32_t	svr_last;
-	uint32_t	lvt_last[VLAPIC_MAXLVT_INDEX + 1];
+	uint32_t	svr_last; /**< Store last value of SVR */
+	uint32_t	lvt_last[VLAPIC_MAXLVT_INDEX + 1]; /**< Store last values of LVT registers */
 } __aligned(PAGE_SIZE);
 
 
 struct acrn_vcpu;
-struct acrn_apicv_ops {
-	void (*accept_intr)(struct acrn_vlapic *vlapic, uint32_t vector, bool level);
-	void (*inject_intr)(struct acrn_vlapic *vlapic);
-	bool (*has_pending_intr)(struct acrn_vcpu *vcpu);
-	bool (*x2apic_read_msr_may_valid)(uint32_t offset);
-	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
-};
 
 /**
- * @brief virtual LAPIC
+ * @brief Data structure to define the APICv operation callback function types.
  *
- * @addtogroup acrn_vlapic ACRN vLAPIC
- * @{
+ * @consistency N/A
+ * @alignment N/A
+ *
+ * @remark N/A
  */
+struct acrn_apicv_ops {
+	/**
+	 * @brief Accept interrupt callback function type.
+	 */
+	void (*accept_intr)(struct acrn_vlapic *vlapic, uint32_t vector, bool level);
+
+	/**
+	 * @brief Inject interrupt callback function type.
+	 */
+	void (*inject_intr)(struct acrn_vlapic *vlapic);
+
+	/**
+	 * @brief Check pending interrupt callback function type.
+	 */
+	bool (*has_pending_intr)(struct acrn_vcpu *vcpu);
+
+	/**
+	 * @brief Check x2APIC MSR readable callback function type.
+	 */
+	bool (*x2apic_read_msr_may_valid)(uint32_t offset);
+
+	/**
+	 * @brief Check x2APIC MSR writable callback function type.
+	 */
+	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
+};
 
 void vlapic_inject_intr(struct acrn_vlapic *vlapic);
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu);
@@ -120,39 +160,32 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val);
  */
 void vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level);
 
-#define	LAPIC_TRIG_LEVEL	true
-#define	LAPIC_TRIG_EDGE		false
+#define	LAPIC_TRIG_LEVEL	true /**< Trigger mode indicating level-triggered interrupts. */
+#define	LAPIC_TRIG_EDGE		false /**< Trigger mode indicating edge-triggered interrupts. */
 
+/**
+ * @brief Extract the priority level from a given vector value.
+ *
+ * This function calculates the priority level by shifting the input value to the right by 4 bits.
+ *
+ * @param[in] x Input value from which the priority level is to be extracted.
+ *
+ * @return The priority level as a 4-bit integer, ranging from 0 (lowest) to 15 (highest).
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline uint32_t prio(uint32_t x)
 {
 	return (x >> 4U);
 }
 
-/**
- * @brief Triggers LAPIC local interrupt(LVT).
- *
- * @param[in] vcpu           Pointer to vcpu data structure
- * @param[in] lvt_index    The index which LVT would to be fired.
- *
- * @retval 0 on success.
- * @retval -EINVAL on error that vcpu_id_arg or vector of the LVT is invalid.
- *
- * @pre vcpu != NULL
- */
 int32_t vlapic_set_local_intr(struct acrn_vcpu *vcpu, uint32_t lvt_index);
 
-/**
- * @brief Inject MSI to target VM.
- *
- * @param[in] vm   Pointer to VM data structure
- * @param[in] addr MSI address.
- * @param[in] data MSI data.
- *
- * @retval 0 on success.
- * @retval -1 on error that addr is invalid.
- *
- * @pre vm != NULL
- */
+
 int32_t vlapic_inject_msi(struct acrn_vm *vm, uint64_t addr, uint64_t data);
 
 
@@ -160,7 +193,20 @@ int32_t vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest,
 		bool phys, uint32_t delmode, uint32_t vec, bool rh);
 
 /**
- *  @pre vlapic != NULL
+ * @brief Retrieve the virtual APIC ID of a given vlapic.
+ *
+ * This function returns the cached virtual Local APIC ID (`vapic_id`) for the specified virtual
+ * LAPIC (vlapic).
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return The virtual APIC ID of the specified vlapic.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static inline uint32_t vlapic_get_apicid(const struct acrn_vlapic *vlapic)
 {
@@ -168,11 +214,7 @@ static inline uint32_t vlapic_get_apicid(const struct acrn_vlapic *vlapic)
 }
 
 void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id);
-/*
- *  @pre vcpu != NULL
- */
 void vlapic_free(struct acrn_vcpu *vcpu);
-
 void vlapic_reset(struct acrn_vcpu *vcpu);
 uint64_t vlapic_apicv_get_apic_access_addr(void);
 uint64_t vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic);
@@ -184,5 +226,4 @@ uint64_t vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 /**
  * @}
  */
-/* End of acrn_vlapic */
 #endif /* VLAPIC_H */

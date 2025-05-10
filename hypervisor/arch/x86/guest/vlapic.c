@@ -26,7 +26,7 @@
  * $FreeBSD$
  */
 
-#define pr_prefix		"vlapic: "
+#define pr_prefix		"vlapic: " /**< Prefix tag of vp-base.vlapic module for debug message purpose */
 
 #include <types.h>
 #include <errno.h>
@@ -49,27 +49,81 @@
 #include <ticks.h>
 #include "vlapic_priv.h"
 
-#define VLAPIC_VERBOS 0
+/**
+ * @defgroup vp-base_vlapic vp-base.vlapic
+ * @ingroup vp-base
+ * @brief Definitions and implementations for virtual LAPIC.
+ *
+ * This module provides external APIs for creating virtual LAPICs, calculating the
+ * destination vlapic for a specified MSI interrupt, and handling the processing
+ * functions when virtual LAPIC registers are accessed or modified.
+ *
+ * @{
+ */
 
-#define VLAPIC_VERSION		(16U)
-#define	APICBASE_BSP		0x00000100UL
-#define	APICBASE_X2APIC		0x00000400UL
-#define APICBASE_XAPIC		0x00000800UL
-#define APICBASE_LAPIC_MODE	(APICBASE_XAPIC | APICBASE_X2APIC)
-#define	APICBASE_ENABLED	0x00000800UL
-#define LOGICAL_ID_MASK		0xFU
-#define CLUSTER_ID_MASK		0xFFFF0U
+/**
+ * @file
+ * @brief Data structures and functions for the vp-base.vlapic module.
+ *
+ * This file implements the external APIs provided by the vp-base.vlapic module.
+ * Additionally, it includes helper functions to support the implementation of
+ * the features and functionalities offered by these external APIs.
+ */
 
-#define PID_TABLE_ENTRY_VALID	1UL
+#define VLAPIC_VERBOS 0  /**< This macro is used dump virtual local APIC verbose debug message */
 
-#define DBG_LEVEL_VLAPIC		6U
+#define VLAPIC_VERSION        (16U)      /**< APIC version */
+#define APICBASE_BSP          0x00000100UL /**< Mask of BSP bit in IA32_APIC_BASE MSR */
+#define APICBASE_X2APIC       0x00000400UL /**< Mask of x2APIC bit in IA32_APIC_BASE MSR */
+#define APICBASE_XAPIC        0x00000800UL /**< Mask of xAPIC bit in IA32_APIC_BASE MSR */
+#define APICBASE_LAPIC_MODE   (APICBASE_XAPIC | APICBASE_X2APIC) /**< Mask bits APIC mode in IA32_APIC_BASE MSR */
+#define APICBASE_ENABLED      0x00000800UL /**< Mask of APIC global enable/disable bit in IA32_APIC_BASE MSR */
+#define LOGICAL_ID_MASK       0xFU        /**< Mask of logical ID bits in APIC ID */
+#define CLUSTER_ID_MASK       0xFFFF0U    /**< Mask of cluster ID bits in APIC ID */
+#define DBG_LEVEL_VLAPIC      6U          /**< Debug level for virtual LAPIC debug */
 
+#define PID_TABLE_ENTRY_VALID	1UL  /**< Bitmask indicating a valid PID table entry */
+
+
+/**
+ * @brief Get vcpu context pointer from vlapic context.
+ *
+ * @param[in] vlapic pointer to the vlapic to be checked.
+ *
+ * @return Pointer to the vcpu corresponding to the given vlapic.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline struct acrn_vcpu *vlapic2vcpu(const struct acrn_vlapic *vlapic)
 {
 	return container_of(container_of(vlapic, struct acrn_vcpu_arch, vlapic), struct acrn_vcpu, arch);
 }
 
 #if VLAPIC_VERBOS
+/**
+ * @brief Dump values of vISR registers in the virtual APIC page.
+ *
+ * Logs the values of the ISR (In-Service Register) entries for the given
+ * virtual LAPIC (`vlapic`). This provides debugging information about
+ * the state of in-service interrupts in the APIC.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose ISR registers are to be dumped.
+ *                   This represents the virtual LAPIC to be inspected.
+ * @param[in] msg    Pointer to a string used as a debug message tag, providing
+ *                   context for the logged information.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline void vlapic_dump_isr(const struct acrn_vlapic *vlapic, const char *msg)
 {
 	const struct lapic_reg *isrptr = &(vlapic->apic_page.isr[0]);
@@ -79,9 +133,32 @@ static inline void vlapic_dump_isr(const struct acrn_vlapic *vlapic, const char 
 	}
 }
 #else
+/**
+ * @brief Stub function for dumping vISR registers when verbose debugging is disabled.
+ *
+ * Logs nothing when `VLAPIC_VERBOS` is set to 0.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose ISR registers would have been dumped.
+ *                   This is unused in the stub function.
+ * @param[in] msg    Pointer to a string used as a debug message tag. This is also unused.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline void vlapic_dump_isr(__unused const struct acrn_vlapic *vlapic, __unused const char *msg) {}
 #endif
 
+/**
+ * @brief Operation API instance for passthrough APIC features.
+ *
+ * This structure defines the APICv operation API instance, which provides the necessary
+ * operations for guest interrupt handling when local APIC is pass-through to guest.
+ */
 static const struct acrn_apicv_ops ptapic_ops;
 static const struct acrn_apicv_ops apicv_advanced_ops;
 
@@ -92,15 +169,30 @@ static void apicv_trigger_pi_anv(uint16_t dest_pcpu_id, uint32_t anv);
 static int32_t vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val);
 static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic);
 
-/*
- * Post an interrupt to the vcpu running on 'hostcpu'. This will use a
- * hardware assist if available (e.g. Posted Interrupt) or fall back to
- * sending an 'ipinum' to interrupt the 'hostcpu'.
- */
+
 static void vlapic_set_error(struct acrn_vlapic *vlapic, uint32_t mask);
 
 static void vlapic_timer_expired(void *data);
 
+/**
+ * @brief Check if vlapic is enabled.
+ *
+ * This function checks if the virtual LAPIC (vlapic) is enabled by verifying two conditions:
+ * - The APICBASE MSR's enabled flag [bit11] is set.
+ * - The SVR register's enabled flag [bit8] is set.
+ * According to section 12.4.3 Enabling or Disabling the Local APIC, Volume 3,
+ * Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure that is being checked for being enabled.
+ *
+ * @return Returns true if the vlapic is enabled, otherwise returns false.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline bool vlapic_enabled(const struct acrn_vlapic *vlapic)
 {
 	const struct lapic_regs *lapic = &(vlapic->apic_page);
@@ -109,6 +201,29 @@ static inline bool vlapic_enabled(const struct acrn_vlapic *vlapic)
 			((lapic->svr.v & APIC_SVR_ENABLE) != 0U));
 }
 
+/**
+ * @brief This function is for converting the vCPU ID to its virtual LAPIC pointer.
+ *
+ * This function looks up the virtual CPU structure (vcpu) based on the given vCPU ID
+ * and then returns the associated pointer to LAPIC (vlapic) structure.
+ *
+ * @param[in] vm        Pointer to the virtual machine structure which the virtual CPU belongs to.
+ *                      This is required to look up the virtual CPU in the correct VM.
+ * @param[in] vcpu_id   The virtual CPU ID, which identifies a specific virtual CPU within the VM.
+ *                      This ID is used to search for the corresponding vCPU in the given VM.
+ *
+ * @return The LAPIC structure corresponding to the specified virtual CPU.
+ *
+ * @retval NULL if no virtual CPU with the given vcpu_id exists in given VM.
+ * @retval Non-NULL pointer to the LAPIC structure if a valid vCPU is found in given VM.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ *
+ */
 static struct acrn_vlapic *
 vm_lapic_from_vcpu_id(struct acrn_vm *vm, uint16_t vcpu_id)
 {
@@ -119,6 +234,24 @@ vm_lapic_from_vcpu_id(struct acrn_vm *vm, uint16_t vcpu_id)
 	return vcpu_vlapic(vcpu);
 }
 
+/**
+ * @brief This function is for converting the LAPIC ID to its vCPU ID.
+ *
+ * This function looks up a given LAPIC ID and returns the corresponding vCPU ID in a given VM.
+ * If no vCPU is found with the given APIC ID, it returns INVALID_CPU_ID.
+ *
+ * @param[in] vm        Pointer to the virtual machine structure which the virtual
+ *                      local APIC belongs to.
+ * @param[in] lapicid   The LAPIC ID.
+ *
+ * @return The converted vCPU ID or INVALID_CPU_ID when there is no vCPU in the given vm.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static uint16_t vm_apicid2vcpu_id(struct acrn_vm *vm, uint32_t lapicid)
 {
 	uint16_t i;
@@ -140,6 +273,26 @@ static uint16_t vm_apicid2vcpu_id(struct acrn_vm *vm, uint32_t lapicid)
 
 }
 
+/**
+ * @brief This function initializes the virtual local x2APIC ID Register and
+ *        Logical Destination Register in x2APIC mode.
+ *
+ * This function sets the values for the virutal local x2APIC ID Register and
+ * Logical Destination Register:
+ * - Local x2APIC ID of virtual LAPIC is initialized with the x2APIC ID of physical local APIC
+ * - Initializes Logical Destination Register (LDR) following section 12.12.10.2 Deriving Logical
+ *   x2APIC ID from the Local x2APIC ID, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[inout] vlapic Pointer to the virtual LAPIC structure for configuration.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline void vlapic_build_x2apic_id(struct acrn_vlapic *vlapic)
 {
 	struct lapic_regs *lapic;
@@ -152,6 +305,26 @@ static inline void vlapic_build_x2apic_id(struct acrn_vlapic *vlapic)
 	lapic->ldr.v = (cluster_id << 16U) | (1U << logical_id);
 }
 
+/**
+ * @brief Calculate the vector number of the highest priority bit set in the ISR
+ *        (Interrupt Service Register) in virtual-APIC page.
+ *
+ * This function iterates over the Interrupt Service Register (ISR) to find the highest
+ * priority interrupt that has its bit set. The priority of interrupts is determined by
+ * the position of the set bit,with higher bit numbers indicating higher priority.
+ * If no bit is set, the function returns 0.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC (vlapic) structure.
+ *
+ * @return The vector number of the highest priority bit that is set in the ISR.
+ *         If no bit is set in the ISR, returns 0x00.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline uint32_t vlapic_find_isrv(const struct acrn_vlapic *vlapic)
 {
 	const struct lapic_regs *lapic = &(vlapic->apic_page);
@@ -159,8 +332,6 @@ static inline uint32_t vlapic_find_isrv(const struct acrn_vlapic *vlapic)
 	const struct lapic_reg *isrptr;
 
 	isrptr = &lapic->isr[0];
-
-	/* i ranges effectively from 7 to 1 */
 	for (i = 7U; i > 0U; i--) {
 		val = isrptr[i].v;
 		if (val != 0U) {
@@ -173,6 +344,22 @@ static inline uint32_t vlapic_find_isrv(const struct acrn_vlapic *vlapic)
 	return isrv;
 }
 
+/**
+ * @brief Calculate the timer shift value from Divide Configuration Register (for Timer).
+ *
+ * This function calculates the shift value for the virtual LAPIC timer based on the value
+ * of the Divide Configuration Register (for Timer) according to Figure 12-10
+ * Divide Configuration Register, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in] dcr Value of Divide Configuration Register.
+ *
+ * @return Returns the calculated shift value based on the Divide Configuration Register
+ *         (for Timer) value.
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline uint32_t
 vlapic_timer_divisor_shift(uint32_t dcr)
 {
@@ -182,6 +369,23 @@ vlapic_timer_divisor_shift(uint32_t dcr)
 	return ((val + 1U) & 0x7U);
 }
 
+/**
+ * @brief Check if timer mode of vlapic timer is One-shot mode.
+ *
+ * This function checks if the timer mode for the virtual LAPIC (vlapic) is
+ * configured as One-shot Mode. it checks LVT timer register (APIC_LVT_TIMER)
+ * according to Table 12-2. Local APIC Timer Modes, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure whose timer mode is to be checked.
+ *
+ * @return Returns true if the timer mode is One-shot Mode, otherwise returns false.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline bool
 vlapic_lvtt_oneshot(const struct acrn_vlapic *vlapic)
 {
@@ -189,6 +393,23 @@ vlapic_lvtt_oneshot(const struct acrn_vlapic *vlapic)
 				== APIC_LVTT_TM_ONE_SHOT);
 }
 
+/**
+ * @brief Check if timer mode of vlapic timer is Periodic Mode.
+ *
+ * This function checks if the timer mode for the virtual LAPIC (vlapic) is
+ * configured as Periodic Mode, it checks LVT timer register (APIC_LVT_TIMER)
+ * according to Table 12-2 Local APIC Timer Modes, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure whose timer mode is to be checked.
+ *
+ * @return Returns true if the timer mode is Periodic Mode, otherwise returns false.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline bool
 vlapic_lvtt_periodic(const struct acrn_vlapic *vlapic)
 {
@@ -196,6 +417,23 @@ vlapic_lvtt_periodic(const struct acrn_vlapic *vlapic)
 				==  APIC_LVTT_TM_PERIODIC);
 }
 
+/**
+ * @brief Check if timer mode of vlapic timer is TSC-Deadline Mode.
+ *
+ * This function checks if the timer mode for the virtual LAPIC (vlapic) is configured as
+ * TSC-Deadline Mode. it checks LVT timer register (APIC_LVT_TIMER) according to
+ * Table 12-2. Local APIC Timer Modes, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure whose timer mode is to be checked.
+ *
+ * @return Returns true if the timer mode is TSC-Deadline Mode, otherwise returns false.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline bool
 vlapic_lvtt_tsc_deadline(const struct acrn_vlapic *vlapic)
 {
@@ -203,6 +441,23 @@ vlapic_lvtt_tsc_deadline(const struct acrn_vlapic *vlapic)
 				==  APIC_LVTT_TM_TSCDLT);
 }
 
+/**
+ * @brief Check vlapic interrupt mask state in LVT timer register.
+ *
+ * This function checks if the timer interrupt for the virtual LAPIC (vlapic)
+ * is masked. It examines the LVT (Local Vector Table) timer register for the timer
+ * according to section 12.5.1 Local Vector Table, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure whose LVT timer register is to be checked.
+ *
+ * @return Returns true if the APIC timer interrupt is masked, otherwise returns false.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline bool
 vlapic_lvtt_masked(const struct acrn_vlapic *vlapic)
 {
@@ -210,7 +465,25 @@ vlapic_lvtt_masked(const struct acrn_vlapic *vlapic)
 }
 
 /**
+ * @brief Initialize vlapic timer.
+ *
+ * This function initializes the virtual LAPIC (vlapic) timer by setting up the
+ * timer structure.
+ *
+ * It clears the vlapic timer state by using `memset`, then it initializes the vlapic timer by
+ * calling initialize_timer function with a timer timeout callback function. When this timer timeout,
+ * this callback function fires a APIC timer LVT interrupt to virtual LAPIC by calling
+ * vlapic_set_intr function if timer interrupt is not masked in LVT Timer Register.
+ *
+ * @param[inout] vlapic Pointer to the vlapic whose timer is to be initialized.
+ *
+ * @return None.
+ *
  * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void vlapic_init_timer(struct acrn_vlapic *vlapic)
 {
@@ -223,7 +496,21 @@ static void vlapic_init_timer(struct acrn_vlapic *vlapic)
 }
 
 /**
+ * @brief Reset vlapic timer.
+ *
+ * This function resets the virtual LAPIC (vlapic) timer by:
+ * - Calling del_timer to delete the timer from the timer list to disarm the timer.
+ * - calling update_timer to update the timer to a clear state.
+ *
+ * @param[inout] vlapic Pointer to the vlapic whose timer is to be reset.
+ *
+ * @return None.
+ *
  * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void vlapic_reset_timer(struct acrn_vlapic *vlapic)
 {
@@ -235,8 +522,28 @@ static void vlapic_reset_timer(struct acrn_vlapic *vlapic)
 }
 
 /**
+ * @brief Get the vlapic timer ratio.
+ *
+ * This function calculates the ratio between the TSC frequency and the core crystal clock
+ * frequency according to section 12.5.4 APIC Timer, Volume 3, Intel SDM 325462-087US.
+ * If this ratio can be enumerated through guest CPUID leaf 0x15, it is used;
+ * otherwise, the default ratio of 1 is returned.
+ *
+ * The CPUID instruction provides detailed processor information, including the TSC to core
+ * crystal clock frequency ratio, which is necessary for proper timer configuration. If the
+ * CPUID leaf 0x15 is unavailable or if the values in the CPUID output are invalid, the
+ * function returns a ratio of 1 by default.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose timer ratio is to be calculated.
+ *
+ * @return The ratio of the TSC frequency to the core crystal clock frequency if CPUID
+ *         leaf 0x15 is available; otherwise, returns 1.
+ *
  * @pre vlapic != NULL
+ *
  * @post return != 0U
+ *
+ * @remark N/A
  */
 static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 {
@@ -249,7 +556,7 @@ static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 		ratio = ebx_numerator / eax_denominator;
 	} else {
 		/* According to section 11.5.4, Vol3, Intel SDM-325384-085US: The APIC timer frequency will be the
-		   processor’s bus clock or core crystal clock frequency (when TSC/core crystal clock ratio is
+		   processor's bus clock or core crystal clock frequency (when TSC/core crystal clock ratio is
 		   enumerated in CPUID leaf 0x15) divided by the value specified in the divide configuration register.
 		   If CPUID leaf 0x15 is not available, there is no exact bus clock that can be used to calculate the
 		   ratio, returns 1 to avoid faults.
@@ -259,6 +566,32 @@ static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 	return ratio;
 }
 
+/**
+ * @brief Configure and arm the vlapic timer.
+ *
+ * This function calculates the timeout counter and starts a one-short or periodic vlapic timer.
+ * The timeout interval is determined by the combination of the Initial Count Register(for Timer),
+ * the timer divisor shift, and the timer ratio.
+ *
+ * If the value of Initial Count Register(for Timer) is 0, or the value in the Divide Configuration
+ * Register is invalid according to Figure 12-10. Divide Configuration Register, Volume 3,
+ * Intel SDM 325462-087US, this function takes no further actions and returns false.
+ *
+ * Otherwise, it updates vlapic timer by calling update_timer function with target timeout value
+ * timer mode which is determined by the configuration in LVT Timer Register according to
+ * Table 12-2. Local APIC Timer Modes, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[inout] vlapic Pointer to the vlapic whose timer is to be configured.
+ *
+ * @return true if the timer is successfully configured; false if the ICR value is zero or the
+ *         divisor shift value exceeds the valid range.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool
 set_expiration(struct acrn_vlapic *vlapic)
 {
@@ -284,6 +617,24 @@ set_expiration(struct acrn_vlapic *vlapic)
 	return ret;
 }
 
+/**
+ * @brief Emulates writing to the LVT Timer Register of the vlapic.
+ *
+ * This function checks if modification is required on the Timer Mode field in
+ * LVT Timer Register, if yes, the vlapic timer is deleted by del_timer function
+ * and reset by calling update_timer function, then update the timer mode with the target value.
+ *
+ * @param[inout] vlapic Pointer to the vlapic whose LVT Timer Register is to be written.
+ * @param[in] val Target value for the LVT Timer Register.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_update_lvtt(struct acrn_vlapic *vlapic,
 			uint32_t val)
 {
@@ -304,6 +655,24 @@ static void vlapic_update_lvtt(struct acrn_vlapic *vlapic,
 	}
 }
 
+/**
+ * @brief Emulates reading the Current Count Register (for Timer) of the vlapic timer.
+ *
+ * This function calculates the remaining counter value of the vlapic timer with divisor shift
+ * and timer ratio, which is calculated according to section 12.5.4 APIC Timer, Volume 3,
+ * Intel SDM 325462-087US.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose Current Count Register (for Timer) is to be read.
+ *
+ * @return The remaining counter value of the timer if it is not configured as TSC-Deadline mode
+ *         and the Initial Count Register (for Timer) value is non-zero. Returns 0 otherwise.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static uint32_t vlapic_get_ccr(const struct acrn_vlapic *vlapic)
 {
 	uint32_t ratio, remain_count = 0U;
@@ -321,6 +690,26 @@ static uint32_t vlapic_get_ccr(const struct acrn_vlapic *vlapic)
 	return remain_count;
 }
 
+/**
+ * @brief Emulates writing the Divide Configuration Register (for Timer) of vlapic.
+ *
+ * This function interprets the value written to the Divide Configuration Register
+ * (for Timer) of the vlapic.
+ * It calculates the divisor shift for the vlapic timer based on the target Divide Configuration
+ * Register (for Timer) value according to Figure 12-10. Divide Configuration Register, Volume 3,
+ * Intel SDM 325462-087US
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure whose Divide Configuration Register
+ *               (for Timer) is to be written.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_write_dcr(struct acrn_vlapic *vlapic)
 {
 	uint32_t divisor_shift;
@@ -332,6 +721,28 @@ static void vlapic_write_dcr(struct acrn_vlapic *vlapic)
 	vtimer->divisor_shift = divisor_shift;
 }
 
+/**
+ * @brief Emulates writing the Initial Count Register (for Timer) for the vlapic timer.
+ *
+ * This function emulates writing to the initial-count register to start the one-shot or periodic
+ * mode timer.
+ *
+ * It checks whether the current timer mode is one-shot or periodic, if yes, it calls del_timer to
+ * disarm the existing timer, then calcuate the expiration count according to section 12.5.4
+ * APIC Timer, Volume 3, Intel SDM 325462-087US and calls add_timer to start the one-shot or
+ * periodic timer, which depends on the timer mode configured in LVT Timer Register.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure whose Initial Count Register
+ *               (for Timer) is to be written.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_write_icrtmr(struct acrn_vlapic *vlapic)
 {
 	struct lapic_regs *lapic;
@@ -353,6 +764,37 @@ static void vlapic_write_icrtmr(struct acrn_vlapic *vlapic)
 	}
 }
 
+/**
+ * @brief Emulates the read operation of the IA32_TSC_DEADLINE MSR for a vlapic.
+ *
+ * This function calculates the emulated value of the IA32_TSC_DEADLINE MSR for both
+ * LAPIC pass-through and virtual APIC cases. It determines the value based on the
+ * configuration, the timer's mode, and its current state.
+ *
+ * In LAPIC pass-through mode:
+ * - If the physical TSC deadline MSR is zero, indicating the timer is disarmed, the
+ *   function resets the virtual TSC deadline MSR to zero and returns 0.
+ * - Otherwise, it returns the virtual TSC deadline MSR value.
+ *
+ * In LAPIC Virtualization mode:
+ * - If the Local Vector Table Timer (LVTT) is not configured for TSC deadline mode,
+ *   the function returns 0.
+ * - If the timer is active, returns 0 if the deadline has expired, otherwise, returns the
+ *   virtual TSC deadline MSR value.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose IA32_TSC_DEADLINE MSR is to be read.
+ *
+ * @return Return 0 if the timer is not configured as TSC-Deadline mode or the physical value
+ *         of MSR IA32_TSC_DEADLINE is 0 for the APIC pass-through case. Otherwise, return the
+ *         value of MSR IA32_TSC_DEADLINE of vlapic.
+ *
+ * @pre vlapic->vcpu != NULL
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic)
 {
 	uint64_t ret;
@@ -379,6 +821,39 @@ uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic)
 	return ret;
 }
 
+/**
+ * @brief Set the value of the virtual IA32_TSC_DEADLINE MSR for a given vlapic.
+ *
+ * This function writes a specified value to the IA32_TSC_DEADLINE MSR of the vlapic. Depending on
+ * the configuration and intent (arming or disarming the timer), the function either updates the
+ * physical MSR or adjusts the virtual timer according to section 12.5.4.1 TSC-Deadline Mode,
+ * Volume 3, Intel SDM 325462-087US.
+ *
+ * For lapic pass-through, the function writes to the guest MSR with given value by calling
+ * vcpu_set_guest_msr function and also directly writes to the physical MSR by calling msr_write
+ * with adjusted value from VMX_TSC_OFFSET_FULL. To avoid disarming the physical timer
+ * unintentionally, it adjusts the value if the calculated TSC deadline is zero while the intent
+ * is to arm the timer. If the value is zero, the function disarms the physical timer.
+ *
+ * For virtual LAPICs using TSC deadline mode, the function sets the value in the virtual MSR and
+ * schedules or disarms the virtual timer as necessary.
+ * If the TSC deadline is zero, the timer is disarmed by calling update_timer function.
+ * When arming the timer, the provided `val_arg` is adjusted for the TSC offset to synchronize
+ * with the host's TSC, then a One-short vlapic timer is scheduled to emuate this TSC timer
+ * by calling update_timer and add_timer function.
+ *
+ * If the TSC deadline timer is unsupported or unnecessary, the function performs no action.
+ *
+ * @param[out] vlapic Pointer to the vlapic structure whose IA32_TSC_DEADLINE MSR is to be updated.
+ * @param[in] val_arg The value to be written to the IA32_TSC_DEADLINE MSR.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ * @pre vlapic->vcpu != NULL
+ *
+ * @post N/A
+ */
 void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 {
 	struct hv_timer *timer;
@@ -425,6 +900,27 @@ void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 	}
 }
 
+/**
+ * @brief Handle the write operation for Error Status Register (ESR) in the vlapic register page.
+ *
+ * According to section 12.5.3 Error Handling, Volume 3, Intel SDM 325462-087US, Before attempt
+ * to read from the ESR, software should first write to it. Writing to the ESR clears any
+ * previously logged errors and updates the register with new errors detected since the last
+ * write operation.
+ *
+ * This function reinitializes the ESR with the recorded error flags stored in `esr_pending`
+ * and clears the `esr_pending` field to reset the error tracking mechanism for future operations.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL.
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_write_esr(struct acrn_vlapic *vlapic)
 {
@@ -435,6 +931,37 @@ vlapic_write_esr(struct acrn_vlapic *vlapic)
 	vlapic->esr_pending = 0U;
 }
 
+/**
+ * @brief Update Trigger Mode Register (TMR) and EOI Exit Bitmap for a specific interrupt vector.
+ *
+ * This function modifies the TMR and the End-of-Interrupt (EOI) Exit Bitmap in the
+ * Virtual Machine Control Structure (VMCS) for a specified interrupt vector with
+ * given trigger level:
+ *
+ * - If the interrupt is level-triggered, the function sets the corresponding TMR bit
+ *   and updates the EOI Exit Bitmap to reflect the level-triggered mode by calling
+ *   vcpu_set_eoi_exit_bitmap function.
+ *
+ * - If the interrupt is edge-triggered, it clears the corresponding TMR bit and updates the EOI
+ *   Exit Bitmap to reflect the edge-triggered mode by calling vcpu_clear_eoi_exit_bitmap.
+ *
+ *
+ * These updates ensure that the vlapic properly handles the trigger mode of the interrupt
+ * and synchronizes the VMCS configuration with the desired interrupt behavior.
+ *
+ * @param[inout]  vlapic   Pointer to the vlapic structure.
+ * @param[in]     vector   Interrupt vector for which the TMR and EOI Exit Bitmap are updated.
+ * @param[in]     level    Indicates the interrupt trigger mode, true for level-triggered mode,
+ *                         and false for edge-triggered mode.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A.
+ */
 static void
 vlapic_set_tmr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 {
@@ -450,6 +977,27 @@ vlapic_set_tmr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 	}
 }
 
+/**
+ * @brief Resets the Trigger Mode Register (TMR) in the vlapic.
+ *
+ * This function set all Trigger Mode Register (TMR) in virtual-APIC page to 0 to reset all
+ * interrupt vectors to edge-triggered mode. Afterward, it clear the End-of-Interrupt (EOI)
+ * exit bitmaps in the Virtual Machine Control Structure (VMCS) by calling
+ * vcpu_reset_eoi_exit_bitmaps function.
+ *
+ * This ensures that the vlapic is fully reset with respect to its TMR state and
+ * interrupt handling configuration.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_reset_tmr(struct acrn_vlapic *vlapic)
 {
@@ -467,6 +1015,44 @@ vlapic_reset_tmr(struct acrn_vlapic *vlapic)
 	vcpu_reset_eoi_exit_bitmaps(vlapic2vcpu(vlapic));
 }
 
+/**
+ * @brief Accepts an interrupt with the specified vector and trigger level for vlapic
+ *        supporting APICv Posted-Interrupt features.
+ *
+ * This function handles interrupt acceptance for a vlapic that utilizes APICv advanced
+ * features such as Posted Interrupts (PI).
+ *
+ * It updates the Trigger Mode Register (TMR) to reflect the current trigger level of the
+ * interrupt, and set the EOI Exit Bitmap in VMCS for level-triggered interrupt by calling
+ * vcpu_set_eoi_exit_bitmap function and clear the EOI Exit Bitmap in the VMCS for
+ * edge-triggered interrupt by calling vcpu_clear_eoi_exit_bitmap function.
+ *
+ * The interrupt delivery is optimized based on the execution state of the target vCPU:
+ *
+ * - Root Mode:      The interrupt is recorded in the Pending Interrupt Request (PIR) as an
+ *                   `ACRN_REQUEST_EVENT`. The interrupt will be delivered during the next
+ *                   VM entry when the vCPU resumes execution.
+ *
+ * - Non-Root Mode:  In this case, target vCPU is not running on current pCPU, a Posted Interrupt
+ *                   Notification is sent to the target pCPU. This allows the hardware to
+ *                   synchronize the PIR to the Virtual Interrupt Request Register (vIRR) without
+ *                   causing a VM exit.
+ *
+ * @param[inout] vlapic  Pointer to the vlapic structure.
+ * @param[in] vector     Interrupt vector to be handled. Must be a valid interrupt number
+ *                       greater than 15.
+ * @param[in] level      Boolean value indicating trigger mode of the interrupt, true for
+ *                       level-triggered interrupts false for edge-triggered interrupts.
+ *
+ * @return None
+ *
+ * @pre vector >= 16
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 {
 	/* update TMR if interrupt trigger mode has changed */
@@ -474,16 +1060,7 @@ static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vect
 
 	if (apicv_set_intr_ready(vlapic, vector)) {
 		struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
-		/*
-		 * Send interrupt to vCPU via posted interrupt way:
-		 * 1. If target vCPU is in root mode(isn't running),
-		 *    record this request as ACRN_REQUEST_EVENT,then
-		 *    will pick up the interrupt from PIR and inject
-		 *    it to vCPU in next vmentry.
-		 * 2. If target vCPU is in non-root mode(running),
-		 *    send PI notification to vCPU and hardware will
-		 *    sync PIR to vIRR automatically.
-		 */
+
 		bitmap_set_lock(ACRN_REQUEST_EVENT, &vcpu->arch.pending_req);
 
 		if (get_pcpu_id() != pcpuid_from_vcpu(vcpu)) {
@@ -492,8 +1069,30 @@ static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vect
 	}
 }
 
-/*
+/**
+ * @brief Accepts an interrupt with the specified vector and trigger level for a vlapic.
+ *
+ * This function processes an incoming interrupt for the given vlapic.
+ * If the vlapic is software-disabled (indicated by the `APIC_SVR_ENABLE` bit in the SVR),
+ * the interrupt is ignored, and a debug message is logged. Otherwise, the interrupt is
+ * passed to the appropriate handler defined by the APICv operational interface
+ * of `accept_intr` callback.
+ *
+ * it calls signal_event to signal a VCPU_EVENT_VIRTUAL_INTERRUPT event to wakeup vCPU.
+ *
+ * @param[in] vlapic  Pointer to the vlapic structure.
+ * @param[in] vector  The interrupt vector to be handled.
+ * @param[in] level   Boolean value indicating the trigger mode of the interrupt, true for
+ *                    level-triggered interrupts and false for edge-triggered interrupts.
+ *
+ * @return None
+ *
  * @pre vector >= 16
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void vlapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 {
@@ -510,15 +1109,30 @@ static void vlapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool
 }
 
 /**
- * @brief Send notification vector to target pCPU.
+ * @brief Sends Notification Vectors to the target physical CPU .
  *
- * If APICv Posted-Interrupt is enabled and target pCPU is in non-root mode,
- * pCPU will sync pending virtual interrupts from PIR to vIRR automatically,
- * without VM exit.
- * If pCPU in root-mode, virtual interrupt will be injected in next VM entry.
+ * This function uses the posted-interrupt notification vector to send the IPI to the target pCPU.
+ * The behavior of the target pCPU depends on its execution mode according to section
+ * 31.6 POSTED-INTERRUPT PROCESSING, Volume 3, Intel SDM 325462-087US.
  *
- * @param[in] dest_pcpu_id Target CPU ID.
- * @param[in] anv Activation Notification Vectors (ANV)
+ * - Non-root mode:
+ *     If the target pCPU is in non-root mode (VMX non-root operation), the pCPU will automatically
+ *     synchronize pending virtual interrupts from the Post Interrupt Request (PIR) to the Virtual
+ *     Interrupt Request Register (vIRR) without causing VM exit.
+ *
+ * - Root mode:
+ *     If the target pCPU is in root mode, the virtual interrupt will be queued
+ *     and injected during the next VM entry on that pCPU.
+ *
+ * @param[in] dest_pcpu_id  The ID of the target physical CPU (pCPU) to which the ANV will be sent.
+ * @param[in] anv           The Notification Vector to be delivered to the target pCPU.
+ * @return None
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void apicv_trigger_pi_anv(uint16_t dest_pcpu_id, uint32_t anv)
 {
@@ -526,14 +1140,39 @@ static void apicv_trigger_pi_anv(uint16_t dest_pcpu_id, uint32_t anv)
 }
 
 /**
- * @pre offset value shall be one of the folllowing values:
- *	APIC_OFFSET_CMCI_LVT
- *	APIC_OFFSET_TIMER_LVT
- *	APIC_OFFSET_THERM_LVT
- *	APIC_OFFSET_PERF_LVT
- *	APIC_OFFSET_LINT0_LVT
- *	APIC_OFFSET_LINT1_LVT
- *	APIC_OFFSET_ERROR_LVT
+ * @brief Converts an APIC LVT register offset to its corresponding index in the cached LVT entries.
+ *
+ * This function maps an APIC LVT register offset to the respective index in the cached LVT
+ * registers field of the vlapic structure. These indices are used to reference cached LVT
+ * registers efficiently.
+ *
+ * - Offset to Index Mapping:
+ *     The function uses a switch-case structure to handle each valid offset and return its
+ *     corresponding index as defined in the vlapic structure.
+ * - Default Case:
+ *     The `default` case handles `APIC_OFFSET_ERROR_LVT`. While theoretically unreachable, the caller
+ *     guarantees that only valid offsets are provided per the precondition.
+ *
+ * @param[in] offset APIC LVT register offset in the virtual-APIC page. This value determines
+ *            the LVT register being accessed or modified.
+ *
+ * @return The index corresponding to the given LVT offset in the `lvt_last[]` array.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark
+ * - The caller is responsible for ensuring that the `offset` parameter must be one of the following:
+ *   - `APIC_OFFSET_CMCI_LVT`
+ *   - `APIC_OFFSET_TIMER_LVT`
+ *   - `APIC_OFFSET_THERM_LVT`
+ *   - `APIC_OFFSET_PERF_LVT`
+ *   - `APIC_OFFSET_LINT0_LVT`
+ *   - `APIC_OFFSET_LINT1_LVT`
+ *   - `APIC_OFFSET_ERROR_LVT`
+ *
+ * - This function does not validate the input offset, as it relies on the caller to provide valid values.
  */
 static inline uint32_t
 lvt_off_to_idx(uint32_t offset)
@@ -574,14 +1213,23 @@ lvt_off_to_idx(uint32_t offset)
 }
 
 /**
- * @pre offset value shall be one of the folllowing values:
- *	APIC_OFFSET_CMCI_LVT
- *	APIC_OFFSET_TIMER_LVT
- *	APIC_OFFSET_THERM_LVT
- *	APIC_OFFSET_PERF_LVT
- *	APIC_OFFSET_LINT0_LVT
- *	APIC_OFFSET_LINT1_LVT
- *	APIC_OFFSET_ERROR_LVT
+ * @brief Retrieves a pointer to the Local Vector Table (LVT) entry for a specified APIC register offset.
+ *
+ * This function identifies the correct LVT register based on the provided offset and returns a pointer
+ * to the corresponding LVT field in the virtual-APIC page. The function supports specific offsets associated
+ * with LVT registers only.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure containing the APIC LVT entries.
+ * @param[in] offset APIC LVT register offset in the virtual-APIC page. This value determines
+ *                   the LVT register being accessed or modified.
+ *
+ * @return A pointer to the target LVT register field in the vlapic structure.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static inline uint32_t *
 vlapic_get_lvtptr(struct acrn_vlapic *vlapic, uint32_t offset)
@@ -607,6 +1255,28 @@ vlapic_get_lvtptr(struct acrn_vlapic *vlapic, uint32_t offset)
 	return lvt_ptr;
 }
 
+/**
+ * @brief Retrieves the cached value of a Local Vector Table (LVT) register for a specified offset.
+ *
+ * This function returns cached value of an LVT register. The cache is maintained in the `lvt_last`
+ * array, ensuring efficient access to the most recently updated value of the LVT entry
+ * corresponding to the provided APIC register offset.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure containing the LVT entries.
+ * @param[in] offset APIC LVT register offset in the register page. This offset determines which
+ *                   LVT register value to retrieve.
+ *
+ * @return The cached value of the target LVT register.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark
+ * - The function does not validate the offset; the caller must ensure its correctness.
+ * - The cached value reflects the last state written to the LVT register, which might differ from
+ *   the hardware register if not synchronized.
+ */
 static inline uint32_t
 vlapic_get_lvt(const struct acrn_vlapic *vlapic, uint32_t offset)
 {
@@ -616,6 +1286,45 @@ vlapic_get_lvt(const struct acrn_vlapic *vlapic, uint32_t offset)
 	return vlapic->lvt_last[idx];
 }
 
+/**
+ * @brief Handles updates to a Local Vector Table (LVT) register in the virtual-APIC page.
+ *
+ * This function updates a specific LVT register based on the provided APIC offset. It ensures the
+ * correct configuration of the LVT register by applying appropriate masks and values, and performs
+ * additional processing if the LVT register corresponds to the timer.
+ *
+ * - If the APIC is disabled (SVR.APIC_ENABLE bit is unset), mask bit (`APIC_LVT_M`) of bit16
+ *     is set.
+ *
+ * - Masks the LVT register with relevant fields based on the type of LVT register according
+ *     to section Figure 12-8. Local Vector Table (LVT), Volume 3, Intel SDM 325462-087US.
+ *
+ * -  Timer-Specific Updates:
+ *    For the Timer LVT (`APIC_OFFSET_TIMER_LVT`), additional processing is performed:
+ *    If Timer Mode field in LVT Timer Register is modified, it delete vlapic timer by calling
+ *    del_timer function, and reset this timer by calling update_timer function, then update
+ *    the timer mode with target value.
+ *    If the modification is not required on timer mode, it does nothing.
+ *
+ * - LVT Entry Update:
+ *   - Updates the target LVT register in the virtual-APIC page with the calculated value.
+ *   - Stores the final value in `lvt_last` for tracking.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ * @param[in]    offset APIC LVT register offset in the register page.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ * @pre vec = (lvt & APIC_LVT_VECTOR) >= 16
+ *
+ * @post N/A
+ *
+ * @remark
+ * - The initial target LVT register value should be prepared by the caller and stored
+ *   in the LVT register in the register page prior to calling this function.
+ * - This function only processes and validates the LVT register configuration.
+ */
 static void
 vlapic_write_lvt(struct acrn_vlapic *vlapic, uint32_t offset)
 {
@@ -657,6 +1366,22 @@ vlapic_write_lvt(struct acrn_vlapic *vlapic, uint32_t offset)
 	vlapic->lvt_last[idx] = val;
 }
 
+/**
+ * @brief Masks all Local Vector Table (LVT) entries to inhibit the reception of local interrupts.
+ *
+ * It follows Figure 12-8. Local Vector Table (LVT), Volume 3, Intel SDM 325462-087US to program
+ * all LVT registers.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_mask_lvts(struct acrn_vlapic *vlapic)
 {
@@ -684,8 +1409,34 @@ vlapic_mask_lvts(struct acrn_vlapic *vlapic)
 	vlapic_write_lvt(vlapic, APIC_OFFSET_ERROR_LVT);
 }
 
-/*
- * @pre vec = (lvt & APIC_LVT_VECTOR) >=16
+/**
+ * @brief Fires a local interrupt using the specified LVT (Local Vector Table) entry.
+ *
+ * The function checks whether the interrupt is masked using the mask bit in the LVT register.
+ * If the mask bit is set, the interrupt is not delivered.
+ *
+ * If mask bit is not set, this function delivers a local interrupt to the vCPU associated with
+ * the given vlapic, following section 12.5.1 Local Vector Table, Volume 3,
+ * Intel SDM 325462-087US,  based on the delivery mode specified in the provided LVT register.
+ * Only below delivery mode options are supported:
+ *
+ * - APIC_LVT_DM_FIXED: The function fires a fixed-mode interrupt to target vCPU with
+ *                      the specified vector by calling vlapic_set_intr function.
+ * - APIC_LVT_DM_NMI:   The function fires a Non-Maskable Interrupt (NMI) to target vCPU by calling
+ *                      vcpu_inject_nmi function.
+ *
+ * - Other delivery modes are ignored, and a warning message is logged for unsupported modes.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure.
+ * @param[in] lvt Target Local Vector Table (LVT) entry that specifies the interrupt details.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void
 vlapic_fire_lvt(struct acrn_vlapic *vlapic, uint32_t lvt)
@@ -711,9 +1462,30 @@ vlapic_fire_lvt(struct acrn_vlapic *vlapic, uint32_t lvt)
 	return;
 }
 
-/*
- * Algorithm adopted from section "Interrupt, Task and Processor Priority"
- * in Intel Architecture Manual Vol 3a.
+/**
+ * @brief Updates the Processor Priority Register (PPR) in the vlapic.
+ *
+ * This function updates the PPR based on the current values of the Task Priority Register (TPR)
+ * and the highest-priority vector in the In-Service Register (ISR). The algorithm follows section
+ * 12.8.3.1 Task and Processor Priorities, Volume 3, Intel SDM 325462-087US.
+ *
+ * The PPR reflects the processor's current priority, which determines whether new interrupts can
+ * preempt the processor. The following logic is applied:
+ * - If the priority of the TPR is greater than or equal to the priority of the ISRV, the PPR is
+ *   set to the value of the TPR.
+ * - Otherwise, the PPR is set to the priority class of the ISRV, which is the higher nibble
+ *   (bit7~bit4) of the ISRV vector.
+ *
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static void
 vlapic_update_ppr(struct acrn_vlapic *vlapic)
@@ -733,6 +1505,29 @@ vlapic_update_ppr(struct acrn_vlapic *vlapic)
 	dev_dbg(DBG_LEVEL_VLAPIC, "%s 0x%02x", __func__, ppr);
 }
 
+/**
+ * @brief Handles the End of Interrupt (EOI) operation on the APIC.
+ *
+ * This function processes an EOI signal following 12.8.5 Signaling Interrupt Servicing Completion,
+ * Volume 3, Intel SDM 325462-087US by:
+ * - Clearing the corresponding bit in the Interrupt Service Register (ISR).
+ * - Updating the in-service vector (ISRV) and recalculating the Priority Processor Register (PPR)
+ *   according to section 12.8.3.1 Task and Processor Priorities, Volume 3, Intel SDM 325462-087US.
+ * - If the interrupt is level-triggered, it calls vioapic_broadcast_eoi to broadcast EOI event to
+ *   the virtual I/O APIC (vioapic).
+ * - It also makes a request to the virtual CPU (vCPU) to evaluate the interrupt on next VM entry
+ *   by calling vcpu_make_request function.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_process_eoi(struct acrn_vlapic *vlapic)
 {
@@ -771,6 +1566,32 @@ vlapic_process_eoi(struct acrn_vlapic *vlapic)
 	dev_dbg(DBG_LEVEL_VLAPIC, "Gratuitous EOI");
 }
 
+/**
+ * @brief This function records an ESR error during interrupt handling and fires an interrupt to
+ *        vlapic.
+ *
+ * This function records errors detected during interrupt handling and send an interrupt
+ * to the virtual LAPIC which detected the errors during interrupt handling according to section
+ * 12.5.3 Error Handling, Volume 3, Intel SDM 325462-087US.
+ *
+ * The vector of this interrupt is specified in LVT Error Register in virtual-APIC page.
+ *
+ * If the vlapic is software-disabled (indicated by the `APIC_SVR_ENABLE` bit in the SVR),
+ * this interrupt delivery is ignored. Otherwise, the interrupt is passed to the appropriate
+ * handler defined by the APICv operational interface of `accept_intr` callback.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ * @param[in]    mask   Error flags in ESR as specified in section 12.5.3 Error Handling,
+ *                      Volume 3, Intel SDM 325462-087US.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_set_error(struct acrn_vlapic *vlapic, uint32_t mask)
 {
@@ -791,8 +1612,39 @@ vlapic_set_error(struct acrn_vlapic *vlapic, uint32_t mask)
 		vlapic->esr_firing = 0;
 	}
 }
-/*
+
+/**
+ * @brief Triggers a local interrupt using the specified Local Vector Table (LVT) register.
+ *
+ * This function first check whether the virtual LAPIC is enabled (APIC global enable/disable bit
+ * in IA32_APIC_BASE MSR and APIC Software Enable/Disable bit in Spurious-Interrupt Vector Register).
+ *
+ * - If the vlapic is not enabled, no further processing occurs, and the function returns without
+ *   firing any interrupts.
+ *
+ * - If the vlapic is enabled, this function gets cached LVT register value, then it
+ *   checks whether the interrupt is masked using the mask bit in the LVT register.
+ *   If the mask bit is set, the interrupt is not delivered.
+ *   If mask bit is not set, this function delivers a local interrupt to the vCPU associated with
+ *   the given vlapic, following section 12.5.1 Local Vector Table, Volume 3,
+ *   Intel SDM 325462-087US, based on the delivery mode specified in the provided LVT register.
+ *
+ *   It only supports Fixed and NMI Delivery Modes:
+ *   Fixed Delivery Mode:  It calls vlapic_set_intr to fire an local interrupt.
+ *   NMI Delivery Mode:    It calls vcpu_inject_nmi to inject NMI interrupt.
+ *   Other Delivery Modes: They're not supported and ignored.
+ *
+ * @param[in] vlapic      Pointer to the vlapic structure.
+ * @param[in] lvt_index   Index to the LVT in the vlapic, identifying the type of interrupt.
+ *
+ * @return  0 on successful interrupt fire, otherwise -EINVAL if the LVT index is invalid.
+ *
+ * @pre vlapic != NULL
  * @pre APIC_LVT_TIMER <= lvt_index <= APIC_LVT_MAX
+ *
+ * @post N/A
+ *
+ * @remark  N/A.
  */
 static int32_t
 vlapic_trigger_lvt(struct acrn_vlapic *vlapic, uint32_t lvt_index)
@@ -838,6 +1690,27 @@ vlapic_trigger_lvt(struct acrn_vlapic *vlapic, uint32_t lvt_index)
 	return ret;
 }
 
+/**
+ * @brief This function locates the target vcpu with the given LAPIC ID and sets the
+ *        corresponding bit in the vCPU ID bitmap of dmask.
+ *
+ * This function takes the LAPIC ID (dest), finds the corresponding vcpu, and sets the
+ * bit in the provided vCPU bitmap for Physical Destination Mode.
+ *
+ * @param[in] vm      Pointer to the virtual machine structure in which the destination vCPU
+ *                    belongs to.
+ * @param[out] dmask  Pointer to the bitmap of the target vCPU IDs.
+ * @param[in] dest    The LAPIC ID for locating the destination vcpu.
+ *
+ * @return None.
+ *
+ * @pre vm != NULL
+ * @pre dmask != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline void set_dest_mask_phys(struct acrn_vm *vm, uint64_t *dmask, uint32_t dest)
 {
 	uint16_t vcpu_id;
@@ -848,12 +1721,26 @@ static inline void set_dest_mask_phys(struct acrn_vm *vm, uint64_t *dmask, uint3
 	}
 }
 
-/*
- * This function tells if a vlapic belongs to the destination.
- * If yes, return true, else reture false.
+/**
+ * @brief This function checks whether the vlapic belongs to the given destination
+ *        of the IPI message.
+ *
+ * This function compares the logical and cluster IDs in the Logical Destination
+ * Register for the vlapic.
+ *
+ * @param[in] vlapic  Pointer to the vlapic structure.
+ * @param[in] dest    The LAPIC ID for locating the destination vcpu.
+ *
+ * @return true if the vlapic belongs to the given destination of the IPI message,
+ *         otherwise false.
  *
  * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
+
 static inline bool is_dest_field_matched(const struct acrn_vlapic *vlapic, uint32_t dest)
 {
 	uint32_t logical_id, cluster_id, dest_logical_id, dest_cluster_id;
@@ -871,9 +1758,32 @@ static inline bool is_dest_field_matched(const struct acrn_vlapic *vlapic, uint3
 	return ret;
 }
 
-/*
- * This function populates 'dmask' with the set of vcpus that match the
- * addressing specified by the (dest, phys, lowprio) tuple.
+/**
+ * @brief Computes the destination mask of vCPU(s) in the given VM that match the addressing
+ *        specified by the (dest, phys, lowprio) tuple for the case that Destination Shorthand
+ *        is no shorthand.
+ *
+ * This function calculates the destination mask for an interrupt based on the specified
+ * destination mode, broadcast flag, physical mode, and priority settings. It determines which
+ * vcpus should receive the interrupt following section 12.6.2 Determining IPI Destination,
+ * Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[in]  vm            Pointer to the virtual VM structure.
+ * @param[in]  is_broadcast  Whether to broadcast the interrupt to all vcpus. True for
+ *                           broadcast, false otherwise.
+ * @param[in]  dest          The value for locating the destination of the vcpu.
+ * @param[in]  phys          Whether it is physical destination mode. True for physical
+ *                           mode, false otherwise.
+ * @param[in]  lowprio       Whether it is lowest priority delivery mode. true for low
+ *                           priority, false otherwise.
+ *
+ * @return The destination bitmap of the target vCPU IDs.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 uint64_t
 vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
@@ -926,6 +1836,33 @@ vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 	return dmask;
 }
 
+/**
+ * @brief Calculates destination mask with the set of vcpus that match the addressing specified
+ *        by the (shorthand, dest, phys, lowprio) tuple.
+ *
+ * This function calculates the destination mask of vCPU(s) for an interrupt based on the
+ * shorthand addressing mode, broadcast flag, physical destination mode, and priority
+ * of the interrupt, according to section 12.6.2 Determining IPI Destination, Volume 3,
+ * Intel SDM 325462-087US.
+ *
+ * @param[in]  vcpu         Pointer to the virtual CPU structure.
+ * @param[in]  shorthand    Indicator value of shorthand addressing mode.
+ * @param[in]  is_broadcast Whether to broadcast the interrupt to all vcpus. True if broadcast,
+ *                          false otherwise.
+ * @param[in]  dest         The value for locating the destination of the vcpu.
+ * @param[in]  phys         Whether it is physical destination mode. True for physical mode,
+ *                          false otherwise.
+ * @param[in]  lowprio      Whether it is lowest priority delivery mode. True for low priority,
+ *                          false otherwise.
+ *
+ * @return The destination bitmap of the target vCPU IDs.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static uint64_t
 vlapic_calc_dest(struct acrn_vcpu *vcpu, uint32_t shorthand, bool is_broadcast,
 		uint32_t dest, bool phys, bool lowprio)
@@ -957,6 +1894,42 @@ vlapic_calc_dest(struct acrn_vcpu *vcpu, uint32_t shorthand, bool is_broadcast,
 	return dmask;
 }
 
+/**
+ * @brief Processes INIT or STARTUP IPIs (Inter-Processor Interrupts) for a target virtual CPU.
+ *
+ * This function handles specific delivery modes (INIT or STARTUP) when writing to the guest Local
+ * APIC Interrupt Command Register (ICR) of a target virtual CPU (vCPU). The behavior is determined
+ * by the delivery mode specified:
+ *
+ * - **INIT Mode**:
+ *   - If the target vCPU is not the Bootstrap Processor (BSP), this function calls zombie_vcpu to put
+ *     vCPU into zombie state then calls reset_vcpu to put target vcpu to INIT state and wait for SIPI.
+ *   - The target vCPU's state is reset, and its `nr_sipi` (number of SIPIs expected) is initialized
+ *     to 1, requiring a single STARTUP IPI to proceed.
+ *
+ * - **STARTUP Mode**:
+ *   - If the target vCPU is in the wait-for-SIPI state (INIT state) and has remaining expected SIPIs,
+ *     it transitions out of the wait-for-SIPI state upon receiving a valid STARTUP IPI.
+ *   - The target vCPU's startup entry point is set based on the startup vector specified in the ICR
+ *     by calling set_vcpu_startup_entry function, triggers an ACRN_REQUEST_INIT_VMCS event to target
+ *     vCPU by calling vcpu_make_request function to trigger VMCS initialization, the vCPU is launched
+ *     for execution by calling launch_vcpu function.
+ *
+ * @param[inout] target_vcpu  Pointer to the vCPU that is the target of the INIT or STARTUP IPI.
+ *                            The vCPU's state and configuration are modified as necessary.
+ * @param[in]     mode        The delivery mode of the IPI, either `APIC_DELMODE_INIT` or
+ *                            `APIC_DELMODE_STARTUP`.
+ * @param[in]     icr_low     The lower 32 bits of the ICR, containing mode-specific configuration
+ *                            and addressing details.
+ *
+ * @return None
+ *
+ * @pre target_vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t icr_low)
 {
@@ -1021,6 +1994,43 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 	return;
 }
 
+/**
+ * @brief Emulate a write to the low doubleword of the Interrupt Command Register (ICR).
+ *
+ * Writing to the low doubleword of the ICR triggers the delivery of an Inter-Processor
+ * Interrupt (IPI). This function interprets the ICR configuration to determine the type
+ * of IPI message to send IPI to destination(s).
+ *
+ * When an interrupt vector in the range of 0 to 15 is sent through the local APIC in
+ * Fixed delivery mode, the APIC indicates an illegal vector in its Error Status Register,
+ * and it signals an illegal vector error, according to
+ * 12.5.2 Valid Interrupt Vectors, Volume 3, Intel SDM 325462-087US.
+ *
+ * It calculates the destination mask of vCPU(s) for an interrupt based on the destination
+ * shorthand, broadcast flag, destination mode, and delivery mode of the interrupt, according to
+ * section 12.6.2 Determining IPI Destination, Volume 3, Intel SDM 325462-087US.
+ *
+ * Then it delivers interrupt to target vCPU(s) one by one identified by calculated destination
+ * vCPU bitmask with below delivery modes:
+ * - APIC_DELMODE_FIXED:   Injects an interrupt to the target vCPU(s) with given vector
+ *                         and trigger mode of edge-triggered by calling vlapic_set_intr function.
+ * - APIC_DELMODE_NMI:     Injects NMI to the target vCPU(s) by calling vcpu_inject_nmi function.
+ * - APIC_DELMODE_INIT,
+ *   APIC_DELMODE_STARTUP: Process INIT (`APIC_DELMODE_INIT`) or Startup (`APIC_DELMODE_STARTUP`)
+ *                         IPI for vCPU(s) according to section 10.4.3 MP Initialization Protocol
+ *                         Algorithm for MP Systems, Volume 3, Intel SDM 25462-087US.
+ * - APIC_DELMODE_SMI is not supported.
+ *
+ * @param[in] vlapic Pointer to the vLAPIC structure.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_write_icrlo(struct acrn_vlapic *vlapic)
 {
 	uint16_t vcpu_id;
@@ -1083,6 +2093,23 @@ static void vlapic_write_icrlo(struct acrn_vlapic *vlapic)
 	}
 }
 
+/**
+ * @brief Retrieve the highest-priority bit set in the IRR registers.
+ *
+ * This function scans the Interrupt Request Register (IRR) to find the highest-priority
+ * interrupt vector. If no bits are set in the IRR, it returns 0.
+ *
+ * @param[in] vlapic Pointer to the target vLAPIC data structure.
+ *
+ * @return The interrupt vector corresponding to the highest-priority bit in IRR, or 0
+ *         if no bits are set.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline uint32_t vlapic_find_highest_irr(const struct acrn_vlapic *vlapic)
 {
 	const struct lapic_regs *lapic = &(vlapic->apic_page);
@@ -1104,6 +2131,30 @@ static inline uint32_t vlapic_find_highest_irr(const struct acrn_vlapic *vlapic)
 	return vec;
 }
 
+/**
+ * @brief Emulation of writing an APIC register Spurious-Interrupt Vector Register (SVR)
+ *
+ * This function caches the SVR value in virtual-APIC page and follows 12.4.3 Enabling or Disabling
+ * the Local APIC and 12.4.7.2 Local APIC State After It Has Been Software Disabled, Volume 3,
+ * Intel SDM 325462-087US to emulate APIC Software Enable/Disable change.
+ *
+ * - If the LAPIC is to be enabled, the emulated APIC timer is restarted if it's in periodic
+ *   timer mode, calculates the timeout counter and periodic value for the vlapic timer, then
+ *   the timer is updated by calling update_timer function and armed by calling add_timer function.
+ *
+ * - If the LAPIC is to be disabled, delete emulated APIC timer by calling del_timer function and
+ *   inhibits reception of all interrupts via LVT.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void
 vlapic_write_svr(struct acrn_vlapic *vlapic)
 {
@@ -1146,6 +2197,36 @@ vlapic_write_svr(struct acrn_vlapic *vlapic)
 	}
 }
 
+/**
+ * @brief Emulation of reading an APIC register with MMIO offset in the vlapic.
+ *
+ * This function emulates reading on the virtual LAPIC register, and delegates
+ * specific actions to other functions for registers being reading from:
+ *
+ * - APIC_OFFSET_TIMER_ICR: If the timer mode if vlapic timer is One-shot or Periodic, read is from
+ *                          the cached value of Initial Count Register (for Timer) in virtual-APIC
+ *                          page, otherwise, read value is hardcoded to 0.
+ *
+ * - APIC_OFFSET_TIMER_CCR: Emulates reading Current Count Register (for Timer), it calculates
+ *                          the remaining counter value of the vlapic timer with the divisor
+ *                          shift and timer ratio which is calculated according to section
+ *                          12.5.4 APIC Timer, Volume 3, Intel SDM 325462-087US.
+ *
+ * For other registers, value in virtual-APIC page for given regiser offset will be used
+ * as read value.
+ *
+ * @param[in]   vlapic       Pointer to the vlapic structure.
+ * @param[in]   offset_arg   The offset of the register in the virtual-APIC page.
+ * @param[out]  data         Pointer to a buffer that will hold the result of the read operation.
+ *
+ * @return 0 if the read was successful, otherwise return -EACCES if the register is not supported.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg, uint64_t *data)
 {
 	int32_t ret = 0;
@@ -1252,6 +2333,79 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
 	return ret;
 }
 
+/**
+ * @brief Emulation of writing an APIC register with MMIO offset in the vlapic.
+ *
+ * This function emulates LAPIC register writing on the virtual LAPIC register, and delegates
+ * specific actions to other functions based on the register being written to for below registers:
+ *
+ * - APIC_OFFSET_ICR_LOW:  For LAPIC pass-through case, it sends IPI to target vCPU(s) by following
+ *                         Section 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                         Intel SDM 325462-087US, either writes ICR register directly or uses
+ *                         additional logic to emulate INIT and SIPI IPI to target vCPU(s) following
+ *                         section 10.4.3 MP Initialization Protocol Algorithm for MP Systems,
+ *                         Volume 3, Intel SDM 325462-087US.
+ *
+ *                         For LAPIC virtualization case, it sends Interrupt to target vCPU(s) by
+ *                         emulating ICR writing following section 12.6.1, Interrupt Command
+ *                         Register (ICR), Volume 3, Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_EOI:      Emulates writing EOI register in virtual-APIC page following section
+ *                         12.8.5 Signaling Interrupt Servicing Completion, Volume 3,
+ *                         Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_SVR:      Emulates writing SVR(Spurious-Interrupt Vector Register) in virtual-APIC
+ *                         page, caches the SVR value and updates the emulated APIC timer when the
+ *                         APIC Software Enable/Disable bit (bit 8) is modified.
+ * - APIC_OFFSET_CMCI_LVT,
+ *   APIC_OFFSET_TIMER_LVT,
+ *   APIC_OFFSET_THERM_LVT,
+ *   APIC_OFFSET_PERF_LVT,
+ *   APIC_OFFSET_LINT0_LVT,
+ *   APIC_OFFSET_LINT1_LVT,
+ *   APIC_OFFSET_ERROR_LVT:
+ *                          Emulates writing LVT registers in virtual-APIC page following section
+ *                          12.5.1 Local Vector Table, and Figure 12-8. Local Vector Table (LVT),
+ *                          Volume 3, Intel SDM 325462-087US, and value of target LVT register
+ *                          is also cached in `lvt_last` table of vlapic.
+ *                          For APIC_OFFSET_TIMER_LVT case, additionally disarms and resete emulated
+ *                          vlapic timer if timer mode to be updated.
+ *
+ * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
+ *                          APIC timer is configured as One-shot or periodic. Disarm the existing
+ *                          timer, then calcuate the expiration count according to section 12.5.4
+ *                          APIC Timer, Volume 3, Intel SDM 325462-087US and then starts the timer.
+ *
+ * - APIC_OFFSET_TIMER_DCR: Calculates the divisor shift for the vlapic timer based on the target
+ *                          Divide Configuration Register (for Timer) value according to
+ *                          Figure 12-10. Divide Configuration Register, Volume 3,
+ *                          Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_ESR:       Emulates writing ESR, according to section 12.5.3 Error Handling,
+ *                          Error Handling, Volume 3, Intel SDM 325462-087US, this writing clears
+ *                          any previously logged errors and updates the ESR with any errors
+ *                          detected since the last write to the ESR, it reloads virtual ESR
+ *                          register with any pending errors.
+ *
+ * - APIC_OFFSET_SELF_IPI:  Emulates writing SELF IPI MSR, if given vector number is valid (> 15),
+ *                          it triggers an edge-triggered self-IPI delivery by calling
+ *                          vlapic_set_intr function, otherwise it logs
+ *                          APIC_ESR_SEND_ILLEGAL_VECTOR ESR error bit and delivers an interrupt.
+ *
+ * @param[inout] vlapic    Pointer to the vlapic structure.
+ * @param[in]    offset    The register with MMIO offset in the LAPIC register page.
+ * @param[in]    data      The target value to be written to the APIC register.
+ *
+ * @return 0 if the writing emulation is successful, return -EACCES if the register is not supported or
+ *         return value returned from vlapic_x2apic_pt_icr_access function if given offset
+ *         is APIC_OFFSET_ICR_LOW with LAPIC pass-through configuration.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_t data)
 {
 	struct lapic_regs *lapic = &(vlapic->apic_page);
@@ -1324,8 +2478,28 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 	return ret;
 }
 
-/*
- * @pre vlapic != NULL && ops != NULL
+/**
+ * @brief This function performs a reset of the virtual LAPIC for a given vCPU.
+ *
+ * According to section 12.4.7.1 Local APIC State After Power-Up or Reset, Volume 3,
+ * Intel SDM 325462-087US, the following registers are reset to all 0s:
+ * - Timer initial count and timer current count registers.
+ * - Divide configuration register.
+ *
+ * Additionally,
+ * - The APICv operations callback set of this virtual LAPIC is initialized based on the virtual
+ *   LAPIC configuration (whether local APIC pass-through or virtual APIC is used).
+ * - Initializes value of IA32_APIC_BASE of this vlapic to 0xFEE00000.
+ *
+ * @param[inout] vcpu Pointer to the vcpu whose vlapic is going to be reset.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A.
  */
 void
 vlapic_reset(struct acrn_vcpu *vcpu)
@@ -1345,7 +2519,7 @@ vlapic_reset(struct acrn_vcpu *vcpu)
 	lapic = &(vlapic->apic_page);
 	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
 
-	/* Local APIC ID register is Read-only in x2APIC mode */
+	/* LAPIC ID register is Read-only in x2APIC mode */
 	vlapic_build_x2apic_id(vlapic);
 
 	lapic->version.v = VLAPIC_VERSION;
@@ -1372,27 +2546,110 @@ vlapic_reset(struct acrn_vcpu *vcpu)
 
 }
 
+/**
+ * @brief Get the value of MSR IA32_APIC_BASE associated with vlapic.
+ *
+ * This function returns the cached IA32_APIC_BASE MSR value for given virtual LAPIC.
+ *
+ * @param[in] vlapic Pointer to the vlapic whose associated MSR IA32_APIC_BASE is
+ *             to be read.
+ *
+ * @return The cached value of MSR IA32_APIC_BASE associated with vlapic.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 uint64_t vlapic_get_apicbase(const struct acrn_vlapic *vlapic)
 {
 	return vlapic->msr_apicbase;
 }
 
+/**
+ * @brief Accept an interrupt via vlapic configured for LAPIC pass-through.
+ *
+ * This is a stub callback function and only prints a debug message with information of
+ * vector, VM ID and vCPU ID.
+ *
+ * @param[in] vlapic Pointer to the vlapic structure.
+ * @param[in] vector Interrupt vector number.
+ * @param[in] level  Unused interrupt trigger mode.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void ptapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, __unused bool level)
 {
 	pr_err("Invalid op %s, VM%u, vCPU%u, vector %u", __func__,
 			vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id, vector);
 }
 
+/**
+ * @brief Inject interrupt to given virtual LAPIC which is configured LAPIC pass-through.
+ *
+ * This is a stub callback function and print debug message only.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void ptapic_inject_intr(struct acrn_vlapic *vlapic)
 {
 	pr_err("Invalid op %s, VM%u, vCPU%u", __func__, vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id);
 }
 
+/**
+ * @brief Check if there are any pending interrupts for a given virtual CPU with
+ *        LAPIC pass-through configured.
+ *
+ *  In LAPIC pass-through case, interrupts are delivered via physical local APIC interface.
+ *
+ * @param[in] vcpu Unused pointer to the virtual CPU structure.
+ *
+ * @return Always returns false, indicating there are no pending interrupts for the given vCPU.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark Used as a placeholder invalid APIC operations.
+ */
 static bool ptapic_has_pending_intr(__unused struct acrn_vcpu *vcpu)
 {
 	return false;
 }
 
+/**
+ * @brief Verify if a read operation is permitted for a given register offset for LAPIC pass-through.
+ *
+ * Register with below offset is readable:
+ * - APIC_OFFSET_ID
+ * - APIC_OFFSET_LDR
+ * - APIC_OFFSET_THERM_LVT
+ *
+ * @param[in] offset The offset of the LAPIC register in the virtual-APIC page.
+ *
+ * @return true if the register with given offset can be read, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool ptapic_read_msr_may_may_invalid(uint32_t offset)
 {
 	return ((offset == APIC_OFFSET_ID)
@@ -1401,12 +2658,49 @@ static bool ptapic_read_msr_may_may_invalid(uint32_t offset)
 
 }
 
+/**
+ * @brief Verify if a write operation is permitted for a given register offset for LAPIC pass-through.
+ *
+ * Register with below offset is writable:
+ * - APIC_OFFSET_ICR_LOW
+ * - APIC_OFFSET_THERM_LVT
+ *
+ * @param[in] offset The offset of the LAPIC MSR in the APIC register page.
+ *
+ * @return true if the register with given offset can be read, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
 {
 	return ((offset == APIC_OFFSET_ICR_LOW)
 		|| (offset == APIC_OFFSET_THERM_LVT));
 }
 
+/**
+ * @brief APICv operation callback functions set supporting local APIC pass-through configuration.
+ *
+ * Specifically, it initializes acrn_apicv_ops callback functions as below:
+ *
+ * - accept_intr  This callback function is dummy and print debug message only.
+ *
+ * - inject_intr  This callback function is dummy and print debug message only.
+ *
+ * - has_pending_intr  This callback function always returns false, interrupts are injected via
+ *                     physcial local APIC interface.
+ *
+ * - x2apic_read_msr_may_valid   This callback function verifies if a read operation is permitted
+ *                               for a given register offset, Reading APIC_OFFSET_ID,
+ *                               APIC_OFFSET_LDR, or APIC_OFFSET_THERM_LVT is allowed.
+ *
+ * - x2apic_write_msr_may_valid  This callback function verifies if a write operation is permitted
+ *                               for a given register offset, writing APIC_OFFSET_ICR_LOW,
+ *                               APIC_OFFSET_THERM_LVT is allowed.
+ */
 static const struct acrn_apicv_ops ptapic_ops = {
 	.accept_intr = ptapic_accept_intr,
 	.inject_intr = ptapic_inject_intr,
@@ -1415,6 +2709,30 @@ static const struct acrn_apicv_ops ptapic_ops = {
 	.x2apic_write_msr_may_valid  = ptapic_write_msr_may_may_invalid,
 };
 
+/**
+ * @brief Set the IA32_APIC_BASE MSR for the virtual LAPIC.
+ *
+ * This function compares the cached value and given target value of IA32_APIC_BASE MSR,
+ * and reports error if they're not the same, which means guest is not allowed to write this MSR.
+ *
+ * ACRN elumates IA32_XAPIC_DISABLE_STATUS MSR and always sets LEGACY_XAPIC_DISABLED bit of this
+ * MSR, which indicates that the local APIC locked in x2APIC mode.
+ *
+ * So the only part of IA32_APIC_BASE MSR could be written is the `APIC Base`(bit 35:12) field.
+ * While ACRN Hypervisor does not support change on this field to other value except 0xFEE.
+ * As a reslut, ACRN Hypervisor emulates this MSR as a Read-Only register.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC data structure.
+ * @param[in] new    Target value for the IA32_APIC_BASE MSR.
+ *
+ * @return Return 0 on success; otherwise, return -EACCES as modification is not allowed.
+ *
+ * @post N/A
+ *
+ * @pre vlapic != NULL
+ *
+ * @remark N/A
+ */
 int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 {
 	int32_t ret = 0;
@@ -1428,6 +2746,47 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 	return ret;
 }
 
+/**
+ * @brief Receive an interrupt from the IOAPIC or MSI and inject it to the virtual local APIC
+ *
+ * Only Delivery Mode of IOAPIC_RTE_DELMODE_FIXED and IOAPIC_RTE_DELMODE_LOPRI are supported,
+ * SMI/NMI/INIT/ExtINT interrupts are not supporeted from devices.
+ *
+ * It calculates the destination bitmask of vCPU(s) by following
+ * section 12.6.2 Determining IPI Destination, Volume 3, Intel SDM 325462-087US,
+ * with No Shorthand and the destination is specified in the destination field.
+ *
+ * According to the virtual LAPIC configuration:
+ * - LAPIC pass-through: Write ICR MSR directly to fire interrupt(s) by calling  msr_write function
+ *                       with constructed interrupt message according to
+ *                       section 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                       Intel SDM 325462-087US.
+ * - LAPIC Virtualization: Call vlapic_set_intr() to deliver interrupt to target vCPU(s) with given
+ *                         vector and trigger level, the target vCPU(s) bitmask depends on the
+ *                         calculated destination bitmask.
+ *
+ * @param[in] vm      Pointer to the VM data structure.
+ * @param[in] level   Interrupt trigger mode. Use LAPIC_TRIG_EDGE for edge trigger mode or
+ *                    LAPIC_TRIG_LEVEL for level trigger mode.
+ * @param[in] dest    Destination ID for this interrupt.
+ * @param[in] phys    Boolean indicating whether the Destination ID is interpreted as a
+ *                    logical (false) or physical (true) APIC ID.
+ * @param[in] delmode Delivery mode specifying how the interrupt receipt is handled.
+ * @param[in] vec     Interrupt vector.
+ * @param[in] rh      Redirection hint. True directs the message to the processor with
+ *                    the lowest interrupt priority among eligible processors. False
+ *                    directs the interrupt to the processor listed in the Destination ID.
+ *
+ * @return Return 0 on success; otherwise, return -1 if given delivery mode is not
+ *         IOAPIC_RTE_DELMODE_FIXED or IOAPIC_RTE_DELMODE_LOPRI.
+ *
+ * @post N/A
+ *
+ * @pre vm != NULL
+ * @pre vec <= 255U
+ *
+ * @remark N/A
+ */
 int32_t
 vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 		uint32_t delmode, uint32_t vec, bool rh)
@@ -1491,9 +2850,32 @@ vlapic_receive_intr(struct acrn_vm *vm, bool level, uint32_t dest, bool phys,
 	return ret;
 }
 
-/*
- *  @pre vcpu != NULL
- *  @pre vector <= 255U
+/**
+ * @brief Fire an interrupt with the specified vector and trigger level to the virtual CPU.
+ *
+ * This function checks the given vector number, and if vector is less than 16, it logs
+ * APIC_ESR_RECEIVE_ILLEGAL_VECTOR ESR error event and delivers interrupt to virtual APIC via
+ * Error LVT register.
+ *
+ * If the given vector is valid, this function fires interrupt to the target vCPU by passing
+ * it to the appropriate handler defined by the APICv operational interface of accept_intr
+ * callback if associated vlapic is enabled.
+ *
+ * Then, it calls signal_event to signal a VCPU_EVENT_VIRTUAL_INTERRUPT event to wakeup vCPU.
+ *
+ * @param[in] vcpu   Pointer to the virtual CPU data structure.
+ * @param[in] vector Interrupt vector number.
+ * @param[in] level  Interrupt trigger mode, LAPIC_TRIG_EDGE for edge trigger mode or
+ *                   LAPIC_TRIG_LEVEL for level trigger mode.
+ *
+ * @return None.
+ *
+ * @post N/A
+ *
+ * @pre vcpu != NULL
+ * @pre vector <= 255U
+ *
+ * @remark N/A
  */
 void
 vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level)
@@ -1511,15 +2893,22 @@ vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level)
 }
 
 /**
- * @brief Triggers LAPIC local interrupt(LVT).
+ * @brief Triggers LAPIC local interrupt via LVT to current vCPU.
  *
- * @param[in] vcpu           Pointer to vcpu data structure
- * @param[in] lvt_index    The index which LVT would be to be fired.
+ * This function triggers a Local Vector Table (LVT) interrupt for current vCPU with
+ * given LVT index by following section 12.5 HANDLING LOCAL INTERRUPTS, Volume 3,
+ * Intel SDM 325462-087US, based on value of LVT register.
  *
- * @retval 0 on success.
- * @retval -EINVAL on error that vcpu_id_arg or vector of the LVT is invalid.
+ * @param[in] vcpu       Pointer to the acrn_vcpu data structure.
+ * @param[in] lvt_index  Index to the LVT that will be triggered.
+ *
+ * @return status returned by callee function to trigger this interrupt.
  *
  * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 int32_t
 vlapic_set_local_intr(struct acrn_vcpu *vcpu, uint32_t lvt_index)
@@ -1528,16 +2917,28 @@ vlapic_set_local_intr(struct acrn_vcpu *vcpu, uint32_t lvt_index)
 }
 
 /**
- * @brief Inject MSI to target VM for both virtual local APIC and local APIC pass-through cases.
+ * @brief Inject Interrupt(s) to target VM with given MSI message.
+ *
+ * The function fires interrupt(s) to target VM based on a given MSI message.
+ * It verifies given MSI address data which shall be MSI_ADDR_BASE, then exacts parameters,
+ * such as destination mode, delivery mode, redirection hint and vector from given MSI data
+ * and address message.
+ *
+ * Then, it fires an edge-triggered interrupt with above parameters to target by calling
+ * vlapic_receive_intr function.
  *
  * @param[in] vm   Pointer to VM data structure.
- * @param[in] addr MSI address.
- * @param[in] data  MSI data.
+ * @param[in] addr Target value for MSI address register.
+ * @param[in] data Target value for MSI Message data register.
  *
- * @retval 0 on success.
- * @retval -1 on error that addr is invalid.
+ * @return 0 on success, otherwise return -1 on failure if MSI address is invalid or MSI
+ *         interrupt delivers fails.
  *
  * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 int32_t vlapic_inject_msi(struct acrn_vm *vm, uint64_t addr, uint64_t data)
 {
@@ -1569,7 +2970,25 @@ int32_t vlapic_inject_msi(struct acrn_vm *vm, uint64_t addr, uint64_t data)
 	return ret;
 }
 
-/* interrupt context */
+/**
+ * @brief Timeout handler of emulated timer of vlapic.
+ *
+ * This function checks if timer interrupt is masked in imer LVT register (bit16), if no,
+ * it delivers a edge-triggered interrupt to the virtual CPU by calling vlapic_set_intr,
+ * where vector is extracted from timer LVT register of this vlapic.
+ *
+ * This function does nothing if timer interrupt is masked in timer LVT register of vlapic.
+ *
+ * @param[in] data Pointer to the virtual CPU structure.
+ *
+ * @return None.
+ *
+ * @pre data != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_timer_expired(void *data)
 {
 	struct acrn_vcpu *vcpu = (struct acrn_vcpu *)data;
@@ -1585,20 +3004,64 @@ static void vlapic_timer_expired(void *data)
 	}
 }
 
+/**
+ * @brief Convert the x2APIC MSR address to the corresponding MMIO offset in virtual-APIC page.
+ *
+ * This function converts a given x2APIC MSR address to an offset within the virtual-LAPIC page
+ * by following section 12.4.1 The Local APIC Block Diagram and
+ * section 12.12.1.2 x2APIC Register Address Space, Volume 3, Intel SDM 325462-087US:
+ *
+ * - MMIO Offset = (((MSR Index - 0x800U) & 0x3FFU) << 4U)
+ *
+ * @param[in] msr The x2APIC MSR address to be converted.
+ *
+ * @return The corresponding MMIO offset in the virtual-APIC page.
+ *
+ * @pre msr >= 0x800 && msr < 0x900
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static inline  uint32_t x2apic_msr_to_regoff(uint32_t msr)
 {
 
 	return (((msr - 0x800U) & 0x3FFU) << 4U);
 }
 
-/*
- * If x2apic is pass-thru to guests, we have to special case the following
- * 1. INIT Delivery mode
- * 2. SIPI Delivery mode
- * For all other cases, send IPI on the wire.
- * Only works when the guest was in VM_VLAPIC_X2APIC mode
+/**
+ * @brief Emulation of writing to the LAPIC Interrupt Command Register(ICR) for LAPIC pass-through.
+ *
+ * This function emulates the writing of LAPIC ICR for LAPIC pass-through configuration.
+ * Target vCPU(s) bitmask is calculated following section 12.6.2 Determining IPI Destination,
+ * Volume 3, Intel SDM 325462-087US, with given shorthand, destination and delivery mode
+ * which are parsed from target ICR value.
+ *
+ * Then, this function sends IPI to target vCPU(s) based on the calculated target destination
+ * bitmask, and following deliver modes are handled:
+ *
+ * - INIT and Startup delivery modes: Process INIT or STARTUP IPI for vCPU(s) according to section
+ *                                    10.4.3 MP Initialization Protocol Algorithm for MP System,
+ *                                    Volume 3, Intel SDM 325462-087US.
+ * - FIXED and NMI delivery mode: Writes ICR Regiser to trigger an IPI to target vCPU(s) by calling
+ *                                msr_write function with Destination Mode of physical and APIC ID
+ *                                of target physical CPU(s).
+ * - LOWPRIO delivery mode: Delivery mode of Lowest Priority is not supported in x2APIC mode,
+ *                          according to Figure 12-28. Interrupt Command Register (ICR) in x2APIC
+ *                          Mode, Volume3, Intel SDM 25462-087US.
+ * - SMI delivery mode is not supported.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU structure whose LAPIC ICR is accessed.
+ * @param[in] val Target value to be written to the ICR MSR.
+ *
+ * @return Always returns 0, indicating ICR write is successfully handled.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
-
 static int32_t
 vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 {
@@ -1657,17 +3120,88 @@ vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val)
 	return 0;
 }
 
+/**
+ * @brief Verify if a read operation is permitted for a given register offset in virtual-APIC
+ *        with x2APIC mode.
+ *
+ *  Only reading Current Count Register (for Timer) is allowed:
+ * - APIC_OFFSET_TIMER_CCR
+ *
+ * @param[in] offset The offset of the LAPIC MSR in the APIC register page.
+ *
+ * @return true if the register with given offset can be read, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool apicv_advanced_x2apic_read_msr_may_valid(uint32_t offset)
 {
 	return (offset == APIC_OFFSET_TIMER_CCR);
 }
 
+/**
+ * @brief Verify if a write operation is permitted for a given register offset in virtual-APIC
+ *        with x2APIC mode.
+ *
+ *  Writing LAPIC registers except below ones are allowed:
+ * - APIC_OFFSET_DFR
+ * - APIC_OFFSET_ICR_HI
+ * - APIC_OFFSET_EOI
+ * - APIC_OFFSET_SELF_IPI
+ *
+ * @param[in] offset The offset of the LAPIC MSR in the APIC register page.
+ *
+ * @return true if the register with given offset can be programmed, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool apicv_advanced_x2apic_write_msr_may_valid(uint32_t offset)
 {
 	return (offset != APIC_OFFSET_DFR) && (offset != APIC_OFFSET_ICR_HI) &&
 		(offset != APIC_OFFSET_EOI) && (offset != APIC_OFFSET_SELF_IPI);
 }
 
+/**
+ * @brief Handle a read from MSR in virtual LAPIC registers in x2APIC mode.
+ *
+ * This API emulates x2APIC MSR read for both APIC pass-through and LAPIC virtualization cases.
+ * Read operation is emulated only if it is allowed as below.
+ *
+ * For APIC virtualization case, reading on below registers are emulated:
+ *
+ * - APIC_OFFSET_TIMER_CCR: Emulates reading Current Count Register (for Timer), it calculates
+ *                          the remaining counter value of the vlapic timer with the divisor
+ *                          shift and timer ratio which is calculated according to section
+ *                          12.5.4 APIC Timer, Volume 3, Intel SDM 325462-087US.
+ *
+ * For APIC pass-through case, reading on below registers are emulated:
+ * - APIC_OFFSET_ID,
+ *   APIC_OFFSET_LDR:
+ *                     Value in virtual-APIC page for given regiser is used as read value.
+ * - APIC_OFFSET_THERM_LVT: Cached value in `lvt_last` in vlapic with index of APIC_LVT_THERMAL is
+ *                          used as read value.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU associated with the x2APIC.
+ * @param[in] msr The MSR offset to be read.
+ * @param[out] val Pointer to store the read value of the MSR.
+ *
+ * @return 0 if successful; otherwise, returns -1 for an error if given register is
+ *           not supported or read operation fails.
+ *
+ * @pre vcpu != NULL
+ * @pre val != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
 {
 	struct acrn_vlapic *vlapic;
@@ -1683,6 +3217,78 @@ int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
 	return error;
 }
 
+/**
+ * @brief Handle a write to MSR register in virtual LAPIC in x2APIC mode.
+ *
+ * This API emulates x2APIC MSR write for both APIC pass-through and LAPIC virtualization cases.
+ * Write operation is emulated only if it is allowed as below.
+ *
+ * For APIC virtualization case, writing on below registers are emulated:
+ *
+ * - APIC_OFFSET_ICR_LOW:  Sends Interrupt to target vCPU(s) by emulating ICR writing following
+ *                         section 12.6.1, Interrupt Command Register (ICR), Volume 3,
+ *                         Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_SVR:      Emulates writing SVR(Spurious-Interrupt Vector Register) in virtual-APIC
+ *                         page, caches the SVR value and updates the emulated APIC timer when the
+ *                         APIC Software Enable/Disable bit (bit 8) is modified.
+ * - APIC_OFFSET_CMCI_LVT,
+ *   APIC_OFFSET_TIMER_LVT,
+ *   APIC_OFFSET_THERM_LVT,
+ *   APIC_OFFSET_PERF_LVT,
+ *   APIC_OFFSET_LINT0_LVT,
+ *   APIC_OFFSET_LINT1_LVT,
+ *   APIC_OFFSET_ERROR_LVT:
+ *                          Emulates writing LVT registers in virtual-APIC page following section
+ *                          12.5.1 Local Vector Table, and Figure 12-8. Local Vector Table (LVT),
+ *                          Volume 3, Intel SDM 325462-087US, and value of target LVT register
+ *                          is cached in `lvt_last` table of vlapic, for APIC_OFFSET_TIMER_LVT,
+ *                          additionally disarms and resete emulated vlapic timer if timer mode
+ *                          to be updated.
+ *
+ * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
+ *                          APIC timer is configured as One-shot or periodic. Disarm the existing
+ *                          timer, then calcuate the expiration count according to section 12.5.4
+ *                          APIC Timer, Volume 3, Intel SDM 325462-087US and then starts the timer.
+ *
+ * - APIC_OFFSET_TIMER_DCR: Calculates the divisor shift for the vlapic timer based on the target
+ *                          Divide Configuration Register (for Timer) value according to
+ *                          Figure 12-10. Divide Configuration Register, Volume 3,
+ *                          Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_ESR:       Emulates writing ESR, according to section 12.5.3 Error Handling,
+ *                          Error Handling, Volume 3, Intel SDM 325462-087US, this writing clears
+ *                          any previously logged errors and updates the ESR with any errors
+ *                          detected since the last write to the ESR, it reloads virtual ESR
+ *                          register with any pending errors.
+ *
+ * For APIC pass-through case, writing on below registers are emulated:
+ *
+ * - APIC_OFFSET_ICR_LOW:  Sends IPI to target vCPU(s) by following
+ *                         Section 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                         Intel SDM 325462-087US, either writes ICR register directly or processes
+ *                         INIT and SIPI IPI for target vCPU(s) following
+ *                         section 10.4.3 MP Initialization Protocol Algorithm for MP Systems,
+ *                         Volume 3, Intel SDM 325462-087US.
+ *
+ * - APIC_OFFSET_THERM_LVT: Emulates writing LVT Thermal Sensor Register following section
+ *                          12.5.1 Local Vector Table, and Figure 12-8. Local Vector Table (LVT),
+ *                          Volume 3, Intel SDM 325462-087US, and value of target LVT register
+ *                          is cached in `lvt_last` table of vlapic.
+ *
+ * @param[inout] vcpu Pointer to the virtual CPU.
+ * @param[in] msr The index of MSR to be written.
+ * @param[in] val The value to be written to the MSR.
+ *
+ * @return 0 if successful; otherwise, returns -1 for an error if given register is
+ *           not supported or write operation fails.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 {
 	struct acrn_vlapic *vlapic;
@@ -1698,7 +3304,34 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 }
 
 /**
- *  @pre vcpu != NULL
+ * @brief Initialize a virtual LAPIC for a given vCPU.
+ *
+ * This API initializes the virtual LAPIC instance:
+ *
+ * - Tears down the EPT mapping for GPA of DEFAULT_APIC_BASE if current VM is Service VM.
+ *   For other types of VM, this mapping is not set by default hence tearing down is not required.
+ *
+ * - Sets up the EPT mapping for GPA of DEFAULT_APIC_BASE on the address to APIC-Access page,
+ *   which is statically allocated and fetched by calling vlapic_apicv_get_apic_access_addr function.
+ *
+ * - Initializes a emulated APIC timer of vlapic, this timer is configured to onshort mode and not armed.
+ *
+ * - Configures the APIC ID of vlapic to be same as physical LAPIC ID.
+ *
+ * - If IPI virtualization is supported and LAPIC pass-through is not configured, it also
+ *   initializes the PID (Posted-Interrupt Descriptor) pointer field which is indexed by
+ *   APIC ID of current virtual LAPIC.
+ *
+ * @param[in] vcpu Pointer to the vCPU whose virtual LAPIC is being created.
+ * @param[in] pcpu_id ID of the pCPU where the vCPU will run.
+ *
+ * @return None.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 {
@@ -1725,7 +3358,7 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 	vlapic->vapic_id = per_cpu(lapic_id, pcpu_id);
 
 	if (can_ipiv_enabled(vcpu->vm)) {
-		/* PID_ADDR[5:0] ≠ 000001b // PID pointer not valid or reserved bits set */
+		/* PID_ADDR[5:0] != 000001b // PID pointer not valid or reserved bits set */
 		vcpu->vm->arch_vm.pid_table[vlapic->vapic_id] = hva2hpa(get_pi_desc(vcpu)) | PID_TABLE_ENTRY_VALID;
 		if (vcpu->vm->arch_vm.max_lapic_id < vlapic->vapic_id) {
 			/* the max lapic_id is small than 512 when arch.pid_table is valid */
@@ -1736,8 +3369,19 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic APIC ID : 0x%04x", vlapic->vapic_id);
 }
 
-/*
- *  @pre vcpu != NULL
+/**
+ * @brief Deinitialize the virtual LAPIC of a given vCPU.
+ *
+ * This API deinitializes the virtual LAPIC of the specified vCPU by deleting its associated
+ * timer by calling del_timer function.
+ *
+ * @param[in] vcpu Pointer to the vCPU whose virtual LAPIC is being deinitialized.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 void vlapic_free(struct acrn_vcpu *vcpu)
 {
@@ -1748,8 +3392,28 @@ void vlapic_free(struct acrn_vcpu *vcpu)
 }
 
 /**
- * APIC-v functions
+ * @brief Record an interrupt to the PID of virtual LAPIC with Posted-Interrupt support.
+ *
+ * This API sets a bit corresponding to the specified interrupt vector in the Posted-Interrupt
+ * Requests(PIR) field of the Posted-Interrupt Descriptor(PID) following
+ * section 31.6 POSTED-INTERRUPT PROCESSING, Volume 3, Intel SDM 325462-087US,
+ * each bit in the PIR represents an interrupt vector.
+ *
+ * The function also sets the Outstanding Notification(ON) bit in the PID if PIR is updated
+ * successfully to indicate there is an outstanding notification for the interrupt.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ * @param[in] vector Interrupt vector to be injected.
+ *
+ * @return A boolean indicating whether the ON bit in the PID was
+ *         set successfully (true) or not (false).
+ *
+ * @pre vlapic != NULL
  * @pre get_pi_desc(vlapic2vcpu(vlapic)) != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
 static bool
 apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector)
@@ -1767,8 +3431,23 @@ apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector)
 }
 
 /**
- *APIC-v: Get the HPA to APIC-access page
- * **/
+ * @brief Retrieve the Host Physical Address (HPA) to the APIC-access page.
+ *
+ * This API statically defines a 4-KByte APIC-access page and returns its physical address
+ * as the APIC-access address.
+ *
+ * APIC-access page is used for Virtualize APIC accesses feature of APIC virtualization
+ * according to section 31.4 VIRTUALIZING MEMORY-MAPPED APIC ACCESSES,
+ * Volume 3, Intel SDM 25462-087US.
+ *
+ * @return HPA of the APIC-access page.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 uint64_t
 vlapic_apicv_get_apic_access_addr(void)
 {
@@ -1779,25 +3458,50 @@ vlapic_apicv_get_apic_access_addr(void)
 }
 
 /**
- *APIC-v: Get the HPA to virtualized APIC registers page
- * **/
+ * @brief Retrieve the Host Physical Address (HPA) to the virtual-APIC page.
+ *
+ * This API returns the HPA corresponding to the virtual-APIC page for the given virtual LAPIC.
+ *
+ * The virtual-APIC page is a 4-KByte region of memory that the processor uses to virtualize
+ * certain accesses to APIC registers and to manage virtual interrupts according to section
+ * 31.1 VIRTUAL APIC STATE, Volume 3, Intel SDM 25462-087US.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return HPA of the virtualized APIC registers page.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 uint64_t
 vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
 {
 	return hva2hpa(&(vlapic->apic_page));
 }
 
-/*
- * @brief Send a Posted Interrupt to itself.
+/**
+ * @brief Inject all pending interrupts into a virtual LAPIC via Posted-Interrupt features.
  *
- * Interrupts are disabled on pCPU at this point of time.
- * Upon the next VMEnter the self-IPI is serviced by the logical processor.
- * Since the IPI vector is Posted Interrupt vector, logical processor syncs
- * PIR to vIRR and updates RVI.
+ * This API fires Self-IPI with Posted Interrupts notify vector(NV) if outstanding-notification
+ * (ON) bit in the posted-interrupt descriptor(PID) is set. This Self-IPI is serviced by the
+ * logical processor on next VM entry to logical-OR of PIR into vIRR and clears PIR, also updates
+ * RVI for interrupt evaluation and delivery according to section 31.6 POSTED-INTERRUPT PROCESSING,
+ * Volume 3, Intel SDM 25462-087US.
  *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
  * @pre get_pi_desc(vlapic->vcpu) != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
  */
-
 static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
 {
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
@@ -1820,22 +3524,111 @@ static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
 	}
 }
 
+/**
+ * @brief Inject an interrupt into a virtual LAPIC.
+ *
+ * This API triggers the injection of an interrupt into the virtual LAPIC, by calling
+ * APICv inject_intr callback function.
+ *
+ * - APIC Virtualization case: it fires Self-IPI with notify vector(NV) if the
+ *   outstanding-notification(ON) bit in the posted-interrupt descriptor(PID) is set.
+ *
+ *   This self-IPI is serviced by the logical processor to logical-OR of PIR into vIRR and
+ *   clears PIR, and updates RVI for interrupt evaluation and delivery,
+ *   Following section 31.6 POSTED-INTERRUPT PROCESSING, Volume 3, Intel SDM 325462-087US.
+ *
+ * - APIC pass-through case: it is not applicable and do nothing.
+ *
+ * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 void vlapic_inject_intr(struct acrn_vlapic *vlapic)
 {
 	vlapic->ops->inject_intr(vlapic);
 }
 
+
+/**
+ * @brief Check if there are any pending interrupts on given virtual CPU, with APIC virtualization
+ *        is configured.
+ *
+ * This function checks if there is any bit set in all vIRR registers in virtual-APIC page, which
+ * means there are interrupt(s) pending on current vlapic and return true if yes.
+ *
+ * @param[in] vcpu pointer to the virtual CPU structure.
+ *
+ * @return Return true if there is pending interrupts on given vCPU otherwise return false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
 {
 	return vlapic_find_highest_irr(vcpu_vlapic(vcpu)) != 0UL;
 }
 
+/**
+ * @brief Check if there are any pending interrupts on a given virtual CPU.
+ *
+ * This API determines whether there are any pending interrupts on the specified virtual CPU
+ * by calling has_pending_intr callback function in APICv operation.
+ *
+ * - APIC Virtualization case: it checks if there is any bit set in vIRR registers in
+ *   virtual-APIC page and return true if yes.
+ *
+ * - APIC pass-through case:  it is not applicable and always return false.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU structure.
+ *
+ * @return Returns true if there are pending interrupts on the given vCPU;
+ *         otherwise, returns false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
 	return vlapic->ops->has_pending_intr(vcpu);
 }
 
+/**
+ * @brief Handler to VM Exit with reason of Virtualized EOI.
+ *
+ * According to section 26.6.8 Controls for APIC Virtualization, and
+ * section 31.1.4 EOI Virtualization, Volume 3, Intel SDM 325462-087US,
+ * EOI-Exit bitmap is used to determine which virtualized writes to the APIC's EOI register
+ * cause VM exits.
+ *
+ * This function completes EOI virtualization performed for a virtual interrupt whose vector
+ * indexed a bit set in the EOI-Exit bitmap. It calls vioapic_broadcast_eoi function to
+ * broadcast EOI event to all IO-APICs if this interrupt is LEVEL triggered.
+ *
+ * This function does not update guest RIP.
+ *
+ * @param[in] vcpu pointer to the virtual CPU structure.
+ *
+ * @return Always return 0 to indicate this vmexit event has been processed successfully.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = NULL;
@@ -1864,6 +3657,54 @@ int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
+/**
+ * @brief Handler to APIC-write VM exit.
+ *
+ * This function processes VM APIC-write VM exits, to complete the virtualization of a write
+ * access to registers in the APIC-access page, according to section 31.4.3.3 APIC-Write VM Exits,
+ * section 31.5 VIRTUALIZING MSR-BASED APIC ACCESSES and section 31.1.6.2 IPI Virtualization Using
+ * Virtual-Interrupt Posting, Volume 3, Intel SDM 325462-087US.
+ * Below cases may lead to an APIC-Write exit:
+ *
+ * - Execution of WRMSR with ECX = 83FH (self-IPI MSR) in non-root mode if the
+ *   "virtual-interrupt delivery" VM-execution control is 1;
+ * - IPI virtualization and execution of SENDUIPI, according to
+ *   section 31.4.3.2 APIC-Write Emulation, Volume 3, Intel SDM 325462-087US,
+ *   APIC-write VM exit occurs if the processor checks the value of VICR_L fail when it performs
+ *   IPI virtualization.
+ *
+ * Write on below regisers are processed:
+ *
+ * - APIC_OFFSET_ICR_LOW:  It examines the target value of ICR, and emulates an IPI to target vCPU
+ *                         following 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                         Intel SDM 325462-087US, with given Delivery Mode in ICR:
+ *                         Fixed: Fires an IPI with vector number and trigger level to target vCPU
+ *                                via `accept_intr` APICv callback function.
+ *                         NMI:   Injects NMI to target vCPU by calling vcpu_inject_nmi function.
+ *                         INIT & Startup: Process INIT or SIPI IPI to target vCPU following:
+ *                                         10.4.3 MP Initialization Protocol Algorithm for MP Systems,
+ *                                         Volume 3, Intel SDM 325462-087US.
+ *                         Other Delivery Modes are not supported.
+ *
+ * - APIC_OFFSET_SELF_IPI: According to 31.1.6.2 IPI Virtualization Using Virtual-Interrupt Posting,
+ *                         Volume 3, Intel SDM 325462-087US, APIC-write VM exit for illegal vector.
+ *                         It logs APIC_ESR_SEND_ILLEGAL_VECTOR ESR error event and delivers
+ *                         interrupt following section
+ *                         12.5.2 Valid Interrupt Vectors, and 12.5.3 Error Handling, Volume 3,
+ *                         Intel SDM 325462-087US.
+ * - Reporting error status for other register offset.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU structure.
+ *
+ * @return 0 on successful handling; -EACCES if the register offset is unsupported.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark This handler is invoked when the guest writes to APIC registers that are
+ *         configured to cause VM exits.
+ */
 int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	int32_t err = 0;
@@ -1893,6 +3734,27 @@ int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu)
 
 }
 
+/**
+ * @brief Handle self-interrupt in virtual LAPIC operating in x2APIC mode.
+ *
+ * This function emulates write operation on SELF IPI MSR with given vector which is cached
+ * in virtual-APIC page before calling this function.
+ *
+ * - Vector number shall be greater than 15, otherwise it logs APIC_ESR_SEND_ILLEGAL_VECTOR
+ *   ESR error bit and delivers an interrupt.
+ * - If given vector is valid, it triggers an edge-triggered self-IPI delivery by calling
+ *   vlapic_set_intr function.
+ *
+ * @param[inout] vlapic Pointer to the virtual LAPIC structure initiating the self-interrupt.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
 {
 	struct lapic_regs *lapic;
@@ -1908,6 +3770,25 @@ static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic)
 	}
 }
 
+/**
+ * @brief Handle VM exit due to TPR (Task Priority Register) below threshold.
+ *
+ * This handler is invoked when the guest's TPR value drops below the threshold,
+ * indicating that previously interrupts may now be deliverable.
+ * It requests the hypervisor to reevaluate pending virtual interrupts for the vCPU
+ * by calling vcpu_make_request function, and keeps guest RIP not updated by calling
+ * vcpu_retain_rip function.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU structure.
+ *
+ * @return Always returns 0 to indicate successful handling of the VM exit.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	vcpu_make_request(vcpu, ACRN_REQUEST_EVENT);
@@ -1916,6 +3797,55 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
+/**
+ * @brief APICv operation set implementing advanced APIC virtualization features.
+ *
+ * This structure defines a set of function pointers corresponding to advanced APICv operations
+ * which supports enhanced APIC virtualization capabilities as below to provide optimized interrupt
+ * handling for vCPUs:
+ * - Virtual-interrupt delivery
+ * - Use TPR shadow
+ * - Virtualize x2APIC mode
+ * - APIC-register virtualization
+ * - Process posted interrupts
+ * - IPI virtualization
+ *
+ * Specifically, it initializes acrn_apicv_ops callback functions as below:
+ * - accept_intr  This callback function handles interrupt acceptance of a vlapic that utilizes
+ *                APICv advanced feature of Posted Interrupts (PI).
+ *                It updates the Trigger Mode Register (TMR) in virtual-APIC page and request
+ *                VMCS EOI Exit Bitmap update based on the trigger mode of given interrupt
+ *                according to section 12.8.5 Signaling Interrupt Servicing Completion,
+ *                26.6.8 Controls for APIC Virtualization, and 31.1.4 EOI Virtualization,
+ *                Volume 3, Intel SDM 25462-087US.
+ *
+ *                It records the interrupt in PIR of PID and request ACRN_REQUEST_EVENT event
+ *                for interrupt injection before next VM entry.
+ *                If the target vCPU is not executing on current pCPU, it fires posted-interrupt
+ *                notification IPI to the target pCPU to inject this interrupt directly to target
+ *                vCPU without VM Exit according to section 31.6 POSTED-INTERRUPT PROCESSING,
+ *                Volume 3, Intel SDM 25462-087US.
+ *
+ * - inject_intr  This callback function fires a self-IPI with posted interrupts notify vector(NV)
+ *                if outstanding-notification(ON) bit in posted-interrupt descriptor(PID) is set.
+ *
+ *                Interrupts are disabled on the pCPU at this point. Upon the next VM Enter, the
+ *                self-IPI is serviced by the logical processor to logical-OR of PIR into vIRR and
+ *                clears PIR, also update RVI for interrupt evaluation and delivery according to
+ *                section 31.6 POSTED-INTERRUPT PROCESSING, Volume 3, Intel SDM 25462-087US.
+ *
+ * - has_pending_intr  This callback function checks if there is any bit set in vIRR registers
+ *                     in virtual-APIC page.
+ *
+ * - x2apic_read_msr_may_valid   This callback function verifies if a read operation is permitted
+ *                               for a given register offset in virtual-APIC page. Only read on
+ *                               APIC_OFFSET_TIMER_CCR is emulated in x2APIC mode.
+ *
+ * - x2apic_write_msr_may_valid  This callback function verifies if a write operation is permitted
+ *                               for a given register offset in virtual-APIC page. Write on below
+ *                               regisers are emulated in x2APIC mode: APIC_OFFSET_DFR,
+ *                               APIC_OFFSET_ICR_HI, APIC_OFFSET_EOI and APIC_OFFSET_SELF_IPI.
+ */
 static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.accept_intr = apicv_advanced_accept_intr,
 	.inject_intr = apicv_advanced_inject_intr,
@@ -1923,3 +3853,6 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.x2apic_read_msr_may_valid  = apicv_advanced_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
 };
+/**
+ * @}
+ */
