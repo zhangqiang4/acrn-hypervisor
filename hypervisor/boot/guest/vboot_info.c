@@ -18,10 +18,43 @@
 #include <logmsg.h>
 #include <vacpi.h>
 
+/**
+ * @addtogroup vp-base_vboot
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Functions to initialize software modules info of VM for its boot.
+ *
+ * The file provides functions to initialize software modules information of ACRN pre-launched VM and Service VM
+ * for its load and boot process. The software modules cover kernel, ramdisk, ACPI, boot arguments, etc.
+ */
+
+/**
+ * @brief The debug level of the guest VM boot process.
+ */
 #define DBG_LEVEL_BOOT	6U
 
 /**
- * @pre vm != NULL && mod != NULL
+ * @brief Initialize ramdisk information for ACRN VM
+ *
+ * This function initializes the ramdisk information for OS of ACRN pre-launched VM and Service VM using the
+ * provided module information. It sets the source address and size of the ramdisk based on the module's
+ * data, allowing the VM to access the ramdisk during its operation.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the ramdisk information
+ *               is being initialized.
+ * @param[in] mod A pointer to the `abi_module` structure containing information about the ramdisk module,
+ *            including its start address and size.
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre mod != NULL
+ *
+ * @post N/A
  */
 static void init_vm_ramdisk_info(struct acrn_vm *vm, const struct abi_module *mod)
 {
@@ -34,7 +67,27 @@ static void init_vm_ramdisk_info(struct acrn_vm *vm, const struct abi_module *mo
 }
 
 /**
- * @pre vm != NULL && mod != NULL
+ * @brief Initialize ACPI Information for ACRN VM
+ *
+ * This function initializes the ACPI information for OS of ACRN pre-launched VM and Service VM using the
+ * provided module information. It sets the source address, load address, and size of the ACPI data, allowing
+ * the VM to access and utilize ACPI tables during its operation.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the ACPI information
+ *               is being initialized.
+ * @param[in] mod A pointer to the `abi_module` structure containing information about the ACPI module,
+ *            including its start address.
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre mod != NULL
+ *
+ * @post N/A
+ *
+ * @remark The function sets the ACPI load address to a predefined virtual address
+ *       (`VIRT_ACPI_DATA_ADDR`) and the size to a fixed value (`ACPI_MODULE_SIZE`).
+ *       This ensures that the ACPI data is correctly positioned and sized for the VM.
  */
 static void init_vm_acpi_info(struct acrn_vm *vm, const struct abi_module *mod)
 {
@@ -44,7 +97,29 @@ static void init_vm_acpi_info(struct acrn_vm *vm, const struct abi_module *mod)
 }
 
 /**
- * @pre vm != NULL && mod != NULL
+ * @brief Initialize kernel information for ACRN VM
+ *
+ * This function initializes the kernel information for OS of ACRN pre-launched VM and Service VM using the
+ * provided module information. It sets the source address, size, and type of the kernel, ensuring that the
+ * VM can correctly load and execute the kernel.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the kernel information
+ *               is being initialized.
+ * @param[in] mod A pointer to the `abi_module` structure containing information about the kernel module,
+ *            including its start address and size.
+ *
+ * @return Returns 0 on successful initialization of the kernel information. Returns -EINVAL if the kernel type
+ *         is unsupported or if the module information is invalid.
+ *
+ * @retval -EINVAL if the kernel type is unsupported or if the module information is invalid.
+ * @retval 0 on successful initialization of the kernel information.
+ *
+ * @pre vm != NULL
+ * @pre mod != NULL
+ *
+ * @post N/A
+ *
+ * @remark The function retrieves the kernel type from the VM's configuration and checks its validity.
  */
 static int32_t init_vm_kernel_info(struct acrn_vm *vm, const struct abi_module *mod)
 {
@@ -68,11 +143,35 @@ static int32_t init_vm_kernel_info(struct acrn_vm *vm, const struct abi_module *
 	return ret;
 }
 
-/* cmdline parsed from abi kernel module string, for pre-launched VMs and Service VM only. */
+/**
+ * @brief Kernel module string array for ACRN VM
+ *
+ * This array stores kernel module string associated with ACRN pre-launched VM and service VM. Each element
+ * in the array corresponds to a specific VM, providing space for storing boot arguments that can be used during
+ * the VM's initialization and operation.
+ */
 static char kernel_mod_string[PRE_VM_NUM + SERVICE_VM_NUM][MAX_BOOTARGS_SIZE] = { 0 };
 
 /**
- * @pre vm != NULL && abi != NULL
+ * @brief Initialize boot arguments information for ACRN VM
+ *
+ * This function initializes the boot arguments information for OS of ACRN pre-launched VM and Service VM.
+ * It sets the source address and size of the boot arguments, allowing for dynamic configuration based on
+ * module strings and bootloader input. The function provides flexibility to override pre-configured boot
+ * arguments with runtime input from the bootloader, such as GRUB menu options. It also handles the merging
+ * of additional command-line arguments for service VM, ensuring that runtime modifications can be applied.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the boot arguments
+ *               information is being initialized.
+ * @param[in] abi A pointer to the `acrn_boot_info` structure containing boot information, including
+ *            command-line arguments.
+ *
+ * @return None
+ *
+ * @pre vm != NULL
+ * @pre abi != NULL
+ *
+ * @post N/A
  */
 static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_info *abi)
 {
@@ -109,7 +208,29 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 
 }
 
-/* @pre vm != NULL && abi != NULL
+/**
+ * @brief Initialize software load of ACRN VM
+ *
+ * This function initializes the software loading process for ACRN pre-launched VM and Service VM. It identifies
+ * and loads the kernel, boot arguments, ramdisk, and ACPI modules based on the configuration and boot
+ * information provided. It also handles the merging of cmdline arguments if specified in the kernel module string.
+ * The function ensures that the VM is correctly set up with the necessary software modules for its operation.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the software loading is
+ *               being initialized.
+ * @param[in] abi A pointer to the `acrn_boot_info` structure containing boot information, including the list of
+ *            modules.
+ *
+ * @return Returns 0 on successful initialization of the software loading process. Returns -EINVAL if the
+ *         kernel module cannot be loaded.
+ *
+ * @retval -EINVAL if the initialization process of the VM kernel information failed.
+ * @retval 0 on successful initialization of the software loading process.
+ *
+ * @pre vm != NULL
+ * @pre abi != NULL
+ *
+ * @post N/A
  */
 static int32_t init_vm_sw_load(struct acrn_vm *vm, const struct acrn_boot_info *abi)
 {
@@ -161,12 +282,26 @@ static int32_t init_vm_sw_load(struct acrn_vm *vm, const struct acrn_boot_info *
 }
 
 /**
- * @param[inout] vm pointer to a vm descriptor
+ * @brief Initialize boot information of ACRN VM
  *
- * @retval 0 on success
- * @retval -EINVAL on invalid parameters
+ * This function initializes the boot information for OS of ACRN pre-launched VM and Service VM by setting up
+ * the VM's software loading process using the ACRN boot information.
+ *
+ * @param[inout] vm A pointer to the `acrn_vm` structure representing the VM for which the boot information is
+ *               being initialized.
+ *
+ * @return Returns 0 on successful initialization of the boot information. Returns -EINVAL if the software
+ *         loading process fails.
+ *
+ * @retval -EINVAL if the software loading process fails.
+ * @retval 0 on successful initialization of the boot information.
  *
  * @pre vm != NULL
+ *
+ * @post N/A
+ *
+ * @remark The function uses `stac` and `clac` to temporarily enable and disable
+ *       access to user space memory, ensuring safe access to the boot information.
  */
 int32_t init_vm_boot_info(struct acrn_vm *vm)
 {
@@ -179,3 +314,6 @@ int32_t init_vm_boot_info(struct acrn_vm *vm)
 
 	return ret;
 }
+/**
+ * @}
+ */
