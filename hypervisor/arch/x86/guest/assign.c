@@ -71,9 +71,8 @@ static struct acrn_vcpu *is_single_destination(struct acrn_vm *vm, const struct 
  *
  * The physical CPU mask translated from vCPU mask may not be in the same x2APIC cluster and
  * interrupts can not be distributed to all of those physical CPUs. Instead, we choose the first
- * one of target clusters as the real destination. PCPU ids in pdmask should be smaller than
- * MAX_PCPU_NUM if VM is configured correctly. Otherwise CPU with logical id 0 in cluster 0 is
- * chosen as destination.
+ * one of target clusters as the real destination. If pdmask is 0, CPU with logical id 0 in
+ * cluster 0 is chosen as destination.
  *
  * @param[in] pdmask Original physical CPU destination mask
  *
@@ -86,7 +85,7 @@ static uint32_t calculate_logical_dest_mask(uint64_t pdmask)
 	uint16_t pcpu_id;
 
 	pcpu_id = ffs64(pcpu_mask);
-	if (pcpu_id < MAX_PCPU_NUM) {
+	if (pcpu_id != INVALID_BIT_INDEX) {
 		/* Guests working in xAPIC mode may use 'Flat Model' to select an
 		 * arbitrary list of CPUs. But as the HW is woring in x2APIC mode and can only
 		 * use 'Cluster Model', destination mask can only be assigned to pCPUs within
@@ -106,7 +105,7 @@ static uint32_t calculate_logical_dest_mask(uint64_t pdmask)
 					pcpu_id, cluster_id >> 16U, dest_cluster_id >> 16U);
 			}
 			pcpu_id = ffs64(pcpu_mask);
-		} while (pcpu_id < MAX_PCPU_NUM);
+		} while (pcpu_id != INVALID_BIT_INDEX);
 	}
 
 	return (dest_cluster_id | logical_id_mask);
