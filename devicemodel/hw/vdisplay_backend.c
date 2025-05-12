@@ -18,6 +18,7 @@
 #include "vdisplay.h"
 #include "atomic.h"
 #include "timer.h"
+#include "mevent.h"
 
 #define DUMMY_BACKEND_NAME "dummy-display"
 #define transto_10bits(color) (uint16_t)(color * 1024 + 0.5)
@@ -53,12 +54,20 @@ struct screen {
 	bool is_pipe_vblank;
 	struct timer_vblank sw_vblank;
 	int vrefresh;
+
+	struct mevent *mevent_event;	/* poll the event injector fd */
+
 };
 
 static struct display {
 	struct state s;
 	struct screen *scrs;
 	int scrs_num;
+
+	int scrs_connected_num;
+	void (*config_change_func)(void *data, int num);
+	void *config_change_data;
+
 	int pipe_num;
 	int vblank[VSCREEN_MAX_NUM];
 	int vfid;
@@ -1131,6 +1140,7 @@ vdpy_enable_vblank(int scanout_id)
 {
 	struct screen *vscr;
 	vscr = vdpy.scrs + scanout_id;
+
 	if(vscr->is_timer_vblank) {
 		timer_vblank_enable(&vscr->sw_vblank);
 		return;
@@ -1435,12 +1445,62 @@ gfx_ui_init()
 	return ret;
 }
 
+static void
+hotplug_monitor(int n, enum ev_type, void *s)
+{
+	struct screen *scr = (struct screen *)s;
+	int ret = false;
+	if (!scr->vscreen_ops->vdpy_hotplug_process)
+		return;
+	ret = scr->vscreen_ops->vdpy_hotplug_process(scr->backend);
+	if(ret) {
+		vdpy.config_change_func(vdpy.config_change_data, vdpy.scrs_connected_num);
+	}
+}
+
+void
+vdpy_hotplug_init(void (*func)(void *data, int num), void *data)
+{
+	struct screen *scr;
+
+	vdpy.config_change_func = func;
+	vdpy.config_change_data = data;
+	for(int i = 0; i < vdpy.scrs_num; i++) {
+		scr = vdpy.scrs + i;
+		if (scr->vscreen_ops->vdpy_hotplug_init) {
+			int fd;
+			if (scr->vscreen_ops->vdpy_hotplug_init(scr->backend, &fd) < 0) {
+				pr_err("scanout:%d hotplug init failed \r\n",i);
+				continue;
+			}
+
+			scr->mevent_event = mevent_add(fd, EVF_READ,
+					hotplug_monitor, scr, NULL, NULL);
+			if (!scr->mevent_event) {
+			     pr_err("Failed to add mevent for hotplug monitor\n");
+			}
+		}
+	}
+}
+
+static void
+vdpy_hotplug_deinit(void)
+{
+	struct screen *scr;
+	for(int i = 0; i < vdpy.scrs_num; i++) {
+		scr = vdpy.scrs + i;
+		if (!scr->mevent_event)
+			mevent_delete(scr->mevent_event);
+	}
+}
+
 void
 gfx_ui_deinit()
 {
 	if (!vdpy.s.is_ui_realized) {
 		return;
 	}
+	vdpy_hotplug_deinit();
 	deinit_backends();
 	free(vdpy.scrs);
 }

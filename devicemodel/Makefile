@@ -94,6 +94,7 @@ LIBS += -ludev
 LIBS += -lpciaccess
 LIBS += -lusb-1.0
 LIBS += -lacrn-mngr
+LIBS += -ludev
 LIBS += -lcjson
 LIBS += -lpixman-1
 LIBS += -lSDL2

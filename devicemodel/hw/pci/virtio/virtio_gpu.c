@@ -985,7 +985,11 @@ virtio_gpu_cmd_get_display_info(struct virtio_gpu_command *cmd)
 	virtio_gpu_update_resp_fence(&cmd->hdr, &resp.hdr);
 	for (i = 0; i < gpu->vdpy_if.scanout_num; i++) {
 		vdpy_get_display_info(gpu->vdpy_handle, i, &info);
-		resp.pmodes[i].enabled = 1;
+		if(info.width == 0 && info.height == 0) {
+			resp.pmodes[i].enabled = 0;
+		} else {
+			resp.pmodes[i].enabled = 1;
+		}
 		resp.pmodes[i].r.x = 0;
 		resp.pmodes[i].r.y = 0;
 		resp.pmodes[i].r.width = info.width;
@@ -2577,7 +2581,16 @@ virtio_gpu_vga_render(void *param)
 	return NULL;
 }
 
+#define VIRTIO_GPU_EVENT_DISPLAY (1 << 0)
 
+static void
+virtio_gpu_scanout_change(void *data, int scanout_num)
+{
+	struct virtio_gpu *gpu = (struct virtio_gpu *)data;
+
+	gpu->cfg.events_read |= VIRTIO_GPU_EVENT_DISPLAY;
+	virtio_config_changed(&gpu->base);
+}
 
 static int
 virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
@@ -2881,6 +2894,8 @@ virtio_gpu_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	gpu->vga.surf.pixel = 0;
 	atomic_store(&gpu->vga_thread_status, VGA_THREAD_RUNNING);
 	pthread_create(&gpu->vga.tid, NULL, virtio_gpu_vga_render, (void*)gpu);
+
+	vdpy_hotplug_init(virtio_gpu_scanout_change, gpu);
 
 	return 0;
 failed_vga:

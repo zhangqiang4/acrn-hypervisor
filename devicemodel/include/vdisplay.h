@@ -19,6 +19,7 @@
 typedef void (*bh_task_func)(void *data);
 typedef void (*vblank_inject_func)(void *data, unsigned int frame, int i);
 typedef void (*hdcp_inject_func)(void *data, unsigned int frame, int i);
+typedef void (*config_change_func)(void *data, int num);
 
 /* bh task is still pending */
 #define ACRN_BH_PENDING (1 << 0)
@@ -167,6 +168,10 @@ struct screen_backend_ops {
 	void (*vdpy_query_cp)(void *backend, uint32_t scanout_id, struct hdcp_info *info);
 	int (*vdpy_hdcp_init)(void *backend, void (*func)
 	        (void *data, uint32_t value, int i), void *data, int scanout_id);
+
+	int (*vdpy_hotplug_init)(void *backend, int *fd);
+	bool (*vdpy_hotplug_process)(void *backend);
+
 };
 
 struct vdpy_backend {
@@ -221,5 +226,6 @@ void vdpy_mplane_fallback();
 void vdpy_set_cp(int handle,int scanout_id, uint32_t type, uint32_t value);
 void vdpy_query_cp(int handle, int scanout_id, struct hdcp_info *info);
 void gfx_ui_deinit();
+void vdpy_hotplug_init(void (*func)(void *data, int num), void *data);
 
 #endif /* _VDISPLAY_H_ */
