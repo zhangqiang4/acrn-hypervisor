@@ -120,13 +120,16 @@ uint64_t e820_alloc_memory(uint64_t size_arg, uint64_t max_addr)
 	return ret;
 }
 
-static void insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, uint32_t type)
+static int32_t insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, uint32_t type)
 {
 	uint32_t i;
+	int32_t err = 0;
 
 	hv_e820_entries_nr++;
-	ASSERT(hv_e820_entries_nr <= E820_MAX_ENTRIES, "E820 entry overflow");
-
+	if ((hv_e820_entries_nr > E820_MAX_ENTRIES) || (index >= hv_e820_entries_nr)) {
+		pr_err("%s E820 entry overflow, E820_MAX_ENTRIES: %d", __func__, E820_MAX_ENTRIES);
+		err = -EINVAL;
+	}
 	for (i = hv_e820_entries_nr - 1U; i > index; i--) {
 		hv_e820[i] = hv_e820[i - 1U];
 	}
@@ -134,6 +137,8 @@ static void insert_e820_entry(uint32_t index, uint64_t addr, uint64_t length, ui
 	hv_e820[index].baseaddr = addr;
 	hv_e820[index].length = length;
 	hv_e820[index].type = type;
+
+	return err;
 }
 
 #ifdef CONFIG_MULTIBOOT2
@@ -276,7 +281,7 @@ static void reserve_e820_region(uint64_t start_hpa, uint64_t end_hpa)
 				* .......|start_hpa......................end_hpa|.....
 				* |entry_start..............................entry_end|
 				*/
-				insert_e820_entry(e820_index + 1, end_hpa, entry_end - end_hpa, E820_TYPE_RAM);
+				(void)insert_e820_entry(e820_index + 1, end_hpa, entry_end - end_hpa, E820_TYPE_RAM);
 			}
 		} else {
 			panic("%s: region 0x%016lx-0x%016lx crosses multiple e820 entries, check your bootloader!",
