@@ -1836,7 +1836,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		break;
 	}
 	case MSR_IA32_COPY_LOCAL_TO_PLATFORM:
-	{	
+	{
 		/* check feature support and avoid setting reserved MSR bits */
 		if (is_iwkey_backup_support(vcpu) && ((v & ~0x1UL) == 0x0UL)) {
 			if (v == 0x1UL) {

@@ -271,7 +271,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 	stac();
 	size = sbuf->size + SBUF_HEAD_SIZE;
 	clac();
-	
+
 	/* sbuf requires hva to be continuous */
 	hva = (uint64_t)sbuf + PAGE_SIZE;
 	for (temp_gpa = (gpa + PAGE_SIZE); temp_gpa < (gpa + size); temp_gpa += PAGE_SIZE) {

@@ -38,19 +38,19 @@
 
 /**
  * @brief Number of EPT PML4 pages required for a single VM
- * 
+ *
  * EPT address space will not beyond the platform physical address space
  */
 #define EPT_PML4_PAGE_NUM	PML4_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
 /**
  * @brief Number of EPT PDPT pages required for a single VM
- * 
+ *
  * EPT address space will not beyond the platform physical address space
  */
 #define EPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
 /**
  * @brief Number of EPT PD pages required for a single VM
- * 
+ *
  * EPT_PD_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most
@@ -66,7 +66,7 @@
 #define EPT_PD_PAGE_NUM		(PD_PAGE_NUM(MEM_TOP_ADDRESS) + (CONFIG_MAX_PCI_DEV_NUM * 6U))
 /**
  * @brief Number of EPT PT pages required for a single VM
- * 
+ *
  * EPT_PT_PAGE_NUM consists of three parts:
  * 1) DRAM - and low MMIO are contiguous (we could assume this because ve820 was build by us),
  *            CONFIG_MAX_VM_NUM at most

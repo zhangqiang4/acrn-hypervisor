@@ -283,7 +283,7 @@ vector = 0x15
  *
  * Vectors 0x20 through 0xFF are for external interrupts.
  * The handler external_interrupt_{vector} matches the offset field in corresponding IDT entry.
- * 
+ *
  * @param[in] vector Number of the external interrupt
  */
 .macro _external_interrupt vector

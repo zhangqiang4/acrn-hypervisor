@@ -1723,7 +1723,7 @@ static void dmar_fault_msi_write(struct dmar_drhd_rt *dmar_unit,
 /**
  * @brief Print the fault recording information from the given fault recording register value.
  *
- * @param[in] dmar_unit pointer to the DMAR runtime information structure 
+ * @param[in] dmar_unit pointer to the DMAR runtime information structure
  * @param[in] low low 64-bit of the fault recording register value
  * @param[in] high high 64-bit of the fault recording register value
  *

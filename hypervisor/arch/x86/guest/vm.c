@@ -782,9 +782,9 @@ static void prepare_epc_vm_memmap(struct acrn_vm *vm)
 
 static void unmap_epc_sections(struct acrn_vm *vm)
 {
-	uint64_t *pml4_page = (uint64_t *)vm->arch_vm.nworld_eptp; 
+	uint64_t *pml4_page = (uint64_t *)vm->arch_vm.nworld_eptp;
 	struct epc_section* epc_secs;
-	
+
 	/* Unmap all platform EPC resource from Service VM.
 	 * This part has already been marked as reserved by BIOS in E820
 	 * will cause EPT violation if Service VM accesses EPC resource.

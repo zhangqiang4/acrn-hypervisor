@@ -124,7 +124,7 @@ vgsi_to_vioapic_and_vpin(const struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin
 	if (is_service_vm(vm)) {
 		/*
 		 * Utilize platform ioapic_info for Service VM
-		 */	
+		 */
 		vioapic_index = get_gsi_to_ioapic_index(vgsi);
 		if (vpin != NULL) {
 			*vpin = gsi_to_ioapic_pin(vgsi);

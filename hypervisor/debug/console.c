@@ -198,7 +198,7 @@ static struct acrn_vuart *vuart_console_active(void)
 		if (!is_paused_vm(vm) && !is_poweroff_vm(vm)) {
 			vu = vm_console_vuart(vm);
 		} else if (CONFIG_CONSOLE_DEFAULT_VM == ACRN_INVALID_VMID) {
-			/* 
+			/*
 			 * Default console vm is not set in config, and it is invalid,
 			 * switch back to HV-Shell
 			 */

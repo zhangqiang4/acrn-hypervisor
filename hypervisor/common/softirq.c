@@ -78,7 +78,7 @@ void fire_softirq(uint16_t nr)
 /**
  * @brief Internal serialized check and handle logic for soft interrupts
  *
- * This function check pending soft interrupts on current pCPU by checking the percpu variable 
+ * This function check pending soft interrupts on current pCPU by checking the percpu variable
  * softirq_pending and invoke corresponding handler one by one.
  * If multiple kinds of soft interrupts are pending, that with smaller number goes first.
  *
