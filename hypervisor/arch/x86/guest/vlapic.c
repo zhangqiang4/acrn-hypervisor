@@ -70,15 +70,6 @@ static inline struct acrn_vcpu *vlapic2vcpu(const struct acrn_vlapic *vlapic)
 }
 
 #if VLAPIC_VERBOS
-static inline void vlapic_dump_irr(const struct acrn_vlapic *vlapic, const char *msg)
-{
-	const struct lapic_reg *irrptr = &(vlapic->apic_page.irr[0]);
-
-	for (uint8_t i = 0U; i < 8U; i++) {
-		dev_dbg(DBG_LEVEL_VLAPIC, "%s irr%u 0x%08x", msg, i, irrptr[i].v);
-	}
-}
-
 static inline void vlapic_dump_isr(const struct acrn_vlapic *vlapic, const char *msg)
 {
 	const struct lapic_reg *isrptr = &(vlapic->apic_page.isr[0]);
@@ -88,8 +79,6 @@ static inline void vlapic_dump_isr(const struct acrn_vlapic *vlapic, const char 
 	}
 }
 #else
-static inline void vlapic_dump_irr(__unused const struct acrn_vlapic *vlapic, __unused const char *msg) {}
-
 static inline void vlapic_dump_isr(__unused const struct acrn_vlapic *vlapic, __unused const char *msg) {}
 #endif
 
