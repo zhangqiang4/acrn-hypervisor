@@ -76,9 +76,6 @@ static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* boun
 /* The physical CR4 value for bits of CR4_EMULATED_RESERVE_BITS */
 #define CR4_EMRSV_BITS_PHYS_VALUE	CR4_VMXE
 
-/* The CR4 value guest expected to see for bits of CR4_EMULATED_RESERVE_BITS */
-#define CR4_EMRSV_BITS_VIRT_VALUE	0UL
-
 /*
  * Initial value or reset value of GUEST_CR4, i.e. physical value.
  * They are likely zeros, but some reserved bits may be not.
@@ -106,7 +103,6 @@ static uint64_t	cr0_trap_and_passthru_mask = CR0_TRAP_AND_PASSTHRU_BITS;/* bound
 /* These bits may be part of flexible bits but reserved to guest */
 #define CR0_EMULATED_RESERVE_BITS	0UL
 #define	CR0_EMRSV_BITS_PHYS_VALUE	0UL
-#define	CR0_EMRSV_BITS_VIRT_VALUE	0UL
 static uint64_t cr0_rsv_bits_guest_value;
 static uint64_t initial_guest_cr0;		/* Initial value of GUEST_CR0 */
 static uint64_t cr0_reserved_bits_mask;
@@ -486,7 +482,7 @@ void init_cr0_cr4_flexible_bits(void)
 	 */
 	cr0_rsv_bits_guest_value = (fixed0 & ~cr0_flexible_bits);
 	initial_guest_cr0 = (cr0_rsv_bits_guest_value & ~CR0_EMULATED_RESERVE_BITS) | CR0_EMRSV_BITS_PHYS_VALUE;
-	cr0_rsv_bits_guest_value = (cr0_rsv_bits_guest_value & ~CR0_EMULATED_RESERVE_BITS) | CR0_EMRSV_BITS_VIRT_VALUE;
+	cr0_rsv_bits_guest_value = (cr0_rsv_bits_guest_value & ~CR0_EMULATED_RESERVE_BITS);
 
 	pr_dbg("cr0_flexible_bits:0x%lx, cr0_passthru_mask:%lx, cr0_trap_and_passthru_mask:%lx.\n",
 		cr0_flexible_bits, cr0_passthru_mask, cr0_trap_and_passthru_mask);
