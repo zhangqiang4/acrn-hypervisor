@@ -102,8 +102,7 @@ static uint64_t	cr0_trap_and_passthru_mask = CR0_TRAP_AND_PASSTHRU_BITS;/* bound
 
 /* These bits may be part of flexible bits but reserved to guest */
 #define CR0_EMULATED_RESERVE_BITS	0UL
-#define	CR0_EMRSV_BITS_PHYS_VALUE	0UL
-static uint64_t cr0_rsv_bits_guest_value;
+#define CR0_EMRSV_BITS_PHYS_VALUE	0UL
 static uint64_t initial_guest_cr0;		/* Initial value of GUEST_CR0 */
 static uint64_t cr0_reserved_bits_mask;
 
@@ -156,7 +155,7 @@ static int32_t load_pdptrs(const struct acrn_vcpu *vcpu)
  */
 static inline bool is_valid_cr0(uint64_t cr0)
 {
-	return (cr0 & cr0_reserved_bits_mask) == cr0_rsv_bits_guest_value;
+	return (cr0 & cr0_reserved_bits_mask) == 0UL;
 }
 
 /*
@@ -256,7 +255,7 @@ static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 		pr_err("Invalid cr0 write operation from guest");
 		vcpu_inject_gp(vcpu, 0U);
 	} else {
-		uint64_t effective_cr0 = (value & ~cr0_reserved_bits_mask) | cr0_rsv_bits_guest_value;
+		uint64_t effective_cr0 = (value & ~cr0_reserved_bits_mask);
 		uint64_t mask, tmp;
 		uint32_t entry_ctrls;
 		uint64_t cr0_changed_bits = vcpu_get_cr0(vcpu) ^ effective_cr0;
@@ -448,7 +447,7 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 
 void init_cr0_cr4_flexible_bits(void)
 {
-	uint64_t cr0_flexible_bits;
+	uint64_t cr0_flexible_bits, cr0_fixed1_bits;
 	uint64_t cr4_flexible_bits, cr4_fixed1_bits;
 	uint64_t fixed0, fixed1;
 
@@ -464,7 +463,7 @@ void init_cr0_cr4_flexible_bits(void)
 	fixed0 = msr_read(MSR_IA32_VMX_CR0_FIXED0);
 	fixed1 = msr_read(MSR_IA32_VMX_CR0_FIXED1);
 
-	pr_dbg("%s:cr0 fixed0 = 0x%016lx, fixed1 = 0x%016lx", __func__, fixed0, fixed1);
+	pr_dbg("%s:cr0 fixed0 = 0x%016lx, fixed1 = 0x%016lx\n", __func__, fixed0, fixed1);
 	cr0_flexible_bits = (fixed0 ^ fixed1);
 	/*
 	 * HW reports fixed bits for CR0_PG & CR0_PE, but do not check the violation.
@@ -472,28 +471,29 @@ void init_cr0_cr4_flexible_bits(void)
 	 * flexible bits.
 	 */
 	cr0_flexible_bits |= (CR0_PE | CR0_PG);
-	cr0_passthru_mask &= cr0_flexible_bits;
-	cr0_trap_and_passthru_mask &= cr0_flexible_bits;
-	cr0_reserved_bits_mask = ~(cr0_passthru_mask | cr0_trap_and_passthru_mask | CR0_TRAP_AND_EMULATE_BITS);
+	cr0_fixed1_bits = (fixed0 & ~cr0_flexible_bits);
 
 	/*
-	 * cr0_rsv_bits_guest_value should be sync with always ON bits (1 in both FIXED0/FIXED1 MSRs).
-	 * Refer SDM Appendix A.7
+	 * We only pass-through flexible feature bits to guest and the fixed-1 feature bits are managed
+	 * by hypervisor. The fixed-1 bits are not reserved bits, they should not be set in the
+	 * cr0_reserved_bits_mask.
 	 */
-	cr0_rsv_bits_guest_value = (fixed0 & ~cr0_flexible_bits);
-	initial_guest_cr0 = (cr0_rsv_bits_guest_value & ~CR0_EMULATED_RESERVE_BITS) | CR0_EMRSV_BITS_PHYS_VALUE;
-	cr0_rsv_bits_guest_value = (cr0_rsv_bits_guest_value & ~CR0_EMULATED_RESERVE_BITS);
+	cr0_reserved_bits_mask = ~(cr0_passthru_mask | cr0_trap_and_passthru_mask | CR0_TRAP_AND_EMULATE_BITS);
+	cr0_passthru_mask &= cr0_flexible_bits;
+	cr0_trap_and_passthru_mask &= cr0_flexible_bits;
 
-	pr_dbg("cr0_flexible_bits:0x%lx, cr0_passthru_mask:%lx, cr0_trap_and_passthru_mask:%lx.\n",
+	initial_guest_cr0 = (cr0_fixed1_bits & ~CR0_EMULATED_RESERVE_BITS) | CR0_EMRSV_BITS_PHYS_VALUE;
+
+	pr_dbg("cr0_flexible_bits:0x%lx, cr0_passthru_mask:0x%lx, cr0_trap_and_passthru_mask:0x%lx.\n",
 		cr0_flexible_bits, cr0_passthru_mask, cr0_trap_and_passthru_mask);
-	pr_dbg("cr0_reserved_bits_mask:%lx, cr0_rsv_bits_guest_value:%lx, initial_guest_cr0:%lx.\n",
-		cr0_reserved_bits_mask, cr0_rsv_bits_guest_value, initial_guest_cr0);
+	pr_dbg("cr0_reserved_bits_mask:0x%lx, initial_guest_cr0:0x%lx.\n",
+		cr0_reserved_bits_mask, initial_guest_cr0);
 
 	/* Read the CR4 fixed0 / fixed1 MSR registers */
 	fixed0 = msr_read(MSR_IA32_VMX_CR4_FIXED0);
 	fixed1 = msr_read(MSR_IA32_VMX_CR4_FIXED1);
 
-	pr_dbg("%s:cr4 fixed0 = 0x%016lx, fixed1 = 0x%016lx", __func__, fixed0, fixed1);
+	pr_dbg("%s:cr4 fixed0 = 0x%016lx, fixed1 = 0x%016lx\n", __func__, fixed0, fixed1);
 	cr4_flexible_bits = (fixed0 ^ fixed1);
 	cr4_passthru_mask &= cr4_flexible_bits;
 	cr4_trap_and_passthru_mask &= cr4_flexible_bits;
@@ -511,9 +511,9 @@ void init_cr0_cr4_flexible_bits(void)
 	initial_guest_cr4 = (cr4_fixed1_bits & ~CR4_EMULATED_RESERVE_BITS) | CR4_EMRSV_BITS_PHYS_VALUE \
 						| CR4_EM_BITS_INITIAL_PHYS_VALUE;
 
-	pr_dbg("cr4_flexible_bits:0x%lx, cr4_passthru_mask:0x%lx, cr4_trap_and_passthru_mask:0x%lx.",
+	pr_dbg("cr4_flexible_bits:0x%lx, cr4_passthru_mask:0x%lx, cr4_trap_and_passthru_mask:0x%lx.\n",
 		cr4_flexible_bits, cr4_passthru_mask, cr4_trap_and_passthru_mask);
-	pr_dbg("cr4_reserved_bits_mask:%lx, initial_guest_cr4:%lx.\n", cr4_reserved_bits_mask, initial_guest_cr4);
+	pr_dbg("cr4_reserved_bits_mask:0x%lx, initial_guest_cr4:0x%lx.\n", cr4_reserved_bits_mask, initial_guest_cr4);
 }
 
 void fixup_cr0_cr4_guest_mask(struct acrn_vm *vm)
