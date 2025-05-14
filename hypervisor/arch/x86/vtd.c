@@ -744,7 +744,9 @@ static inline void dmar_wait_completion(const struct dmar_drhd_rt *dmar_unit, ui
 	__unused uint64_t start = cpu_ticks();
 
 	do {
-		ASSERT(((cpu_ticks() - start) < (1000 * TICKS_PER_MS)), "DMAR OP Timeout!");
+		if ((cpu_ticks() - start) > (DMAR_OPERATION_TIMEOUT * TICKS_PER_MS)) {
+			panic("DMAR[%d] operation Timeout!", dmar_unit->index);
+		}
 		asm_pause();
 		*status = iommu_read32(dmar_unit, offset);
 	} while( (*status & mask) == pre_condition);
@@ -1751,9 +1753,17 @@ static void fault_record_analysis(struct dmar_drhd_rt *dmar_unit, __unused uint6
 /**
  * @brief Handle the DMAR fault interrupt.
  *
- * This function checks Primary Pending Fault bit (PPF) in the Fault Status Register. Print every pending fault event's
- * recorded information from the Fault Recording Registers and then clear the registers, until PPF is 0 indicating no
- * pending faults.
+ * This function performs the following actions:
+ * - Read Fault Status Register (FSR).
+ * - If the Primary Pending Fault bit is set, do:
+ *     - Get Fault Record Index (FRI) from FSR.
+ *     - Start a infinite loop. In the loop, do:
+ *         - Read the indexed Fault Recording Register (FRR).
+ *         - If Fault bit is clear in the FRR, quit the loop.
+ *         - Else, print the fault ecorded information from the indexed FRR
+ *         - Clear the FRR.
+ *         - Increase the FRI, wrap to 0 if it hits the number of FRR supported by the DMAR.
+ *     - Clear Primary Fault Overflow bit in FSR.
  *
  * @param[in] irq interrupt number
  * @param[inout] data pointer to the DMAR runtime information structure
@@ -1773,33 +1783,34 @@ static void dmar_fault_handler(uint32_t irq, void *data)
 	uint16_t index;
 	uint32_t record_reg_offset;
 	struct dmar_entry fault_record;
-	int32_t loop = 0;
 
 	dev_dbg(DBG_LEVEL_IOMMU, "%s: irq = %d", __func__, irq);
 
 	fsr = iommu_read32(dmar_unit, DMAR_FSTS_REG);
 	pr_info("Fault Status Register: 0x%x", fsr);
-
-	while (dma_fsts_ppf(fsr)) {
-		loop++;
+	if (dma_fsts_ppf(fsr)) {
 		index = dma_fsts_fri(fsr);
-		record_reg_offset = (uint32_t)dmar_unit->cap_fault_reg_offset + (index * 16U);
-		if (index >= dmar_unit->cap_num_fault_regs) {
-			pr_fatal("Invalid FR Index 0x%x in Fault Status Register", index);
-			break;
+		while (1) {
+			record_reg_offset = (uint32_t)dmar_unit->cap_fault_reg_offset + (index * 16U);
+
+			/* read 128-bit fault recording register */
+			fault_record.hi_64 = iommu_read64(dmar_unit, record_reg_offset + 8U);
+			if (!dma_frcd_up_f(fault_record.hi_64)) {
+				break;
+			}
+			fault_record.lo_64 = iommu_read64(dmar_unit, record_reg_offset);
+			fault_record_analysis(dmar_unit, fault_record.lo_64, fault_record.hi_64);
+
+			/* write to clear */
+			iommu_write64(dmar_unit, record_reg_offset + 8U, fault_record.hi_64);
+
+			index++;
+			if (index >= dmar_unit->cap_num_fault_regs) {
+				index = 0U;
+			}
+
 		}
-
-		/* read 128-bit fault recording register */
-		fault_record.lo_64 = iommu_read64(dmar_unit, record_reg_offset);
-		fault_record.hi_64 = iommu_read64(dmar_unit, record_reg_offset + 8U);
-		fault_record_analysis(dmar_unit, fault_record.lo_64, fault_record.hi_64);
-
-		/* write to clear */
-		iommu_write64(dmar_unit, record_reg_offset, fault_record.lo_64);
-		iommu_write64(dmar_unit, record_reg_offset + 8U, fault_record.hi_64);
-
-		fsr = iommu_read32(dmar_unit, DMAR_FSTS_REG);
-		pr_info("Fault Status Register: 0x%x", fsr);
+		iommu_write32(dmar_unit, DMAR_FSTS_REG, DMAR_FSTS_PFO);
 	}
 }
 
@@ -2533,40 +2544,42 @@ int32_t init_iommu(void)
 }
 
 /**
- * @brief Allocate the specified number of continuous interrupt remapping entries
+ * @brief Allocate one Interrupt Remapping Table Entry (IRTE).
+ *
+ * This function starts a for loop from IRTE index 0 to MAX_IR_ENTRIES. In the loop, it tests if the indexed bit in the
+ * IRTE allocated bitmap is 0, which means the indexed IRTE is also free for allocation. Set the bit and return the
+ * index.
+ *
+ * If no free IRTE after the loop, return INVALID_IRTE_ID.
  *
  * @param[inout] dmar_unit Pointer to the DMAR unit runtime structure
- * @param[in] num The specified number of entries to be allocated. Num should be the exponential power of 2 and
- *                no more than 32.
  *
- * @return An integer representing the allocated entries starting index, or an invalid value in failing case
+ * @return An integer representing the allocated entry index, or an invalid value in failing case
  * @retval INVALID_IRTE_ID Allocation failed
- * @retval others Starting index of the successfully allocated entries
+ * @retval others Index of the successfully allocated IRTE
  *
  * @pre dmar_unit != NULL
  *
  * @post N/A
  *
  */
-static uint16_t alloc_irtes(struct dmar_drhd_rt *dmar_unit, const uint16_t num)
+static uint16_t alloc_irte(struct dmar_drhd_rt *dmar_unit)
 {
 	uint16_t irte_idx;
-	uint64_t mask = (1UL << num) - 1U;
-	uint64_t test_mask;
-
-	ASSERT((bitmap_weight(num) == 1U) && (num <= 32U));
+	uint64_t test_bit;
+	uint16_t ret = INVALID_IRTE_ID;
 
 	spinlock_obtain(&dmar_unit->lock);
-	for (irte_idx = 0U; irte_idx < MAX_IR_ENTRIES; irte_idx += num) {
-		test_mask = mask << (irte_idx & 0x3FU);
-		if ((dmar_unit->irte_alloc_bitmap[irte_idx >> 6U] & test_mask) == 0UL) {
-			dmar_unit->irte_alloc_bitmap[irte_idx >> 6U] |= test_mask;
+	for (irte_idx = 0U; irte_idx < MAX_IR_ENTRIES; irte_idx++) {
+		test_bit = 1U << (irte_idx & 0x3FU);
+		if (!bitmap_test_and_set_nolock(test_bit, &dmar_unit->irte_alloc_bitmap[irte_idx >> 6U])) {
+			ret = irte_idx;
 			break;
 		}
 	}
 	spinlock_release(&dmar_unit->lock);
 
-	return (irte_idx < MAX_IR_ENTRIES) ? irte_idx: INVALID_IRTE_ID;
+	return ret;
 }
 
 /**
@@ -2618,7 +2631,7 @@ int32_t dmar_assign_irte(const struct intr_source *intr_src, union dmar_ir_entry
 	if (dmar_unit != NULL) {
 		*idx_out = idx_in;
 		if (idx_in == INVALID_IRTE_ID) {
-			*idx_out = alloc_irtes(dmar_unit, 1U);
+			*idx_out = alloc_irte(dmar_unit);
 		}
 		if (*idx_out < MAX_IR_ENTRIES) {
 			ir_table = (union dmar_ir_entry *)hpa2hva(dmar_unit->ir_table_addr);

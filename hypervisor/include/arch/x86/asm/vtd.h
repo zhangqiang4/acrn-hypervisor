@@ -25,6 +25,8 @@
  * Architecture Specification. Also declares public APIs exposed in VT-d module.
  */
 
+#define DMAR_OPERATION_TIMEOUT	0x10000U	/**< DMAR operation timeout value in millisecond unit */
+
 #define INVALID_DRHD_INDEX 0xFFFFFFFFU /**< Value representing invalid DRHD index */
 #define INVALID_IRTE_ID 0xFFFFU /**< Value representing invalid IRTE ID */
 
@@ -52,6 +54,8 @@
 #define DMAR_IQA_REG    0x90U    /**< Offset of Invalidation Queue Address Register */
 #define DMAR_ICS_REG    0x9cU    /**< Offset of Invalidation Completion Status Register */
 #define DMAR_IRTA_REG   0xb8U    /**< Offset of Interrupt Remapping Table Address Register */
+
+#define DMAR_FSTS_PFO	(1U << 0U)	/**< Primary Fault Overflow bit in Fault Status Register */
 
 /**
  * @brief Values of Type field in ACPI DMAR Device Scope Structure
