@@ -571,12 +571,12 @@ function parse_vdisplay_cfg() {
 # Below three takes input from stdin instead of arguments
 card2pcibdf() { echo $(find -L /dev/dri/by-path/ -samefile /dev/dri/$(cat) -printf '%f' 2>/dev/null | sed -e 's/pci-//' -e 's/-card//'); }
 pipe2card()   { echo $(find /sys/class/drm -name "*$(cat)" -printf "%f" | cut -d'-' -f1); }
-is_bdf_igpu() { [ $(cat) = "0000:00:02.0" ] && printf "1" || printf "0"; }
+is_bdf_dgpu() { [ $(cat) = "0000:00:02.0" ] && printf "0" || printf "1"; }
 
 function pnames2hex() {
 	local bstr=""
 	for p in $(echo $1 | sed 's/,/ /g'); do
-		bstr="${bstr}$(echo $p | pipe2card | card2pcibdf | is_bdf_igpu)"
+		bstr="$(echo $p | pipe2card | card2pcibdf | is_bdf_dgpu)${bstr}"
 	done
 	printf "0x%x\n" "$((2#$bstr))"
 }
