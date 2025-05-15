@@ -49,6 +49,7 @@ static int32_t monitor_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t loadiwkey_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t init_signal_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu);
+static int32_t task_switch_vmexit_handler(struct acrn_vcpu *vcpu);
 #ifdef CONFIG_LOCK_INSTRUCTION_EMULATION
 static int32_t mtf_vmexit_handler(struct acrn_vcpu *vcpu);
 #endif
@@ -119,11 +120,12 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_NMI_WINDOW] = {
 		.handler = nmi_window_vmexit_handler},
 	/**
-	 * @brief VM exit handler for Task switch is unhandled_vmexit_handler
+	 * @brief VM exit handler for Task switch is task_switch_vmexit_handler
 	 * and the exit qualification information is not necessary for the handler.
 	 */
 	[VMX_EXIT_REASON_TASK_SWITCH] = {
-		.handler = unhandled_vmexit_handler},
+		.handler = task_switch_vmexit_handler,
+		.need_exit_qualification = 1},
 	/**
 	 * @brief VM exit handler for CPUID is cpuid_vmexit_handler
 	 * and the exit qualification information is not necessary for the handler.
@@ -1038,6 +1040,33 @@ static int32_t loadiwkey_vmexit_handler(struct acrn_vcpu *vcpu)
 		asm_loadiwkey(0);
 		get_cpu_var(whose_iwkey) = vcpu;
 	}
+
+	return 0;
+}
+
+/**
+ * @brief Handle the VM exit due to task switch.
+ *
+ * This handler is only triggered by task switch in VM. It gets segment selector from exit qualification and injects
+ * general protection exception with error code containing the segment selector to VM. In this handler, it always
+ * returns 0 to indicate the VM exit handling is successful.
+ *
+ * @param[in] vcpu The pointer to the vCPU whose VM exit needs to be handled.
+ *
+ * @return An integer value as the return status of the VM-exit handling.
+ *
+ * @retval 0 on success.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
+static int32_t task_switch_vmexit_handler(struct acrn_vcpu *vcpu)
+{
+	uint16_t seg_sel;
+
+	seg_sel = (uint16_t)(vcpu->arch.exit_qualification & 0xFFFFU);
+	vcpu_inject_gp(vcpu, seg_sel << 3U);
 
 	return 0;
 }
