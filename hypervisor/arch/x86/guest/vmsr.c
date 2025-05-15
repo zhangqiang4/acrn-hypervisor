@@ -1304,7 +1304,19 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_EFER:
 	{
-		vcpu_set_efer(vcpu, v);
+		/* IA32_EFER.LMA bit is RO, modifying by WRMSR shall be ignored. */
+		struct run_context *ctx = &vcpu->arch.contexts.run_ctx;
+		v = (v & ~MSR_IA32_EFER_LMA_BIT) | (ctx->ia32_efer & MSR_IA32_EFER_LMA_BIT);
+
+		uint64_t reserved = ~(MSR_IA32_EFER_SCE_BIT |
+					MSR_IA32_EFER_LME_BIT |
+					MSR_IA32_EFER_LMA_BIT |
+					MSR_IA32_EFER_NXE_BIT);
+		if (v & reserved) {
+			err = -EINVAL;
+		} else {
+			vcpu_set_efer(vcpu, v);
+		}
 		break;
 	}
 	case MSR_IA32_APIC_BASE:

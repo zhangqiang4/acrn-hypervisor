@@ -493,6 +493,11 @@ int32_t hcall_set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm,
 			target_vcpu = vcpu_from_vid(target_vm, vcpu_regs.vcpu_id);
 			if (target_vcpu->state != VCPU_OFFLINE) {
 				if (is_valid_cr0_cr4(target_vm, vcpu_regs.vcpu_regs.cr0, vcpu_regs.vcpu_regs.cr4)) {
+					/*
+					 * TODO: VMM should do the value check on the values to be set to vCPU before
+					 *	entering non-root mode. If these registers include invalid values, it
+					 *	should fail here and return failure.
+					 */
 					set_vcpu_regs(target_vcpu, &(vcpu_regs.vcpu_regs));
 					ret = 0;
 				}
