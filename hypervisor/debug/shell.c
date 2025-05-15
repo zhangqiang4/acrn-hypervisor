@@ -57,6 +57,7 @@ static int32_t shell_coredump(int32_t argc, char **argv);
 static int32_t shell_rdmsr(int32_t argc, char **argv);
 static int32_t shell_wrmsr(int32_t argc, char **argv);
 static int32_t shell_show_vmexit_profile(__unused int argc, __unused char **argv);
+static int32_t shell_dump_vm_console_out(int32_t argc, char **argv);
 
 static struct shell_cmd shell_cmds[] = {
 	{
@@ -174,6 +175,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VMEXIT_PARAM,
 		.help_str	= SHELL_CMD_VMEXIT_HELP,
 		.fcn		= shell_show_vmexit_profile,
+	},
+	{
+		.str		= SHELL_CMD_DUMP_VCON_OUT,
+		.cmd_param	= SHELL_CMD_DUMP_VCON_OUT_PARAM,
+		.help_str	= SHELL_CMD_DUMP_VCON_OUT_HELP,
+		.fcn		= shell_dump_vm_console_out,
 	},
 };
 
@@ -1908,6 +1915,47 @@ static int shell_show_vmexit_profile(__unused int argc, __unused char **argv)
 		shell_puts(shell_log_buf);
 	}
 
+	return 0;
+}
+
+
+static int32_t shell_dump_vm_console_out(int32_t argc, char **argv)
+{
+	char temp_str[TEMP_STR_SIZE];
+	uint16_t vm_id = 0U;
+	uint32_t len = 0U;
+	struct acrn_vm *vm;
+	struct acrn_vuart *vu;
+
+	if (argc == 2) {
+		vm_id = sanitize_vmid((uint16_t)strtol_deci(argv[1]));
+	}
+
+	/* Get the virtual device node */
+	vm = get_vm_from_vmid(vm_id);
+	if (is_poweroff_vm(vm)) {
+		shell_puts("VM is not valid \n");
+		return -EINVAL;
+	}
+	vu = vm_console_vuart(vm);
+	if (!vu->active) {
+		shell_puts("vuart console is not active \n");
+		return 0;
+	}
+
+	snprintf(temp_str, TEMP_STR_SIZE, "\r\n----- Dump VM %d Console Tx Buffer -----\r\n", vm_id);
+	shell_puts(temp_str);
+
+	memset(shell_log_buf, 0, SHELL_LOG_BUF_SIZE);
+	if (vu->txfifo.buf[vu->txfifo.windex] != '\0') {
+		len = vu->txfifo.size - vu->txfifo.windex;
+		memcpy_s(shell_log_buf, SHELL_LOG_BUF_SIZE, vu->txfifo.buf + vu->txfifo.windex, len);
+	}
+	ASSERT(len < SHELL_LOG_BUF_SIZE, "The buffer size of shell log is too small!");
+	if (vu->txfifo.windex > 0) {
+		memcpy_s(shell_log_buf + len, SHELL_LOG_BUF_SIZE - len, vu->txfifo.buf, vu->txfifo.windex);
+	}
+	shell_puts(shell_log_buf);
 	return 0;
 }
 

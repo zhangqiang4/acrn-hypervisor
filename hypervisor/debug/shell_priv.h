@@ -96,6 +96,10 @@ struct shell {
 #define SHELL_CMD_IOAPIC_PARAM		NULL
 #define SHELL_CMD_IOAPIC_HELP		"Show native IOAPIC information"
 
+#define SHELL_CMD_DUMP_VCON_OUT		"dump_vm_console_out"
+#define SHELL_CMD_DUMP_VCON_OUT_PARAM	"<vm_id>"
+#define SHELL_CMD_DUMP_VCON_OUT_HELP	"Dump VM's console output buffer data as string, vm id(Dec)"
+
 #define SHELL_CMD_VIOAPIC		"vioapic"
 #define SHELL_CMD_VIOAPIC_PARAM		"<vm id>"
 #define SHELL_CMD_VIOAPIC_HELP		"Show virtual IOAPIC (vIOAPIC) information for a specific VM"
