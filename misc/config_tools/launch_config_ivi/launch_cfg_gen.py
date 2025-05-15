@@ -492,7 +492,7 @@ if __name__ == "__main__":
     parser.add_argument("--launch", default=None, help="(obsoleted. DO NOT USE)")
     parser.add_argument("--user_vmid", type=int, default=0,
                         help="the post-launched VM ID (as is specified in the launch XML) whose launch script is to be generated, or 0 if all post-launched VMs shall be processed")
-    parser.add_argument("--use-dgpu-sriov", type=int, default=0,
+    parser.add_argument("--use-dgpu-sriov", type=int, default=1,
                         help="create VFs and set parameters for dGPU")
     parser.add_argument("--out", default="output", help="path to the directory where generated scripts are placed")
     args = parser.parse_args()

@@ -436,10 +436,7 @@ function enable_dgpu_vf() {
 	local dg2_totalvfs_file="$dgpu_path/device/sriov_totalvfs"
 
 	if [ ! -e $dg2_totalvfs_file ]; then
-		log2stderr "File $dg2_totalvfs_file doesn't exist, which means DG2 SR-IOV is not ready yet."
-		log2stderr "If dGPU SR-IOV is not required, please set USE_DGPU_SRIOV to 0 in the launch script."
-		log2stderr "Otherwise, check your setup carefully (e.g., kernel cmdline arguments)"
-		exit 1
+		log2stderr "dGPU SR-IOV not supported. Skipping."
 	else
 		local dg2_numvfs=2
 		local iov_dir=""
@@ -480,7 +477,7 @@ function enable_dgpu_vf() {
 				log2stderr "Destroy VFs before create them."
 				echo "0" > $dg2_numvfs_file
 			fi
-			log2stderr "Trying to enable $dg2_numvfs VF for 03:00.0"
+			log2stderr "Trying to enable $dg2_numvfs VF for dGPU"
 			(echo 0 > $dg2_autoprobe_file && echo $dg2_numvfs > $dg2_numvfs_file) \
 				    || { log2stderr "Cannot enable VF for dGPU" && exit 1; }
 		fi
@@ -499,6 +496,7 @@ function enable_dgpu_vf() {
 	fi
 }
 
+# TODO: This symbol is deprecated. We should execute enable_dgpu_vf by default.
 USE_DGPU_SRIOV=@@__USE_DGPU_SRIOV__@@
 if [ "$USE_DGPU_SRIOV" = "1" ]; then
 	enable_dgpu_vf
