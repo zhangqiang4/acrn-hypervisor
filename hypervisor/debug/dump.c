@@ -17,11 +17,14 @@
 #include <dump.h>
 #include <boot.h>
 #include <config.h>
+#include <console.h>
+#include <npk_log.h>
 
 #define CALL_TRACE_HIERARCHY_MAX    20U
 #define DUMP_STACK_SIZE 0x200U
 
 static spinlock_t exception_spinlock = { .head = 0U, .tail = 0U, };
+static char vm_uart_tx_buf_dump[TX_BUF_SIZE];
 /*
  * readable exception descriptors.
  */
@@ -144,6 +147,50 @@ static void dump_guest_context(uint16_t pcpu_id)
 	}
 }
 
+static void do_logbuffer(uint32_t severity, char *buffer)
+{
+	if (console_need_log(severity) || npk_need_log(severity)) {
+		/* Check whether output to stdout */
+		if (console_need_log(severity)) {
+			console_log(buffer);
+		}
+		/* Check whether output to NPK */
+		if (npk_need_log(severity)) {
+			npk_log(buffer);
+		}
+	}
+}
+
+static void dump_all_vm_console_output(void)
+{
+	struct acrn_vm *vm;
+	struct acrn_vuart *vu;
+	uint16_t vm_id;
+	uint32_t len = 0U;
+
+	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
+		vm = get_vm_from_vmid(vm_id);
+		if (is_poweroff_vm(vm)) {
+			continue;
+		}
+		vu = vm_console_vuart(vm);
+		if (!vu->active) {
+			continue;
+		}
+		pr_acrnlog( "\r\n----- Dump VM %d Console's Tx Buffer -----\r\n", vm_id);
+		memset(vm_uart_tx_buf_dump, 0, TX_BUF_SIZE);
+		if (vu->txfifo.buf[vu->txfifo.windex] != '\0') {
+			len = vu->txfifo.size - vu->txfifo.windex;
+			memcpy_erms(vm_uart_tx_buf_dump, vu->txfifo.buf + vu->txfifo.windex, len);
+		}
+		if (vu->txfifo.windex > 0) {
+			memcpy_erms(vm_uart_tx_buf_dump + len, vu->txfifo.buf, vu->txfifo.windex);
+		}
+		do_logbuffer(LOG_ACRN, vm_uart_tx_buf_dump);
+	}
+	return;
+}
+
 static void show_host_call_trace(uint64_t rsp, uint64_t rbp_arg, uint16_t pcpu_id)
 {
 	uint64_t rbp = rbp_arg, return_address;
@@ -253,7 +300,8 @@ void dump_exception(struct intr_excp_ctx *ctx, uint16_t pcpu_id)
 	show_host_call_trace(ctx->gp_regs.rsp, ctx->gp_regs.rbp, pcpu_id);
 	/* Dump guest context */
 	dump_guest_context(pcpu_id);
-
+	/* Dump all VMs' Console output*/
+	dump_all_vm_console_output();
 	/* Save registers*/
 	crash_ctx = ctx;
 	flush_invalidate_all_cache();
