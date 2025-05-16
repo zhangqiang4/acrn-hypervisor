@@ -71,7 +71,7 @@
  */
 static inline uint32_t get_acpi_dt_dword(const uint8_t *dt_addr, uint32_t dt_offset)
 {
-	return *(uint32_t *)(dt_addr + dt_offset);
+	return *(const uint32_t *)(dt_addr + dt_offset);
 }
 
 /**
@@ -87,7 +87,7 @@ static inline uint32_t get_acpi_dt_dword(const uint8_t *dt_addr, uint32_t dt_off
  */
 static inline uint64_t get_acpi_dt_qword(const uint8_t *dt_addr, uint32_t dt_offset)
 {
-	return *(uint64_t *)(dt_addr + dt_offset);
+	return *(const uint64_t *)(dt_addr + dt_offset);
 }
 
 /**
@@ -106,7 +106,7 @@ static inline uint64_t get_acpi_dt_qword(const uint8_t *dt_addr, uint32_t dt_off
  */
 static inline void get_acpi_dt_gas(const uint8_t *dt_addr, uint32_t dt_offset, struct acrn_acpi_generic_address *gas)
 {
-	struct packed_gas *dt_gas = (struct packed_gas *)(dt_addr + dt_offset);
+	const struct packed_gas *dt_gas = (const struct packed_gas *)(dt_addr + dt_offset);
 
 	gas->space_id = dt_gas->space_id;
 	gas->bit_width = dt_gas->bit_width;
@@ -134,7 +134,7 @@ static void *get_facs_table(const uint8_t *facp_addr)
 {
 	uint8_t *facs_addr, *facs_x_addr;
 	uint32_t signature, length;
-	struct acpi_table_header *table = (struct acpi_table_header *)facp_addr;
+	const struct acpi_table_header *table = (const struct acpi_table_header *)facp_addr;
 
 	facs_addr = (uint8_t *)(uint64_t)get_acpi_dt_dword(facp_addr, OFFSET_FACS_ADDR);
 
@@ -176,15 +176,15 @@ static void *get_facs_table(const uint8_t *facp_addr)
  *
  * @pre mcfg_addr != NULL
  */
-static struct acpi_mcfg_allocation *parse_mcfg_allocation_tables(const uint8_t *mcfg_addr)
+static const struct acpi_mcfg_allocation *parse_mcfg_allocation_tables(const uint8_t *mcfg_addr)
 {
-	struct acpi_mcfg_allocation *mcfg_table = NULL;
+	const struct acpi_mcfg_allocation *mcfg_table = NULL;
 	uint32_t length = get_acpi_dt_dword(mcfg_addr, OFFSET_MCFG_LENGTH);
 
 	if (length > OFFSET_MCFG_ENTRY1) {
 		pr_fatal("Multiple PCI segment groups is not supported!");
 	} else {
-		mcfg_table = (struct acpi_mcfg_allocation *)(mcfg_addr + OFFSET_MCFG_ENTRY0_BASE);
+		mcfg_table = (const struct acpi_mcfg_allocation *)(mcfg_addr + OFFSET_MCFG_ENTRY0_BASE);
 	}
 	return mcfg_table;
 }
@@ -214,32 +214,32 @@ static struct acpi_mcfg_allocation *parse_mcfg_allocation_tables(const uint8_t *
 int32_t acpi_fixup(void)
 {
 	uint8_t *facp_addr = NULL, *facs_addr = NULL, *mcfg_addr = NULL;
-	struct acpi_mcfg_allocation *mcfg_table = NULL;
+	const struct acpi_mcfg_allocation *mcfg_table = NULL;
 	int32_t ret = 0;
 	struct acrn_acpi_generic_address pm1a_cnt, pm1a_evt;
 	struct pm_s_state_data *sx_data = get_host_sstate_data();
 
 	facp_addr = (uint8_t *)get_acpi_tbl(ACPI_SIG_FADT);
 	if (facp_addr != NULL) {
-		get_acpi_dt_gas(facp_addr, OFFSET_PM1A_EVT, &pm1a_evt);
-		get_acpi_dt_gas(facp_addr, OFFSET_PM1A_CNT, &pm1a_cnt);
+		get_acpi_dt_gas((const uint8_t *)facp_addr, OFFSET_PM1A_EVT, &pm1a_evt);
+		get_acpi_dt_gas((const uint8_t *)facp_addr, OFFSET_PM1A_CNT, &pm1a_cnt);
 		(void)memcpy_s((void *)&sx_data->pm1a_evt, sizeof(struct acrn_acpi_generic_address),
 				(const void *)&pm1a_evt, sizeof(struct acrn_acpi_generic_address));
 		(void)memcpy_s((void *)&sx_data->pm1a_cnt, sizeof(struct acrn_acpi_generic_address),
 				(const void *)&pm1a_cnt, sizeof(struct acrn_acpi_generic_address));
 
-		facs_addr = (uint8_t *)get_facs_table(facp_addr);
+		facs_addr = (uint8_t *)get_facs_table((const uint8_t *)facp_addr);
 		if (facs_addr != NULL) {
 			sx_data->wake_vector_32 = (uint32_t *)(facs_addr + OFFSET_WAKE_VECTOR_32);
 			sx_data->wake_vector_64 = (uint64_t *)(facs_addr + OFFSET_WAKE_VECTOR_64);
 		}
 
-		const struct acpi_table_header *table = (const struct acpi_table_header *)facp_addr;
+		struct acpi_table_header *table = (struct acpi_table_header *)facp_addr;
 
 		if (table->revision >= 2U) {
 			struct acpi_reset_reg *rr_data = get_host_reset_reg_data();
 
-			get_acpi_dt_gas(facp_addr, OFFSET_RESET_REGISTER, &(rr_data->reg));
+			get_acpi_dt_gas((const uint8_t *)facp_addr, OFFSET_RESET_REGISTER, &(rr_data->reg));
 			rr_data->val = *(facp_addr + OFFSET_RESET_VALUE);
 		}
 	}
@@ -248,7 +248,7 @@ int32_t acpi_fixup(void)
 	if (mcfg_addr != NULL) {
 		mcfg_table = parse_mcfg_allocation_tables(mcfg_addr);
 		if (mcfg_table != NULL) {
-			set_mmcfg_region((struct pci_mmcfg_region*)mcfg_table);
+			set_mmcfg_region((const struct pci_mmcfg_region*)mcfg_table);
 		}
 	}
 

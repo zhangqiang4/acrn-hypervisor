@@ -367,7 +367,7 @@ void vdev_pt_map_msix(struct pci_vdev *vdev, bool hold_lock);
 
 void init_vmsi(struct pci_vdev *vdev);
 void write_vmsi_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, uint32_t val);
-void deinit_vmsi(const struct pci_vdev *vdev);
+void deinit_vmsi(struct pci_vdev *vdev);
 
 void init_vmsix_pt(struct pci_vdev *vdev);
 int32_t add_vmsix_capability(struct pci_vdev *vdev, uint32_t entry_num, uint8_t bar_num);

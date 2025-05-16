@@ -54,7 +54,7 @@
  * The RSDP structure contains information about the ACPI tables and their locations, which are essential for the ACPI
  * subsystem to function correctly.
  */
-static struct acpi_table_rsdp *acpi_rsdp;
+static const struct acpi_table_rsdp *acpi_rsdp;
 
 /**
  * @brief Search for the Root System Description Pointer (RSDP) in a memory region.
@@ -95,7 +95,7 @@ static struct acpi_table_rsdp *found_rsdp(char *base, uint64_t length)
  *
  * @return Pointer to the ACPI RSDP structure.
  */
-static struct acpi_table_rsdp *get_rsdp(void)
+static const struct acpi_table_rsdp *get_rsdp(void)
 {
 	return acpi_rsdp;
 }
@@ -119,9 +119,9 @@ static struct acpi_table_rsdp *get_rsdp(void)
  */
 void init_acpi(void)
 {
-	struct acpi_table_rsdp *rsdp = NULL;
+	const struct acpi_table_rsdp *rsdp = NULL;
 
-	rsdp = (struct acpi_table_rsdp *)(get_acrn_boot_info()->acpi_rsdp_va);
+	rsdp = (const struct acpi_table_rsdp *)(get_acrn_boot_info()->acpi_rsdp_va);
 	if (rsdp == NULL) {
 		uint16_t *addr;
 
@@ -199,7 +199,7 @@ static bool probe_table(uint64_t address, const char *signature)
  */
 void *get_acpi_tbl(const char *signature)
 {
-	struct acpi_table_rsdp *rsdp;
+	const struct acpi_table_rsdp *rsdp;
 	struct acpi_table_rsdt *rsdt;
 	struct acpi_table_xsdt *xsdt;
 	uint64_t addr = 0UL;

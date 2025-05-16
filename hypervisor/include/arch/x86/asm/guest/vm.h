@@ -411,7 +411,7 @@ static inline bool can_ipiv_enabled(struct acrn_vm *vm)
  *
  * @return The VM to which \p vpci belongs
  */
-static inline struct acrn_vm *vpci2vm(const struct acrn_vpci *vpci)
+static inline struct acrn_vm *vpci2vm(struct acrn_vpci *vpci)
 {
 	return container_of(vpci, struct acrn_vm, vpci);
 }

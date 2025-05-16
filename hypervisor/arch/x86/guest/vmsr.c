@@ -1248,7 +1248,7 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	case MSR_IA32_APIC_BASE:
 	{
 		/* Read APIC base */
-		v = vlapic_get_apicbase(vcpu_vlapic(vcpu));
+		v = vlapic_get_apicbase((const struct acrn_vlapic *)vcpu_vlapic(vcpu));
 		break;
 	}
 	case MSR_IA32_FEATURE_CONTROL:

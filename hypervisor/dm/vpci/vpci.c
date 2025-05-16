@@ -470,7 +470,7 @@ static void assign_vdev_pt_iommu_domain(struct pci_vdev *vdev)
  * @pre vdev->pdev != NULL
  * @pre vpci2vm(vdev->vpci)->iommu != NULL
  */
-static void remove_vdev_pt_iommu_domain(const struct pci_vdev *vdev)
+static void remove_vdev_pt_iommu_domain(struct pci_vdev *vdev)
 {
 	int32_t ret;
 	const struct acrn_vm *vm = vpci2vm(vdev->vpci);

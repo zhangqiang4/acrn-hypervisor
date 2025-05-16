@@ -575,7 +575,7 @@ static inline uint64_t get_pci_mmcfg_size(struct pci_mmcfg_region *pci_mmcfg)
 }
 
 #ifdef CONFIG_ACPI_PARSE_ENABLED
-void set_mmcfg_region(struct pci_mmcfg_region *region);
+void set_mmcfg_region(const struct pci_mmcfg_region *region);
 #endif
 struct pci_mmcfg_region *get_mmcfg_region(void);
 

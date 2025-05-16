@@ -677,7 +677,7 @@ static void init_entry_ctrl(const struct acrn_vcpu *vcpu)
 	 * VM-entry MSR load address field
 	 */
 	exec_vmwrite32(VMX_ENTRY_MSR_LOAD_COUNT, vcpu->arch.msr_area.count);
-	exec_vmwrite64(VMX_ENTRY_MSR_LOAD_ADDR_FULL, hva2hpa((void *)vcpu->arch.msr_area.guest));
+	exec_vmwrite64(VMX_ENTRY_MSR_LOAD_ADDR_FULL, hva2hpa((const void *)vcpu->arch.msr_area.guest));
 
 	/* Set up VM entry interrupt information field pg 3964 25.8.3 */
 	exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, 0U);
@@ -739,8 +739,8 @@ static void init_exit_ctrl(const struct acrn_vcpu *vcpu)
 	 */
 	exec_vmwrite32(VMX_EXIT_MSR_STORE_COUNT, vcpu->arch.msr_area.count);
 	exec_vmwrite32(VMX_EXIT_MSR_LOAD_COUNT, vcpu->arch.msr_area.count);
-	exec_vmwrite64(VMX_EXIT_MSR_STORE_ADDR_FULL, hva2hpa((void *)vcpu->arch.msr_area.guest));
-	exec_vmwrite64(VMX_EXIT_MSR_LOAD_ADDR_FULL, hva2hpa((void *)vcpu->arch.msr_area.host));
+	exec_vmwrite64(VMX_EXIT_MSR_STORE_ADDR_FULL, hva2hpa((const void *)vcpu->arch.msr_area.guest));
+	exec_vmwrite64(VMX_EXIT_MSR_LOAD_ADDR_FULL, hva2hpa((const void *)vcpu->arch.msr_area.host));
 }
 
 static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
@@ -802,11 +802,11 @@ void init_vmcs(struct acrn_vcpu *vcpu)
  */
 void load_vmcs(const struct acrn_vcpu *vcpu)
 {
-	void **vmcs_ptr = &get_cpu_var(vmcs_run);
+	const void **vmcs_ptr = (const void **)&get_cpu_var(vmcs_run);
 
-	if (*vmcs_ptr != (void *)vcpu->arch.vmcs) {
-		load_va_vmcs(vcpu->arch.vmcs);
-		*vmcs_ptr = (void *)vcpu->arch.vmcs;
+	if (*vmcs_ptr != (const void *)vcpu->arch.vmcs) {
+		load_va_vmcs((const uint8_t *)vcpu->arch.vmcs);
+		*vmcs_ptr = (const void *)vcpu->arch.vmcs;
 	}
 }
 

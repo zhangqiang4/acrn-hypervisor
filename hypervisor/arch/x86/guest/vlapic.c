@@ -219,7 +219,7 @@ static void vlapic_init_timer(struct acrn_vlapic *vlapic)
 	vtimer = &vlapic->vtimer;
 	(void)memset(vtimer, 0U, sizeof(struct vlapic_timer));
 
-	initialize_timer(&vtimer->timer, vlapic_timer_expired, vlapic2vcpu(vlapic), 0UL, 0UL);
+	initialize_timer(&vtimer->timer, vlapic_timer_expired, vlapic2vcpu((const struct acrn_vlapic *)vlapic), 0UL, 0UL);
 }
 
 /**
@@ -267,7 +267,7 @@ set_expiration(struct acrn_vlapic *vlapic)
 	uint32_t tmicr, divisor_shift, ratio;
 	bool ret;
 
-	ratio = get_timer_ratio(vlapic);
+	ratio = get_timer_ratio((const struct acrn_vlapic *)vlapic);
 	vtimer = &vlapic->vtimer;
 	tmicr = vtimer->tmicr;
 	divisor_shift = vtimer->divisor_shift;
@@ -383,7 +383,7 @@ void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 {
 	struct hv_timer *timer;
 	uint64_t val = val_arg;
-	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
+	struct acrn_vcpu *vcpu = vlapic2vcpu((const struct acrn_vlapic *)vlapic);
 
 	if (is_lapic_pt_configured(vcpu->vm)) {
 		vcpu_set_guest_msr(vcpu, MSR_IA32_TSC_DEADLINE, val);
@@ -402,7 +402,7 @@ void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 		} else {
 			msr_write(MSR_IA32_TSC_DEADLINE, 0);
 		}
-	} else if (vlapic_lvtt_tsc_deadline(vlapic)) {
+	} else if (vlapic_lvtt_tsc_deadline((const struct acrn_vlapic *)vlapic)) {
 		vcpu_set_guest_msr(vcpu, MSR_IA32_TSC_DEADLINE, val);
 
 		timer = &vlapic->vtimer.timer;
@@ -1146,10 +1146,10 @@ vlapic_write_svr(struct acrn_vlapic *vlapic)
 	}
 }
 
-static int32_t vlapic_read(struct acrn_vlapic *vlapic, uint32_t offset_arg, uint64_t *data)
+static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg, uint64_t *data)
 {
 	int32_t ret = 0;
-	struct lapic_regs *lapic = &(vlapic->apic_page);
+	const struct lapic_regs *lapic = &(vlapic->apic_page);
 	uint32_t i;
 	uint32_t offset = offset_arg;
 	*data = 0UL;

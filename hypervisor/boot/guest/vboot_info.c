@@ -236,7 +236,7 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 static int32_t init_vm_sw_load(struct acrn_vm *vm, const struct acrn_boot_info *abi)
 {
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
-	struct abi_module *mod;
+	const struct abi_module *mod;
 	int32_t ret = -EINVAL;
 
 	dev_dbg(DBG_LEVEL_BOOT, "mod counts=%d\n", abi->mods_count);
@@ -244,7 +244,7 @@ static int32_t init_vm_sw_load(struct acrn_vm *vm, const struct acrn_boot_info *
 	/* find kernel module first */
 	mod = get_mod_by_tag(abi, vm_config->os_config.kernel_mod_tag);
 	if (mod != NULL) {
-		const char *string = (char *)hpa2hva((uint64_t)mod->string);
+		const char *string = (const char *)hpa2hva((uint64_t)mod->string);
 		uint32_t str_len = strnlen_s(string, MAX_BOOTARGS_SIZE);
 		uint32_t tag_len = strnlen_s(vm_config->os_config.kernel_mod_tag, MAX_MOD_TAG_LEN);
 		const char *p_chr = string + tag_len + 1; /* point to the possible start of cmdline */
@@ -310,7 +310,7 @@ int32_t init_vm_boot_info(struct acrn_vm *vm)
 	int32_t ret = -EINVAL;
 
 	stac();
-	ret = init_vm_sw_load(vm, abi);
+	ret = init_vm_sw_load(vm, (const struct acrn_boot_info *)abi);
 	clac();
 
 	return ret;

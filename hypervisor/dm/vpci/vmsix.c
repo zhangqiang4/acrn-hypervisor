@@ -74,7 +74,7 @@ bool write_vmsix_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 	bool is_written = false;
 	uint32_t old, ro_mask = ~0U;
 
-	(void)memcpy_s((void *)&ro_mask, bytes, (void *)&msix_ro_mask[offset - vdev->msix.capoff], bytes);
+	(void)memcpy_s((void *)&ro_mask, bytes, (const void *)&msix_ro_mask[offset - vdev->msix.capoff], bytes);
 	if (ro_mask != ~0U) {
 		old = pci_vdev_read_vcfg(vdev, offset, bytes);
 		pci_vdev_write_vcfg(vdev, offset, bytes, (old & ro_mask) | (val & ~ro_mask));

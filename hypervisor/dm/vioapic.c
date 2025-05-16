@@ -44,7 +44,7 @@
 
 #define MASK_ALL_INTERRUPTS   0x0000000000010000UL
 
-static inline struct acrn_vioapics *vm_ioapics(const struct acrn_vm *vm)
+static inline struct acrn_vioapics *vm_ioapics(struct acrn_vm *vm)
 {
 	return (struct acrn_vioapics *)&(vm->arch_vm.vioapics);
 }
@@ -116,7 +116,7 @@ vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t
 }
 
 static struct acrn_single_vioapic *
-vgsi_to_vioapic_and_vpin(const struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin)
+vgsi_to_vioapic_and_vpin(struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin)
 {
 	struct acrn_single_vioapic *vioapic;
 	uint8_t vioapic_index = 0U;
@@ -154,7 +154,7 @@ vgsi_to_vioapic_and_vpin(const struct acrn_vm *vm, uint32_t vgsi, uint32_t *vpin
  * @return None
  */
 void
-vioapic_set_irqline_nolock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
+vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
 {
 	struct acrn_single_vioapic *vioapic;
 	uint32_t pin;
@@ -196,7 +196,7 @@ vioapic_set_irqline_nolock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t ope
  * @pre vm != NULL
  */
 void
-vioapic_set_irqline_lock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
+vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
 {
 	uint64_t rflags;
 	struct acrn_single_vioapic *vioapic;
@@ -455,7 +455,7 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
 	spinlock_irqrestore_release(&(vioapic->lock), rflags);
 }
 
-void vioapic_broadcast_eoi(const struct acrn_vm *vm, uint32_t vector)
+void vioapic_broadcast_eoi(struct acrn_vm *vm, uint32_t vector)
 {
 	struct acrn_single_vioapic *vioapic;
 	uint8_t vioapic_index;
@@ -484,7 +484,7 @@ static void reset_one_vioapic(struct acrn_single_vioapic *vioapic)
 	vioapic->ioregsel = 0U;
 }
 
-void reset_vioapics(const struct acrn_vm *vm)
+void reset_vioapics(struct acrn_vm *vm)
 {
 	struct acrn_vioapics *vioapics = vm_ioapics(vm);
 	uint8_t vioapic_index;
@@ -577,7 +577,7 @@ static int32_t vioapic_mmio_access_handler(struct io_request *io_req, void *hand
  * @pre vgsi < get_vm_gsicount(vm)
  * @pre rte != NULL
  */
-void vioapic_get_rte(const struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte)
+void vioapic_get_rte(struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte)
 {
 	struct acrn_single_vioapic *vioapic;
 	uint32_t pin;

@@ -100,7 +100,7 @@ int32_t memcpy_s(void *d, size_t dmax, const void *s, size_t slen);
 void memcpy_erms(void *d, const void *s, size_t slen);
 void memcpy_erms_backwards(void *d, const void *s, size_t slen);
 uint64_t strtoul_hex(const char *nptr);
-char *strstr_s(const char *str1, size_t maxlen1, const char *str2, size_t maxlen2);
+const char *strstr_s(const char *str1, size_t maxlen1, const char *str2, size_t maxlen2);
 int32_t strncat_s(char *dest, size_t dmax, const char *src, size_t slen);
 
 /**

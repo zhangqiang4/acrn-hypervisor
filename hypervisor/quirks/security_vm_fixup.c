@@ -44,7 +44,7 @@ static void tpm2_fixup(uint16_t vm_id)
 	struct acrn_boot_info *abi = get_acrn_boot_info();
 	struct acrn_mmiodev *dev = NULL;
 
-	struct abi_module *mod = get_mod_by_tag(abi, config->acpi_config.acpi_mod_tag);
+	const struct abi_module *mod = get_mod_by_tag(abi, config->acpi_config.acpi_mod_tag);
 	if (mod != NULL) {
 		vtpm2 = get_acpi_mod_entry(ACPI_SIG_TPM2, mod->start);
 		tpm2 = get_acpi_tbl(ACPI_SIG_TPM2);

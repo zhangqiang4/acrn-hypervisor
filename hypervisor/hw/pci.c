@@ -150,7 +150,7 @@ static struct pci_mmcfg_region phys_pci_mmcfg = {
  *
  * @remark The function is valid when CONFIG_ACPI_PARSE_ENABLED is enabled
  */
-void set_mmcfg_region(struct pci_mmcfg_region *region)
+void set_mmcfg_region(const struct pci_mmcfg_region *region)
 {
 	phys_pci_mmcfg = *region;
 }

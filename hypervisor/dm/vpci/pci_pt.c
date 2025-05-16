@@ -149,7 +149,7 @@ static void mask_one_msix_vector(const struct pci_vdev *vdev, uint32_t index)
  *
  * @remark This function is called when MSI is disabled.
  */
-static void remap_one_vmsix_entry(const struct pci_vdev *vdev, uint32_t index)
+static void remap_one_vmsix_entry(struct pci_vdev *vdev, uint32_t index)
 {
 	const struct msix_table_entry *ventry;
 	struct msix_table_entry *pentry;

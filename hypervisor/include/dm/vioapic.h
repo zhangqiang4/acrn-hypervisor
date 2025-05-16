@@ -74,7 +74,7 @@ struct acrn_vioapics {
 
 void dump_vioapic(struct acrn_vm *vm);
 void vioapic_init(struct acrn_vm *vm);
-void reset_vioapics(const struct acrn_vm *vm);
+void reset_vioapics(struct acrn_vm *vm);
 
 
 /**
@@ -94,7 +94,7 @@ void reset_vioapics(const struct acrn_vm *vm);
  *
  * @pre irqline < vioapic_pincount(vm)
  */
-void	vioapic_set_irqline_lock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
+void	vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
 
 /**
  * @brief Set vIOAPIC IRQ line status.
@@ -109,11 +109,11 @@ void	vioapic_set_irqline_lock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t 
  *
  * @pre irqline < vioapic_pincount(vm)
  */
-void	vioapic_set_irqline_nolock(const struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
+void	vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
 
 uint32_t get_vm_gsicount(const struct acrn_vm *vm);
-void	vioapic_broadcast_eoi(const struct acrn_vm *vm, uint32_t vector);
-void	vioapic_get_rte(const struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte);
+void	vioapic_broadcast_eoi(struct acrn_vm *vm, uint32_t vector);
+void	vioapic_get_rte(struct acrn_vm *vm, uint32_t vgsi, union ioapic_rte *rte);
 
 /**
  * @}

@@ -329,7 +329,7 @@ static uint32_t create_zeropage_e820(struct zero_page *zp, const struct acrn_vm 
 		entry_num = 0U;
 	} else {
 		(void)memcpy_s((void *)zp_e820, entry_num * sizeof(struct e820_entry),
-			(void *)vm_e820, entry_num * sizeof(struct e820_entry));
+			(const void *)vm_e820, entry_num * sizeof(struct e820_entry));
 	}
 	return entry_num;
 }

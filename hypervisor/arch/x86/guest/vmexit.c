@@ -496,7 +496,7 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
  */
 int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 {
-	struct vm_exit_dispatch *dispatch = NULL;
+	const struct vm_exit_dispatch *dispatch = NULL;
 	uint16_t basic_exit_reason;
 	int32_t ret;
 
@@ -544,7 +544,7 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 			ret = -EINVAL;
 		} else {
 			/* Calculate dispatch table entry */
-			dispatch = (struct vm_exit_dispatch *)(dispatch_table + basic_exit_reason);
+			dispatch = (const struct vm_exit_dispatch *)(dispatch_table + basic_exit_reason);
 
 			/* See if an exit qualification is necessary for this exit handler */
 			if (dispatch->need_exit_qualification != 0U) {

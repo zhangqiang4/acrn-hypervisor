@@ -213,7 +213,7 @@ static struct asyncio_desc *get_asyncio_desc(struct acrn_vcpu *vcpu, const struc
 	return ret;
 
 }
-static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, const uint64_t asyncio_fd)
+static int acrn_insert_asyncio(struct acrn_vcpu *vcpu, uint64_t asyncio_fd)
 {
 	struct acrn_vm *vm = vcpu->vm;
 	struct shared_buf *sbuf =

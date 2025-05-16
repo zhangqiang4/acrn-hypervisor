@@ -91,7 +91,7 @@ static inline void enable_disable_msi(const struct pci_vdev *vdev, bool enable)
  *
  * @remark This function is called when MSI is disabled.
  */
-static void remap_vmsi(const struct pci_vdev *vdev)
+static void remap_vmsi(struct pci_vdev *vdev)
 {
 	struct msi_info info = {};
 	union pci_bdf pbdf = vdev->pdev->bdf;
@@ -153,7 +153,7 @@ void write_vmsi_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, 
 	uint32_t msgctrl, old, ro_mask = ~0U;
 	uint32_t value = val;
 
-	(void)memcpy_s((void *)&ro_mask, bytes, (void *)&msi_ro_mask[offset - vdev->msi.capoff], bytes);
+	(void)memcpy_s((void *)&ro_mask, bytes, (const void *)&msi_ro_mask[offset - vdev->msi.capoff], bytes);
 	if (ro_mask != ~0U) {
 		enable_disable_msi(vdev, false);
 
@@ -184,7 +184,7 @@ void write_vmsi_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes, 
  * @pre vdev != NULL
  * @pre vdev->vpci != NULL
  */
-void deinit_vmsi(const struct pci_vdev *vdev)
+void deinit_vmsi(struct pci_vdev *vdev)
 {
 	if (has_msi_cap(vdev)) {
 		ptirq_remove_msix_remapping(vpci2vm(vdev->vpci), vdev->pdev->bdf.value, 1U);

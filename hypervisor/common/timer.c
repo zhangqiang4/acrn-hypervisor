@@ -383,7 +383,7 @@ static void timer_softirq(uint16_t pcpu_id)
 {
 	struct per_cpu_timers *cpu_timer;
 	struct hv_timer *timer;
-	const struct list_head *pos, *n;
+	struct list_head *pos, *n;
 	uint32_t tries = MAX_TIMER_ACTIONS;
 	uint64_t current_tsc = cpu_ticks();
 

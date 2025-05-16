@@ -61,15 +61,15 @@ static struct acrn_boot_info acrn_bi = { 0 };
  *                size be greater than 1MB, as ACRN does not support the cases that module located at address 0
  *                or module size is less than 1MB.
  */
-struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag)
+const struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag)
 {
 	uint32_t i;
-	struct abi_module *mod = NULL;
-	struct abi_module *mods = (struct abi_module *)(&abi->mods[0]);
+	const struct abi_module *mod = NULL;
+	const struct abi_module *mods = (const struct abi_module *)(&abi->mods[0]);
 	uint32_t tag_len = strnlen_s(tag, MAX_MOD_TAG_LEN);
 
 	for (i = 0U; i < abi->mods_count; i++) {
-		const char *string = (char *)hpa2hva((uint64_t)(mods + i)->string);
+		const char *string = (const char *)hpa2hva((uint64_t)(mods + i)->string);
 		uint32_t str_len = strnlen_s(string, MAX_MOD_TAG_LEN);
 		const char *p_chr = string + tag_len; /* point to right after the end of tag */
 

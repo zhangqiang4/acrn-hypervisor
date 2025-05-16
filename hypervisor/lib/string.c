@@ -378,7 +378,7 @@ int32_t strncmp(const char *s1_arg, const char *s2_arg, size_t n_arg)
  *
  * @post N/A
  */
-char *strstr_s(const char *str1, size_t maxlen1, const char *str2, size_t maxlen2)
+const char *strstr_s(const char *str1, size_t maxlen1, const char *str2, size_t maxlen2)
 {
 	size_t len1, len2;
 	size_t i;
@@ -416,7 +416,7 @@ char *strstr_s(const char *str1, size_t maxlen1, const char *str2, size_t maxlen
 		}
 	}
 
-	return (char *)pret;
+	return (const char *)pret;
 }
 
 /**

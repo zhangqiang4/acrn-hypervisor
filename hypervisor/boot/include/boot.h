@@ -193,8 +193,8 @@ struct abi_mmap {
  */
 struct acrn_boot_info {
 	char protocol_name[MAX_PROTOCOL_NAME_SIZE];     /**< Boot protocol name. */
-	const char cmdline[MAX_BOOTARGS_SIZE];          /**< Command line arguments. */
-	const char loader_name[MAX_LOADER_NAME_SIZE];   /**< Bootloader name. */
+	const char cmdline[MAX_BOOTARGS_SIZE]; 	        /**< Command line arguments. */
+	const char loader_name[MAX_LOADER_NAME_SIZE];		/**< Bootloader name. */
 
 	uint32_t mods_count;                            /**< Number of loaded modules. */
 	struct abi_module mods[MAX_MODULE_NUM];         /**< Array of loaded modules. */
@@ -225,7 +225,7 @@ static inline bool boot_from_uefi(struct acrn_boot_info *abi)
 	return !((abi->uefi_info.systab == 0U) && (abi->uefi_info.systab_hi == 0U));
 }
 
-struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag);
+const struct abi_module *get_mod_by_tag(const struct acrn_boot_info *abi, const char *tag);
 
 int32_t init_multiboot_info(uint32_t *registers);
 
