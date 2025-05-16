@@ -356,13 +356,16 @@ static inline uint32_t mmcfg_off_to_address(union pci_bdf bdf, uint32_t offset)
  *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
  * @pre pci_is_valid_access(offset, bytes) == true
+ *
+ * @remark Caller should make sure offset aligns with size. Within hypervisor, it inputs fixed register
+ *         offset and corresponding size to read to make sure the offset aligns with size. If the MMIO
+ *         access is triggered by VM, pci_is_valid_access is executed in top level function
+ *         (pci_mmcfg_read_cfg).
  */
 static uint32_t pci_mmcfg_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes)
 {
 	uint32_t addr = mmcfg_off_to_address(bdf, offset);
 	void *hva = hpa2hva(addr);
-
-	ASSERT(pci_is_valid_access(offset, bytes), "the offset should be aligned with 2/4 byte\n");
 
 	return (uint32_t)mmio_read(hva, bytes);
 }
@@ -382,13 +385,16 @@ static uint32_t pci_mmcfg_read_cfg(union pci_bdf bdf, uint32_t offset, uint32_t 
  *
  * @pre bytes == 1U || bytes == 2U || bytes == 4U
  * @pre pci_is_valid_access(offset, bytes) == true
+ *
+ * @remark Caller should make sure offset aligns with size. Within hypervisor, it inputs fixed register
+ *         offset and corresponding size to write to make sure the offset aligns with size. If the MMIO
+ *         access is triggered by VM, pci_is_valid_access is executed in top level function
+ *         (pci_mmcfg_write_cfg).
  */
 static void pci_mmcfg_write_cfg(union pci_bdf bdf, uint32_t offset, uint32_t bytes, uint32_t val)
 {
 	uint32_t addr = mmcfg_off_to_address(bdf, offset);
 	void *hva = hpa2hva(addr);
-
-	ASSERT(pci_is_valid_access(offset, bytes), "the offset should be aligned with 2/4 byte\n");
 
 	mmio_write(hva, bytes, val);
 }
@@ -889,7 +895,7 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 }
 
 /**
- * @brief Add a PCI device to the DRHD date structure which it unders
+ * @brief Add a PCI device to the DRHD data structure which it unders
  *
  * When walking DMAR tables to search PCI device scope, add the device into a global DRHD
  * data structure which will be used later in scan_pci_hierarchy to map the right DRHD unit
@@ -911,8 +917,8 @@ static void pci_add_bdf_from_drhd(union pci_bdf bdf, struct pci_bdf_mapping_grou
 		bdfs_from_drhds->bdf_map[bdfs_from_drhds->pci_bdf_map_count].dev_scope_drhd_index = drhd_index;
 		bdfs_from_drhds->pci_bdf_map_count++;
 	} else {
-		ASSERT(bdfs_from_drhds->pci_bdf_map_count < BDF_MAPPING_NUM,
-				"Compare value in BDF_MAPPING_NUM against those in ACPI DMAR tables");
+		panic("Add dev (%x:%x.%x) fail, compare value in BDF_MAPPING_NUM (%u) against those in ACPI "
+		      "DMAR (%u) tables.", bdf.bits.b, bdf.bits.d, bdf.bits.f, BDF_MAPPING_NUM, drhd_index);
 	}
 }
 
@@ -1306,7 +1312,11 @@ static void pci_enumerate_cap(struct pci_pdev *pdev)
 			pdev->msix.table_offset = table_info & ~PCIM_MSIX_BIR_MASK;
 			pdev->msix.table_count = (msgctrl & PCIM_MSIXCTRL_TABLE_SIZE) + 1U;
 
-			ASSERT(pdev->msix.table_count <= CONFIG_MAX_MSIX_TABLE_NUM);
+			if (pdev->msix.table_count > CONFIG_MAX_MSIX_TABLE_NUM) {
+				panic("Device (%x:%x.%x) msix table size (%u) should be less than "
+				      "CONFIG_MAX_MSIX_TABLE_NUM (%u)!", pdev->bdf.bits.b, pdev->bdf.bits.d,
+				      pdev->bdf.bits.f, pdev->msix.table_count, CONFIG_MAX_MSIX_TABLE_NUM);
+			}
 
 			/* Copy MSIX capability struct into buffer */
 			for (idx = 0U; idx < len; idx++) {
