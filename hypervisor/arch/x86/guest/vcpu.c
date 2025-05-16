@@ -456,6 +456,14 @@ static uint64_t init_vgdt[] = {
 };
 
 static struct acrn_regs protect_mode_init_vregs = {
+	.gdt = {
+		.limit = 0xFFFFU,
+		.base = 0UL,
+	},
+	.idt = {
+		.limit = 0xFFFFU,
+		.base = 0UL,
+	},
 	.cs_ar = PROTECTED_MODE_CODE_SEG_AR,
 	.cs_limit = PROTECTED_MODE_SEG_LIMIT,
 	.cs_sel = 0x10U,
