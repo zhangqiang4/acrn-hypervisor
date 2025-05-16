@@ -266,9 +266,9 @@ void dump_exception(struct intr_excp_ctx *ctx, uint16_t pcpu_id)
 #endif
 }
 
+#ifdef CONFIG_HV_COREDUMP_ENABLED
 void trigger_coredump(bool dump)
 {
-#ifdef CONFIG_HV_COREDUMP_ENABLED
 	if (dump) {
 		/* trigger coredump through exception of dividing zero, Exception
 		  handler will trigger warm-reset, then Slimbootloader will boot
@@ -277,5 +277,7 @@ void trigger_coredump(bool dump)
 		asm("movl $0x0, %ecx");
 		asm("idiv  %ecx");
 	}
-#endif
 }
+#else
+void trigger_coredump(__unused bool dump) {}
+#endif
