@@ -2566,13 +2566,11 @@ int32_t init_iommu(void)
 static uint16_t alloc_irte(struct dmar_drhd_rt *dmar_unit)
 {
 	uint16_t irte_idx;
-	uint64_t test_bit;
 	uint16_t ret = INVALID_IRTE_ID;
 
 	spinlock_obtain(&dmar_unit->lock);
 	for (irte_idx = 0U; irte_idx < MAX_IR_ENTRIES; irte_idx++) {
-		test_bit = 1U << (irte_idx & 0x3FU);
-		if (!bitmap_test_and_set_nolock(test_bit, &dmar_unit->irte_alloc_bitmap[irte_idx >> 6U])) {
+		if (!bitmap_test_and_set_nolock((irte_idx & 0x3FU), &dmar_unit->irte_alloc_bitmap[irte_idx >> 6U])) {
 			ret = irte_idx;
 			break;
 		}
