@@ -753,7 +753,7 @@ dm_vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args)
 }
 
 int
-dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args)
+dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args, void *vq_info)
 {
 	int error;
 

@@ -70,60 +70,47 @@ static int
 vhost_k_set_mem_table(struct vhost_dev *vdev)
 {
 	struct vmctx *ctx;
-	struct vhost_memory *mem;
-	uint32_t nregions = 0;
-	int rc;
+	struct vhost_memory *vhost_mem;
+	struct vm_mmap_mem_region *vm_mem_regs;
+	int nregions, i, rc = 0;
 
 	ctx = vdev->base->dev->vmctx;
-	if (ctx->lowmem > 0)
-		nregions++;
-	if (ctx->highmem > 0)
-		nregions++;
 
-	mem = calloc(1, sizeof(struct vhost_memory) +
-		sizeof(struct vhost_memory_region) * nregions);
-	if (!mem) {
+	vm_mem_regs = calloc(1, sizeof(*vm_mem_regs) * MAX_VM_MEM_REGION);
+	vhost_mem = calloc(1, sizeof(struct vhost_memory) +
+		sizeof(struct vhost_memory_region) * MAX_VM_MEM_REGION);
+	if (!vhost_mem || !vm_mem_regs) {
 		WPRINTF("out of memory\n");
-		return -1;
+		rc = -1;
+		goto end;
 	}
 
-	nregions = 0;
-	if (ctx->lowmem > 0) {
-		mem->regions[nregions].guest_phys_addr = (uintptr_t)0;
-		mem->regions[nregions].memory_size = ctx->lowmem;
-		mem->regions[nregions].userspace_addr =
-			(uintptr_t)ctx->baseaddr;
+	nregions = vm_get_mem_regions(ctx, MAX_VM_MEM_REGION, vm_mem_regs);
+	if(nregions <= 0) {
+		WPRINTF("set_mem_table failed. Unable to retrieve memory region information.\n");
+		rc = -1;
+		goto end;
+	}
+
+	for(i = 0; i < nregions; i++) {
+		vhost_mem->regions[i].guest_phys_addr = vm_mem_regs[i].gpa_start;
+		vhost_mem->regions[i].memory_size = vm_mem_regs[i].gpa_end - vm_mem_regs[i].gpa_start;
+		vhost_mem->regions[i].userspace_addr =  (uint64_t)vm_mem_regs[i].hva_base;
 		DPRINTF("[%d][0x%llx -> 0x%llx, 0x%llx]\n",
-			nregions,
-			mem->regions[nregions].guest_phys_addr,
-			mem->regions[nregions].userspace_addr,
-			mem->regions[nregions].memory_size);
-		nregions++;
+			i,
+			vhost_mem->regions[i].guest_phys_addr,
+			vhost_mem->regions[i].userspace_addr,
+			vhost_mem->regions[i].memory_size);
 	}
 
-	if (ctx->highmem > 0) {
-		mem->regions[nregions].guest_phys_addr = ctx->highmem_gpa_base;
-		mem->regions[nregions].memory_size = ctx->highmem;
-		mem->regions[nregions].userspace_addr =
-			(uintptr_t)(ctx->baseaddr + ctx->highmem_gpa_base);
-		DPRINTF("[%d][0x%llx -> 0x%llx, 0x%llx]\n",
-			nregions,
-			mem->regions[nregions].guest_phys_addr,
-			mem->regions[nregions].userspace_addr,
-			mem->regions[nregions].memory_size);
-		nregions++;
-	}
+	vhost_mem->nregions = nregions;
+	vhost_mem->padding = 0;
+	rc = __vhost_k_set_mem_table(vdev, vhost_mem);
 
-	mem->nregions = nregions;
-	mem->padding = 0;
-	rc = __vhost_k_set_mem_table(vdev, mem);
-	free(mem);
-	if (rc < 0) {
-		WPRINTF("set_mem_table failed\n");
-		return -1;
-	}
-
-	return 0;
+end:
+	free(vhost_mem);
+	free(vm_mem_regs);
+	return rc;
 }
 
 static int

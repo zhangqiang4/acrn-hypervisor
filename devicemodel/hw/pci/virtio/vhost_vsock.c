@@ -228,7 +228,22 @@ vhost_vsock_deinit(struct vhost_vsock *vhost_vsock)
 
 static void
 vhost_vsock_handle_output(void *vdev, struct virtio_vq_info *vq) {
-	/* do nothing */
+	struct virtio_vsock *vsock = vdev;
+	struct vhost_vq* vhost_vq;
+	ssize_t bytes_written;
+	uint64_t val = 1;
+
+	if (only_be) {
+		vhost_vq = &vsock->vhost_vsock->vqs[vq->num];
+		if (vhost_vq->kick_fd) {
+			bytes_written = write(vhost_vq->kick_fd, &val, sizeof(uint64_t));
+			if (bytes_written != sizeof(uint64_t)) {
+			    pr_err("vsock: failed to trigger the kick_fd to do VQ notification. "
+				   "Expected %zu bytes, but wrote %zd bytes. Error: %s\n",
+				   sizeof(uint64_t), bytes_written, strerror(errno));
+			}
+		}
+	}
 }
 
 static int
@@ -295,6 +310,8 @@ virtio_vhost_vsock_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	pci_set_cfgdata16(dev, PCIR_VENDOR, VIRTIO_VENDOR);
 	pci_set_cfgdata8(dev, PCIR_CLASS, PCIC_NETWORK);
 	pci_set_cfgdata16(dev, PCIR_REVID, 1);
+	pci_set_cfgdata16(dev, PCIR_SUBDEV_0, VIRTIO_TYPE_VSOCK);
+	pci_set_cfgdata16(dev, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
 	virtio_set_modern_bar(&vsock->base, false);
 

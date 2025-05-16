@@ -25,6 +25,9 @@
  *
  */
 
+/* Maximum number of memory regions for a virtual machine */
+#define MAX_VM_MEM_REGION 32
+
 struct vhost_vq {
 	int kick_fd;		/**< fd of kick eventfd */
 	int call_fd;		/**< fd of call eventfd */

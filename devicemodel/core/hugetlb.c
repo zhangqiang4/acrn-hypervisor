@@ -845,19 +845,16 @@ void hugetlb_unsetup_memory(struct vmctx *ctx)
 	close_all_hugetlbfs();
 }
 
-bool dm_vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
-			struct vm_mmap_mem_region *ret_region)
+int dm_vm_get_mem_regions(struct vmctx *ctx, int requested_regions,
+			struct vm_mmap_mem_region *ret_regions)
 {
-	int i;
-
-	for (i = 0; i < mem_idx; i++) {
-		if (mmap_mem_regions[i].gpa_start == gpa) {
-			memcpy(ret_region, &mmap_mem_regions[i], sizeof(*ret_region));
-			return true;
-		}
+	if (requested_regions < mem_idx ) {
+		pr_err("Insufficient requested regions (%d). Total available regions: %d.\n", requested_regions, mem_idx);
+		return -1;
 	}
 
-	return false;
+	memcpy(ret_regions, &mmap_mem_regions[0], mem_idx * sizeof(*ret_regions));
+	return mem_idx;
 }
 
 bool

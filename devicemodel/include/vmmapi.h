@@ -105,7 +105,7 @@ struct vm_mem_region {
 };
 
 bool	acrn_has_cap(uint64_t cap);
-bool	dm_vm_get_mem_region(struct vmctx *ctx, vm_paddr_t gpa,
+int	dm_vm_get_mem_regions(struct vmctx *ctx, int requested_regions,
 			struct vm_mmap_mem_region *ret_region);
 bool	dm_vm_find_memfd_region(struct vmctx *ctx, vm_paddr_t gpa,
 			     struct vm_mem_region *ret_region);
@@ -174,7 +174,7 @@ void	vm_stop_watchdog(struct vmctx *ctx);
 void	vm_reset_watchdog(struct vmctx *ctx);
 
 int	dm_vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args);
-int	dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args);
+int	dm_vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args, void *vq_info);
 
 /*
  * Return a string describing the meaning of the `error' code.

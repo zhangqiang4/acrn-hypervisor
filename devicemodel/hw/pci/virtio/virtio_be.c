@@ -156,7 +156,7 @@ void vq_interrupt(struct virtio_base *vb, struct virtio_vq_info *vq)
 
 static struct virtio_be_ops vb_default_ops = {
 	.find_memfd_region	= dm_vm_find_memfd_region,
-	.get_mem_region		= dm_vm_get_mem_region,
+	.get_mem_regions	= dm_vm_get_mem_regions,
 	.allow_dmabuf		= dm_vm_allow_dmabuf,
 	.map_gpa		= dm_vm_map_gpa,
 	.register_mem		= dm_register_mem,

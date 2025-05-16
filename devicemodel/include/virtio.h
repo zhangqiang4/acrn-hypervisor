@@ -197,6 +197,7 @@ enum {
 #define	VIRTIO_TYPE_9P		9
 #define	VIRTIO_TYPE_GPU		16
 #define	VIRTIO_TYPE_INPUT	18
+#define	VIRTIO_TYPE_VSOCK	19
 #define	VIRTIO_TYPE_SOUND	25
 #define	VIRTIO_TYPE_FS		26
 

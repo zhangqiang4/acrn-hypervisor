@@ -66,14 +66,16 @@ vhost_vq_register_eventfd(struct vhost_dev *vdev,
 
 	virtio_register_ioeventfd(base, idx, is_register, vq->kick_fd);
 	/* register irqfd for notify */
-	mte = &vdev->base->dev->msix.table[vqi->msix_idx];
-	msi.msi_addr = mte->addr;
-	msi.msi_data = mte->msg_data;
+	if (vdev->base->dev->msix.table) {
+		mte = &vdev->base->dev->msix.table[vqi->msix_idx];
+		msi.msi_addr = mte->addr;
+		msi.msi_data = mte->msg_data;
+		irqfd.msi = msi;
+	}
 	irqfd.fd = vq->call_fd;
 	/* no additional flag bit should be set */
-	irqfd.msi = msi;
 	DPRINTF("[irqfd: %d][MSIX: %d]\n", irqfd.fd, vqi->msix_idx);
-	rc = vm_irqfd(vdev->base->dev->vmctx, &irqfd);
+	rc = vm_irqfd(vdev->base->dev->vmctx, &irqfd, vqi);
 	if (rc < 0) {
 		WPRINTF("vm_irqfd failed rc = %d, errno = %d\n", rc, errno);
 		/* unregister ioeventfd */

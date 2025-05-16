@@ -24,7 +24,6 @@ static int vhost_user_debug;
 	do { if (vhost_user_debug) pr_err(LOG_TAG fmt, ##args); } while (0)
 #define WPRINTF(fmt, args...) pr_err(LOG_TAG fmt, ##args)
 
-#define MAX_VM_MEM_REGION 32
 #define MAX_FS_SLAVE_ENTRIES 8
 
 /* socket msgs sent from acrn-dm to vhost-user daemon */
@@ -753,15 +752,14 @@ static int vhost_u_set_mem_table(struct vhost_dev *vdev)
 {
 	struct vmctx *ctx;
 	struct vhost_user_mem_region *vu_mem_regs;
-	struct vm_mmap_mem_region *vm_mem_reg;
-	uint64_t next_gpa = 0;
-	int *fds, rc, nregions = 0, ret = 0;
+	struct vm_mmap_mem_region *vm_mem_regs;
+	int *fds, nregions, i, ret = 0;
 
 	vu_mem_regs = calloc(1, sizeof(*vu_mem_regs) * MAX_VM_MEM_REGION);
 	fds = calloc(1, sizeof(*fds) * MAX_VM_MEM_REGION);
-	vm_mem_reg = calloc(1, sizeof(*vm_mem_reg));
+	vm_mem_regs = calloc(1, sizeof(*vm_mem_regs) * MAX_VM_MEM_REGION);
 
-	if (!vu_mem_regs || !fds || !vm_mem_reg) {
+	if (!vu_mem_regs || !fds || !vm_mem_regs) {
 		WPRINTF("vhost-user: out of memory\n");
 		ret = -1;
 		goto end;
@@ -769,45 +767,31 @@ static int vhost_u_set_mem_table(struct vhost_dev *vdev)
 
 	ctx = vdev->base->dev->vmctx;
 
-	if (ctx->lowmem > 0) {
-		next_gpa = (uintptr_t)0;
-		while (nregions < MAX_VM_MEM_REGION &&
-			vm_get_mem_region(ctx, next_gpa, vm_mem_reg)) {
-			vu_mem_regs[nregions].gpa_start = vm_mem_reg->gpa_start;
-			vu_mem_regs[nregions].length = vm_mem_reg->gpa_end - vm_mem_reg->gpa_start;
-			vu_mem_regs[nregions].hva_start = (uint64_t)vm_mem_reg->hva_base;
-			vu_mem_regs[nregions].fd_offset = vm_mem_reg->fd_offset;
-			fds[nregions] = vm_mem_reg->fd;
-
-			next_gpa += vu_mem_regs[nregions++].length;
-		}
-	}
-
-	if (ctx->highmem > 0) {
-		next_gpa = ctx->highmem_gpa_base;
-		while (nregions < MAX_VM_MEM_REGION &&
-			vm_get_mem_region(ctx, next_gpa, vm_mem_reg)) {
-			vu_mem_regs[nregions].gpa_start = vm_mem_reg->gpa_start;
-			vu_mem_regs[nregions].length = vm_mem_reg->gpa_end - vm_mem_reg->gpa_start;
-			vu_mem_regs[nregions].hva_start = (uint64_t)vm_mem_reg->hva_base;
-			vu_mem_regs[nregions].fd_offset = vm_mem_reg->fd_offset;
-			fds[nregions] = vm_mem_reg->fd;
-
-			next_gpa += vu_mem_regs[nregions++].length;
-		}
-	}
-
-	rc = __vhost_u_set_mem_table(vdev, vu_mem_regs, nregions, fds);
-	if (rc < 0) {
-		WPRINTF("set_mem_table failed, errno is (%s)\n", strerror(errno));
+	nregions = vm_get_mem_regions(ctx, MAX_VM_MEM_REGION, vm_mem_regs);
+	if(nregions <= 0) {
+		WPRINTF("set_mem_table failed. Unable to retrieve memory region information.\n");
 		ret = -1;
+		goto end;
+	}
+
+	for(i = 0; i < nregions; i++) {
+		vu_mem_regs[i].gpa_start = vm_mem_regs[i].gpa_start;
+		vu_mem_regs[i].length = vm_mem_regs[i].gpa_end - vm_mem_regs[i].gpa_start;
+		vu_mem_regs[i].hva_start = (uint64_t)vm_mem_regs[i].hva_base;
+		vu_mem_regs[i].fd_offset = vm_mem_regs[i].fd_offset;
+		fds[i] = vm_mem_regs[i].fd;
+	}
+
+	ret = __vhost_u_set_mem_table(vdev, vu_mem_regs, nregions, fds);
+	if (ret < 0) {
+		WPRINTF("set_mem_table failed, errno is (%s)\n", strerror(errno));
 		goto end;
 	}
 
 end:
 	free(vu_mem_regs);
 	free(fds);
-	free(vm_mem_reg);
+	free(vm_mem_regs);
 	return ret;
 }
 

@@ -25,8 +25,8 @@ struct virtio_be_ops {
     /* mem */
     bool (*find_memfd_region)(struct vmctx *ctx, vm_paddr_t gpa,
                 struct vm_mem_region *ret_region);
-    bool (*get_mem_region)(struct vmctx *ctx, vm_paddr_t gpa,
-                struct vm_mmap_mem_region *ret_region);
+    int (*get_mem_regions)(struct vmctx *ctx, int requested_regions,
+                struct vm_mmap_mem_region *ret_regions);
     bool (*allow_dmabuf)(struct vmctx *ctx);
     void *(*map_gpa)(struct vmctx *ctx, vm_paddr_t gaddr, size_t len);
     int (*register_mem)(struct mem_range *memp);
@@ -62,7 +62,7 @@ struct virtio_be_ops {
     int (*register_inout)(struct inout_port *iop);
     int (*unregister_inout)(struct inout_port *iop);
     int (*ioeventfd)(struct vmctx *ctx, struct acrn_ioeventfd *args);
-    int (*irqfd)(struct vmctx *ctx, struct acrn_irqfd *args);
+    int (*irqfd)(struct vmctx *ctx, struct acrn_irqfd *args, void *vq_info);
     int (*monitor_register_vm_ops)(struct monitor_vm_ops *mops, void *arg,
             const char *name);
 };
@@ -72,8 +72,8 @@ extern struct virtio_be_ops *vb_ops;
 /* mem */
 #define vm_find_memfd_region(ctx, gpa, ret_region)    \
     vb_ops->find_memfd_region(ctx, gpa, ret_region)
-#define vm_get_mem_region(ctx, gpa, ret_region) \
-    vb_ops->get_mem_region(ctx, gpa, ret_region)
+#define vm_get_mem_regions(ctx, requested_regions, ret_regions) \
+    vb_ops->get_mem_regions(ctx, requested_regions, ret_regions)
 #define vm_allow_dmabuf(ctx)    \
     vb_ops->allow_dmabuf(ctx)
 #define vm_map_gpa(ctx, gaddr, len) \
@@ -104,7 +104,7 @@ extern struct virtio_be_ops *vb_ops;
 #define register_inout(iop)     vb_ops->register_inout(iop)
 #define unregister_inout(iop)   vb_ops->unregister_inout(iop)
 #define vm_ioeventfd(ctx, args) vb_ops->ioeventfd(ctx, args)
-#define vm_irqfd(ctx, args)     vb_ops->irqfd(ctx, args)
+#define vm_irqfd(ctx, args, vqi)     vb_ops->irqfd(ctx, args, vqi)
 #define monitor_register_vm_ops(mops, args, name)   \
     vb_ops->monitor_register_vm_ops(mops, args, name)
 
