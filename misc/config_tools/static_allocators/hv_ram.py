@@ -23,13 +23,17 @@ def fn(board_etree, scenario_etree, allocation_etree):
     ram_range = {}
 
     max_vm_num = int(get_node(f"//hv/CAPACITIES/MAX_VM_NUM/text()", scenario_etree))
+    vuart_tx_buf_size = int(get_node(f"//hv/FEATURES/VUART_TX_BUF_SIZE/text()", scenario_etree))
+    sbuf_size_percpu = int(get_node(f"//hv/DEBUG_OPTIONS/HVLOG_PERCPU_SIZE/text()", scenario_etree))
+
     hv_ram_size = acrn_config_utilities.HV_BASE_RAM_SIZE + acrn_config_utilities.VM_RAM_SIZE * max_vm_num
     assert(hv_ram_size <= HV_RAM_SIZE_MAX)
     # reserve 4M memory for ramoops
     ramoops_size = 0x400000
     # reserve 64k per CPU memory for hvlog
     cpu_num = len(board_cfg_lib.get_processor_info())
-    hvlog_size = 0x10000 * cpu_num
+    hvlog_size = sbuf_size_percpu * cpu_num
+    minidump_size = max_vm_num * vuart_tx_buf_size
     # We recommend to put hv ram start address high than 0x2000000 to
     # reduce memory conflict with GRUB/SOS Kernel.
     hv_start_offset = 0x2000000
@@ -52,6 +56,7 @@ def fn(board_etree, scenario_etree, allocation_etree):
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/RAMOOPS_SIZE", hex(ramoops_size), allocation_etree)
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/HVLOG_START", hex(avl_start_addr + ramoops_size), allocation_etree)
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/HVLOG_SIZE", hex(hvlog_size), allocation_etree)
-    
+    acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/MINIDUMP_SIZE", hex(minidump_size), allocation_etree)
+
     top_address = get_e820_top_address(get_node(f"/acrn-config/memory", board_etree))
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/TOP_ADDRESS", hex(top_address), allocation_etree)

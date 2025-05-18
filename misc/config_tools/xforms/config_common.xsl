@@ -75,6 +75,11 @@
     <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'HV_COREDUMP_ENABLED'" />
     </xsl:call-template>
+    <xsl:call-template name="integer-by-key">
+      <xsl:with-param name="key" select="'HVLOG_PERCPU_SIZE'" />
+    </xsl:call-template>
+
+
   </xsl:template>
 
   <xsl:template match="FEATURES">

@@ -44,6 +44,21 @@
         <xs:documentation>Enable Coredump in hypervisor exception handling, need bootloader support it by warm-reset.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="HVLOG_PERCPU_SIZE" default="65536">
+      <xs:annotation acrn:title="Sbuf size of hvlog per pCPU" acrn:views="advanced"
+                     acrn:errormsg="'required': 'must config the Sbuf size of hvlog per pCPU in byte'">
+        <xs:documentation>Specify the Sbuf size of hvlog per pCPU.</xs:documentation>
+      </xs:annotation>
+      <xs:simpleType>
+         <xs:annotation>
+           <xs:documentation>Integer from 8192 to 81920.</xs:documentation>
+         </xs:annotation>
+        <xs:restriction base="xs:integer">
+          <xs:minInclusive value="8192" />
+          <xs:maxInclusive value="81920" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:element>
   </xs:all>
 </xs:complexType>
 

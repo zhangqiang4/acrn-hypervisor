@@ -104,7 +104,7 @@
       <xsl:value-of select="concat('ramoops.mem_address=', //hv/MEMORY/RAMOOPS_START, ' ramoops.mem_size=', //hv/MEMORY/RAMOOPS_SIZE, ' ramoops.console_size=0x200000 ramoops.dump_oops=1')" />
   </xsl:variable>
   <xsl:variable name="hvlog_cmdline">
-      <xsl:value-of select="concat('hvlog=' , //hv/MEMORY/HVLOG_SIZE, '@', //hv/MEMORY/HVLOG_START)" />
+      <xsl:value-of select="concat('hvlog=' , //hv/MEMORY/HVLOG_SIZE, '@', //hv/MEMORY/HVLOG_START, '$', //hv/MEMORY/MINIDUMP_SIZE, '/', //hv/CAPACITIES/MAX_VM_NUM)" />
   </xsl:variable>
   <xsl:value-of select="acrn:define('SERVICE_VM_ROOTFS', concat($quot, $sos_rootfs, ' ', $quot), '')" />
   <xsl:value-of select="acrn:define('SERVICE_VM_BOOTARGS_DIFF', concat($quot, $sos_bootargs, ' ', $maxcpus, ' ', $hugepage_kernelstring, ' ', $quot), '')" />

@@ -147,8 +147,19 @@ static void dump_guest_context(uint16_t pcpu_id)
 	}
 }
 
-static void do_logbuffer(uint32_t severity, char *buffer)
+static void do_logbuffer(uint32_t severity, uint16_t vm_id, char *buffer)
 {
+	char *minidump_start;
+	/* Caculate start address of uart tx dump of specified vm in minidump region.
+	 * Config tool set mimidump region behind HVLOG region, the size accumulates the
+	 * console tx buffer of all VMs. */
+	minidump_start =
+		(char *)per_cpu(sbuf, 0)[ACRN_HVLOG] + CONFIG_HVLOG_PERCPU_SIZE * get_pcpu_nums() + vm_id * TX_BUF_SIZE;
+	/* Copy log message to minidump region in user-space */
+	stac();
+	memcpy_erms(minidump_start, buffer, TX_BUF_SIZE);
+	clac();
+
 	if (console_need_log(severity) || npk_need_log(severity)) {
 		/* Check whether output to stdout */
 		if (console_need_log(severity)) {
@@ -177,6 +188,7 @@ static void dump_all_vm_console_output(void)
 		if (!vu->active) {
 			continue;
 		}
+
 		pr_acrnlog( "\r\n----- Dump VM %d Console's Tx Buffer -----\r\n", vm_id);
 		memset(vm_uart_tx_buf_dump, 0, TX_BUF_SIZE);
 		if (vu->txfifo.buf[vu->txfifo.windex] != '\0') {
@@ -186,7 +198,7 @@ static void dump_all_vm_console_output(void)
 		if (vu->txfifo.windex > 0) {
 			memcpy_erms(vm_uart_tx_buf_dump + len, vu->txfifo.buf, vu->txfifo.windex);
 		}
-		do_logbuffer(LOG_ACRN, vm_uart_tx_buf_dump);
+		do_logbuffer(LOG_ACRN, vm_id, vm_uart_tx_buf_dump);
 	}
 	return;
 }
@@ -327,5 +339,11 @@ void trigger_coredump(bool dump)
 	}
 }
 #else
-void trigger_coredump(__unused bool dump) {}
+void trigger_coredump(bool dump)
+{
+	/* Dump all VMs' Console output*/
+	if (dump) {
+		dump_all_vm_console_output();
+	}
+}
 #endif
