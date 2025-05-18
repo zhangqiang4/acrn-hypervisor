@@ -89,6 +89,7 @@ static bool apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector);
 
 static void apicv_trigger_pi_anv(uint16_t dest_pcpu_id, uint32_t anv);
 
+static int32_t vlapic_x2apic_pt_icr_access(struct acrn_vcpu *vcpu, uint64_t val);
 static void vlapic_x2apic_self_ipi_handler(struct acrn_vlapic *vlapic);
 
 /*
@@ -1256,15 +1257,20 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 	uint32_t *regptr;
 	uint32_t data32 = (uint32_t)data;
 	int32_t ret = 0;
+	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
 	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic write offset %#x, data %#lx", offset, data);
 
 	if (offset <= sizeof(*lapic)) {
 		switch (offset) {
 		case APIC_OFFSET_ICR_LOW:
-			lapic->icr_lo.v = data32;
-			lapic->icr_lo.v_ext = (uint32_t)(data >> 32U);
-			vlapic_write_icrlo(vlapic);
+			if (is_lapic_pt_configured(vcpu->vm)) {
+				ret = vlapic_x2apic_pt_icr_access(vcpu, data);
+			} else {
+				lapic->icr_lo.v = data32;
+				lapic->icr_lo.v_ext = (uint32_t)(data >> 32U);
+				vlapic_write_icrlo(vlapic);
+			}
 			break;
 		case APIC_OFFSET_EOI:
 			vlapic_process_eoi(vlapic);
@@ -1392,9 +1398,18 @@ static bool ptapic_has_pending_intr(__unused struct acrn_vcpu *vcpu)
 	return false;
 }
 
-static bool ptapic_invalid(__unused uint32_t offset)
+static bool ptapic_read_msr_may_may_invalid(uint32_t offset)
 {
-	return false;
+	return ((offset == APIC_OFFSET_ID)
+		|| (offset == APIC_OFFSET_LDR)
+		|| (offset == APIC_OFFSET_THERM_LVT));
+
+}
+
+static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
+{
+	return ((offset == APIC_OFFSET_ICR_LOW)
+		|| (offset == APIC_OFFSET_THERM_LVT));
 }
 
 static const struct acrn_apicv_ops ptapic_ops = {
@@ -1402,8 +1417,8 @@ static const struct acrn_apicv_ops ptapic_ops = {
 	.inject_intr = ptapic_inject_intr,
 	.has_pending_delivery_intr = ptapic_has_pending_delivery_intr,
 	.has_pending_intr = ptapic_has_pending_intr,
-	.x2apic_read_msr_may_valid  = ptapic_invalid,
-	.x2apic_write_msr_may_valid  = ptapic_invalid,
+	.x2apic_read_msr_may_valid  = ptapic_read_msr_may_may_invalid,
+	.x2apic_write_msr_may_valid  = ptapic_write_msr_may_may_invalid,
 };
 
 int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
@@ -1666,23 +1681,9 @@ int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
 	int32_t error = -1;
 
 	vlapic = vcpu_vlapic(vcpu);
-	if (is_lapic_pt_configured(vcpu->vm)) {
-		switch (msr) {
-		case MSR_IA32_EXT_APIC_LDR:
-		case MSR_IA32_EXT_XAPICID:
-		case MSR_IA32_EXT_APIC_LVT_THERMAL:
-			offset = x2apic_msr_to_regoff(msr);
-			error = vlapic_read(vlapic, offset, val);
-			break;
-		default:
-			pr_err("%s: unexpected MSR[0x%x] read with lapic_pt", __func__, msr);
-			break;
-		}
-	} else {
-		offset = x2apic_msr_to_regoff(msr);
-		if (vlapic->ops->x2apic_read_msr_may_valid(offset)) {
-			error = vlapic_read(vlapic, offset, val);
-		}
+	offset = x2apic_msr_to_regoff(msr);
+	if (vlapic->ops->x2apic_read_msr_may_valid(offset)) {
+		error = vlapic_read(vlapic, offset, val);
 	}
 
 	return error;
@@ -1695,27 +1696,10 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 	int32_t error = -1;
 
 	vlapic = vcpu_vlapic(vcpu);
-
-	if (is_lapic_pt_configured(vcpu->vm)) {
-		switch (msr) {
-		case MSR_IA32_EXT_APIC_ICR:
-			error = vlapic_x2apic_pt_icr_access(vcpu, val);
-			break;
-		case MSR_IA32_EXT_APIC_LVT_THERMAL:
-			offset = x2apic_msr_to_regoff(msr);
-			error = vlapic_write(vlapic, offset, val);
-			break;
-		default:
-			pr_err("%s: unexpected MSR[0x%x] write with lapic_pt", __func__, msr);
-			break;
-		}
-	} else {
-		offset = x2apic_msr_to_regoff(msr);
-		if (vlapic->ops->x2apic_write_msr_may_valid(offset)) {
-			error = vlapic_write(vlapic, offset, val);
-		}
+	offset = x2apic_msr_to_regoff(msr);
+	if (vlapic->ops->x2apic_write_msr_may_valid(offset)) {
+		error = vlapic_write(vlapic, offset, val);
 	}
-
 	return error;
 }
 
