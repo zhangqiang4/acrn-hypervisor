@@ -525,6 +525,8 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 				entry.edx &= ~CPUID_EDX_USER_MSR;
 				/* Hide HRESET as Thread Director is always hidden for the guest */
 				entry.eax &= ~CPUID_EAX_HRESET;
+				/* Hide MSRLIST, clear CPUID.(EAX=07H, ECX=1):EAX.MSRLIST[bit 27] */
+				entry.eax &= ~CPUID_EAX_MSRLIST;
 			}
 			result = set_vcpuid_entry(vm, &entry);
 			if (result != 0) {

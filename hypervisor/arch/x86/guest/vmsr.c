@@ -335,6 +335,12 @@ static const uint32_t unsupported_msrs[] = {
 	 * CPUID.(EAX=07H,ECX=1):EDX[15]
 	 */
 	MSR_IA32_USER_MSR_CTL,
+
+	/*
+	 * RDMSRLIST/WRMSRLIST disabled, hide IA32_BARRIER:
+	 * CPUID.(EAX=07H,ECX=1):EAX[27]
+	 */
+	MSR_IA32_BARRIER,
 };
 
 /* emulated_guest_msrs[] shares same indexes with array vcpu->arch->guest_msrs[] */

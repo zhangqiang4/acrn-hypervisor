@@ -679,6 +679,12 @@
  */
 #define CPUID_EAX_AVX512_BF16   (1U<<5U)
 /**
+ * @brief A bit representing whether supports RDMSRLIST and WRMSRLIST instructions and the IA32_BARRIER MSR.
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[27].
+ */
+#define CPUID_EAX_MSRLIST      (1U<<27U)
+/**
  * @brief A bit representing whether supports history reset via the HRESET instruction and the IA32_HRESET_ENABLE MSR.
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[22].
