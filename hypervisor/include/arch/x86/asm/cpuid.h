@@ -685,6 +685,12 @@
  */
  #define CPUID_EAX_HRESET      (1U<<22U)
 /**
+ * @brief A bit representing whether hypervisor supports USER Read/Write MSR.
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EDX[15].
+ */
+#define CPUID_EDX_USER_MSR	(1U<<15U)
+/**
  * @brief A bit representing whether hypervisor supports CET Supervisor Shadow Stack
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=1H):EDX[18].

@@ -518,6 +518,11 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 			if (i == 1) {
 				/* Hypervisor doesn't support CET supervisor shadow stack, clear CPUID(7,1).EDX[18].*/
 				entry.edx &= ~CPUID_EDX_CET_SSS;
+				/*
+				 * Hide User Read/Write from MSR features
+				 * clear CPUID.(EAX=07H, ECX=1):EDX.USER_MSR[bit 15]
+				 */
+				entry.edx &= ~CPUID_EDX_USER_MSR;
 				/* Hide HRESET as Thread Director is always hidden for the guest */
 				entry.eax &= ~CPUID_EAX_HRESET;
 			}

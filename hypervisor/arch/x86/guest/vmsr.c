@@ -329,6 +329,12 @@ static const uint32_t unsupported_msrs[] = {
 	MSR_IA32_VMX_VMFUNC,
 	MSR_IA32_VMX_PROCBASED_CTLS3,
 	MSR_IA32_VMX_EXIT_CTLS2,
+
+	/*
+	 * User Read/Write MSR feature disabled:
+	 * CPUID.(EAX=07H,ECX=1):EDX[15]
+	 */
+	MSR_IA32_USER_MSR_CTL,
 };
 
 /* emulated_guest_msrs[] shares same indexes with array vcpu->arch->guest_msrs[] */
