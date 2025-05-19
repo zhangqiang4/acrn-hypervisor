@@ -247,9 +247,6 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 	uint32_t timeout_us = 0U;
 	bool vf_ready = false;
 
-	/* Confirm that the physical VF_ENABLE register has been set successfully */
-	ASSERT(is_vf_enabled(pf_vdev), "VF_ENABLE was not set successfully on the hardware");
-
 	/*
          * All VFs bars information are located at PF VF_BAR fields of SRIOV capability.
 	 * Initialize the PF's VF_BAR registers before initialize each VF device bar.
@@ -444,7 +441,13 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 					 * devices firstly
 					 */
 					pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
-					enable_vfs(vdev);
+					if (is_vf_enabled(vdev)) {
+						/*
+						 * Enable VFs only when the VF_ENABLE is really
+						 * set on physical device.
+						 */
+						enable_vfs(vdev);
+					}
 				} else {
 					disable_vfs(vdev);
 					pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);

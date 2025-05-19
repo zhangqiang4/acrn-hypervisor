@@ -1119,14 +1119,19 @@ static int32_t vpci_write_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
  * @brief Initialize a virtual PCI device
  *
  * This function is used to initialize a virtual PCI device structure with an input PCI device configuration
- * (dev_config). First it checks whether there's a free pci_vdevs slot by getting a free ID and checks whether
- * it is valid (less than CONFIG_MAX_PCI_DEV_NUM). Then, we get the free vdev from the vdev array and initialize
- * it. After that, we add the vdev into the current VM by adding the vdev into the hash list and set the callback
- * ops for it. The callback ops of passthrough physical device is pci_pt_dev_ops. But the callback ops of other
- * devices is got from the input PCI device configuration (dev_config). At last, the init_vdev callback function
- * is called to further initialize vdev. If this function initializes a SRIOV Virtual Function (VF) vdev structure,
- * the parameter parent_pf_vdev is the VF associated Physical Function (PF) vdev structure, otherwise the parameter
- * parent_pf_vdev is NULL. The caller of this function shall guarantee execution atomically.
+ * (dev_config). First it checks whether there's a free pci_vdevs slot by getting a free ID and checks below
+ * criteria:
+ *   - the free ID is valid (less than CONFIG_MAX_PCI_DEV_NUM) and,
+ *   - there is callback ops in dev_config or there is no callback ops in dev_config but the device type is
+ *     PCI_DEV_TYPE_PTDEV so that we can set pci_pt_dev_ops to the device.
+ *
+ * Then, we get the free vdev from the vdev array and initialize it. After that, we add the vdev into the current
+ * VM by adding the vdev into the hash list and set the callback ops for it. The callback ops of passthrough
+ * physical device is pci_pt_dev_ops. But the callback ops of other devices is got from the input PCI device
+ * configuration (dev_config). At last, the init_vdev callback function is called to further initialize vdev.
+ * If this function initializes a SRIOV Virtual Function (VF) vdev structure, the parameter parent_pf_vdev is
+ * the VF associated Physical Function (PF) vdev structure, otherwise the parameter parent_pf_vdev is NULL. The
+ * caller of this function shall guarantee execution atomically.
  *
  * @param[in] vpci           Pointer to a specified acrn_vcpi structure instance.
  * @param[in] dev_config     Pointer to a acrn_vm_pci_dev_config structure instance.
@@ -1146,7 +1151,9 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 	struct pci_vdev *vdev = NULL;
 	uint32_t id = (uint32_t)ffz64_ex(vpci->vdev_bitmaps, CONFIG_MAX_PCI_DEV_NUM);
 
-	if (id < CONFIG_MAX_PCI_DEV_NUM) {
+	if ((id < CONFIG_MAX_PCI_DEV_NUM) &&
+	    (dev_config->vdev_ops ||
+	    ((!dev_config->vdev_ops) && (dev_config->emu_type == PCI_DEV_TYPE_PTDEV)))) {
 		bitmap_set_nolock((id & 0x3FU), &vpci->vdev_bitmaps[id >> 6U]);
 
 		vdev = &vpci->pci_vdevs[id];
@@ -1163,11 +1170,10 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 			vdev->vdev_ops = dev_config->vdev_ops;
 		} else {
 			vdev->vdev_ops = &pci_pt_dev_ops;
-			ASSERT(dev_config->emu_type == PCI_DEV_TYPE_PTDEV,
-				"Only PCI_DEV_TYPE_PTDEV could not configure vdev_ops");
 		}
 		vdev->vdev_ops->init_vdev(vdev);
 	}
+
 	return vdev;
 }
 
@@ -1260,6 +1266,7 @@ static int32_t vpci_init_vdevs(struct acrn_vm *vm)
 			if (vdev == NULL) {
 				pr_err("%s: failed to initialize vpci, increase MAX_PCI_DEV_NUM in scenario!\n",
 					__func__);
+				ret = -EFAULT;
 				break;
 			}
 			ret = check_pt_dev_pio_bars(&vpci->pci_vdevs[idx]);
