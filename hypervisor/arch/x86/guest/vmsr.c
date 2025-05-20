@@ -1315,8 +1315,17 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (v & reserved) {
 			err = -EINVAL;
 		} else {
-			vcpu_set_efer(vcpu, v);
+			/*
+			 * When paging is enabled, changing LME bit should generate #GP.
+			 * See 64-bit mode consistency checks in Chapter 10.8.5, Vol. 3, SDM.
+			 */
+			if ((ctx->cr0 & CR0_PG) && ((v ^ ctx->ia32_efer) & MSR_IA32_EFER_LME_BIT)) {
+				err = -EINVAL;
+			} else {
+				vcpu_set_efer(vcpu, v);
+			}
 		}
+
 		break;
 	}
 	case MSR_IA32_APIC_BASE:
