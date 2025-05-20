@@ -374,7 +374,7 @@ function config_igpu_vf() {
 
 	#change auto provision to manual provision(ggtt contexts doorbell)
 	local ggtt_quota=$((3221225472/numvfs))
-	local contexts_quota=$((57344/numvfs))
+	local contexts_quota=$((57344/128/numvfs*128))
 	local doorbells_quota=$((256/numvfs))
 	for (( i = 1; i <= $numvfs; i++ ))
 	do
