@@ -37,11 +37,6 @@
 static uint32_t hv_e820_entries_nr;
 
 /**
- * @brief Global variable indicating the top address of RAM from the E820 memory map.
- */
-static uint64_t hv_e820_top_address;
-
-/**
  * @brief Global array containing E820 entries in the hypervisor.
  *
  * This array describes the memory layout the hypervisor uses. The number of valid entries is recorded in the global
@@ -325,36 +320,6 @@ static void init_e820_from_mmap(struct acrn_boot_info *abi)
 }
 
 /**
- * @brief Calculate the top address of RAM from the E820 memory map.
- *
- * This function iterates through the E820 memory map entries to find the top address typed as E820_TYPE_RAM.
- * The top address is calculated as the base address plus the length of the entry.
- *
- * @return None
- *
- * @pre N/A
- *
- * @post N/A
- */
-static void calculate_e820_top_address(void)
-{
-        uint32_t i;
-
-        for(i = 0U; i < hv_e820_entries_nr; i++){
-                dev_dbg(DBG_LEVEL_E820, "hv_e820[%d]:type: 0x%x Base: 0x%016lx length: 0x%016lx", i,
-                                hv_e820[i].type, hv_e820[i].baseaddr, hv_e820[i].length);
-
-                if (hv_e820[i].type == E820_TYPE_RAM) {
-					if (hv_e820_top_address < (hv_e820[i].baseaddr + hv_e820[i].length)) {
-						hv_e820_top_address = hv_e820[i].baseaddr + hv_e820[i].length;
-					}
-                }
-        }
-
-        dev_dbg(DBG_LEVEL_E820, "E820 top address is: 0x%016lx ", hv_e820_top_address);
-}
-
-/**
  * @brief Reserve specified region in the E820 table.
  *
  * This function reserves the specified region in the E820 table. It iterates through the E820 entries to find the
@@ -499,7 +464,6 @@ void init_e820(void)
 		init_e820_from_mmap(abi);
 	}
 
-	calculate_e820_top_address();
 	alloc_hv_memory();
 	/* reserve multiboot modules memory */
 	alloc_mods_memory();
