@@ -45,7 +45,7 @@ def fn(board_etree, scenario_etree, allocation_etree):
 
     avl_start_addr = board_cfg_lib.find_avl_memory(ram_range, str(total_size), hv_start_offset)
     avl_start_addr = acrn_config_utilities.round_up(int(avl_start_addr, 16), MEM_ALIGN)
-    hv_reserved_size = acrn_config_utilities.round_up(ramoops_size + hvlog_size, MEM_ALIGN)
+    hv_reserved_size = acrn_config_utilities.round_up(ramoops_size + hvlog_size + minidump_size, MEM_ALIGN)
     hv_start_addr = avl_start_addr + hv_reserved_size
     board_cfg_lib.USED_RAM_RANGE[hv_start_addr] = hv_ram_size
     acrn_config_utilities.append_node("/acrn-config/hv/MEMORY/HV_RAM_START", hex(hv_start_addr), allocation_etree)
