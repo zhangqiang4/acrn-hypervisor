@@ -133,7 +133,7 @@ static int32_t handle_dmar_devscope(struct dmar_dev_scope *dev_scope, void *addr
 	struct acpi_dmar_pci_path *path;
 	struct acpi_dmar_device_scope *apci_devscope = addr;
 
-	if ((remaining >= (int32_t)sizeof(struct acpi_dmar_device_scope)) &&
+	if (((int32_t)apci_devscope->length >= (int32_t)sizeof(struct acpi_dmar_device_scope)) &&
 	    (remaining >= (int32_t)apci_devscope->length)) {
 		path = (struct acpi_dmar_pci_path *)(apci_devscope + 1);
 		path_len = (int32_t)((apci_devscope->length - sizeof(struct acpi_dmar_device_scope)) /
@@ -145,8 +145,11 @@ static int32_t handle_dmar_devscope(struct dmar_dev_scope *dev_scope, void *addr
 		dev_scope->bus = dmar_bdf.fields.bus;
 		dev_scope->devfun = dmar_bdf.fields.devfun;
 		ret = (int32_t)apci_devscope->length;
+	} else {
+		pr_fatal("%s failed to handle dev_scope: apci_devscope->length = %d, sizeof(struct "
+			 "acpi_dmar_device_scope) = %d, remaining = %d",
+			__func__, (int32_t)apci_devscope->length, sizeof(struct acpi_dmar_device_scope), remaining);
 	}
-
 	return ret;
 }
 
@@ -195,7 +198,9 @@ static uint32_t get_drhd_dev_scope_cnt(struct acpi_dmar_hardware_unit *drhd)
  * @param[in] acpi_drhd Pointer to the ACPI DMAR hardware unit structure.
  * @param[inout] drhd Pointer to the DMAR DRHD structure to be populated.
  *
- * @return Always returns 0.
+ * @return 0 on success, or a negative error code on failure:
+ *         -EINVAL: if the number of device scopes exceeds the maximum allowed or if there is an error
+ *         while handling a device scope.
  *
  * @pre (acpi_drhd != NULL) && (drhd != NULL)
  *
@@ -203,48 +208,52 @@ static uint32_t get_drhd_dev_scope_cnt(struct acpi_dmar_hardware_unit *drhd)
  * on the physical platform. This function disables GPU IOMMU on APL platforms as GVT-d is not enabled
  * on APL yet.
  */
-static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct dmar_drhd *drhd)
+static int handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct dmar_drhd *drhd)
 {
 	struct dmar_dev_scope *dev_scope;
 	struct acpi_dmar_device_scope *ads;
 	int32_t remaining, consumed;
 	char *cp;
 	uint32_t dev_count;
+	int ret = 0;
 
 	drhd->segment = acpi_drhd->segment;
 	drhd->flags = acpi_drhd->flags;
 	drhd->reg_base_addr = acpi_drhd->address;
 
 	dev_count = get_drhd_dev_scope_cnt(acpi_drhd);
-	ASSERT(dev_count <= MAX_DRHD_DEVSCOPES, "parsed dev_count > MAX_DRHD_DEVSCOPES");
+	if (dev_count > MAX_DRHD_DEVSCOPES) {
+		pr_fatal("%s: parsed drhd dev_count %u larger than MAX_DRHD_DEVSCOPES %u", __func__, dev_count,
+			MAX_DRHD_DEVSCOPES);
+		ret = -EINVAL;
+	} else {
+		drhd->dev_cnt = dev_count;
 
-	drhd->dev_cnt = dev_count;
+		remaining = (int32_t)(acpi_drhd->header.length - sizeof(struct acpi_dmar_hardware_unit));
 
-	remaining = (int32_t)(acpi_drhd->header.length - sizeof(struct acpi_dmar_hardware_unit));
+		dev_scope = drhd->devices;
 
-	dev_scope = drhd->devices;
+		while (remaining > 0) {
+			cp = (char *)acpi_drhd + acpi_drhd->header.length - remaining;
 
-	while (remaining > 0) {
-		cp = (char *)acpi_drhd + acpi_drhd->header.length - remaining;
+			consumed = handle_dmar_devscope(dev_scope, cp, remaining);
+			if (consumed <= 0) {
+				ret = -EINVAL;
+				break;
+			}
 
-		consumed = handle_dmar_devscope(dev_scope, cp, remaining);
-
-		if (consumed <= 0) {
-			break;
-		}
-
-		remaining -= consumed;
-		/* skip IOAPIC & HPET */
-		ads = (struct acpi_dmar_device_scope *)cp;
-		if ((ads->entry_type != ACPI_DMAR_SCOPE_TYPE_NOT_USED) &&
-			(ads->entry_type < ACPI_DMAR_SCOPE_TYPE_RESERVED)) {
-			dev_scope++;
-		} else {
-			pr_dbg("drhd: skip dev_scope type %d", ads->entry_type);
+			remaining -= consumed;
+			/* skip IOAPIC & HPET */
+			ads = (struct acpi_dmar_device_scope *)cp;
+			if ((ads->entry_type != ACPI_DMAR_SCOPE_TYPE_NOT_USED) &&
+				(ads->entry_type < ACPI_DMAR_SCOPE_TYPE_RESERVED)) {
+				dev_scope++;
+			} else {
+				pr_dbg("drhd: skip dev_scope type %d", ads->entry_type);
+			}
 		}
 	}
-
-	return 0;
+	return ret;
 }
 
 /**
@@ -255,17 +264,18 @@ static int32_t handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd, struct
  * Virtualization Technology for Directed I/O (VT-d) Architecture Specification, Revision 5.0.
  *
  * The following invalid cases are handled to ensure the integrity of the DMAR table and its entries:
- * - DMAR table is NULL: The function will assert and halt execution.
+ * - DMAR table is NULL: The function will log a fatal error message and return -EINVAL.
  * - The length value in the DMAR table header is less than the size of the DMAR table header: The function will
- *   assert and halt execution.
- * - DRHD entry with a zero base address: The function will assert and halt execution.
- * - Multiple PCI segments: The function will panic and halt execution.
- * - DMAR table with more than MAX_DRHDS DRHD entries: The function will assert and halt execution.
+ *   log a fatal error message and return -EINVAL.
+ * - DRHD entry with a zero base address: The function will log a fatal error message and return -EINVAL.
+ * - Multiple PCI segments: The function will log a fatal error message and return -EINVAL.
+ * - DMAR table with more than MAX_DRHDS DRHD entries: The function will log a fatal error message and return -EINVAL.
  * - More than one DRHD with the INCLUDE_PCI_ALL flag: The function will log an error message.
  *
  * @param[inout] plat_dmar Pointer to the structure where the parsed DMAR information will be stored.
  *
- * @return 0 on success, -EINVAL on (segment != acpi_drhd->segment) or (dmar_unit_cnt > MAX_DRHDS).
+ * @return 0 on success, or a negative error code on failure:
+ *         -EINVAL: Invalid DMAR table structure or unsupported configuration.
  *
  * @pre plat_dmar != NULL
  */
@@ -281,46 +291,63 @@ int parse_dmar_table(struct dmar_info *plat_dmar)
 	int ret = 0;
 
 	dmar_tbl = (struct acpi_table_dmar *)get_dmar_table();
-	ASSERT(dmar_tbl != NULL, "");
+	if (dmar_tbl == NULL) {
+		pr_fatal("%s: DMAR table is NULL",__func__);
+		ret = -EINVAL;
+	} else {
+		ptr = (char *)dmar_tbl + sizeof(*dmar_tbl);
+		ptr_end = (char *)dmar_tbl + dmar_tbl->header.length;
 
-	ptr = (char *)dmar_tbl + sizeof(*dmar_tbl);
-	ptr_end = (char *)dmar_tbl + dmar_tbl->header.length;
-
-	plat_dmar->drhd_units = drhd_info_array;
-	for (; ptr < ptr_end; ptr += dmar_header->length) {
-		dmar_header = (struct acpi_dmar_header *)ptr;
-		ASSERT(dmar_header->length >= sizeof(struct acpi_dmar_header), "corrupted DMAR table");
-
-		if (dmar_header->type == ACPI_DMAR_TYPE_HARDWARE_UNIT) {
-			acpi_drhd = (struct acpi_dmar_hardware_unit *)dmar_header;
-			/* Treat a valid DRHD has a non-zero base address */
-			ASSERT(acpi_drhd->address != 0UL, "a zero base address DRHD. Please fix the BIOS.");
-
-			if (dmar_unit_cnt >= MAX_DRHDS) {
-				pr_fatal("Parsed dmar_unit_cnt (%u) >= MAX_DRHDS (%u)", dmar_unit_cnt, MAX_DRHDS);
+		plat_dmar->drhd_units = drhd_info_array;
+		for (; ptr < ptr_end; ptr += dmar_header->length) {
+			dmar_header = (struct acpi_dmar_header *)ptr;
+			if (dmar_header->length < sizeof(struct acpi_dmar_header)) {
+				pr_fatal("%s: corrupted DMAR table, dmar_header->length (%u) less than the size (%u) "
+					 "of struct acpi_dmar_header!",
+					__func__, dmar_header->length, sizeof(struct acpi_dmar_header));
 				ret = -EINVAL;
 				break;
 			}
-
-			if (dmar_unit_cnt == 0U) {
-				segment = acpi_drhd->segment;
-			} else {
-				/* Only support single PCI Segment */
-				if (segment != acpi_drhd->segment) {
-					pr_fatal("Only single PCI Segment is supported.");
+			if (dmar_header->type == ACPI_DMAR_TYPE_HARDWARE_UNIT) {
+				acpi_drhd = (struct acpi_dmar_hardware_unit *)dmar_header;
+				/* Treat a valid DRHD has a non-zero base address */
+				if (acpi_drhd->address == 0UL) {
+					pr_fatal("%s: a DRHD include zero base address: acpi_drhd->address = 0. Please "
+						 "fix the BIOS.",
+						__func__);
 					ret = -EINVAL;
 					break;
 				}
-			}
+				if (dmar_unit_cnt >= MAX_DRHDS) {
+					pr_fatal("%s: parsed dmar_unit_cnt (%u) >= MAX_DRHDS (%u)", __func__,
+						dmar_unit_cnt, MAX_DRHDS);
+					ret = -EINVAL;
+					break;
+				}
 
-			if ((acpi_drhd->flags & DRHD_FLAG_INCLUDE_PCI_ALL_MASK) != 0U) {
-				/* Check more than one DRHD with INCLUDE_PCI_ALL flag ? */
-				include_all_idx = dmar_unit_cnt;
-			}
+				if (dmar_unit_cnt == 0U) {
+					segment = acpi_drhd->segment;
+				} else {
+					/* Only support single PCI Segment */
+					if (segment != acpi_drhd->segment) {
+						pr_fatal("%s: only single PCI Segment is supported.",__func__);
+						ret = -EINVAL;
+						break;
+					}
+				}
 
-			plat_dmar->drhd_units[dmar_unit_cnt].devices = drhd_dev_scope[dmar_unit_cnt];
-			handle_one_drhd(acpi_drhd, &(plat_dmar->drhd_units[dmar_unit_cnt]));
-			dmar_unit_cnt++;
+				if ((acpi_drhd->flags & DRHD_FLAG_INCLUDE_PCI_ALL_MASK) != 0U) {
+					/* Check more than one DRHD with INCLUDE_PCI_ALL flag ? */
+					include_all_idx = dmar_unit_cnt;
+				}
+
+				plat_dmar->drhd_units[dmar_unit_cnt].devices = drhd_dev_scope[dmar_unit_cnt];
+				ret = handle_one_drhd(acpi_drhd, &(plat_dmar->drhd_units[dmar_unit_cnt]));
+				if (ret != 0) {
+					break;
+				}
+				dmar_unit_cnt++;
+			}
 		}
 	}
 
