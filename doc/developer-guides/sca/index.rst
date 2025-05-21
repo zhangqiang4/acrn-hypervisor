@@ -399,6 +399,72 @@ compiler. Thus there is no further consequence due to the non-compliance and no 
 actions required.
 
 
+JD_009: Use of function-like macro
+----------------------------------
+
+Function-like macros are used in the following cases.
+
+ - Macro that switches to the new stack and transfers control to the given function.
+
+    - SWITCH_TO
+
+ - Macro that wraps compiler attributes.
+
+    - __aligned
+
+ - Macros that abstract a traversal pattern over a list (expand into a for loop header).
+
+    - hlist_for_each, list_for_each, list_for_each_safe
+
+ - Macros that accept a user-given token as the name of the structure field.
+
+    - get_cpu_var, per_cpu, container_of, get_first_item, hlist_entry, offsetof
+
+ - Macros that accept a user-given token as the name of the variable to be initialized.
+
+    - DEFINE_INTX_SID, DEFINE_MSI_SID
+
+ - Macros that accept a user-given token to be concatenated to a new token.
+
+    - load_segment, save_segment
+
+ - Macros that accept a user-given token to be converted to a string.
+
+    - CPU_CR_READ, CPU_CR_WRITE, CPU_SEG_READ, CPU_XMM_READ, CPU_XMM_WRITE, STRINGIFY
+
+ - Macros that accept polymorphic types.
+
+    - ARRAY_SIZE, clamp, max, min, roundup
+
+ - Macros that are expanded in array sizes, array index, or structure initializers.
+
+    - INT_DIV_ROUNDUP, PD_PAGE_NUM, PDPT_PAGE_NUM, AFFINITY_CPU, HC_IDX, BASE_HC_ID, CTASSERT
+
+ - Macros that generate multiple variants of inline functions for different data types and operand sizes.
+
+    - build_getcc, build_atomic_cmpxchg, build_atomic_dec, build_atomic_inc, build_atomic_swap,
+      build_atomic_xadd, build_bitmap_clear, build_bitmap_set, build_bitmap_testandclear,
+      build_bitmap_testandset
+
+ - Macros that perform compile-time token concatenation like ``pr_prefix __VA_ARGS__``.
+
+    - dev_dbg, panic, pr_acrnlog, pr_dbg, pr_err, pr_fatal, pr_info, pr_warn
+
+In the use cases above, the function-like macros cannot be rewritten to functions due to limitations of C99.
+
+While necessary, it causes Coverity to complain due to the following rule.
+
+ - Directive 4.9  A function should be used in preference to a function-like macro where they are interchangeable
+
+The corresponding rule in ACRN Coding Guidelines is:
+
+ - C-PP-02: Function-like MACRO shall be used with restrictions
+
+The function-like macros are defined in a pure way, i.e. they have no side effect and only
+their expanded value is used. Thus there is no further consequence due to the non-compliance
+and no follow-up actions required.
+
+
 Explanations to False Positives
 ===============================
 
