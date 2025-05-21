@@ -379,7 +379,7 @@ int32_t hcall_start_vm(__unused struct acrn_vcpu *vcpu, struct acrn_vm *target_v
  * @brief Handle hypercall to pause a virtual machine (VM).
  *
  * This function handles the hypercall `HC_PAUSE_VM`, which is used to pause the target VM. The VM
- * is paused if it is not in a powered-off state.
+ * is paused if it is not in a powered-off state, and it has lower severity than Service VM.
  *
  * On success, the ACRN hypervisor shall return 0. However, the hypervisor shall return an error code
  * -1 when the target VM state is powered off.
@@ -401,7 +401,7 @@ int32_t hcall_pause_vm(__unused struct acrn_vcpu *vcpu, struct acrn_vm *target_v
 {
 	int32_t ret = -1;
 
-	if (!is_poweroff_vm(target_vm)) {
+	if (!is_poweroff_vm(target_vm) && is_severity_pass(target_vm->vm_id)) {
 		/* TODO: check target_vm guest_flags */
 		pause_vm(target_vm);
 		ret = 0;

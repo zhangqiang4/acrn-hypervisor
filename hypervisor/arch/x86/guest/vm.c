@@ -1448,11 +1448,13 @@ void poweroff_if_rt_vm(struct acrn_vm *vm)
  *
  * Zombie all vCPUs of a VM, and set a VM's state to VM_PAUSED.
  * The VM has to satisfy below requirement:
- * - The VM is in state VM_RUNNING and it has lower severity than Service VM, or
+ * - The VM is in state VM_RUNNING, or
  * - The VM is ready to poweroff (VM_READY_TO_POWEROFF state), or
  * - The VM is in VM_CREATED state
  * Otherwise the function has no effect.
  *
+ * Note that for VM_RUNNING, caller must ensure it pauses itself or the target VM has lower severity than Service VM.
+ * 
  * @pre vm != NULL
  * @post N/A
  *
@@ -1465,7 +1467,7 @@ void pause_vm(struct acrn_vm *vm)
 	uint16_t i;
 	struct acrn_vcpu *vcpu = NULL;
 
-	if (((is_severity_pass(vm->vm_id)) && (vm->state == VM_RUNNING)) ||
+	if ((vm->state == VM_RUNNING) ||
 			(vm->state == VM_READY_TO_POWEROFF) ||
 			(vm->state == VM_CREATED)) {
 		foreach_vcpu(i, vm, vcpu) {
