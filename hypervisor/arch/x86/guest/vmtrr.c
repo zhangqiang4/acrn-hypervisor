@@ -277,7 +277,8 @@ void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_
  * This function writes to the virtual MTRR MSR. It only supports writing the default MTRR type.
  * - If writing to IA32_MTRR_PHYSBASEn or IA32_MTRR_PHYSMASKn, it will ignore the write.
  * - If writing to IA32_MTRR_DEF_TYPE register:
- *   - Returns -EACCES if the write attempts to modify reserved bits
+ *   - Returns -EACCES if the write attempts to modify reserved bits (Fixed-range MTRRs enable/disable (bit 10)
+ *     is treated as reserved here to fit new platforms).
  *   - For default type UC or when MTRR is disabled: Overrides the guest's PAT register with \p PAT_ALL_UC_VALUE.
  *     This value sets configures all PAT entries to use UC type, effectively making all memory accesses uncached
  *     regardless of page table memory type settings.

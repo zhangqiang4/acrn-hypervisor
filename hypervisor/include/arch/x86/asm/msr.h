@@ -722,7 +722,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu);
 /* MSR_IA32_MTRR_DEF_TYPE bits */
 #define MSR_IA32_MTRR_DEF_TYPE_TYPE		0xFFUL  /**< Default memory type mask of IA32_MTRR_DEF_TYPE MSR */
 #define MSR_IA32_MTRR_DEF_TYPE_ENABLE		0x800UL /**< MTRR enable bit of IA32_MTRR_DEF_TYPE MSR */
-#define MSR_IA32_MTRR_DEF_TYPE_RES		0xFFFFFFFFFFFFF300UL /**< Reserved bits of IA32_MTRR_DEF_TYPE MSR */
+#define MSR_IA32_MTRR_DEF_TYPE_RES		0xFFFFFFFFFFFFF700UL /**< Reserved bits of IA32_MTRR_DEF_TYPE MSR */
 
 /* SPEC & PRED bit */
 #define SPEC_ENABLE_IBRS			(1U << 0U) /**< Indirect Branch Restricted Speculation (IBRS) */
