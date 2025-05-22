@@ -89,6 +89,8 @@ extern void deinit_dump_shmem(void);
 extern void dump_guest_memory(struct vmctx *ctx);
 extern int acrn_parse_dump_log_path(char *arg);
 extern char dump_log_path[];
+extern int acrn_parse_dump_path(char *arg);
+extern char dump_path[];
 
 typedef void (*vmexit_handler_t)(struct vmctx *,
 		struct acrn_io_request *, int *vcpu);
@@ -927,6 +929,7 @@ enum {
 	CMD_OPT_FORCE_VIRTIO_MSI,
 	CMD_OPT_BE,
 	CMD_OPT_DUMP_LOG,
+	CMD_OPT_DUMP_PATH,
 };
 
 static struct option long_options[] = {
@@ -972,6 +975,7 @@ static struct option long_options[] = {
 	{"windows",		no_argument,		0, CMD_OPT_WINDOWS},
 	{"virtio_msi",		no_argument,		0, CMD_OPT_FORCE_VIRTIO_MSI},
 	{"dump_log",		required_argument,	0, CMD_OPT_DUMP_LOG},
+	{"dump_path",		required_argument,	0, CMD_OPT_DUMP_PATH},
 	{0,			0,			0,  0  },
 };
 
@@ -1210,6 +1214,11 @@ main(int argc, char *argv[])
 			exit(1);
 		case CMD_OPT_DUMP_LOG:
 			if (acrn_parse_dump_log_path(optarg) != 0)
+				exit(1);
+			else
+				break;
+		case CMD_OPT_DUMP_PATH:
+			if (acrn_parse_dump_path(optarg) != 0)
 				exit(1);
 			else
 				break;

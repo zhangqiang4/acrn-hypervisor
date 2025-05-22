@@ -23,6 +23,7 @@
 static void *crash_dump_buf;
 static void *crash_dump_buf_aligned;
 char dump_log_path[STR_LEN];
+char dump_path[STR_LEN];
 static enum dm_dump_mode dump_mode = DM_DUMP_OFF;
 extern char *vmname;
 
@@ -44,6 +45,21 @@ int acrn_parse_dump_log_path(char *arg)
 
 	if (len < STR_LEN) {
 		strncpy(dump_log_path, arg, len + 1);
+#ifdef DM_DEBUG
+		dump_mode = DM_DUMP_ON_PANIC;
+#endif
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+int acrn_parse_dump_path(char *arg)
+{
+	size_t len = strnlen(arg, STR_LEN);
+
+	if (len < STR_LEN) {
+		strncpy(dump_path, arg, len + 1);
 #ifdef DM_DEBUG
 		dump_mode = DM_DUMP_ON_PANIC;
 #endif
@@ -104,7 +120,7 @@ ret:
 	return is_find;
 }
 
-void save_log(void)
+void save_log(char * log_content)
 {
 	int fd;
 	int written_size;
@@ -141,10 +157,10 @@ void save_log(void)
 		return;
 	}
 
-	written_size = write(fd, vmname, strlen(vmname));
-	if (written_size != strlen(vmname)) {
+	written_size = write(fd, log_content, strlen(log_content));
+	if (written_size != strlen(log_content)) {
 		pr_info("Write file truncated, expected 0x%lx, actual 0x%lx\n",
-			strlen(vmname), written_size);
+			strlen(log_content), written_size);
 	}
 
 	pr_info("Saving dump log to %s\n", file_name);
@@ -187,10 +203,10 @@ void dump_guest_memory(struct vmctx *ctx)
 	int fd;
 	char *vmcoreinfo;
 	void *host_addr;
-	size_t written_size;
+	size_t size;
 	struct shm_vm *shm_vm;
 	dump_hdr_t hdr;
-	char *dump_path = NULL;
+	char *dump_partition_path = NULL;
 
 	if (dump_mode == DM_DUMP_OFF) {
 		pr_info("Dump condition set to 'off'. Skipping dump\n");
@@ -207,19 +223,37 @@ void dump_guest_memory(struct vmctx *ctx)
 	}
 	shm_vm->boot_reason = BOOT_REASON_DEFAULT_SET;
 	pr_info("vmcoreinfo:\n%s\n", vmcoreinfo);
-
-	if (!get_dev_by_uuid(&dump_path) || dump_path == NULL) {
-		pr_info("Failed to get raw partition for dump\n");
-		return;
+	if (strlen(dump_path) < 2) {
+		/* If dump_path is not set, use the default partition. */
+		if (!get_dev_by_uuid(&dump_partition_path) || dump_partition_path == NULL) {
+			pr_info("Failed to get raw partition for dump\n");
+			return;
+		}
+		if (strlen(dump_partition_path) < STR_LEN) {
+			strcpy(dump_path, dump_partition_path);
+		} else {
+			pr_info("Dump path is too long, please check the partition!\n");
+			free(dump_partition_path);
+			return;
+		}
+		free(dump_partition_path);
 	}
-	pr_info("Saving raw dump to %s\n", dump_path);
-	fd = open(dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0660);
-	free(dump_path);
+	fd = open(dump_path, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0660);
 	if (fd < 0) {
-		pr_info("Failed to open dump partition\n");
+		pr_info("Failed to open dump path\n");
 		return;
 	}
-
+	size = read(fd, &hdr, sizeof(dump_hdr_t));
+	if (size == sizeof(dump_hdr_t)) {
+		if (!strncmp((char *)hdr.magic, DUMP_MAGIC, DUMP_MAGIC_SIZE)) {
+			pr_info("A valid %s dump has been in %s, please clear it mannually to unlock new dump! \n",
+				vmname, dump_path);
+			close(fd);
+			return;
+		}
+	}
+	pr_info("Saving VM full dump to %s, please wait for serveral minitues!\n", dump_path);
+	lseek(fd, 0, SEEK_SET);
 	memset(&hdr, 0, sizeof(dump_hdr_t));
 	strcpy((char *)hdr.magic, DUMP_MAGIC);
 
@@ -239,19 +273,19 @@ void dump_guest_memory(struct vmctx *ctx)
 	}
 
 	// Write Dump Header first.
-	written_size = write(fd, &hdr, sizeof(hdr));
-	if (written_size != sizeof(hdr)) {
+	size = write(fd, &hdr, sizeof(hdr));
+	if (size != sizeof(hdr)) {
 		pr_info("Write file truncated, expected 0x%lx, actual 0x%lx\n",
-			sizeof(hdr), written_size);
+			sizeof(hdr), size);
 		close(fd);
 		return;
 	}
 
 	// Write Shared Memory.
-	written_size = write(fd, shm_vm, sizeof(struct shm_vm));
-	if (written_size != sizeof(struct shm_vm)) {
+	size = write(fd, shm_vm, sizeof(struct shm_vm));
+	if (size != sizeof(struct shm_vm)) {
 		pr_info("Write file truncated, expected 0x%lx, actual 0x%lx\n",
-			sizeof(struct shm_vm), written_size);
+			sizeof(struct shm_vm), size);
 		close(fd);
 		return;
 	}
@@ -265,17 +299,17 @@ void dump_guest_memory(struct vmctx *ctx)
 		if (host_addr == NULL) {
 			break;
 		}
-		written_size = write_helper(fd, host_addr,
+		size = write_helper(fd, host_addr,
 					    hdr.dump_ram_region[i].map_sz);
-		if (written_size != hdr.dump_ram_region[i].map_sz) {
+		if (size != hdr.dump_ram_region[i].map_sz) {
 			pr_info("Write file truncated, expected 0x%lx, actual 0x%lx\n",
-				hdr.dump_ram_region[i].map_sz, written_size);
+				hdr.dump_ram_region[i].map_sz, size);
 			break;
 		}
 	}
-
-	save_log();
 	close(fd);
+	save_log(dump_path);
+	pr_info("VM full dump is completed! Please move it to host ASAP for further analysis by ACRN Dump Tools!!\n");
 }
 
 int init_dump_shmem(struct vmctx *ctx)
