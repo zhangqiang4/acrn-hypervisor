@@ -449,11 +449,10 @@ function enable_dgpu_vf() {
 			exit 1
 		fi
 
-		# Set GGTT size of PF of dGPU to 256MB.  Otherwise, atomic
-		# commit when using direct display could fail due to lack of
-		# GGTT.
-		local reserved_ggtt_size=268435456
-		echo "$reserved_ggtt_size" > "$iov_dir/pf/gt/ggtt_spare"
+		if [ "$dg2_numvfs" == `cat $dg2_numvfs_file` ]; then
+			echo "dGPU VFs have been created, skip creation"
+			return;
+		fi
 
 		local count=0
 		for i in $(ls $dgpu_path); do
@@ -469,8 +468,54 @@ function enable_dgpu_vf() {
 		if [ $count -eq "0" ]; then
 			count=1
 		fi
-		local lmem=$((count*128*1024*1024))
-		echo $lmem > "$iov_dir/pf/gt/lmem_spare"
+
+		if [ "$dg2_numvfs" -eq "2" ]; then
+			echo 0 > "$iov_dir"/pf/auto_provisioning
+
+			# Reset VF parameters
+			for i in `seq 1 7`; do
+				echo 0 > "$iov_dir"/"vf$i"/gt/ggtt_quota
+				echo 0 > "$iov_dir"/"vf$i"/gt/lmem_quota
+				echo 0 > "$iov_dir"/"vf$i"/gt/contexts_quota
+				echo 0 > "$iov_dir"/"vf$i"/gt/doorbells_quota
+			done
+
+			local pf_lmem=$((count*128*1024*1024))
+			echo "$pf_lmem"   >  "$iov_dir"/pf/gt/lmem_spare
+			# Reserve 256MB GGTT size for PF to avoid atomic commit failure
+			echo 268435456    >  "$iov_dir"/pf/gt/ggtt_spare
+			echo 256          >  "$iov_dir"/pf/gt/contexts_spare
+			echo 0            >  "$iov_dir"/pf/gt/doorbells_spare
+
+			# Provision VFs
+			local vf1_ggtt=$(cat "$iov_dir"/pf/gt/available/ggtt_max_quota)
+			local vf1_ggtt=$((vf1_ggtt/2))
+			echo "$vf1_ggtt"  >  "$iov_dir"/vf1/gt/ggtt_quota
+			local vf2_ggtt=$(cat "$iov_dir"/pf/gt/available/ggtt_max_quota)
+			echo "$vf2_ggtt"  >  "$iov_dir"/vf2/gt/ggtt_quota
+
+			# vf1_lmem:vf2_lmem=3:1
+			local vf1_lmem=$(cat "$iov_dir"/pf/gt/available/lmem_max_quota)
+			local vf1_lmem=$((vf1_lmem*3/4))
+			echo "$vf1_lmem"  >  "$iov_dir"/vf1/gt/lmem_quota
+			local vf2_lmem=$(cat "$iov_dir"/pf/gt/available/lmem_max_quota)
+			echo "$vf2_lmem"  >  "$iov_dir"/vf2/gt/lmem_quota
+			printf "local memory reserved for VF1 = %d MB\n" $((vf1_lmem/1024/1024))
+			printf "local memory reserved for VF2 = %d MB\n" $((vf2_lmem/1024/1024))
+
+			echo 28672        >  "$iov_dir"/vf1/gt/contexts_quota
+			echo 28672        >  "$iov_dir"/vf2/gt/contexts_quota
+
+			echo 128          >  "$iov_dir"/vf1/gt/doorbells_quota
+			echo 128          >  "$iov_dir"/vf2/gt/doorbells_quota
+		else
+			# Use auto provisioning for other number of VFs
+			echo 1 > "$iov_dir"/pf/auto_provisioning
+			local pf_lmem=$((count*128*1024*1024))
+			echo "$pf_lmem"   >  "$iov_dir"/pf/gt/lmem_spare
+			# Reserve 256MB GGTT size for PF to avoid atomic commit failure
+			echo 268435456    >  "$iov_dir"/pf/gt/ggtt_spare
+		fi
 
 		if [ ! -f $dg2_numvfs_file ] || [ "$dg2_numvfs" != `cat $dg2_numvfs_file` ]; then
 			if [ "0" != `cat $dg2_numvfs_file` ]; then
