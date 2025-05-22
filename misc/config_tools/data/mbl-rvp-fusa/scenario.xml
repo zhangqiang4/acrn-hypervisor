@@ -123,6 +123,12 @@
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
         <POLICY>
+          <VM>VM0</VM>
+          <VCPU>2</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
           <VM>VM1</VM>
           <VCPU>0</VCPU>
           <TYPE>Unified</TYPE>
@@ -396,7 +402,7 @@
     <own_pcpu>n</own_pcpu>
     <priority>PRIO_LOW</priority>
     <companion_vmid>65535</companion_vmid>
-</vm>
+  </vm>
   <vm id="1">
     <vm_type>TEE_VM</vm_type>
     <console_vuart>COM Port 1</console_vuart>

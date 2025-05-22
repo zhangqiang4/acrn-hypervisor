@@ -123,6 +123,12 @@
           <CLOS_MASK>0xfff</CLOS_MASK>
         </POLICY>
         <POLICY>
+          <VM>VM0</VM>
+          <VCPU>2</VCPU>
+          <TYPE>Unified</TYPE>
+          <CLOS_MASK>0xfff</CLOS_MASK>
+        </POLICY>
+        <POLICY>
           <VM>VM1</VM>
           <VCPU>0</VCPU>
           <TYPE>Unified</TYPE>
