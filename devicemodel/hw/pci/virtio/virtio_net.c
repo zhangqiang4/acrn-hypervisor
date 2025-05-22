@@ -874,7 +874,6 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	char *name = NULL;
 	char *type = NULL;
 	char *mac_seed = NULL;
-	char *tmp = NULL;
 	char *vtopts = NULL;
 	char *opt = NULL;
 	int mac_provided;
@@ -916,12 +915,10 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			return -1;
 		}
 
-		(void) strsep(&vtopts, ",");
-
 		while ((opt = strsep(&vtopts, ",")) != NULL) {
-			if (strcmp("vhost", opt) == 0)
+			if (strcmp("vhost", opt) == 0) {
 				net->use_vhost = true;
-			else if (!strncmp(opt, "mac=", 4)) {
+			} else if (!strncmp(opt, "mac=", 4)) {
 				err = virtio_net_parsemac(opt,
 					net->config.mac);
 				if (err != 0) {
@@ -930,7 +927,13 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 					return err;
 				}
 				mac_provided = 1;
-			}
+		        } else if (strncmp(opt, "tap", 3) == 0) {
+				type = strsep(&opt, "=");
+				name = strsep(&opt, ",");
+		        } else if (strncmp(opt, "mac_seed=", 9) == 0) {
+				strsep(&opt, "=");
+				mac_seed = opt;
+		        }
 		}
 	}
 
@@ -952,26 +955,6 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	 * Attempt to open the tap device
 	 */
 	net->tapfd = -1;
-
-	if (!devopts) {
-		pr_err("virtio_net: invalid optional argument\n");
-		free(net);
-		return -1;
-	}
-
-	if (opts != NULL) {
-		vtopts = tmp = strdup(opts);
-	}
-
-	if ((tmp != NULL) && (strncmp(tmp, "tap", 3) == 0)) {
-		type = strsep(&tmp, "=");
-		name = strsep(&tmp, ",");
-	}
-
-	if ((tmp != NULL) && (strncmp(tmp, "mac_seed", 8) == 0)) {
-		strsep(&tmp, "=");
-		mac_seed = tmp;
-	}
 
 	if ((type != NULL) && (name != NULL)) {
 
@@ -1013,7 +996,6 @@ virtio_net_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		net->config.mac[5] = digest[2];
 	}
 
-	free(vtopts);
 	free(devopts);
 
 	/* initialize config space */
