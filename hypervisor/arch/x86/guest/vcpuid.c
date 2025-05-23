@@ -582,8 +582,8 @@ static void guest_cpuid_05h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
  *   - CPUID_EAX_HWP_CTL, CPUID_EAX_HWP_PLR, CPUID_EAX_HWP_N, CPUID_EAX_HFI, CPUID_EAX_ITD
  *
  * - Bits affected by VM config:
- *   - CPUID_EAX_HWP, CPUID_EAX_HWP_AW, CPUID_EAX_HWP_EPP, CPUID_ECX_HCFC, CPUID_EAX_ECMD,
- *   - CPUID_EAX_HFN, CPUID_EAX_DTS, CPUID_EAX_PLN, CPUID_EAX_PTM
+ *   - CPUID_EAX_HWP, CPUID_EAX_HWP_AW, CPUID_EAX_HWP_EPP, CPUID_EAX_ECMD,CPUID_EAX_HFN,
+ *   - CPUID_EAX_DTS, CPUID_EAX_PLN, CPUID_EAX_PTM
  *
  * @param[in] vm Target VM to get the CPUID data
  * @param[inout] eax Pointer to hold input CPUID leaf and output CPUID EAX value
@@ -610,8 +610,6 @@ static void guest_cpuid_06h(struct acrn_vm *vm, uint32_t *eax, uint32_t *ebx, ui
 	*eax &= ~CPUID_EAX_HDC;
 	/* Since Thread Director is hidden, hide the number of Thread Director classes */
 	*ecx &= ~CPUID_ECX_ITD_NOC;
-	/* Always hide Hardware Coordination Feedback Capability */
-	*ecx &= ~CPUID_ECX_HCFC;
 	/* Since HFI is hidden, hide the edx too */
 	*edx = 0U;
 	if (!vm_cpu_feature_enabled(vm, GUEST_CPU_FEATURE_VHWP)) {

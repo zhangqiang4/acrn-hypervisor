@@ -335,13 +335,6 @@ static const uint32_t unsupported_msrs[] = {
 	 MSR_IA32_THREAD_STALL,
 
 	/*
-	 * Hardware Coordination Feedback Capability disabled:
-	 * CPUID.06H.ECX[0]
-	 */
-	MSR_IA32_MPERF,
-	MSR_IA32_APERF,
-
-	/*
 	 * TME registers disabled:
 	 * CPUID.07H.ECX[13]
 	 * CPUID.07H.EDX[18]
