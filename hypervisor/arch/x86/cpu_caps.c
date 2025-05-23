@@ -399,8 +399,6 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
  * Virtualize APIC accesses, Virtualize x2APIC mode, APIC-register virtualization, Virtual-interrupt delivery,
  * and Process posted interrupts. Refer to Chapter A.3, Vol. 3, SDM 325462-078 to determine the capability.
  * The results are stored in the global variable `cpu_caps.apicv_features`.
- * Finally, it sets the callbacks for APICv operations, either for basic mode or advanced mode (based on the detected
- * results).
  *
  * @return None
  *
@@ -449,10 +447,6 @@ static void detect_apicv_cap(void)
 
 	/* Store the detected features in the cpu_caps.apicv_features variable */
 	cpu_caps.apicv_features = features;
-
-	/* Sets the callbacks for APICv operations, either for basic mode or advanced mode (based on the detected results).
-	 */
-	vlapic_set_apicv_ops();
 }
 
 /**

@@ -97,8 +97,6 @@ struct acrn_apicv_ops {
 	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
 };
 
-void vlapic_set_apicv_ops(void);
-
 /**
  * @brief virtual LAPIC
  *

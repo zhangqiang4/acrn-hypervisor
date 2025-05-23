@@ -82,8 +82,8 @@ static inline void vlapic_dump_isr(const struct acrn_vlapic *vlapic, const char 
 static inline void vlapic_dump_isr(__unused const struct acrn_vlapic *vlapic, __unused const char *msg) {}
 #endif
 
-static const struct acrn_apicv_ops *apicv_ops;
 static const struct acrn_apicv_ops ptapic_ops;
+static const struct acrn_apicv_ops apicv_advanced_ops;
 
 static bool apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector);
 
@@ -1364,7 +1364,7 @@ vlapic_reset(struct acrn_vcpu *vcpu)
 	vlapic->isrv = 0U;
 
 	if (!is_lapic_pt_configured(vcpu->vm)) {
-		vlapic->ops = apicv_ops;
+		vlapic->ops = &apicv_advanced_ops;
 	} else {
 		vlapic->ops = &ptapic_ops;
 	}
@@ -1959,11 +1959,3 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.x2apic_read_msr_may_valid  = apicv_advanced_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
 };
-
-/*
- * set apicv ops for apicv basic mode or apicv advenced mode.
- */
-void vlapic_set_apicv_ops(void)
-{
-	apicv_ops = &apicv_advanced_ops;
-}
