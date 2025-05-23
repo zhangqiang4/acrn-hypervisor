@@ -527,6 +527,10 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 				entry.eax &= ~CPUID_EAX_HRESET;
 				/* Hide MSRLIST, clear CPUID.(EAX=07H, ECX=1):EAX.MSRLIST[bit 27] */
 				entry.eax &= ~CPUID_EAX_MSRLIST;
+
+				if ((cr4_reserved_mask & CR4_LASS) != 0UL) {
+					entry.eax &= ~CPUID_EAX_LASS;
+				}
 			}
 			result = set_vcpuid_entry(vm, &entry);
 			if (result != 0) {

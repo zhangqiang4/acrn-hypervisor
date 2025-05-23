@@ -679,6 +679,12 @@
  */
 #define CPUID_EAX_AVX512_BF16   (1U<<5U)
 /**
+ * @brief A bit representing whether the processor supports linear address space separation (LASS).
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[6].
+ */
+#define CPUID_EAX_LASS          (1U<<6U)
+/**
  * @brief A bit representing whether supports RDMSRLIST and WRMSRLIST instructions and the IA32_BARRIER MSR.
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[27].

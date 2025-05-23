@@ -211,6 +211,10 @@
  * @brief The protection keys for supervisor-mode pages enable bit in CR4.
  */
 #define CR4_PKS                 (1UL<<24U)
+/**
+ * @brief The linear address space separation (LASS) enable bit in CR4.
+ */
+#define CR4_LASS                (1UL<<27U)
 
 /**
  * @brief Macro indicating the XCR0 SSE state.
