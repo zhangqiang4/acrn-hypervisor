@@ -39,49 +39,6 @@
 static struct acrn_boot_info acrn_bi = { 0 };
 
 /**
- * @brief Get Boot Modules Address Range
- *
- * This function calculates the range of physical addresses occupied by the boot
- * modules. It iterates through the list of modules in the ACRN boot information
- * structure, determining the lowest and highest physical addresses used by the
- * modules. The calculated range is stored in the provided pointers `p_start` and
- * `p_end`.
- *
- * @param[out] p_start A pointer to a `uint64_t` where the start of the address range
- *                will be stored.
- * @param[out] p_end A pointer to a `uint64_t` where the end of the address range will
- *              be stored.
- *
- * @return None
- *
- * @pre p_start != NULL
- * @pre p_end != NULL
- *
- * @post N/A
- *
- * @remark This function uses `hva2hpa` to convert host virtual addresses to host
- *       physical addresses, ensuring that the range is calculated in terms of
- *       physical memory.
- */
-void get_boot_mods_range(uint64_t *p_start, uint64_t *p_end)
-{
-	uint32_t i;
-	uint64_t start = ~0UL, end = 0UL;
-	struct acrn_boot_info *abi = get_acrn_boot_info();
-
-	for (i = 0; i < abi->mods_count; i++) {
-		if (hva2hpa(abi->mods[i].start) < start) {
-			start = hva2hpa(abi->mods[i].start);
-		}
-		if (hva2hpa(abi->mods[i].start + abi->mods[i].size) > end) {
-			end = hva2hpa(abi->mods[i].start + abi->mods[i].size);
-		}
-	}
-	*p_start = start;
-	*p_end = end;
-}
-
-/**
  * @brief Get module by Tag from ACRN Boot Information
  *
  * This function retrieves a module from the ACRN boot information based on a specified tag. It searches through
