@@ -44,8 +44,6 @@ struct bzimage_boot_para {
  * but this should be configurable for different OS. */
 #define DEFAULT_RAMDISK_GPA_MAX		0x37ffffffUL
 
-#define PRE_VM_MAX_RAM_ADDR_BELOW_4GB		(VIRT_ACPI_DATA_ADDR - 1UL)
-
 static void *get_initrd_load_addr(struct acrn_vm *vm, uint64_t kernel_start)
 {
 	uint64_t ramdisk_load_gpa = INVALID_GPA;
@@ -68,50 +66,23 @@ static void *get_initrd_load_addr(struct acrn_vm *vm, uint64_t kernel_start)
 	kernel_end = roundup(kernel_start, kernel_align) + kernel_init_size;
 
 	if (initrd_addr_max != 0U) {
-		ramdisk_gpa_max = initrd_addr_max;
+		ramdisk_gpa_max = (uint64_t)initrd_addr_max;
 	}
 
-	if (is_service_vm(vm)) {
-		uint64_t mods_start, mods_end;
+	/* Let's try to place ramdisk after kernel first, if failed then try to find place before kernel.
+	 * Especially for Service VM, we need to put ramdisk after HV image to avoid log memory corruption.
+	 */
+	ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size, kernel_end, ramdisk_gpa_max);
 
-		get_boot_mods_range(&mods_start, &mods_end);
-		mods_start = service_vm_hpa2gpa(mods_start);
-		mods_end = service_vm_hpa2gpa(mods_end);
+	if (ramdisk_load_gpa == INVALID_GPA) {
+		uint64_t find_from = MEM_1M;
 
-		if (vm->sw.ramdisk_info.src_addr != NULL) {
-			ramdisk_load_gpa = service_vm_hpa2gpa((uint64_t)vm->sw.ramdisk_info.src_addr);
+		if (is_service_vm(vm)) {
+			find_from = get_hv_image_base();
 		}
 
-		/* For Service VM, the ramdisk has been loaded by bootloader, so in most cases
-		 * there is no need to do gpa copy again. But in the case that the ramdisk is
-		 * loaded by bootloader at a address higher than its limit, we should do gpa
-		 * copy then.
-		 */
-		if ((ramdisk_load_gpa + vm->sw.ramdisk_info.size) > ramdisk_gpa_max) {
-			/* In this case, mods_end must be higher than ramdisk_gpa_max,
-			 * so try to locate ramdisk between MEM_1M and mods_start/kernel_start,
-			 * or try the range between kernel_end and mods_start;
-			 */
-			ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size,
-					MEM_1M, min(min(mods_start, kernel_start), ramdisk_gpa_max));
-			if ((ramdisk_load_gpa == INVALID_GPA) && (kernel_end < min(mods_start, ramdisk_gpa_max))) {
-				ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size,
-						kernel_end, min(mods_start, ramdisk_gpa_max));
-			}
-		}
-	} else {
-		/* For pre-launched VM, the ramdisk would be put by searching ve820 table.
-		 */
-		ramdisk_gpa_max = min(PRE_VM_MAX_RAM_ADDR_BELOW_4GB, ramdisk_gpa_max);
-
-		if (kernel_end < ramdisk_gpa_max) {
-			ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size,
-					kernel_end, ramdisk_gpa_max);
-		}
-		if (ramdisk_load_gpa == INVALID_GPA) {
-			ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size,
-					MEM_1M, min(kernel_start, ramdisk_gpa_max));
-		}
+		ramdisk_load_gpa = find_space_from_ve820(vm, vm->sw.ramdisk_info.size,
+						find_from, min(kernel_start, ramdisk_gpa_max));
 	}
 
 	if (ramdisk_load_gpa == INVALID_GPA) {
@@ -395,10 +366,7 @@ static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 			}
 		}
 
-		/* Don't need to load ramdisk if src_addr and load_addr are pointed to same place. */
-		if (gpa2hva(vm, (uint64_t)ramdisk_info->load_addr) != ramdisk_info->src_addr) {
-			load_sw_module(vm, ramdisk_info);
-		}
+		load_sw_module(vm, ramdisk_info);
 	}
 
 	bootargs_info->load_addr = (void *)(load_params_gpa + offsetof(struct bzimage_boot_para, cmdline));
