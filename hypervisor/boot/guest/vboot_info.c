@@ -108,8 +108,9 @@ static void init_vm_acpi_info(struct acrn_vm *vm, const struct abi_module *mod)
  * @param[in] mod A pointer to the `abi_module` structure containing information about the kernel module,
  *            including its start address and size.
  *
- * @return Returns 0 on successful initialization of the kernel information. Returns -EINVAL if the kernel type
- *         is unsupported or if the module information is invalid.
+ * @return Returns -EINVAL if the configured kernel type is not in current support list, or the kernel module
+ *         start address is invalid, or the kernel module size is 0. Returns 0 on successful initialization of
+ *         the kernel information.
  *
  * @retval -EINVAL if the kernel type is unsupported or if the module information is invalid.
  * @retval 0 on successful initialization of the kernel information.

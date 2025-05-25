@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Intel Corporation.
+ * Copyright (C) 2021-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -12,33 +12,86 @@
 #include <logmsg.h>
 #include <vacpi.h>
 
-/* Define a memory block to store ELF format VM load params in guest address space
- * The params including:
- *	MISC info: 1KB
- *		including: Init GDT(40 bytes),ACRN ELF loader name(20 bytes), ACPI RSDP table(36 bytes).
- *	Multiboot info : 4KB
- *	Boot cmdline : 2KB
- *	memory map : 20KB (enough to put memory entries for multiboot 0.6.96 or multiboot 2.0)
- * Each param should keep 8byte aligned and the total region should be able to put below MEM_1M.
- * The total params size is:
- * (MEM_1K + MEM_4K + MEM_2K + 20K) = 27KB
+/**
+ * @addtogroup vp-base_vboot
+ *
+ * @{
  */
 
+/**
+ * @file
+ * @brief Functions to load ELF image for ACRN pre-launched VM
+ *
+ * The file provides functions to load and boot ELF image for ACRN pre-launched VM, including both 32-bit
+ * and 64-bit architecture support.
+ */
+
+/**
+ * @brief ELF Boot Parameters Structure
+ *
+ * This structure encapsulates various parameters used during the booting of an
+ * ELF (Executable and Linkable Format) file. It includes information about the
+ * Global Descriptor Table (GDT), loader name, ACPI (Advanced Configuration and
+ * Power Interface) table, Multiboot information, command line arguments, and
+ * memory map. These parameters are essential for initializing and managing the
+ * system during the boot process.
+ *
+ * @alignment 8
+ */
 struct elf_boot_para {
-	char init_gdt[40];
-	char loader_name[20];
-	struct acpi_table_rsdp rsdp;
-	struct multiboot_info mb_info;
-	char cmdline[MEM_2K];
-	char mmap[MEM_4K * 5U];
+	char init_gdt[40];             /**< Initial Global Descriptor Table (GDT). */
+	char loader_name[20];          /**< Loader name. */
+	struct acpi_table_rsdp rsdp;   /**< ACPI Root System Description Pointer (RSDP). */
+	struct multiboot_info mb_info; /**< Multiboot information. */
+	char cmdline[MEM_2K];          /**< Command line arguments. */
+	char mmap[MEM_4K * 5U];        /**< Memory map. */
 } __aligned(8);
 
+/**
+ * @brief Prepare ELF Command Line for Virtual Machine
+ *
+ * This function copies the command line arguments for an ELF (Executable and Linkable
+ * Format) file into the guest physical address (GPA) space of ACRN pre-launched VM.
+ *
+ * @param[in] vm A pointer to the `acrn_vm` structure representing the VM for which the ELF command line
+ *            is being prepared.
+ * @param[in] param_cmd_gpa The guest physical address (GPA) where the command line arguments should be copied.
+ *
+ * @return Returns 0 on successful copying of the command line arguments. Returns a negative error code if
+ *         the copying fails.
+ *
+ * @retval -EINVAL Invalid parameters
+ * @retval -EFAULT Failed to copy memory
+ * @retval 0 on Success
+ *
+ * @pre VM != NULL
+ *
+ * @post N/A
+ */
 static int32_t prepare_elf_cmdline(struct acrn_vm *vm, uint64_t param_cmd_gpa)
 {
 	return copy_to_gpa(vm, vm->sw.bootargs_info.src_addr, param_cmd_gpa,
 		           vm->sw.bootargs_info.size);
 }
 
+/**
+ * @brief Prepare multiboot memory map for ACRN VM
+ *
+ * This function prepares the memory map for ACRN pre-launched VM in the format expected by the Multiboot
+ * specification. It copies the VM's E820 memory map entries into the guest physical address (GPA) space,
+ * ensuring compatibility with Multiboot. The function will adjust the memory type to `MULTIBOOT_MEMORY_RESERVED`
+ * if it exceeds `MULTIBOOT_MEMORY_BADRAM`.
+ *
+ * @param[in] vm A pointer to the `acrn_vm` structure representing the VM for which the Multiboot memory map
+ *            is being prepared.
+ * @param[in] param_mmap_gpa The guest physical address (GPA) where the memory map entries should be copied.
+ *
+ * @return Returns the total length of the memory map copied to the GPA. Returns 0 if the copying fails.
+ *
+ * @pre VM != NULL
+ *
+ * @post N/A
+ */
 static uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_gpa)
 {
 	uint32_t i, mmap_length = 0U;
@@ -66,6 +119,25 @@ static uint32_t prepare_multiboot_mmap(struct acrn_vm *vm, uint64_t param_mmap_g
 	return mmap_length;
 }
 
+/**
+ * @brief Prepare the loader name for ACRN VM
+ *
+ * This function initializes the ACRN ELF loader name and copies it to a specified GPA within ACRN pre-launched VM.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the loader name
+ *            is being prepared.
+ * @param[in] param_ldrname_gpa Guest physical address where the loader name should be copied.
+ *
+ * @return Status code from the copy operation, indicating success or failure.
+ *
+ * @retval -EINVAL Invalid parameters
+ * @retval -EFAULT Failed to copy memory
+ * @retval 0 Success
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static int32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gpa)
 {
 	char loader_name[MAX_LOADER_NAME_SIZE] = "ACRN ELF LOADER";
@@ -75,8 +147,23 @@ static int32_t prepare_loader_name(struct acrn_vm *vm, uint64_t param_ldrname_gp
 }
 
 /**
+ * @brief Load 64-bit ELF image into ACRN VM.
+ *
+ * This function processes a 64-bit ELF image, loading its segments into the guest physical memory of
+ * ACRN pre-launched VM. It supports ELF images of type `ET_EXEC` and handles program headers of
+ * type `PT_LOAD`. The function also identifies and clears `.bss` sections. It assumes that the ELF image
+ * does not contain relocatable sections and that the entry point is below 4GB.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the kernel image in ELF64
+ *            format is being loaded.
+ *
+ * @return Entry point of the ELF image if successfully loaded, or NULL if the ELF type is unsupported.
+ *
  * @pre vm != NULL
- * must run in stac/clac context
+ *
+ * @post N/A
+ *
+ * @remark The function must run in stac/clac context.
  */
 static void *do_load_elf64(struct acrn_vm *vm)
 {
@@ -141,8 +228,23 @@ static void *do_load_elf64(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Load 32-bit ELF image into ACRN VM.
+ *
+ * This function processes a 32-bit ELF image, loading its segments into the guest physical memory of
+ * ACRN pre-launched VM. It supports ELF images of type `ET_EXEC` and handles program headers of
+ * type `PT_LOAD`. The function also identifies and clears `.bss` sections. It assumes that the ELF image
+ * does not contain relocatable sections.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the kernel image in ELF32
+ *            format is being loaded.
+ *
+ * @return Entry point of the ELF image if successfully loaded, or NULL if the ELF type is unsupported.
+ *
  * @pre vm != NULL
- * must run in stac/clac context
+ *
+ * @post N/A
+ *
+ * @remark The function must run in stac/clac context.
  */
 static void *do_load_elf32(struct acrn_vm *vm)
 {
@@ -207,7 +309,24 @@ static void *do_load_elf32(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Load an ELF image into ACRN VM
+ *
+ * This function determines the class of an ELF image (32-bit or 64-bit) and loads it into the guest physical
+ * memory of ACRN pre-launched VM. It checks for the ELF magic number to verify the image format and uses
+ * appropriate loading functions based on the ELF class. The entry point of the loaded ELF image is stored
+ * in the VM's kernel information structure.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the ELF kernel image
+ *            is being loaded.
+ *
+ * @return 0 on success, or -EFAULT if the ELF image is unsupported or invalid.
+ *
+ * @retval -EFAULT if the ELF image is unsupported or invalid
+ * @retval 0 on Success
+ *
  * @pre vm != NULL
+ *
+ * @post N/A
  */
 static int32_t load_elf(struct acrn_vm *vm)
 {
@@ -241,6 +360,23 @@ static int32_t load_elf(struct acrn_vm *vm)
 	return ret;
 }
 
+/**
+ * @brief Locate the multiboot header in the ELF image.
+ *
+ * This function scans the first 8KB of the ELF image to detect the presence of a multiboot header,
+ * which indicates that the image requires multiboot information. It checks for the multiboot header
+ * magic number and verifies the checksum according to the multiboot specification 0.6.96, section 3.1.2.
+ * If a valid multiboot header is found, it is returned.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the multiboot header
+ *            need to be found in kernel image.
+ *
+ * @return Pointer to the multiboot header if found, or NULL if not found.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static struct multiboot_header *find_img_multiboot_header(struct acrn_vm *vm)
 {
 	uint16_t i, j;
@@ -273,6 +409,27 @@ static struct multiboot_header *find_img_multiboot_header(struct acrn_vm *vm)
 	return ret;
 }
 
+/**
+ * @brief ELF image bootloader for ACRN VM.
+ *
+ * This is the API of ELF image bootloader for ACRN pre-launched VM. The function loads an ELF image into
+ * the VM's memory and sets up the necessary boot parameters, including multiboot information if applicable.
+ * It initializes the primary virtual CPU in protected mode and prepares memory mappings, command line
+ * arguments, and loader names according to the multiboot specification. The function supports both multiboot
+ * and non-multiboot ELF images.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the ELF kernel image
+ *            will be loaded.
+ *
+ * @return 0 on success, or an error code if the ELF image or boot parameters are invalid.
+ *
+ * @retval -EFAULT if the ELF image is unsupported or invalid
+ * @retval 0 on Success
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 int32_t elf_loader(struct acrn_vm *vm)
 {
 	int32_t ret = 0;
@@ -348,3 +505,6 @@ int32_t elf_loader(struct acrn_vm *vm)
 	}
 	return ret;
 }
+/**
+ * @}
+ */

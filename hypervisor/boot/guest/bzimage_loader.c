@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Intel Corporation.
+ * Copyright (C) 2021-2025 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -16,34 +16,85 @@
 #include <errno.h>
 #include <logmsg.h>
 
+/**
+ * @addtogroup vp-base_vboot
+ *
+ * @{
+ */
+
+/**
+ * @file
+ * @brief Functions to load Bzimage for ACRN VM
+ *
+ * The file provides functions to load and boot image in Linux bzimage format for ACRN pre-launched VM and Service VM.
+ */
+
+/**
+ * @brief The debug level of the Linux guest VM boot process.
+ */
 #define DBG_LEVEL_VM_BZIMAGE	6U
 
-/* Define a struct to store LaaG VM load params in guest address space
- * The params including:
- *	Init GDT entries : 1KB (must be 8byte aligned)
- *	Linux Zeropage : 4KB
- *	Boot cmdline : 2KB
- *	EFI memory map : MAX_EFI_MMAP_ENTRIES * sizeof(struct efi_memory_desc)
- *	Reserved region for trampoline code : 8KB
- * Each param should keep 8byte aligned and the total region should be able to put below MEM_1M.
- * Please note in Linux VM, the last 8KB space below MEM_1M is for trampoline code. The struct
- * should accommodate it to avoid the trampoline corruption.
+/**
+ * @brief Represents boot parameters for loading a bzImage kernel.
+ *
+ * The `bzimage_boot_para` structure contains various boot parameters required for
+ * loading and booting a bzImage kernel. It includes fields for the initial Global
+ * Descriptor Table (GDT), the zero page, boot command line arguments, and reserved
+ * space for trampoline code. Additionally, it may include an EFI memory map if
+ * multiboot2 is configured.
+ * Please note in Linux OS, the last 8KB space below MEM_1M is for trampoline code.
+ * Thus the struct reserves this space to avoid the trampoline corruption.
+ *
+ * @alignment 8
+ *
+ * @remark This structure shall be packed.
  */
 struct bzimage_boot_para {
-	char init_gdt[MEM_1K];
-	struct zero_page zeropage;
-	char cmdline[MAX_BOOTARGS_SIZE];
+	char init_gdt[MEM_1K];                /**< Initial Global Descriptor Table (GDT) entries. */
+	struct zero_page zeropage;            /**< Zero page containing boot parameters and memory map. */
+	char cmdline[MAX_BOOTARGS_SIZE];      /**< Boot command line arguments. */
 #ifdef CONFIG_MULTIBOOT2
-	struct efi_memory_desc efi_mmap[MAX_EFI_MMAP_ENTRIES];
+	struct efi_memory_desc efi_mmap[MAX_EFI_MMAP_ENTRIES]; /**< EFI memory map descriptors. */
 #endif
-	char reserved_trampoline[MEM_4K * 2];
+	char reserved_trampoline[MEM_4K * 2]; /**< Reserved space for trampoline code. */
 } __packed __aligned(8);
 
-/* TODO:
- * The value is referenced from Linux boot protocal for old kernels,
- * but this should be configurable for different OS. */
+/* The value is referenced from Linux boot protocal for old kernels, it should ideally be configurable
+ * to accommodate different operating systems and their specific requirements.
+ * TODO: Make this value configurable for different OS environments.
+ */
+/**
+ * @brief Define the default maximum guest physical address for the ramdisk.
+ *
+ * This macro sets the default maximum guest physical address for the ramdisk,
+ * referenced from the Linux boot protocol for older kernels. It represents the
+ * upper limit of the address space where the ramdisk can be loaded in the guest
+ * environment. This value should ideally be configurable to accommodate different
+ * operating systems and their specific requirements.
+ */
 #define DEFAULT_RAMDISK_GPA_MAX		0x37ffffffUL
 
+/**
+ * @brief Determine the load address for the initrd (ramdisk) in the virtual machine.
+ *
+ * This function calculates the appropriate guest physical address (GPA) to load the
+ * initrd (ramdisk) for a given virtual machine, based on the kernel's start address
+ * and alignment requirements. It considers the Linux boot protocol specifications,
+ * including the kernel's initialization size and maximum ramdisk address. The function
+ * attempts to place the ramdisk after the kernel, and if unsuccessful, it searches for
+ * space before the kernel. For service VMs, it ensures the ramdisk is placed after the
+ * hypervisor image to avoid log memory corruption.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the
+ *             initrd image need to be loaded.
+ * @param[in] kernel_start The starting address of the kernel in guest physical memory.
+ *
+ * @return Pointer to the load address for the ramdisk, or NULL if no valid space is found.
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 static void *get_initrd_load_addr(struct acrn_vm *vm, uint64_t kernel_start)
 {
 	uint64_t ramdisk_load_gpa = INVALID_GPA;
@@ -95,7 +146,22 @@ static void *get_initrd_load_addr(struct acrn_vm *vm, uint64_t kernel_start)
 }
 
 /**
+ * @brief Determine the load address for the bzImage kernel in the virtual machine.
+ *
+ * This function calculates the appropriate guest physical address (GPA) to load the
+ * bzImage kernel for a given ACRN VM. It considers whether the kernel is relocatable
+ * and attempts to load it at the preferred address if possible. For the service VM it
+ * handles scenarios where the load address should not conflict with the hypervisor's
+ * reserved log memory, which is located before the hypervisor image.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` structure representing the VM for which the bzImage
+ *            kernel need to be loaded.
+ *
+ * @return Pointer to the load address for the kernel, or NULL if no valid space is found.
+ *
  * @pre vm != NULL
+ *
+ * @post N/A
  */
 static void *get_bzimage_kernel_load_addr(struct acrn_vm *vm)
 {
@@ -234,7 +300,23 @@ static uint16_t create_service_vm_efi_mmap_desc(struct acrn_vm *vm, struct efi_m
 #endif
 
 /**
- * @pre zp != NULL && vm != NULL
+ * @brief Create a zeropage E820 memory map for the virtual machine.
+ *
+ * This function copies the E820 memory map entries from the virtual machine's
+ * configuration into the zeropage structure. The E820 memory map defines the
+ * physical memory layout, including usable RAM and reserved areas. The function
+ * ensures that the number of entries does not exceed the maximum allowed and
+ * handles errors if the entries are invalid or exceed the limit.
+ *
+ * @param[inout] zp Pointer to the `zero_page` structure where the E820 entries will be copied.
+ * @param[in] vm Pointer to the `acrn_vm` structure containing the E820 entries.
+ *
+ * @return The number of E820 entries successfully copied, or 0 if an error occurred.
+ *
+ * @pre zp != NULL
+ * @pre vm != NULL
+ *
+ * @post retval <= E820_MAX_ENTRIES
  */
 static uint32_t create_zeropage_e820(struct zero_page *zp, const struct acrn_vm *vm)
 {
@@ -253,8 +335,23 @@ static uint32_t create_zeropage_e820(struct zero_page *zp, const struct acrn_vm 
 }
 
 /**
+ * @brief Create and initialize the zero page for the virtual machine.
+ *
+ * This function sets up the zero page, which is a data structure used by the Linux kernel
+ * during boot. It initializes various fields in the zero page, including boot parameters,
+ * RAM disk information, boot arguments, and the E820 memory map. For service VM, it may
+ * also include EFI information if booting from UEFI. The function ensures that the zero
+ * page is properly cleared and populated with the necessary data for the kernel to boot.
+ *
+ * @param[inout] vm Pointer to the `acrn_vm` structure representing the VM for which the zeropage
+ *               is being created.
+ * @param[in] load_params_gpa Guest physical address where the load parameters are stored.
+ *
+ * @return Guest physical address of the initialized zero page.
+ *
  * @pre vm != NULL
- * @pre (vm->min_mem_addr <= kernel_load_addr) && (kernel_load_addr < vm->max_mem_addr)
+ *
+ * @post N/A
  */
 static uint64_t create_zero_page(struct acrn_vm *vm, uint64_t load_params_gpa)
 {
@@ -324,7 +421,25 @@ static uint64_t create_zero_page(struct acrn_vm *vm, uint64_t load_params_gpa)
 }
 
 /**
+ * @brief Load the bzImage kernel into the virtual machine's memory.
+ *
+ * This function loads the bzImage kernel, which consists of boot parameters, real mode setup code,
+ * and compressed protected mode code, into the virtual machine's memory. It focuses on loading the
+ * protected mode code to its runtime location. The function also handles the loading of the ramdisk
+ * and boot arguments, setting up the virtual CPU registers according to the Linux boot protocol.
+ *
+ * @param[inout] vm Pointer to the `acrn_vm` structure representing the VM for which the bzImage
+ *               kernel is being loaded.
+ * @param[inout] vcpu Pointer to the `acrn_vcpu` structure representing the BSP of the VM.
+ * @param[in] load_params_gpa Guest physical address for the load parameters.
+ * @param[in] kernel_load_gpa Guest physical address for the kernel load.
+ *
+ * @return None
+ *
  * @pre vm != NULL
+ * @pre vcpu != NULL
+ *
+ * @post N/A
  */
 static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 						uint64_t load_params_gpa, uint64_t kernel_load_gpa)
@@ -397,6 +512,27 @@ static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 			__func__, vm->vm_id, vcpu_get_gpreg(vcpu, CPU_REG_RSI));
 }
 
+/**
+ * @brief Load the bzImage kernel into the virtual machine and prepare for boot.
+ *
+ * This function attempts to load the bzImage kernel into the virtual machine's memory
+ * and prepare the virtual CPU for booting from protected mode. It finds suitable memory
+ * space from ve820 for the load parameters and kernel, initializes the virtual CPU registers, and
+ * calls the `load_bzimage` function to perform the actual loading process. The function
+ * returns an error code if memory allocation fails or if the kernel load address is invalid.
+ *
+ * @param[inout] vm Pointer to the `acrn_vm` structure representing the VM for which the bzImage kernel
+ *               will be loaded.
+ *
+ * @return 0 on success, or -ENOMEM if no memory available to load bzImage.
+ *
+ * @retval -ENOMEM if no memory available to load bzImage
+ * @retval 0 on Success
+ *
+ * @pre vm != NULL
+ *
+ * @post N/A
+ */
 int32_t bzimage_loader(struct acrn_vm *vm)
 {
 	int32_t ret = -ENOMEM;
@@ -420,3 +556,6 @@ int32_t bzimage_loader(struct acrn_vm *vm)
 
 	return ret;
 }
+/**
+ * @}
+ */

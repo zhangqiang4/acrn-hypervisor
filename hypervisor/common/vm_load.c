@@ -28,7 +28,9 @@
  * @brief Load software module into guest memory
  *
  * This function loads a software module into guest memory by copying it to the specified GPA. It checks
- * the validity of the software module's size and load address before performing the copy operation.
+ * the validity of the software module's size and load address before performing the copy operation. If the
+ * module size is 0 (indicating the module does not exist) or the load address is invalid, the GPA copy will
+ * not be performed. Specifically, it does not support GPA address 0 as a load address.
  *
  * @param[in] vm A pointer to the `acrn_vm` structure representing the guest which the software module
  *            will be loaded into.
@@ -54,7 +56,8 @@ void load_sw_module(struct acrn_vm *vm, struct sw_module_info *sw_module)
  *
  * This function prepares the operating system image for ACRN pre-launched VM or Service VM by selecting
  * the appropriate loader based on the kernel type, loading the OS image, and setting the entry point for the
- * primary VCPU. It also copies the Guest OS ACPI information to its designated load location.
+ * primary VCPU. It may also copies the Guest OS ACPI information to its designated load location when the
+ * guest ACPI module exists.
  *
  * @param[in] vm A pointer to the `acrn_vm` structure representing the guest for which the OS image
  *         	  is being prepared.
