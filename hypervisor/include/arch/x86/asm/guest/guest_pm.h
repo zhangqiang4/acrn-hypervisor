@@ -26,6 +26,7 @@
  */
 void init_guest_pm(struct acrn_vm *vm);
 int s3_resume_vm(struct acrn_vm *vm);
+void platform_s3_from_idle(void);
 
 /**
  * @}

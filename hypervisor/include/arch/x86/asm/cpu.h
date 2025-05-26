@@ -586,6 +586,12 @@ enum pcpu_boot_state {
  * @brief The message flag of CPU representing the VM will shut down, where the VM holds the CPU.
  */
 #define	NEED_SHUTDOWN_VM	(2U)
+/**
+ * @brief The message flag of CPU representing the CPU is pending to trigger platform S3.
+ * 
+ * This flag should only be set on BSP.
+ */
+#define NEED_ENTER_PLATFORM_S3  (3U)
 
 void make_pcpu_offline(uint16_t pcpu_id);
 bool need_offline(uint16_t pcpu_id);

@@ -251,6 +251,40 @@ int s3_resume_vm(struct acrn_vm *vm)
 }
 
 /**
+ * @brief Transitions the platform to S3 sleep state from idle and handles the resume sequence
+ *
+ * This function manages the platform S3 sleep transition process:
+ * 1. Waits for all VMs to be paused (ready for S3 state)
+ * 2. Triggers the host platform to enter S3 sleep state
+ * 3. Upon resume from S3, first thaws the TEE VM (if exists)
+ * 4. Resumes all paused pre-launched VMs and service VM
+ *
+ * @return None
+ */
+void platform_s3_from_idle(void)
+{
+	uint16_t i;
+	struct acrn_vm *tee_vm = get_tee_vm();
+
+	/* Wait for all VMs to be paused */
+	while (!is_ready_for_platform_s3());
+
+	pr_fatal("All vm entered S3, triggering platform S3");
+	host_enter_s3();
+
+	if (tee_vm != NULL) {
+		thaw_vm(tee_vm);
+	}
+	/* Resume all pre-launched vm and service vm from S3 */
+	for (i = 0U; i < CONFIG_MAX_VM_NUM; i++) {
+		struct acrn_vm *target_vm = get_vm_from_vmid(i);
+		if (is_paused_vm(target_vm)) {
+			s3_resume_vm(target_vm);
+		}
+	}
+}
+
+/**
  * @brief Enter S3 (sleep) state on a VM
  *
  * This operation is supposed to be initiated by VM, by writing the virtual ACPI PM1a/b Control registers, to make
@@ -275,44 +309,25 @@ int s3_resume_vm(struct acrn_vm *vm)
 static inline void enter_s3(struct acrn_vm *vm, uint32_t pm1a_cnt_val, uint32_t pm1b_cnt_val)
 {
 	get_vm_lock(vm);
-	pause_vm(vm);
 
 	if (is_service_vm(vm)) {
+		struct acrn_vm *tee_vm = get_tee_vm();
+
 		save_pm1_reg_val(pm1a_cnt_val, pm1b_cnt_val);
 		stac();
 		service_vm_waking_vector = *(vm->pm.sx_state_data->wake_vector_32);
 		clac();
-	}
-
-	put_vm_lock(vm);
-
-	if (get_pcpu_id() == BSP_CPU_ID) {
-		struct acrn_vm *tee_vm = get_tee_vm();
-		uint16_t i;
-
-		/* Wait for all VMs to be paused, note that shared pCPU is not supported here */
-		while (!is_ready_for_platform_s3());
 
 		if (tee_vm != NULL) {
 			freeze_vm(tee_vm);
 		}
-
-		pr_fatal("All vm entered S3, triggering platform S3");
-		host_enter_s3();
-
-		if (tee_vm != NULL) {
-			thaw_vm(tee_vm);
-		}
-
-		/* Resume all pre-launched vm and service vm from S3 */
-		for (i = 0U; i < CONFIG_MAX_VM_NUM; i++) {
-			struct acrn_vm *target_vm = get_vm_from_vmid(i);
-
-			if (is_paused_vm(target_vm)) {
-				s3_resume_vm(target_vm);
-			}
-		}
 	}
+
+	/* Trigger platform to enter S3 flag */
+	bitmap_set_lock(NEED_ENTER_PLATFORM_S3, &per_cpu(pcpu_flag, BSP_CPU_ID));
+
+	pause_vm(vm);
+	put_vm_lock(vm);
 }
 
 /**

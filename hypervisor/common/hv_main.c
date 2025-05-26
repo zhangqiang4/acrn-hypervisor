@@ -9,6 +9,7 @@
 #include <asm/guest/vmcs.h>
 #include <asm/guest/vmexit.h>
 #include <asm/guest/virq.h>
+#include <asm/guest/guest_pm.h>
 #include <hv_main.h>
 #include <schedule.h>
 #include <profiling.h>
@@ -135,6 +136,7 @@ void vcpu_thread(struct thread_object *obj)
  * - If the current pCPU requires rescheduling, call schedule() to perform the rescheduling.
  * - If the current pCPU needs to be taken offline, call cpu_dead() to offline the current pCPU.
  * - If the current pCPU needs to shut down the VM, call shutdown_vm_from_idle() to shut down the VM.
+ * - If the current pCPU is BSP, and platform needs to enter S3 state, call platform_s3_from_idle() to enter S3 state.
  * - Otherwise, call cpu_do_idle() to idle the current pCPU.
  *
  * @param[in] obj A pointer to the thread to be managed. This parameter is unused.
@@ -156,7 +158,10 @@ static void default_idle(__unused struct thread_object *obj)
 			cpu_dead();
 		} else if (need_shutdown_vm(pcpu_id)) {
 			shutdown_vm_from_idle(pcpu_id);
-		} else {
+		} else if ((pcpu_id == BSP_CPU_ID) && need_platform_s3(pcpu_id)) {
+			pr_fatal("Pending platform S3 request...");
+			platform_s3_from_idle();
+		} else{
 			cpu_do_idle();
 		}
 	}

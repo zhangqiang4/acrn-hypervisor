@@ -1680,6 +1680,24 @@ bool need_shutdown_vm(uint16_t pcpu_id)
 }
 
 /**
+ * @brief Check if the platform need to enter S3 (sleep) state.
+ *
+ * Atomically check (and dequeue if there is such request) the platform S3 request.
+ * This request flag should only be set on the bootstrap processor (BSP).
+ *
+ * @pre pcpu_id < ACRN_PLATFORM_LAPIC_IDS_MAX
+ * @post bitmap_test_lock(NEED_ENTER_PLATFORM_S3, &per_cpu(pcpu_flag, pcpu_id)) == false
+ *
+ * @param[in] pcpu_id Target pCPU ID to check.
+ *
+ * @return true if there is a platform S3 request. False otherwise.
+ */
+bool need_platform_s3(uint16_t pcpu_id)
+{
+	return bitmap_test_and_clear_lock(NEED_ENTER_PLATFORM_S3, &per_cpu(pcpu_flag, pcpu_id));
+}
+
+/**
  * @brief Obtain VM lock.
  *
  * Obtain VM lock.

@@ -418,6 +418,7 @@ static inline struct acrn_vm *vpci2vm(const struct acrn_vpci *vpci)
 
 void make_shutdown_vm_request(uint16_t pcpu_id);
 bool need_shutdown_vm(uint16_t pcpu_id);
+bool need_platform_s3(uint16_t pcpu_id);
 int32_t shutdown_vm(struct acrn_vm *vm);
 void poweroff_if_rt_vm(struct acrn_vm *vm);
 void pause_vm(struct acrn_vm *vm);
