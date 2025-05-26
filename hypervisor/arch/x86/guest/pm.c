@@ -272,6 +272,9 @@ void platform_s3_from_idle(void)
 	pr_fatal("All vm entered S3, triggering platform S3");
 	host_enter_s3();
 
+	/* Clear NEED_ENTER_PLATFORM_S3 flag after resume */
+	bitmap_clear_lock(NEED_ENTER_PLATFORM_S3, &per_cpu(pcpu_flag, BSP_CPU_ID));
+
 	if (tee_vm != NULL) {
 		thaw_vm(tee_vm);
 	}
