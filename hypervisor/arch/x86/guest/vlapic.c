@@ -1843,19 +1843,9 @@ bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
 	return vlapic->ops->has_pending_delivery_intr(vcpu);
 }
 
-static uint32_t vlapic_get_next_pending_intr(struct acrn_vcpu *vcpu)
-{
-	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
-	uint32_t vector;
-
-	vector = vlapic_find_highest_irr(vlapic);
-
-	return vector;
-}
-
 static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
 {
-	return vlapic_get_next_pending_intr(vcpu) != 0UL;
+	return vlapic_find_highest_irr(vcpu_vlapic(vcpu)) != 0UL;
 }
 
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu)
