@@ -95,46 +95,88 @@ static inline uint32_t get_variable_mtrr_index(uint32_t msr)
 }
 
 /**
- * @brief Round up the variable MTRR size to the nearest valid size.
+ * @brief Check if a memory range is already covered by existing variable MTRRs
  *
- * Variable MTRR sizes must be powers of 2, and the base address alignment must be equal to or greater than
- * the size. This function rounds up the given size to the next power of 2 starting from 4KB.
+ * This function checks if the requested memory range is already completely covered
+ * by any existing valid variable MTRR with the same memory type.
+ *
+ * @param[in] vmtrr Pointer to the VM's MTRR structure
+ * @param[in] new_base Base address of memory range to check
+ * @param[in] new_size Size of memory range to check
+ *
+ * @return Whether the range is already covered
+ *
+ * @retval true The memory range is already covered
+ * @retval false The memory range is not fully covered
+ *
+ * @pre vmtrr != NULL
+ */
+static bool is_variable_mtrr_covered(struct acrn_vmtrr *vmtrr, uint64_t new_base, uint64_t new_size)
+{
+	bool ret = false;
+	uint64_t mtrr_count = vmtrr->cap.bits.vcnt;
+	uint64_t idx;
+	if (mtrr_count > 0UL) {
+		for (idx = 0UL; idx < mtrr_count; idx++) {
+			uint64_t base = vmtrr->variable_range[idx].physbase.bits.physbase << PAGE_SHIFT;
+			uint64_t mask = vmtrr->variable_range[idx].physmask.bits.physmask << PAGE_SHIFT;
+			uint64_t new_endaddr = new_base + new_size - 1UL;
+			/**
+			 * An address is within an MTRR range if the new start address and the end address
+			 * are both in the range defined by the MTRR base and mask.
+			 */
+			if ((vmtrr->variable_range[idx].physmask.bits.valid == 1UL) &&
+				((new_base & mask) == base) && ((new_endaddr & mask) == base)) {
+					ret = true;
+					break;
+			}
+		}
+	}
+	return ret;
+}
+
+/**
+ * @brief Check if variable MTRR base and size are properly aligned.
+ *
+ * This function checks if the given base address and size meet the alignment requirements for variable MTRRs:
+ * 1. The minimum range size is 4 KB.
+ * 2. The base address must be on at least a 4 KB boundary.
+ * 3. For ranges > 4 KB, the size must be a power of 2 (2^n where n >= 12).
+ * 4. For ranges > 4 KB, the base address must be aligned to at least the size boundary.
  *
  * Refer to Chapter 12.11.4 Range Size and Alignment Requirement, Vol.3, SDM 325462-078 for more details.
  *
- * @param[in] val The size value to be rounded up
+ * @param[in] base Base address of the memory range
+ * @param[in] size Size of the memory range
  *
- * @return The rounded up size (power of 2 value)
+ * @return Whether the base and size meet alignment requirements
  *
- * @pre N/A
+ * @retval true Base and size are properly aligned
+ * @retval false Base and/or size are not properly aligned
+ *
+ * @pre size > 0UL
  *
  * @post N/A
  */
-static uint64_t round_variable_mtrr_size_up(uint64_t val)
+static bool is_variable_mtrr_aligned(uint64_t base, uint64_t size)
 {
-	/*
-	* 12.11.4 Range Size and Alignment Requirement, SDM:
-	*
-	* The minimum range size is 4 KBytes and the base address of the range must be on at least a
-	* 4-KByte boundary.
-	*
-	* For ranges greater than 4 KBytes, each range must be of length 2^n and its base address must be
-	* aligned on a 2^n boundary, where n is a value equal to or greater than 12. The base-address
-	* alignment value cannot be less than its length. For example, an 8-KByte range cannot be aligned
-	* on a 4-KByte boundary. It must be aligned on at least an 8-KByte boundary.
-	*/
-	uint64_t size = MEM_4K;
-
-	if (val > MEM_4K) {
-		while (size < val) {
-			size <<= 1U;
+	bool ret = true;
+	/* Minimum size is 4K and base address must be on at least a 4K boundary */
+	if ((size < MEM_4K) || ((base & (MEM_4K - 1UL)) != 0UL)) {
+		ret = false;
+	} else {
+		if ((size & (size - 1UL)) != 0UL) {
+			/* Size must be a power of 2 */
+			ret = false;
+		} else {
+			/* Base address must be aligned to the size */
+			if ((base & (size - 1UL)) != 0UL) {
+				ret = false;
+			}
 		}
 	}
 
-	if (val != size) {
-		pr_info("MTRR size 0x%lx is not aligned, round up to 0x%lx", val, size);
-	}
-	return size;
+	return ret;
 }
 
 /**
@@ -166,6 +208,8 @@ void init_vmtrr(struct acrn_vm *vm)
 {
 	struct acrn_vmtrr *vmtrr = &vm->arch_vm.vmtrr;
 	uint32_t i;
+
+	spinlock_init(&(vmtrr->lock));
 
 	/*
 	 * Fixed MTRRs are hide.
@@ -223,8 +267,12 @@ void init_vmtrr(struct acrn_vm *vm)
  * - The VM must be in \p VM_CREATED or \p VM_POWERED_OFF state.
  * - The size of the region must be non-zero.
  * - The memory type must be EPT_UNCACHED.
- * - The size will be rounded up to the next power of 2 if needed.
+ * - The size and base must meet the alignment requirement .Refer to Chapter 12.11.4 Range Size and Alignment
+ *   Requirement, Vol.3, SDM 325462-078 for more details about the alignment.
  * - The current variable MTRR count must be less than the maximum count.
+ * - The range must not already be covered by an existing variable MTRR.
+ *
+ * This function uses a spinlock to protect concurrent access to the variable MTRR structure.
  *
  * @param[inout] vm The pointer to the VM to which the MTRR is added
  * @param[in] base The base address of the memory region
@@ -240,31 +288,41 @@ void init_vmtrr(struct acrn_vm *vm)
 void add_variable_mtrr(struct acrn_vm *vm, uint64_t base, uint64_t size, uint64_t type)
 {
 	uint64_t idx;
+	uint64_t rounded_size = size;
+	uint64_t aligned_base = base;
 	struct acrn_vmtrr *vmtrr = &vm->arch_vm.vmtrr;
 	/* This function can be called only before VM_RUNNING. */
 	if (is_created_vm(vm) || is_poweroff_vm(vm)) {
 		/* TODO: Support more memory types */
 		if ((size != 0UL) && (type == EPT_UNCACHED)) {
-			/* vmtrr->cap.value[7:0] atomically increase 1 and get the index of PHYSBASEn/PHYSMASKn */
-			idx = (atomic_incu64_return(&vmtrr->cap.value) & MTRR_VARIABLE_CNT) - 1UL;
-			if (idx < VARIABLE_RANGE_MTRR_NUM_MAX) {
+			spinlock_obtain(&(vmtrr->lock));
 
-				vmtrr->variable_range[idx].physbase.value = base;
-				vmtrr->variable_range[idx].physbase.bits.type = MTRR_MEM_TYPE_UC;
-
-				vmtrr->variable_range[idx].physmask.value =
-					~(round_variable_mtrr_size_up(size) - 1UL);
-				vmtrr->variable_range[idx].physmask.bits.valid = 1UL;
-				vmtrr->variable_range[idx].physmask.bits.res1 = 0UL;
-
-				pr_dbg("vm%d variable-range MTRR[%u]: base:%16lx mask:%16lx", vm->vm_id, idx,
-					vmtrr->variable_range[idx].physbase.value,
-					vmtrr->variable_range[idx].physmask.value);
-
+			/* Check if the range is already covered by existing variable MTRR */
+			if (is_variable_mtrr_covered(vmtrr, base, size)) {
+				pr_dbg("vm%d variable-range MTRR exists, no need to add:"
+					 "base:0x%lx size:0x%lx type:0x%x", vm->vm_id, base, size, type);
 			} else {
-				pr_err("vm%d add variable-range MTRR failed: base:0x%lx size:0x%lx type:0x%x",
-					vm->vm_id, base, size, type);
+				idx = vmtrr->cap.bits.vcnt;
+				if (is_variable_mtrr_aligned(base, size) && (idx < VARIABLE_RANGE_MTRR_NUM_MAX)) {
+					vmtrr->cap.bits.vcnt++;
+
+					vmtrr->variable_range[idx].physbase.value = aligned_base;
+					vmtrr->variable_range[idx].physbase.bits.type = MTRR_MEM_TYPE_UC;
+
+					vmtrr->variable_range[idx].physmask.value = ~(rounded_size - 1UL);
+					vmtrr->variable_range[idx].physmask.bits.valid = 1UL;
+					vmtrr->variable_range[idx].physmask.bits.res1 = 0UL;
+
+					pr_dbg("vm%d variable-range MTRR[%u]: base:%16lx mask:%16lx", vm->vm_id, idx,
+						vmtrr->variable_range[idx].physbase.value,
+						vmtrr->variable_range[idx].physmask.value);
+
+				} else {
+					pr_err("vm%d add variable-range MTRR failed: base:0x%lx size:0x%lx type:0x%x",
+							vm->vm_id, base, size, type);
+				}
 			}
+			spinlock_release(&(vmtrr->lock));
 		}
 	} else {
 		pr_err("vm%d add variable-range MTRR fail: VM state is not VM_CREATED or VM_POWEREOFF", vm->vm_id);

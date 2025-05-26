@@ -7,6 +7,7 @@
 #define VMTRR_H
 
 #include <board_info.h>
+#include <asm/lib/spinlock.h>
 
 /**
  * @defgroup vp-base_vmtrr vp-base.vmtrr
@@ -170,6 +171,7 @@ struct acrn_vmtrr {
 	 * @brief IA32_MTRR_PHYSBASEn and IA32_MTRR_PHYSMASKn MSRs
 	 */
 	struct mtrr_variable_range_reg variable_range[VARIABLE_RANGE_MTRR_NUM_MAX];
+	spinlock_t lock; /**< Spinlock to protect variable MTRR structure */
 };
 
 struct acrn_vcpu;
