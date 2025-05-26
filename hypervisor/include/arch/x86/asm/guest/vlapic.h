@@ -107,13 +107,6 @@ struct acrn_apicv_ops {
 void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
 bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu);
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu);
-
-/**
- * Clears a pending vector from vIRR. Returns true if
- * the bit was previously present, false otherwise.
- */
-bool vlapic_clear_pending_intr(struct acrn_vcpu *vcpu, uint32_t vector);
-
 uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic);
 void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg);
 uint64_t vlapic_get_apicbase(const struct acrn_vlapic *vlapic);

@@ -1858,13 +1858,6 @@ static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
 	return vlapic_get_next_pending_intr(vcpu) != 0UL;
 }
 
-bool vlapic_clear_pending_intr(struct acrn_vcpu *vcpu, uint32_t vector)
-{
-	struct lapic_reg *irrptr = &(vcpu->arch.vlapic.apic_page.irr[0]);
-	uint32_t idx = vector >> 5U;
-	return bitmap32_test_and_clear_lock((uint16_t)(vector & 0x1fU), &irrptr[idx].v);
-}
-
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
