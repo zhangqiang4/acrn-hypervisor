@@ -66,6 +66,10 @@
 #define MSR_IA32_PERFEVTSEL1			0x00000187U /**< Performance Event Select Register 1 */
 #define MSR_IA32_PERFEVTSEL2			0x00000188U /**< Performance Event Select Register 2 */
 #define MSR_IA32_PERFEVTSEL3			0x00000189U /**< Performance Event Select Register 3 */
+#define MSR_IA32_PERFEVTSEL4			0x0000018AU /**< Performance Event Select Register 4 */
+#define MSR_IA32_PERFEVTSEL5			0x0000018BU /**< Performance Event Select Register 5 */
+#define MSR_IA32_PERFEVTSEL6			0x0000018CU /**< Performance Event Select Register 6 */
+#define MSR_IA32_PERFEVTSEL7			0x0000018DU /**< Performance Event Select Register 7 */
 #define MSR_IA32_PERF_STATUS			0x00000198U /**< Current Performance Status */
 #define MSR_IA32_PERF_CTL			0x00000199U /**< Performance Control MSR */
 #define MSR_IA32_CLOCK_MODULATION		0x0000019AU /**< Clock Modulation Control */
