@@ -91,7 +91,6 @@ struct acrn_vcpu;
 struct acrn_apicv_ops {
 	void (*accept_intr)(struct acrn_vlapic *vlapic, uint32_t vector, bool level);
 	void (*inject_intr)(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
-	bool (*has_pending_delivery_intr)(struct acrn_vcpu *vcpu);
 	bool (*has_pending_intr)(struct acrn_vcpu *vcpu);
 	bool (*x2apic_read_msr_may_valid)(uint32_t offset);
 	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
@@ -105,7 +104,6 @@ struct acrn_apicv_ops {
  */
 
 void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
-bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu);
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu);
 uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic);
 void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg);

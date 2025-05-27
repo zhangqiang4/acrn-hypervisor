@@ -716,8 +716,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 			 * so use interrupt window to inject NMI.
 			 * After enable virtual NMIs, we can use NMI-Window
 			 */
-			if (bitmap_test(ACRN_REQUEST_NMI, pending_req_bits) ||
-				vlapic_has_pending_delivery_intr(vcpu)) {
+			if (bitmap_test(ACRN_REQUEST_NMI, pending_req_bits)) {
 				vcpu->arch.proc_vm_exec_ctrls |= VMX_PROCBASED_CTLS_IRQ_WIN;
 				exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
 				arch->irq_window_enabled = true;

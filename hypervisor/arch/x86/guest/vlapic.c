@@ -1388,11 +1388,6 @@ static void ptapic_inject_intr(struct acrn_vlapic *vlapic,
 	pr_err("Invalid op %s, VM%u, vCPU%u", __func__, vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id);
 }
 
-static bool ptapic_has_pending_delivery_intr(__unused struct acrn_vcpu *vcpu)
-{
-	return false;
-}
-
 static bool ptapic_has_pending_intr(__unused struct acrn_vcpu *vcpu)
 {
 	return false;
@@ -1415,7 +1410,6 @@ static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
 static const struct acrn_apicv_ops ptapic_ops = {
 	.accept_intr = ptapic_accept_intr,
 	.inject_intr = ptapic_inject_intr,
-	.has_pending_delivery_intr = ptapic_has_pending_delivery_intr,
 	.has_pending_intr = ptapic_has_pending_intr,
 	.x2apic_read_msr_may_valid  = ptapic_read_msr_may_may_invalid,
 	.x2apic_write_msr_may_valid  = ptapic_write_msr_may_may_invalid,
@@ -1832,17 +1826,6 @@ void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool
 	vlapic->ops->inject_intr(vlapic, guest_irq_enabled, injected);
 }
 
-static bool apicv_advanced_has_pending_delivery_intr(__unused struct acrn_vcpu *vcpu)
-{
-	return false;
-}
-
-bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
-{
-	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
-	return vlapic->ops->has_pending_delivery_intr(vcpu);
-}
-
 static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
 {
 	return vlapic_find_highest_irr(vcpu_vlapic(vcpu)) != 0UL;
@@ -1937,7 +1920,6 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.accept_intr = apicv_advanced_accept_intr,
 	.inject_intr = apicv_advanced_inject_intr,
-	.has_pending_delivery_intr = apicv_advanced_has_pending_delivery_intr,
 	.has_pending_intr = apicv_advanced_has_pending_intr,
 	.x2apic_read_msr_may_valid  = apicv_advanced_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
