@@ -418,7 +418,7 @@ static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 			}
 
 			if ((cr0_changed_bits & (CR0_PG | CR0_WP | CR0_CD)) != 0UL) {
-				vcpu_make_request(vcpu, ACRN_REQUEST_EPT_FLUSH);
+				vcpu_make_request(vcpu, ACRN_REQUEST_VPID_FLUSH);
 			}
 
 			mask = cr0_trap_and_passthru_mask | cr0_passthru_mask;
@@ -568,7 +568,7 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 				pr_err("%s: fail to set CR4.PAE, PAE paging mode is not supported",__func__);
 				vcpu_inject_gp(vcpu, 0U);
 			}
-			vcpu_make_request(vcpu, ACRN_REQUEST_EPT_FLUSH);
+			vcpu_make_request(vcpu, ACRN_REQUEST_VPID_FLUSH);
 		}
 
 		if (!err_found && ((cr4_changed_bits & CR4_PCIDE) != 0UL)) {

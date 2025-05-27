@@ -1613,12 +1613,18 @@ static void set_guest_ia32_misc_enable(struct acrn_vcpu *vcpu, uint64_t v)
 	uint32_t eax, ebx = 0U, ecx = 0U, edx = 0U;
 	bool update_vmsr = true;
 	uint64_t effective_guest_msr = v;
+	uint64_t current = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
 
-	/* According to SDM Vol4 2.1 & Vol 3A 4.1.4,
-	 * EFER.NXE should be cleared if guest disable XD in IA32_MISC_ENABLE
-	 */
-	if ((v & MSR_IA32_MISC_ENABLE_XD_DISABLE) != 0UL) {
-		vcpu_set_efer(vcpu, vcpu_get_efer(vcpu) & ~MSR_IA32_EFER_NXE_BIT);
+	if (((v ^ current) & MSR_IA32_MISC_ENABLE_XD_DISABLE) != 0UL) {
+		/* According to SDM Vol4 2.1 & Vol 3A 4.1.4,
+	 	 * EFER.NXE should be cleared if guest disable XD in IA32_MISC_ENABLE
+	 	 */
+		if ((v & MSR_IA32_MISC_ENABLE_XD_DISABLE) != 0UL) {
+			vcpu_set_efer(vcpu, vcpu_get_efer(vcpu) & ~MSR_IA32_EFER_NXE_BIT);
+		}
+
+		/* Flush TLB and paging structure cache */
+		vcpu_make_request(vcpu, ACRN_REQUEST_VPID_FLUSH);
 	}
 
 	/* Handle MISC_ENABLE_MONITOR_ENA
@@ -1628,7 +1634,7 @@ static void set_guest_ia32_misc_enable(struct acrn_vcpu *vcpu, uint64_t v)
 	 *   shall be cleared. lapic_pt guest traps MONITOR/MWAIT, so that it can inject UD
 	 * - guest cpuid.01H will be updated when guest executes 'cpuid' with leaf 01H
 	 */
-	if (((v ^ vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE)) & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) {
+	if (((v ^ current) & MSR_IA32_MISC_ENABLE_MONITOR_ENA) != 0UL) {
 		eax = CPUID_FEATURES;
 		guest_cpuid(vcpu, &eax, &ebx, &ecx, &edx);
 		/* According to SDM Vol4 2.1 Table 2-2,
