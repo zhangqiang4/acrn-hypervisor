@@ -1028,6 +1028,8 @@ main(int argc, char *argv[])
 		fprintf(stderr, "cannot register handler for SIGHUP\n");
 	if (signal(SIGINT, sig_handler_term) == SIG_ERR)
 		fprintf(stderr, "cannot register handler for SIGINT\n");
+	if (signal(SIGTERM, sig_handler_term) == SIG_ERR)
+		fprintf(stderr, "cannot register handler for SIGTERM\n");
 	/*
 	 * Ignore SIGPIPE signal and handle the error directly when write()
 	 * function fails. this will help us to catch the write failure rather
