@@ -1561,7 +1561,7 @@ static void set_guest_tsc_adjust(struct acrn_vcpu *vcpu, uint64_t tsc_adjust)
  *
  * @post N/A
  */
-static void set_guest_ia32_misc_enalbe(struct acrn_vcpu *vcpu, uint64_t v)
+static void set_guest_ia32_misc_enable(struct acrn_vcpu *vcpu, uint64_t v)
 {
 	uint32_t eax, ebx = 0U, ecx = 0U, edx = 0U;
 	bool update_vmsr = true;
@@ -1817,7 +1817,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (((v ^ vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE)) & ro_mask) != 0UL) {
 			err = -EACCES;
 		} else {
-			set_guest_ia32_misc_enalbe(vcpu, v);
+			set_guest_ia32_misc_enable(vcpu, v);
 		}
 		break;
 	}

@@ -231,7 +231,7 @@ EXCLUDE_SYMBOLS += MSR_IA32_MC_ADDR MSR_IA32_MC_CTL MSR_IA32_MC_CTL2 MSR_IA32_MC
                    init_x2apic_msrs intercept_x2apic_msrs is_ecmd_supported is_iwkey_backup_support \
                    is_pat_mem_type_invalid is_x2apic_msr mc_bank_configured_count mc_bank_hide_by_idx \
                    mc_bank_pt_by_idx micro_code mtrr_msrs pmc_msrs \
-                   prepare_auto_msr_area set_guest_ia32_misc_enalbe set_guest_tsc set_guest_tsc_adjust \
+                   prepare_auto_msr_area set_guest_ia32_misc_enable set_guest_tsc set_guest_tsc_adjust \
                    set_tsc_msr_interception ucode_header unsupported_msrs write_pat_msr \
 # Exclude internals of vp-base.vcpu (26)
 EXCLUDE_SYMBOLS += build_stack_frame context_switch_in context_switch_out create_vcpu \
