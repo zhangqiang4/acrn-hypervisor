@@ -1773,11 +1773,21 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		if (v & reserved) {
 			err = -EINVAL;
 		} else {
+			uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
+
 			/*
 			 * When paging is enabled, changing LME bit should generate #GP.
 			 * See 64-bit mode consistency checks in Chapter 10.8.5, Vol. 3, SDM.
 			 */
 			if ((ctx->cr0 & CR0_PG) && ((v ^ ctx->ia32_efer) & MSR_IA32_EFER_LME_BIT)) {
+				err = -EINVAL;
+			} else if (((v & MSR_IA32_EFER_NXE_BIT) != 0UL) &&
+			           (guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_XD_DISABLE)) {
+				/*
+				 * SDM (March 2025) 6.13.1 Detecting and Enabling the Execute-Disable Capability
+				 * If the execute-disable capability is not available, a write to set IA32_EFER.NXE
+				 * produces a #GP exception.
+				 */
 				err = -EINVAL;
 			} else {
 				vcpu_set_efer(vcpu, v);
