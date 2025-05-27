@@ -40,7 +40,7 @@
 
 #define TEMP_LOG_BUFFER_SIZE    256U	/**< Size of the temporary log buffer. */
 
-#define DBG_LEVEL_LAPICPT	5U	/**< Debug level for LAPICPT. */
+#define DBG_LEVEL_LAPICPT	6U	/**< Debug level for LAPICPT. */
 
 #if defined(HV_DEBUG)
 
