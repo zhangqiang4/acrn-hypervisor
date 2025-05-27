@@ -54,6 +54,7 @@ struct screen {
 	bool is_pipe_vblank;
 	struct timer_vblank sw_vblank;
 	int vrefresh;
+	bool fallback;
 
 	struct mevent *mevent_event;	/* poll the event injector fd */
 
@@ -1366,6 +1367,7 @@ static void fallback_dummy_backend(char *backend_name)
 		if (strcmp(vdpy.scrs[i].name, backend_name) == 0) {
 			pr_warn("display(%s) is unavailable, fallback to dummy display\n", vdpy.scrs[i].cmd_param);
 			vdpy.scrs[i].name = DUMMY_BACKEND_NAME;
+			vdpy.scrs[i].fallback = true;
 			if (vdpy.scrs[i].is_pipe_vblank)
 				vdpy.scrs[i].is_timer_vblank = true;
 		}
@@ -1444,8 +1446,12 @@ gfx_ui_init()
 	ret = init_backends();
 	if(!ret) {
 		for(i=0; i<vdpy.scrs_num; i++) {
-			vdpy_init_screen(vdpy.scrs[i].name, &vdpy.scrs[i].backend,
-					&vdpy.scrs[i].vscreen_ops);
+			if (!vdpy.scrs[i].fallback) {
+				vdpy_init_screen(vdpy.scrs[i].name, &vdpy.scrs[i].backend,
+						&vdpy.scrs[i].vscreen_ops);
+			} else {
+				vdpy_init_screen(vdpy.scrs[i].name, NULL, &vdpy.scrs[i].vscreen_ops);
+			}
 		}
 		vdpy.s.is_ui_realized = true;
 	}
@@ -1638,6 +1644,7 @@ int vdpy_parse_cmd_option(const char *opts)
 			if (error) {
 				pr_warn("display(%s) is unavailable, fallback to dummy display\n", scr->cmd_param);
 				scr->name = DUMMY_BACKEND_NAME;
+				scr->fallback = true;
 				if (scr->is_pipe_vblank)
 					scr->is_timer_vblank = true;
 			}
@@ -1653,15 +1660,37 @@ out:
 	return error;
 }
 
+struct dummy_vscreen {
+	int width;
+	int height;
+};
+
+static struct dummy_info {
+	struct dummy_vscreen screens[VSCREEN_MAX_NUM];
+	int index;
+	int num;
+} dummy = {
+	.index = 0,
+	.num = 0,
+};
+
 static void
 dummy_display_info(void *backend, struct display_info *display)
 {
+	struct dummy_vscreen *screen = (struct dummy_vscreen *)backend;
 	display->xoff = 0;
 	display->yoff = 0;
-	display->width = 1024;
-	display->height = 768;
-	pr_info("use dummy display, resolution is %d:%d\n", display->width, display->height);
+
+	if (!screen || screen->width == 0 || screen->height == 0) {
+		display->width = 1920;
+		display->height = 1080;
+	} else {
+		display->width = screen->width;
+		display->height = screen->height;
+	}
+	pr_info("use dummy display, resolution is %dx%d\n", display->width, display->height);
 }
+
 static struct screen_backend_ops dummy_vscreen_ops = {
 	.vdpy_display_info = dummy_display_info,
 };
@@ -1670,11 +1699,41 @@ static void
 dummy_init_screen(void **backend, struct screen_backend_ops **ops)
 {
 	*ops = &dummy_vscreen_ops;
+	if (dummy.index >= VSCREEN_MAX_NUM || !backend)
+		return;
+	*backend = &dummy.screens[dummy.index];
+	dummy.index++;
+}
+
+static int dummy_parse_cmd(char *tmp)
+{
+	int snum;
+	char *str = NULL;
+	int hdisplay = 0;
+	int vdisplay = 0;
+
+	if (dummy.num >= VSCREEN_MAX_NUM || !tmp)
+		return 0;
+
+	str = strstr(tmp, "mode=");
+	if (str) {
+		snum = sscanf(str, "mode=%dx%d", &hdisplay, &vdisplay);
+		if (snum != 2) {
+			hdisplay = 0;
+			vdisplay = 0;
+		}
+	}
+	dummy.screens[dummy.num].width = hdisplay;
+	dummy.screens[dummy.num].height = vdisplay;
+	dummy.num++;
+
+	return 0;
 }
 
 struct vdpy_backend dummy_display_backend = {
 	.name = DUMMY_BACKEND_NAME,
 	.init_screen = dummy_init_screen,
+	.parse_cmd = dummy_parse_cmd,
 };
 
 DEFINE_BACKEND_TYPE(dummy_display_backend);
