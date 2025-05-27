@@ -129,6 +129,9 @@ static void *get_initrd_load_addr(struct acrn_vm *vm, uint64_t kernel_start)
 static void *get_bzimage_kernel_load_addr(struct acrn_vm *vm)
 {
 	void *load_addr = NULL;
+	uint32_t kernel_init_size;
+	uint64_t kernel_pref_addr;
+	uint64_t hv_start = get_hv_image_base();
 	struct vm_sw_info *sw_info = &vm->sw;
 	struct zero_page *zeropage;
 
@@ -141,38 +144,57 @@ static void *get_bzimage_kernel_load_addr(struct acrn_vm *vm)
 	zeropage = (struct zero_page *)sw_info->kernel_info.kernel_src_addr;
 
 	stac();
-	if ((is_service_vm(vm)) && (zeropage->hdr.relocatable_kernel != 0U)) {
-		uint64_t mods_start, mods_end;
+	kernel_pref_addr = zeropage->hdr.pref_addr;
+	kernel_init_size = zeropage->hdr.init_size;
+
+	/* Only if the address of pref_address and (pref_address + kernel_init_size) are in the same
+	 * vE820 RAM entry, the pref_addess could be valid to load kernel.
+	 */
+	if (ve820_mapped_all(vm, kernel_pref_addr, (kernel_pref_addr + (uint64_t)kernel_init_size), E820_TYPE_RAM)) {
+		load_addr = (void *)kernel_pref_addr;
+
+		/* The HV image is loaded by bootloader under HPA 4GB space per multiboot/multiboot2 protocol.
+		 * Given the GPA and HPA are identical mapping in Service VM, if the GPA of Service VM kernel's
+		 * load address is located before the HPA of HV image, the Service VM kernel might corrupt the
+		 * memory which reserved for HV and VM log(or memory dump).
+		 *
+		 * So for Service VM we will:
+		 * 1) for relocatable kernel, reset the load address so that we can try relocation in next step;
+		 * 2) for non-relocatable kernel, give hint for possible memory corruption;
+		 *
+		 * For Pre-launched VMs we don't have such limitation since their HPA space will be beyond HPA 4GB
+		 * per config tool, there is no memory conflict on HV log area.
+		 */
+		if (is_service_vm(vm) && (load_addr < (void *)hv_start)) {
+			if (zeropage->hdr.relocatable_kernel != 0U) {
+				load_addr = NULL;
+			} else {
+				/* The non-relocatable Service VM kernel might corrupt log/dump area. */
+				pr_err("Non-relocatable kernel found, possible corruption if hvlog exists!");
+			}
+		}
+	}
+
+	/* If load address is still invalid, let's try to relocate kernel if kernel image supports. */
+	if ((load_addr == NULL) && (zeropage->hdr.relocatable_kernel != 0U)) {
 		uint64_t kernel_load_gpa = INVALID_GPA;
+		uint64_t relocate_from = MEM_1M;
 		uint32_t kernel_align = zeropage->hdr.kernel_alignment;
-		uint32_t kernel_init_size = zeropage->hdr.init_size;
 		/* Because the kernel load address need to be up aligned to kernel_align size
 		 * whereas find_space_from_ve820() can only return page aligned address,
 		 * we enlarge the needed size to (kernel_init_size + kernel_align).
 		 */
 		uint32_t kernel_size = kernel_init_size + kernel_align;
 
-		get_boot_mods_range(&mods_start, &mods_end);
-		mods_start = service_vm_hpa2gpa(mods_start);
-		mods_end = service_vm_hpa2gpa(mods_end);
-
-		/* TODO: support load kernel when modules are beyond 4GB space. */
-		if (mods_end < MEM_4G) {
-			kernel_load_gpa = find_space_from_ve820(vm, kernel_size, MEM_1M, mods_start);
-
-			if (kernel_load_gpa == INVALID_GPA) {
-				kernel_load_gpa = find_space_from_ve820(vm, kernel_size, mods_end, MEM_4G);
-			}
+		/* For Service VM, we will relocate kernel after HV image to avoid the corruption of HV logs.*/
+		if (is_service_vm(vm)) {
+			relocate_from = hv_start;
 		}
+
+		kernel_load_gpa = find_space_from_ve820(vm, kernel_size, relocate_from, MEM_4G);
 
 		if (kernel_load_gpa != INVALID_GPA) {
 			load_addr = (void *)roundup((uint64_t)kernel_load_gpa, kernel_align);
-		}
-	} else {
-		load_addr = (void *)zeropage->hdr.pref_addr;
-		if (is_service_vm(vm)) {
-			/* The non-relocatable Servic VM kernel might overlap with boot modules. */
-			pr_err("Non-relocatable kernel found, risk to boot!");
 		}
 	}
 	clac();

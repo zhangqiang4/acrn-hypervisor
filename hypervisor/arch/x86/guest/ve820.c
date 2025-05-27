@@ -56,6 +56,48 @@ static struct e820_entry service_vm_e820[E820_MAX_ENTRIES];
 static struct e820_entry pre_vm_e820[PRE_VM_NUM][E820_MAX_ENTRIES];
 
 /**
+ * @brief Check if a specified guest physical address (GPA) range is fully mapped in the VM's E820 entries.
+ *
+ * This function determines whether a given GPA range, defined by a start and end address,
+ * is completely contained within any of the E820 entries of a specified type for a ACRN VM.
+ * The function returns true if the entire range is mapped within an entry of the specified type, and false otherwise.
+ *
+ * @param[in] vm Pointer to the `acrn_vm` whose E820 entries will be checked .
+ * @param[in] start_gpa Start address of the GPA range to check.
+ * @param[in] end_gpa End address of the GPA range to check.
+ * @param[in] type Type of E820 entry to check against (e.g., E820_TYPE_RAM).
+ *
+ * @return True if the GPA range is fully mapped within an entry of the specified type, false otherwise.
+ *
+ * @pre vm != NULL
+ * @post N/A
+ */
+bool ve820_mapped_all(struct acrn_vm *vm, uint64_t start_gpa, uint64_t end_gpa, uint32_t type)
+{
+	uint32_t i;
+	bool ret = false;
+
+	if (start_gpa <= end_gpa) {
+		for (i = 0; i < vm->e820_entry_num; i++) {
+			struct e820_entry *entry = vm->e820_entries + i;
+
+			if (entry->type == type) {
+				uint64_t entry_start = entry->baseaddr;
+				uint64_t entry_end = entry->baseaddr + entry->length;
+
+				if ((start_gpa >= entry_start) && (end_gpa <= entry_end)) {
+					ret = true;
+					break;
+				}
+
+			}
+		}
+	}
+
+	return ret;
+}
+
+/**
  * @brief Find available memory region from virtual E820 table.
  *
  * This function tries to find a consecutive memory region from virtual E820 table
