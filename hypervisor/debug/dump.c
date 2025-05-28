@@ -163,7 +163,7 @@ static void do_logbuffer(uint32_t severity, uint16_t vm_id, char *buffer)
 	if (console_need_log(severity) || npk_need_log(severity)) {
 		/* Check whether output to stdout */
 		if (console_need_log(severity)) {
-			console_log(buffer);
+			console_write(buffer,TX_BUF_SIZE);
 		}
 		/* Check whether output to NPK */
 		if (npk_need_log(severity)) {
