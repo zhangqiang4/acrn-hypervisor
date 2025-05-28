@@ -630,9 +630,8 @@ void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
  * Change a vCPU state to VCPU_ZOMBIE, and make a reschedule request for it.
  *
  * @param[inout] vcpu pointer to vcpu data structure
- * @param[in] new_state the state to set vcpu
  */
-void zombie_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
+void zombie_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief set the vcpu to running state, then it will be scheculed.

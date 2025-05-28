@@ -84,7 +84,7 @@ void vcpu_thread(struct thread_object *obj)
 		if (ret < 0) {
 			pr_fatal("vcpu handling pending request fail");
 			get_vm_lock(vcpu->vm);
-			zombie_vcpu(vcpu, VCPU_ZOMBIE);
+			zombie_vcpu(vcpu);
 			put_vm_lock(vcpu->vm);
 			/* Fatal error happened (triple fault). Stop the vcpu running. */
 			continue;
@@ -100,7 +100,7 @@ void vcpu_thread(struct thread_object *obj)
 		if (ret != 0) {
 			pr_fatal("vcpu resume failed");
 			get_vm_lock(vcpu->vm);
-			zombie_vcpu(vcpu, VCPU_ZOMBIE);
+			zombie_vcpu(vcpu);
 			put_vm_lock(vcpu->vm);
 			/* Fatal error happened (resume vcpu failed). Stop the vcpu running. */
 			continue;

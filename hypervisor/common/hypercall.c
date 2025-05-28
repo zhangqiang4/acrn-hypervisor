@@ -187,7 +187,7 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 				ret = -1;
 				break;
 			}
-			zombie_vcpu(target_vcpu, VCPU_ZOMBIE);
+			zombie_vcpu(target_vcpu);
 			offline_vcpu(target_vcpu);
 
 			/* restart pcpu so that it restores all its states */

@@ -979,7 +979,7 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 				 * mode if lapic_pt_enalbed is true.
 				 */
 				/* put target vcpu to INIT state and wait for SIPI */
-				zombie_vcpu(target_vcpu, VCPU_ZOMBIE);
+				zombie_vcpu(target_vcpu);
 				reset_vcpu(target_vcpu, VCPU_INIT_RESET);
 			}
 			/* new cpu model only need one SIPI to kick AP run,

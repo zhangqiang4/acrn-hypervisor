@@ -858,16 +858,16 @@ void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 	vcpu_set_state(vcpu, VCPU_INIT);
 }
 
-void zombie_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
+void zombie_vcpu(struct acrn_vcpu *vcpu)
 {
 	enum vcpu_state prev_state;
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
-	pr_dbg("vcpu%hu paused, new state: %d",	vcpu->vcpu_id, new_state);
+	pr_dbg("vcpu%hu paused, new state: %d",	vcpu->vcpu_id, VCPU_ZOMBIE);
 
-	if (((vcpu->state == VCPU_RUNNING) || (vcpu->state == VCPU_INIT)) && (new_state == VCPU_ZOMBIE)) {
+	if ((vcpu->state == VCPU_RUNNING) || (vcpu->state == VCPU_INIT)) {
 		prev_state = vcpu->state;
-		vcpu_set_state(vcpu, new_state);
+		vcpu_set_state(vcpu, VCPU_ZOMBIE);
 
 		if (prev_state == VCPU_RUNNING) {
 			if (pcpu_id == get_pcpu_id()) {
