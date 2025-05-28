@@ -388,6 +388,98 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 	return 0;
 }
 
+static bool
+is_intel_dg2_vf(int bus, int slot, int func)
+{
+	char path[60];
+	char dev[20] = {0};
+	int fd_dev = 0;
+	int ret = 0;
+
+	if (func > 0) {
+		snprintf(path, 60,
+			"/sys/bus/pci/devices/0000:%02x:%02x.%x/device",
+				bus, slot, func);
+		fd_dev = open(path, O_RDONLY);
+		if (fd_dev > 0) {
+			ret = read(fd_dev, dev, 20);
+			close(fd_dev);
+			if (ret > 0 && (strstr(dev, "0x56af") ||
+					strstr(dev, "0x56a1"))) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static void
+intel_dg2_vf_reset(int bus, int slot, int func)
+{
+	char reset_path[60];
+	int fd;
+	int fd_flr = 0;
+	uint64_t ready = 0;
+	int times = 0;
+	int ret = 0;
+	char vfid[20] = {0};
+	char flr_status[20] = {0};
+	char *end;
+	int max_retry = 20;
+	bool timeout = false;
+
+	snprintf(reset_path, 60,
+		"/sys/bus/pci/devices/0000:%02x:%02x.%x/reset",
+		bus, slot, func);
+	fd = open(reset_path, O_WRONLY);
+	if (fd >= 0) {
+		fd_flr = open("/sys/class/drm/card1/vf_flr_status", O_RDWR);
+		snprintf(vfid, 20, "%d", func);
+		if (fd_flr > 0) {
+			ret = write(fd_flr, vfid, 1);
+			if (ret < 0)
+				pr_err("clear flr status failure, vfid:%s\n", vfid);
+		}
+		close(fd_flr);
+		pr_notice("reset dev %x/%x/%x \n", bus, slot, func);
+		if (write(fd, "1", 1) < 0)
+			pr_err("reset dev %x/%x/%x failed!\n",
+			      bus, slot, func);
+		close(fd);
+		fd_flr = open("/sys/class/drm/card1/vf_flr_status", O_RDWR);
+		if (fd_flr > 0) {
+			timeout = true;
+			while (times < max_retry) {
+				usleep(100000);
+				times++;
+				ready = 0;
+				memset(flr_status, 0, sizeof(flr_status));
+				ret = read(fd_flr, &flr_status, sizeof(flr_status));
+				if (ret > 2) {
+					if (dm_strtoul(flr_status + 2, &end, 16, &ready) != 0)
+						ready = 0;
+				}
+				if (ret > 0 && (ready & (1 << func))) {
+					pr_notice("delay %dms success for resetting dev %x/%x/%x \n",
+								 100 * times, bus, slot, func);
+					ret = write(fd_flr, vfid, 1);
+					timeout = false;
+					break;
+				}
+			}
+			if (timeout)
+				pr_notice("delay %dms timeout for resetting dev %x/%x/%x \n",
+								100 * times, bus, slot, func);
+			close(fd_flr);
+		} else {
+			usleep(100000);
+			times = 1;
+			pr_notice("no vf_flr_status avaliable, delay %dms for resetting dev %x/%x/%x \n",
+								100 * times, bus, slot, func);
+		}
+	}
+}
+
 static void 
 reset_pdev(struct passthru_dev *ptdev, int bus,
 	int slot, int func)
@@ -402,17 +494,21 @@ reset_pdev(struct passthru_dev *ptdev, int bus,
 	 * - refuse to passthrough PCIe dev without any reset capability
 	 */
 	if (ptdev->need_reset) {
-		snprintf(reset_path, 40,
-			"/sys/bus/pci/devices/0000:%02x:%02x.%x/reset",
-			bus, slot, func);
+		if (is_intel_dg2_vf(bus, slot, func)) {
+			intel_dg2_vf_reset(bus, slot, func);
+		} else {
+			snprintf(reset_path, 40,
+				"/sys/bus/pci/devices/0000:%02x:%02x.%x/reset",
+				bus, slot, func);
 
-		fd = open(reset_path, O_WRONLY);
-		if (fd >= 0) {
-			pr_notice("reset dev %x/%x/%x \n", bus, slot, func);
-			if (write(fd, "1", 1) < 0)
-				pr_err("reset dev %x/%x/%x failed!\n",
-				      bus, slot, func);
-			close(fd);
+			fd = open(reset_path, O_WRONLY);
+			if (fd >= 0) {
+				pr_notice("reset dev %x/%x/%x \n", bus, slot, func);
+				if (write(fd, "1", 1) < 0)
+					pr_err("reset dev %x/%x/%x failed!\n",
+					      bus, slot, func);
+				close(fd);
+			}
 		}
 	}
 
