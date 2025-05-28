@@ -1382,8 +1382,7 @@ static void ptapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, __un
 			vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id, vector);
 }
 
-static void ptapic_inject_intr(struct acrn_vlapic *vlapic,
-				__unused bool guest_irq_enabled, __unused bool injected)
+static void ptapic_inject_intr(struct acrn_vlapic *vlapic)
 {
 	pr_err("Invalid op %s, VM%u, vCPU%u", __func__, vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id);
 }
@@ -1798,8 +1797,7 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
  * @pre get_pi_desc(vlapic->vcpu) != NULL
  */
 
-static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic,
-		__unused bool guest_irq_enabled, __unused bool injected)
+static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
 {
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 	struct pi_desc *pid = get_pi_desc(vcpu);
@@ -1821,9 +1819,9 @@ static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic,
 	}
 }
 
-void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected)
+void vlapic_inject_intr(struct acrn_vlapic *vlapic)
 {
-	vlapic->ops->inject_intr(vlapic, guest_irq_enabled, injected);
+	vlapic->ops->inject_intr(vlapic);
 }
 
 static bool apicv_advanced_has_pending_intr(struct acrn_vcpu *vcpu)
