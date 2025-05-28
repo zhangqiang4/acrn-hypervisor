@@ -493,10 +493,6 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 		entry.ecx &= ~CPUID_ECX_UMIP;
 	}
 
-	if ((cr4_reserved_mask & CR4_LA57) != 0UL) {
-		entry.ecx &= ~CPUID_ECX_LA57;
-	}
-
 #ifdef CONFIG_SGX_ENABLED
 	if (is_vsgx_supported(vm->vm_id)) {
 		entry.ebx |= CPUID_EBX_SGX;

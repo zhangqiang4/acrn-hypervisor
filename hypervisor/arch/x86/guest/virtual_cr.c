@@ -72,7 +72,7 @@
 #define CR4_PASSTHRU_BITS	(CR4_VME | CR4_PVI | CR4_TSD | CR4_DE | \
 				CR4_PGE | CR4_PCE | CR4_OSFXSR | CR4_PCIDE | \
 				CR4_OSXSAVE | CR4_FSGSBASE | CR4_OSXMMEXCPT | \
-				CR4_UMIP | CR4_LA57 | CR4_LASS)
+				CR4_UMIP | CR4_LASS)
 
 /**
  * @brief Variable to hold CR4 bits that can be written through to guest CR4 register without VM-Exit
@@ -107,7 +107,7 @@ static uint64_t	cr4_trap_and_passthru_mask = CR4_TRAP_AND_PASSTHRU_BITS; /* boun
 /**
  * @brief CR4 feature bits that are hidden by HV as reserved bits
  */
-#define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE | CR4_PKE | CR4_PKS)
+#define CR4_EMULATED_RESERVE_BITS	(CR4_VMXE | CR4_CET | CR4_SMXE | CR4_PKE | CR4_PKS | CR4_LA57)
 
 /**
  * @brief CR4 emulated feature bits set to guest CR4
@@ -520,7 +520,7 @@ static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
  * @brief Emulate write to guest CR4
  *
  * Guest CR4 bits shall be treated as below:
- *   - VME(0), PVI(1), TSD(2), DE(3), PGE(7), PCE(8), OSFXSR(9), OSXMMEXCPT(10), UMIP(11), LA57(12),
+ *   - VME(0), PVI(1), TSD(2), DE(3), PGE(7), PCE(8), OSFXSR(9), OSXMMEXCPT(10), UMIP(11),
  *     FSGSBASE(16), PCIDE(17), OSXSAVE(18), LASS(27): Flexible bits to guest.
  *   - PSE(4), SMEP(20), SMAP(21): Trapped to flush EPT cache.
  *   - PAE(5): Trapped to enable guest PAE paging and flush EPT cache.
