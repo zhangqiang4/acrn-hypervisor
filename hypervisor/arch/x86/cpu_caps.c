@@ -610,6 +610,7 @@ void init_pcpu_capabilities(void)
 {
 	uint32_t eax, ebx, ecx, edx, unused;
 	uint32_t family_id, model_id, displayfamily, displaymodel;
+	uint32_t leaf7_level;
 
 	cpuid_subleaf(CPUID_VENDORSTRING, 0x0U,
 		&boot_cpu_data.cpuid_level,
@@ -638,13 +639,15 @@ void init_pcpu_capabilities(void)
 		&boot_cpu_data.cpuid_leaves[FEAT_6_0_EAX],
 		&ebx, &ecx, &edx);
 
-	cpuid_subleaf(CPUID_EXTEND_FEATURE, 0x0U, &unused,
+	cpuid_subleaf(CPUID_EXTEND_FEATURE, 0x0U, &leaf7_level,
 		&boot_cpu_data.cpuid_leaves[FEAT_7_0_EBX],
 		&boot_cpu_data.cpuid_leaves[FEAT_7_0_ECX],
 		&boot_cpu_data.cpuid_leaves[FEAT_7_0_EDX]);
 
-	cpuid_subleaf(CPUID_EXTEND_FEATURE, 0x2U, &unused, &unused, &unused,
-		&boot_cpu_data.cpuid_leaves[FEAT_7_2_EDX]);
+	if (leaf7_level >= 0x2U) {
+		cpuid_subleaf(CPUID_EXTEND_FEATURE, 0x2U, &unused, &unused, &unused,
+			&boot_cpu_data.cpuid_leaves[FEAT_7_2_EDX]);
+	}
 
 	cpuid_subleaf(CPUID_MAX_EXTENDED_FUNCTION, 0x0U,
 		&boot_cpu_data.extended_cpuid_level,
