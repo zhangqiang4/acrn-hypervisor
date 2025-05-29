@@ -21,6 +21,21 @@
 
 struct hv_timer console_timer;
 
+/* With a typical physical UART at baud rate 115200, the data transfer
+ * rate is approximately 115200 bits/s (115.2 bits/ms). And typically
+ * UART communicates with 8 data bits, 1 start bit and 1 stop bit per
+ * character, this amounts to about 11.52 characters per ms.
+ *
+ * Since we have the console timer firing every 40ms, we should limit
+ * the maximum characters written to UART within each tick so that the
+ * writing operation does not block other threads (especially vcpu threads).
+ *
+ * To trade-off between interference to vcpu thread and UART usability,
+ * here we limit the physical uart to print 110 characters (10ms print time)
+ * during each tick.
+ */
+#define CONSOLE_TICK_MAX_TRANSFER_CHARS 110
+
 #define CONSOLE_KICK_TIMER_TIMEOUT  40UL /* timeout is 40ms*/
 /* Switching key combinations for shell and uart console */
 #define GUEST_CONSOLE_ESCAPE_KEY	0x0 /* the "break", put twice to send "break" to guest */
@@ -159,9 +174,16 @@ exit:
 static void vuart_console_tx_chars(struct acrn_vuart *vu)
 {
 	char c = vuart_getchar(vu);
+	/* Rate limiting. Please see comments for macro
+	 * CONSOLE_TICK_MAX_TRANSFER_CHARS. */
+	int char_transferred = 0;
 
 	while(c != -1) {
 		printf("%c", c);
+		char_transferred++;
+		if (char_transferred >= CONSOLE_TICK_MAX_TRANSFER_CHARS) {
+			break;
+		}
 		c = vuart_getchar(vu);
 	}
 }
