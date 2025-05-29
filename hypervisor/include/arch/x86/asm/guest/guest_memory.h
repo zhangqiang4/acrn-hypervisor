@@ -51,6 +51,8 @@ int32_t copy_from_gva(struct acrn_vcpu *vcpu, void *h_ptr, uint64_t gva,
 	uint32_t size, uint32_t *err_code, uint64_t *fault_addr);
 int32_t copy_to_gva(struct acrn_vcpu *vcpu, void *h_ptr, uint64_t gva,
 	uint32_t size, uint32_t *err_code, uint64_t *fault_addr);
+
+bool handle_gva_translation_error(int status, struct acrn_vcpu *vcpu, uint64_t addr, uint32_t err_code);
 /**
  * @}
  */

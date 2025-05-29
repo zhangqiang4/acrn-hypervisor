@@ -1032,9 +1032,7 @@ static int32_t get_gva_di_check(struct acrn_vcpu *vcpu, struct instr_emul_vie *v
 			err_code = PAGE_FAULT_WR_FLAG;
 			ret = gva2gpa(vcpu, *gva, &gpa, &err_code);
 			if (ret < 0) {
-				if (ret == -EFAULT) {
-					vcpu_inject_pf(vcpu, (uint64_t)gva, err_code);
-				}
+				(void)handle_gva_translation_error(ret, vcpu, (uint64_t)gva, err_code);
 			} else {
 
 				/* If we are checking the dest operand for movs instruction,
@@ -1668,9 +1666,7 @@ static __attribute__((noinline)) int32_t emulate_xchg_for_splitlock(struct acrn_
 
 	if (ret < 0) {
 		pr_err("Error copy xchg data!");
-		if (ret == -EFAULT) {
-			vcpu_inject_pf(vcpu, fault_addr, err_code);
-		}
+		(void)handle_gva_translation_error(ret, vcpu, fault_addr, err_code);
 	}
 
 	return ret;
@@ -1697,9 +1693,7 @@ static int32_t vie_fetch_instruction(struct instr_emul_vie *vie)
 	ret = copy_from_gva(vie->vcpu, vie->inst + vie->num_valid, fetch_gva, fetch_len,
 			    &err_code, &fault_addr);
 	if (ret < 0) {
-		if (ret == -EFAULT) {
-			vcpu_inject_pf(vie->vcpu, fault_addr, err_code);
-		}
+		(void)handle_gva_translation_error(ret, vie->vcpu, fault_addr, err_code);
 	} else {
 		vie->num_valid += (uint8_t)fetch_len;
 		ret = 0;
@@ -2341,9 +2335,7 @@ static int32_t instr_check_gva(struct acrn_vcpu *vcpu, enum vm_cpu_mode cpu_mode
 
 		ret = gva2gpa(vcpu, gva, &gpa, &err_code);
 		if (ret < 0) {
-			if (ret == -EFAULT) {
-				vcpu_inject_pf(vcpu, gva, err_code);
-			}
+			(void)handle_gva_translation_error(ret, vcpu, gva, err_code);
 		} else {
 			ret = 0;
 		}

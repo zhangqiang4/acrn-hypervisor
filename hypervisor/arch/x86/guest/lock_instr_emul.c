@@ -91,10 +91,9 @@ int32_t emulate_lock_instr(struct acrn_vcpu *vcpu, uint32_t exception_vector, bo
 			status = copy_from_gva(vcpu, inst, vcpu_get_rip(vcpu), 1U, &err_code, &fault_addr);
 			if (status < 0) {
 				pr_err("Error copy instruction from Guest!");
-				if (status == -EFAULT) {
-					vcpu_inject_pf(vcpu, fault_addr, err_code);
+				if (handle_gva_translation_error(status, vcpu, fault_addr, err_code)) {
 					status = 0;
-					/* For this case, inject #PF, not to queue #AC */
+					/* Exception already injected, not to queue #AC */
 					*queue_exception = false;
 				}
 			} else {

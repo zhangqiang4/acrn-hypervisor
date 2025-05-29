@@ -11,6 +11,7 @@
 #include <asm/guest/vcpu.h>
 #include <asm/guest/vm.h>
 #include <asm/guest/vmcs.h>
+#include <asm/guest/virq.h>
 #include <asm/mmu.h>
 #include <asm/guest/ept.h>
 #include <logmsg.h>
@@ -49,6 +50,7 @@ struct page_walk_info {
 
 	bool is_smap_on;		/**< SMAP enabled flag */
 	bool is_smep_on;		/**< SMEP enabled flag */
+	bool is_lass_on;		/**< LASS enabled flag */
 };
 
 /**
@@ -160,7 +162,7 @@ static int32_t local_gva2gpa_common(struct acrn_vcpu *vcpu, const struct page_wa
 					fault = 1;
 				}
 
-					/* check for R/W */
+				/* check for R/W */
 				if ((fault == 0) && ((entry & PAGE_RW) == 0U)) {
 					if (pw_info->is_write_access  &&
 					    (pw_info->is_user_mode_access || pw_info->wp)) {
@@ -276,6 +278,39 @@ static int32_t local_gva2gpa_pae(struct acrn_vcpu *vcpu, struct page_walk_info *
 }
 
 /**
+ * @brief Validate LASS constraints for the given vCPU and guest virtual address.
+ *
+ * Checks whether a guest memory access or instruction fetch aligns with LASS rules.
+ *
+ * @param[in] vcpu    Pointer to the vCPU structure.
+ * @param[in] pw_info Pointer to the page-walk information structure.
+ * @param[in] gva     The guest virtual address to be validated.
+ *
+ * @return true on success, or false if a LASS violation is detected.
+ *
+ * @pre vcpu != NULL && pw_info != NULL && pw_info->is_lass_on
+ */
+static bool lass_validate(struct acrn_vcpu *vcpu, const struct page_walk_info *pw_info, uint64_t gva)
+{
+	bool ret = true;
+	bool is_user_mode_addr = ((gva & (1UL << 63U)) == 0);
+
+	if (pw_info->is_inst_fetch) {
+		if (pw_info->is_user_mode_access ^ is_user_mode_addr) {
+			ret = false;
+		}
+	} else {
+		if ((pw_info->is_user_mode_access && !is_user_mode_addr) ||
+		    (!pw_info->is_user_mode_access && is_user_mode_addr &&
+		     pw_info->is_smap_on && ((vcpu_get_rflags(vcpu) & RFLAGS_AC) == 0UL))) {
+			ret = false;
+		}
+	}
+
+	return ret;
+}
+
+/**
  * @brief Convert Guest Virtual Address (GVA) to Guest Physical Address (GPA)
  *
  * This function determines the paging mode on specified virtual CPU (vCPU), translates a given Guest Virtual Address
@@ -294,6 +329,7 @@ static int32_t local_gva2gpa_pae(struct acrn_vcpu *vcpu, struct page_walk_info *
  * @retval 0       Success
  * @retval -EINVAL gpa or err_code is NULL
  * @retval -EFAULT A page fault occurs during translation
+ * @retval -EACCES LASS violation occurs during translation
  *
  * @pre vcpu != NULL && gpa != NULL && err_code != NULL
  */
@@ -327,12 +363,17 @@ int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa,
 		pw_info.wp = ((vcpu_get_cr0(vcpu) & CR0_WP) != 0UL);
 		pw_info.is_smap_on = ((vcpu_get_cr4(vcpu) & CR4_SMAP) != 0UL);
 		pw_info.is_smep_on = ((vcpu_get_cr4(vcpu) & CR4_SMEP) != 0UL);
+		pw_info.is_lass_on = ((vcpu_get_cr4(vcpu) & CR4_LASS) != 0UL);
 
 		*err_code &=  ~PAGE_FAULT_P_FLAG;
 
 		if (pm == PAGING_MODE_4_LEVEL) {
 			pw_info.width = 9U;
-			ret = local_gva2gpa_common(vcpu, &pw_info, gva, gpa, err_code);
+			if (pw_info.is_lass_on && !lass_validate(vcpu, &pw_info, gva)) {
+				ret = -EACCES;
+			} else {
+				ret = local_gva2gpa_common(vcpu, &pw_info, gva, gpa, err_code);
+			}
 		} else if (pm == PAGING_MODE_3_LEVEL) {
 			pw_info.width = 9U;
 			ret = local_gva2gpa_pae(vcpu, &pw_info, gva, gpa, err_code);
@@ -529,6 +570,7 @@ int32_t copy_to_gpa(struct acrn_vm *vm, void *h_ptr, uint64_t gpa, uint32_t size
  * @retval 0       Success
  * @retval -EINVAL An error occurs during the copy.
  * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ * @retval -EACCES LASS violation occurs during GVA->GPA translation.
  *
  * @pre vcpu != NULL && h_ptr_arg != NULL && err_code != NULL && fault_addr != NULL
  */
@@ -581,6 +623,7 @@ static inline int32_t copy_gva(struct acrn_vcpu *vcpu, void *h_ptr_arg, uint64_t
  * @retval 0       Success
  * @retval -EINVAL An error occurs during the copy.
  * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ * @retval -EACCES LASS violation occurs during GVA->GPA translation.
  *
  * @pre vcpu != NULL && h_ptr != NULL && err_code != NULL && fault_addr != NULL
  */
@@ -608,6 +651,7 @@ int32_t copy_from_gva(struct acrn_vcpu *vcpu, void *h_ptr, uint64_t gva,
  * @retval 0       Success
  * @retval -EINVAL An error occurs during the copy.
  * @retval -EFAULT A page fault occurs during GVA->GPA translation.
+ * @retval -EACCES LASS violation occurs during GVA->GPA translation.
  *
  * @pre vcpu != NULL && h_ptr != NULL && err_code != NULL && fault_addr != NULL
  */
@@ -632,6 +676,48 @@ void *gpa2hva(struct acrn_vm *vm, uint64_t x)
 {
 	uint64_t hpa = gpa2hpa(vm, x);
 	return (hpa == INVALID_HPA) ? NULL : hpa2hva(hpa);
+}
+
+/**
+ * @brief Injects an appropriate exception into the guest based on the GVA-to-GPA translation status.
+ *
+ * This function interprets the result of a GVA-to-GPA translation and injects the proper exception into the
+ * specified vCPU. It handles the following status codes:
+ *
+ * - (-EINVAL): Logs an error indicating invalid parameters during translation.
+ * - (-EFAULT): Injects a page fault (PF) with the provided address and error code.
+ * - (-EACCES): Injects a general protection fault (GP), typically triggered by LASS violation.
+ * - Any other status: Logs an unhandled error message.
+ *
+ * @param[in] status   The status code indicating the result of the GVA-to-GPA translation.
+ * @param[in] vcpu     A pointer to the virtual CPU structure.
+ * @param[in] addr     The guest virtual address that triggered the exception.
+ * @param[in] err_code The error code to be injected if the exception is a page fault.
+ *
+ * @return Status indicating whether an exception was injected into the vCPU.
+ */
+bool handle_gva_translation_error(int status, struct acrn_vcpu *vcpu, uint64_t addr, uint32_t err_code)
+{
+	bool exception_injected = false;
+	switch (status) {
+		case -EINVAL:
+			pr_err("Invalid parameters in gva2gpa");
+			break;
+		case -EFAULT:
+			vcpu_inject_pf(vcpu, addr, err_code);
+			exception_injected = true;
+			break;
+		case -EACCES:
+			/* LASS violation triggers #GP */
+			vcpu_inject_gp(vcpu, 0U);
+			exception_injected = true;
+			break;
+		default:
+			pr_err("Unhandled error %d in gva2gpa", status);
+			break;
+	}
+
+	return exception_injected;
 }
 
 /**

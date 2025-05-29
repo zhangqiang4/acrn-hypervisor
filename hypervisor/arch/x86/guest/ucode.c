@@ -127,9 +127,7 @@ void acrn_update_ucode(struct acrn_vcpu *vcpu, uint64_t v)
 	err = copy_from_gva(vcpu, &uhdr, gva, sizeof(uhdr), &err_code,
 			&fault_addr);
 	if (err < 0) {
-		if (err == -EFAULT) {
-			vcpu_inject_pf(vcpu, fault_addr, err_code);
-		}
+		(void)handle_gva_translation_error(err, vcpu, fault_addr, err_code);
 	} else {
 		data_size = get_ucode_data_size(&uhdr) + sizeof(struct ucode_header);
 		if (data_size > MICRO_CODE_SIZE_MAX) {
@@ -140,9 +138,7 @@ void acrn_update_ucode(struct acrn_vcpu *vcpu, uint64_t v)
 			err = copy_from_gva(vcpu, micro_code, gva, data_size, &err_code,
 					&fault_addr);
 			if (err < 0) {
-				if (err == -EFAULT) {
-					vcpu_inject_pf(vcpu, fault_addr, err_code);
-				}
+				(void)handle_gva_translation_error(err, vcpu, fault_addr, err_code);
 			} else {
 				msr_write(MSR_IA32_BIOS_UPDT_TRIG,
 					(uint64_t)micro_code + sizeof(struct ucode_header));
