@@ -4763,6 +4763,8 @@ pci_xhci_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 
 	free((void *)port_path);
 	free((void *)role_sw_path);
+	excap_drd_apl.drdcfg0 = 0;
+	excap_drd_apl.drdcfg1 = 0;
 
 	usb_dev_sys_deinit();
 
