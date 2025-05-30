@@ -300,7 +300,7 @@ static struct hvlog_msg *get_min_seq_msg(struct hvlog_data *data, int num_dev)
 
 static int new_log_file(struct hvlog_file *log)
 {
-	char file_name[32] = { };
+	char file_name[128] = { };
 
 	if (log->fd >= 0) {
 		if (!hvlog_log_size)
