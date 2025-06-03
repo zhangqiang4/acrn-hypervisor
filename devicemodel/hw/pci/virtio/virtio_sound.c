@@ -816,6 +816,13 @@ virtio_sound_create_poll_fds(struct virtio_sound_pcm *stream)
 	return 0;
 }
 
+void virtio_sound_pcm_cleanup(void *arg) {
+	struct virtio_sound_pcm *stream = (struct virtio_sound_pcm *)arg;
+
+	if (stream->poll_fd)
+		free(stream->poll_fd);
+	stream->poll_fd = NULL;
+}
 
 static void*
 virtio_sound_pcm_thread(void *param)
@@ -826,12 +833,14 @@ virtio_sound_pcm_thread(void *param)
 	struct virtio_snd_event event;
 	int err, timeout = -1;
 
+	pthread_cleanup_push(virtio_sound_pcm_cleanup, stream);
 	event.hdr.code = VIRTIO_SND_EVT_PCM_XRUN;
 	event.data = stream->id;
 	err = virtio_sound_create_poll_fds(stream);
 	if (err) {
 		pr_err("%s: stream create pool fd failed!\n", __func__);
 	}
+
 	do {
 		err = poll(stream->poll_fd, stream->pfd_count, timeout);
 		if (err < 0) {
@@ -886,12 +895,8 @@ virtio_sound_pcm_thread(void *param)
 			}
 		}
 	} while (virt_snd->status != VIRTIO_SND_BE_DEINITED);
-
-	free(stream->poll_fd);
-	stream->poll_fd = NULL;
-	close(stream->ctrl_fd[0]);
-	close(stream->ctrl_fd[1]);
-	pthread_exit(NULL);
+	pthread_cleanup_pop(1);
+	return NULL;
 }
 
 static int
@@ -2110,6 +2115,8 @@ virtio_sound_pcm_get_params(struct virtio_sound_pcm *stream, char *device, char 
 {
 	memset(stream, 0, sizeof(struct virtio_sound_pcm));
 	stream->status = VIRTIO_SND_BE_DEINITED;
+	stream->ctrl_fd[0] = -1;
+	stream->ctrl_fd[1] = -1;
 	if (device == NULL || hda_fn_nid == NULL) {
 		pr_err("%s: pcm stream parameter error!\n", __func__);
 		return -1;
@@ -2784,10 +2791,14 @@ virtio_sound_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	virt_snd->status = VIRTIO_SND_BE_DEINITED;
 	for (s = 0; s < virt_snd->stream_cnt; s++)
 		if (virt_snd->streams[s]->tid > 0)
-			pthread_kill(virt_snd->streams[s]->tid, SIGCONT);
+			pthread_cancel(virt_snd->streams[s]->tid);
 	for (s = 0; s < virt_snd->stream_cnt; s++) {
 		if (virt_snd->streams[s]->tid > 0)
 			pthread_join(virt_snd->streams[s]->tid, NULL);
+		if (virt_snd->streams[s]->ctrl_fd[0] >= 0)
+			close(virt_snd->streams[s]->ctrl_fd[0]);
+		if (virt_snd->streams[s]->ctrl_fd[1] >= 0)
+			close(virt_snd->streams[s]->ctrl_fd[1]);
 		if (virt_snd->streams[s]->handle && snd_pcm_close(virt_snd->streams[s]->handle) < 0) {
 			pr_err("%s: stream %s close error!\n", __func__, virt_snd->streams[s]->dev_name);
 		}
