@@ -1111,6 +1111,7 @@ static int32_t emulate_movs(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 		if (is_mmio_write) {
 			get_gva_si_nocheck(vcpu, vie->addrsize, seg, &src_gva);
 
+			err_code = PAGE_FAULT_WR_FLAG;
 			/* we are sure it will success */
 			(void)gva2gpa(vcpu, src_gva, &gpa, &err_code);
 			(void)copy_from_gpa(vcpu->vm, &val, gpa, opsize);
