@@ -125,20 +125,22 @@ pdf: html
 	@echo now making $(BUILDDIR)/latex/acrn.pdf
 	$(MAKE) latex_pdf
 
-filter_includes:
+patch_ds_tex:
 	@echo "Filter misleading #include <...> in struct/union docs and rebuild"
 	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i '/\\#include <.*>/d' {} +
+	@echo "Patch dispatch_table[] code block"
+	@find $(BUILDDIR)/latex -name '*.tex' -exec python3 $(SOURCEDIR)/etc/patch_dispatch_table.py {} \;
 	$(Q)make -silent -C $(BUILDDIR)/latex LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
 
 mdspdf: mdshtml
 	@echo making $(BUILDDIR)/latex/Detailed_Design_of_Modules.pdf
 	$(MAKE) latex_pdf
-	$(MAKE) filter_includes
+	$(MAKE) patch_ds_tex
 
 saspdf: sashtml
 	@echo making $(BUILDDIR)/latex/Design_of_Module_External_Interfaces.pdf
 	$(MAKE) latex_pdf
-	$(MAKE) filter_includes
+	$(MAKE) patch_ds_tex
 
 # Remove generated content (Sphinx and doxygen)
 
