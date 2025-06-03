@@ -1496,14 +1496,16 @@ vdpy_hotplug_init(void (*func)(void *data, int num), void *data)
 	}
 }
 
-static void
+void
 vdpy_hotplug_deinit(void)
 {
 	struct screen *scr;
 	for(int i = 0; i < vdpy.scrs_num; i++) {
 		scr = vdpy.scrs + i;
-		if (!scr->mevent_event)
+		if (scr->mevent_event) {
 			mevent_delete(scr->mevent_event);
+			scr->mevent_event = NULL;
+		}
 	}
 }
 
@@ -1513,7 +1515,6 @@ gfx_ui_deinit()
 	if (!vdpy.s.is_ui_realized) {
 		return;
 	}
-	vdpy_hotplug_deinit();
 	deinit_backends();
 	free(vdpy.scrs);
 }

@@ -2972,6 +2972,7 @@ virtio_gpu_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 			free(r2d);
 		}
 	}
+	vdpy_hotplug_deinit();
 	vdpy_deinit(gpu->vdpy_handle);
 	pthread_mutex_lock(&gpu->event_mtx);
 	while (LIST_FIRST(&gpu->event_list)) {

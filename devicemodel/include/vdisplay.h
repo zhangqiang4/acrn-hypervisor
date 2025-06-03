@@ -234,5 +234,6 @@ void vdpy_set_cp(int handle,int scanout_id, uint32_t type, uint32_t value);
 void vdpy_query_cp(int handle, int scanout_id, struct hdcp_info *info);
 void gfx_ui_deinit();
 void vdpy_hotplug_init(void (*func)(void *data, int num), void *data);
+void vdpy_hotplug_deinit(void);
 
 #endif /* _VDISPLAY_H_ */
