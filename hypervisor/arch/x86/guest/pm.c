@@ -216,7 +216,7 @@ static bool is_ready_for_platform_s3(void)
  * from the VM's FACS table (pre-launched vm) or saved waking vector (service VM) and initiating the resume
  * process with that vector.
  *
- * @param vm Pointer to the VM structure to be resumed
+ * @param[in] vm Pointer to the VM structure to be resumed
  *
  * @return Status code. 0 on success, -EINVAL when the VM type is not supported or waking vector is 0.
  *
