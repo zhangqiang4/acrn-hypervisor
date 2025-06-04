@@ -215,6 +215,11 @@
  * @brief The linear address space separation (LASS) enable bit in CR4.
  */
 #define CR4_LASS                (1UL<<27U)
+/**
+ * @brief The linear-address masking (LAM) for supervisor addresses enable bit in CR4.
+ */
+#define CR4_LAM_SUP             (1UL<<28U)
+
 
 /**
  * @brief Macro indicating the XCR0 SSE state.

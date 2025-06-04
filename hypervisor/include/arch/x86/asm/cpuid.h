@@ -685,6 +685,12 @@
  */
 #define CPUID_EAX_LASS          (1U<<6U)
 /**
+ * @brief A bit representing whether the processor supports linear address masking (LAM).
+ *
+ * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[26].
+ */
+#define CPUID_EAX_LAM          (1U<<26U)
+/**
  * @brief A bit representing whether supports RDMSRLIST and WRMSRLIST instructions and the IA32_BARRIER MSR.
  *
  * This bit is fetched from CPUID(EAX=7H,ECX=1H):EAX[27].

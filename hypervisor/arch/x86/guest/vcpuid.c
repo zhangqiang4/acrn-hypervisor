@@ -527,6 +527,10 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 				if ((cr4_reserved_mask & CR4_LASS) != 0UL) {
 					entry.eax &= ~CPUID_EAX_LASS;
 				}
+
+				if ((cr4_reserved_mask & CR4_LAM_SUP) != 0UL) {
+					entry.eax &= ~CPUID_EAX_LAM;
+				}
 			}
 			result = set_vcpuid_entry(vm, &entry);
 			if (result != 0) {

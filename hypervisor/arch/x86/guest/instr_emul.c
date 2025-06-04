@@ -729,14 +729,33 @@ static void vm_get_seg_desc(enum cpu_reg_name seg, struct seg_desc *desc)
 }
 
 /**
+ * @brief The 48-bit linear-address masking (LAM48) for user addresses enable bit in CR3.
+ */
+#define CR3_LAM_U48	(1UL << 62U)
+/**
+ * @brief The 57-bit linear-address masking (LAM57) for user addresses enable bit in CR3.
+ */
+#define CR3_LAM_U57	(1UL << 61U)
+/**
+ * @brief The masked bits (62:48) in 48-bit linear-address masking (LAM48)
+ */
+#define LAM_MASK_48	0x7FFF000000000000UL
+/**
+ * @brief The masked bits (62:57) in 57-bit linear-address masking (LAM57)
+ */
+#define LAM_MASK_57	0x7E00000000000000UL
+
+/**
  * @brief Canonical check
  *
  * In 64-bit mode, check if the memory address is in a non-canonical form.
  * For IA-32 processors with Intel 64 architecture, which supports a 48-bit linear address, a canonical address
  * must have bits 63 through 48 set to zeros or ones (depending on whether bit 47 is a zero or one).
+ * If Linear Address Masking (LAM) is active (determined via CR4 or CR3 settings), it applies masking to the address
+ * before validating its canonical form.
  *
- * @param[in] cpu_mode vCPU's CPU mode.
- * @param[in] gla Guest linear address.
+ * @param[in] vcpu Pointer to the virtual CPU structure.
+ * @param[in] gla  Guest linear address.
  *
  * @return 0 on canonical, 1 on non-canonical.
  *
@@ -746,21 +765,37 @@ static void vm_get_seg_desc(enum cpu_reg_name seg, struct seg_desc *desc)
  *
  * @remark In a non-canonical form, inject an exception (SS or GP) to the guest VM.
  */
-static int32_t vie_canonical_check(enum vm_cpu_mode cpu_mode, uint64_t gla)
+static int32_t vie_canonical_check(struct acrn_vcpu *vcpu, uint64_t gla)
 {
 	int32_t ret = 0;
+	uint64_t addr = gla;
 	uint64_t mask;
 
-	if (cpu_mode == CPU_MODE_64BIT) {
+	if (get_vcpu_mode(vcpu) == CPU_MODE_64BIT) {
 		/*
 		 * The value of the bit 47 in the 'gla' should be replicated in the
 		 * most significant 16 bits.
+		 * When LAM is active, mask gla before checking.
 		 */
 		mask = ~((1UL << 48U) - 1UL);
-		if ((gla & (1UL << 47U)) != 0U) {
-			ret = ((gla & mask) != mask) ? 1 : 0;
+		if ((addr & (1UL << 47U)) != 0U) {
+			if ((vcpu_get_cr4(vcpu) & CR4_LAM_SUP) != 0UL) {
+				addr |= LAM_MASK_48;
+			}
+			ret = ((addr & mask) != mask) ? 1 : 0;
 		} else {
-			ret = ((gla & mask) != 0U) ? 1 : 0;
+			/* CR3 always holds a canonical address */
+			uint64_t cr3 = exec_vmread(VMX_GUEST_CR3);
+
+			/* LAM57 takes precedence */
+			if ((cr3 & CR3_LAM_U57) != 0UL) {
+				addr &= ~LAM_MASK_57;
+			} else if ((cr3 & CR3_LAM_U48) != 0UL) {
+				addr &= ~LAM_MASK_48;
+			} else {
+				/* LAM is inactive, do nothing */
+			}
+			ret = ((addr & mask) != 0U) ? 1 : 0;
 		}
 	}
 
@@ -1390,7 +1425,7 @@ static int32_t emulate_mov(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
  *
  * Emulate Move With Extend(Refer to MOVZX-Move With Zero-Extend, MOVSX/MOVSXD-Move With
  * Sign-Extension, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer's
- * Manual Order Number: 325462-078US). 
+ * Manual Order Number: 325462-078US).
  * In this function, copies the source operand to the destination operand and extends the value.
  * The size of the converted value depends on the operand-size attribute.
  * - For MOVZX, zero extends the value.
@@ -1584,7 +1619,7 @@ static int32_t get_gva_di_check(struct acrn_vcpu *vcpu, struct instr_emul_vie *v
 		val = vm_get_register(vcpu, CPU_REG_RDI);
 		vie_calculate_gla(cpu_mode, CPU_REG_ES, &desc, val, addrsize, gva);
 
-		if (vie_canonical_check(cpu_mode, *gva) != 0) {
+		if (vie_canonical_check(vcpu, *gva) != 0) {
 			has_exception = true;
 		} else {
 			err_code = PAGE_FAULT_WR_FLAG;
@@ -3364,7 +3399,7 @@ static int32_t instr_check_gva(struct acrn_vcpu *vcpu, enum vm_cpu_mode cpu_mode
 	gva = segbase + base + (uint64_t)vie->scale * idx + (uint64_t)vie->displacement;
 	vie->gva = gva;
 
-	if (vie_canonical_check(cpu_mode, gva) != 0) {
+	if (vie_canonical_check(vcpu, gva) != 0) {
 		if (seg == CPU_REG_SS) {
 			vcpu_inject_ss(vcpu);
 		} else {
