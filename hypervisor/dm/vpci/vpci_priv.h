@@ -360,6 +360,8 @@ static inline bool is_zombie_vf(const struct pci_vdev *vdev)
 	return (vdev->user == NULL);
 }
 
+struct io_request;
+
 void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev);
 void deinit_vdev_pt(struct pci_vdev *vdev);
 void vdev_pt_write_vbar(struct pci_vdev *vdev, uint32_t idx, uint32_t val);

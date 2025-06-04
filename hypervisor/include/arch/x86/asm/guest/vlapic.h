@@ -105,7 +105,7 @@ struct acrn_vlapic {
 	uint32_t	lvt_last[VLAPIC_MAXLVT_INDEX + 1]; /**< Store last values of LVT registers */
 } __aligned(PAGE_SIZE);
 
-
+struct acrn_vm;
 struct acrn_vcpu;
 
 /**

@@ -23,6 +23,8 @@
  *
  */
 
+struct acrn_vcpu;
+
 /**
  * @brief This structure is used to store VM exit handler and qualification information.
  */
