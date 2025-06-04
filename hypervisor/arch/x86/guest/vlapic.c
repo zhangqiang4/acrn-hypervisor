@@ -182,7 +182,7 @@ vlapic_timer_divisor_shift(uint32_t dcr)
 	return ((val + 1U) & 0x7U);
 }
 
-__unused static inline bool
+static inline bool
 vlapic_lvtt_oneshot(const struct acrn_vlapic *vlapic)
 {
 	return (((vlapic->apic_page.lvt[APIC_LVT_TIMER].v) & APIC_LVTT_TM)
@@ -190,7 +190,7 @@ vlapic_lvtt_oneshot(const struct acrn_vlapic *vlapic)
 }
 
 static inline bool
-vlapic_lvtt_period(const struct acrn_vlapic *vlapic)
+vlapic_lvtt_periodic(const struct acrn_vlapic *vlapic)
 {
 	return (((vlapic->apic_page.lvt[APIC_LVT_TIMER].v) & APIC_LVTT_TM)
 				==  APIC_LVTT_TM_PERIODIC);
@@ -278,7 +278,7 @@ set_expiration(struct acrn_vlapic *vlapic)
 		uint64_t delta = ((uint64_t)tmicr << divisor_shift) * ratio;
 		timer = &vtimer->timer;
 		update_timer(timer, cpu_ticks() + delta,
-			     vlapic_lvtt_period(vlapic) ? delta : 0UL);
+			     vlapic_lvtt_periodic(vlapic) ? delta : 0UL);
 		ret = true;
 	}
 	return ret;
@@ -309,7 +309,8 @@ static uint32_t vlapic_get_ccr(const struct acrn_vlapic *vlapic)
 	uint32_t ratio, remain_count = 0U;
 	const struct vlapic_timer *vtimer = &vlapic->vtimer;
 	ratio = get_timer_ratio(vlapic);
-	if ((vtimer->tmicr != 0U) && (!vlapic_lvtt_tsc_deadline(vlapic))) {
+	if ((vtimer->tmicr != 0U) &&
+		(vlapic_lvtt_periodic(vlapic) || vlapic_lvtt_oneshot(vlapic))) {
 		uint64_t remains;
 		if (!timer_expired(&vtimer->timer, cpu_ticks(), &remains)) {
 			uint64_t shifted_delta = (remains / ratio) >> vtimer->divisor_shift;
@@ -336,7 +337,7 @@ static void vlapic_write_icrtmr(struct acrn_vlapic *vlapic)
 	struct lapic_regs *lapic;
 	struct vlapic_timer *vtimer;
 
-	if (!vlapic_lvtt_tsc_deadline(vlapic)) {
+	if (vlapic_lvtt_oneshot(vlapic) || vlapic_lvtt_periodic(vlapic)) {
 		lapic = &(vlapic->apic_page);
 		vtimer = &vlapic->vtimer;
 		vtimer->tmicr = lapic->icr_timer.v;
@@ -1132,7 +1133,7 @@ vlapic_write_svr(struct acrn_vlapic *vlapic)
 			 * if it is configured in periodic mode.
 			 */
 			dev_dbg(DBG_LEVEL_VLAPIC, "vlapic is software-enabled");
-			if (vlapic_lvtt_period(vlapic)) {
+			if (vlapic_lvtt_periodic(vlapic)) {
 				if (set_expiration(vlapic)) {
 					/* vlapic_init_timer has been called,
 					 * and timer->fire_tsc is not 0,here
