@@ -28,6 +28,9 @@
 
 #include "misc/drm-private.h"
 
+#undef pr_prefix
+#define pr_prefix "virtio-gpu: "
+
 #define PD_BACKEND_NAME "plane-display"
 
 #define PD_MSG_MEMFD_MAGIC 0xaabb

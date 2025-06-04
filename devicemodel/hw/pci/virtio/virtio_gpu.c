@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <xf86drm.h>
 
+#define pr_prefix "virtio-gpu: "
 #include "dm.h"
 #include "pci_core.h"
 #include "virtio.h"

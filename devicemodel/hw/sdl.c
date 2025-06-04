@@ -20,6 +20,9 @@
 #include <stdio.h>
 #include <sys/mman.h>
 
+#undef pr_prefix
+#define pr_prefix "virtio-gpu: "
+
 static unsigned char default_raw_argb[VDPY_DEFAULT_WIDTH * VDPY_DEFAULT_HEIGHT * 4];
 
 struct egl_display_ops {

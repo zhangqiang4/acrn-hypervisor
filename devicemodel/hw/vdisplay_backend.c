@@ -20,6 +20,9 @@
 #include "timer.h"
 #include "mevent.h"
 
+#undef pr_prefix
+#define pr_prefix "virtio-gpu: "
+
 #define DUMMY_BACKEND_NAME "dummy-display"
 #define transto_10bits(color) (uint16_t)(color * 1024 + 0.5)
 #define EDID_BASIC_BLOCK_SIZE 128
