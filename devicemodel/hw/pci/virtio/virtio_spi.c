@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
+#include <stdatomic.h>
 
 #define pr_prefix "virtio-spi: "
 #include "dm.h"
@@ -138,7 +139,7 @@ struct virtio_spi_irq_resp {
 	uint8_t status;
 };
 
-static int acpi_spi_controller_num;
+static atomic_int acpi_spi_controller_num;
 
 /* Virtual SPI device be drivers */
 
@@ -1108,8 +1109,8 @@ virtio_spi_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		pthread_mutex_destroy(&vspi->mtx);
 		pthread_mutex_destroy(&vspi->evt_mtx);
 		virtio_spi_reset(vspi);
-		acpi_spi_controller_num--;
-		assert(acpi_spi_controller_num >= 0);
+		atomic_fetch_sub(&acpi_spi_controller_num, 1);
+		assert(atomic_load(&acpi_spi_controller_num) >= 0);
 		free(vspi);
 		dev->arg = NULL;
 	}
@@ -1153,7 +1154,7 @@ virtio_spi_dsdt(struct pci_vdev *dev)
 	int i, spi_bus;
 	struct virtio_spi *vspi = (struct virtio_spi *) dev->arg;
 
-	spi_bus = acpi_spi_controller_num;
+	spi_bus = atomic_load(&acpi_spi_controller_num);
 	acpi_add_spi_controller(dev, spi_bus);
 	pr_dbg("add dsdt for spi controller #%d@%02x:%02x.%01x\n", spi_bus,
 			dev->bus, dev->slot, dev->func);
@@ -1163,7 +1164,7 @@ virtio_spi_dsdt(struct pci_vdev *dev)
 		pr_dbg("add dsdt for %s@spi%d-%d \n",
 			vspi->vspidevs[i]->be->name, spi_bus, i);
 	}
-	acpi_spi_controller_num++;
+	atomic_fetch_add(&acpi_spi_controller_num, 1);
 
 	return;
 }
