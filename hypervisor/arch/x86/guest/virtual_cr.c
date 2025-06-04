@@ -180,71 +180,6 @@ static uint64_t cr0_reserved_bits_mask;
 #define PAE_PDPTE_FIXED_RESVD_BITS	0x00000000000001E6UL
 
 /**
- * @brief Check and load PDPTR registers
- *
- * This function checks validity of guest PDPTR registers and updates VMCS PDPTR fields. When guest tries
- * to update CR0/CR4 to enable PAE paging mode, HV traps the operation and checks whether guest PDPTR
- * register settings are correct for PAE paging, injects \#GP to guest if the setting is not qualified.
- * It returns error in below conditions:
- * - Fail to copy PDPTR registers with copy_from_gpa().
- * - PAGE_PRESENT bit in PDPTR register is clear.
- * - PTPTR registers have reserved bits set.
- *
- * It updates VMCS PDPTR fields with that of guest settings if above conditions pass.
- *
- * @param[in] vcpu Target vCPU to enable PAE paging
- *
- * @return A integer value to indicate the operation result
- *
- * @retval -EFAULT There's error while enabling PAE paging.
- * @retval 0 Enable PAE paging successfully.
- *
- * @pre vcpu != NULL
- *
- * @post N/A
- */
-static int32_t load_pdptrs(const struct acrn_vcpu *vcpu)
-{
-	uint64_t guest_cr3 = exec_vmread(VMX_GUEST_CR3);
-	struct cpuinfo_x86 *cpu_info = get_pcpu_info();
-	int32_t ret = 0;
-	uint64_t pdpte[4]; /* Total four PDPTE */
-	uint64_t rsvd_bits_mask;
-	uint8_t maxphyaddr;
-	int32_t	i;
-
-	/* check whether the address area pointed by the guest cr3
-	 * can be accessed or not
-	 */
-	if (copy_from_gpa(vcpu->vm, pdpte, get_pae_pdpt_addr(guest_cr3), sizeof(pdpte)) != 0) {
-		ret = -EFAULT;
-	} else {
-		/* Check if any of the PDPTEs sets both the P flag
-		 * and any reserved bit
-		 */
-		maxphyaddr = cpu_info->phys_bits;
-		/* reserved bits: 1~2, 5~8, maxphyaddr ~ 63 */
-		rsvd_bits_mask = (63U < maxphyaddr) ? 0UL : (((1UL << (63U - maxphyaddr + 1U)) - 1UL) << maxphyaddr);
-		rsvd_bits_mask |= PAE_PDPTE_FIXED_RESVD_BITS;
-		for (i = 0; i < 4; i++) {
-			if (((pdpte[i] & PAGE_PRESENT) != 0UL) && ((pdpte[i] & rsvd_bits_mask) != 0UL)) {
-				ret = -EFAULT;
-				break;
-			}
-		}
-	}
-
-	if (ret == 0) {
-		exec_vmwrite64(VMX_GUEST_PDPTE0_FULL, pdpte[0]);
-		exec_vmwrite64(VMX_GUEST_PDPTE1_FULL, pdpte[1]);
-		exec_vmwrite64(VMX_GUEST_PDPTE2_FULL, pdpte[2]);
-		exec_vmwrite64(VMX_GUEST_PDPTE3_FULL, pdpte[3]);
-	}
-
-	return ret;
-}
-
-/**
  * @brief Check whether CR0 value is valid
  *
  * This function checks whether there's any reserved bit set in CR0 value, if no reserved bit is set,
@@ -362,7 +297,7 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
  * - Check whether the target CR0 value is valid, if not, inject \#GP to guest.
  * - Otherwise check paging mode as below:
  *   - If CR0.PG == 1 and MSR EFER.LME_BIT == 1, enable long-mode paging.
- *   - If CR0.PG == 1 and MSR EFER.LME_BIT == 0, enable PAE paging.
+ *   - If CR0.PG == 1 and MSR EFER.LME_BIT == 0, inject \#GP to guest as PAE paging mode is not supported.
  *   - If CR0.PG == 0 and MSR EFER.LME_BIT == 1, disable long-mode paging.
  *
  * - Try to reload guest PAT if CR0.CD is changed. If CR0.CD == 1, set guest PAT VMCS field with all UC entries,
@@ -412,11 +347,9 @@ static void vmx_write_cr0(struct acrn_vcpu *vcpu, uint64_t value)
 				} else {
 					pr_dbg("VMM: NOT Enable long mode");
 					if (is_pae(vcpu)) {
-						/* enabled PAE from paging disabled */
-						if (load_pdptrs(vcpu) != 0) {
-							err_found = true;
-							vcpu_inject_gp(vcpu, 0U);
-						}
+						pr_err("%s: fail to set CR0.PG, PAE paging mode is not supported",__func__);
+						err_found = true;
+						vcpu_inject_gp(vcpu, 0U);
 					}
 				}
 			} else  {
@@ -570,7 +503,7 @@ static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
  * This function first checks if the target CR4 value is valid, if not, inject \#GP to guest. Otherwise
  * it performs below checks:
  * - If guest PSE/PAE/SMEP/SMAP/KL is to be changed:
- *   - If guest PAE paging is enabled, then load guest PDPTRs.
+ *   - If guest PAE paging is enabled, inject \#GP to guest as it is not supported.
  *   - Send vCPU request to flush EPT cache.
  * - If CR4.PCIDE == 1, check whether guest MSR EFER.LMA and CR3[11:0] are properly set, if not, inject \#GP. Refer to
  *   4.10.1 Process-Context Identifiers (PCIDs), SDM Vol.3 325462-078US for details.
@@ -602,11 +535,9 @@ static void vmx_write_cr4(struct acrn_vcpu *vcpu, uint64_t cr4)
 
 		if ((cr4_changed_bits & CR4_TRAP_AND_PASSTHRU_BITS) != 0UL) {
 			if (((cr4 & CR4_PAE) != 0UL) && (is_paging_enabled(vcpu)) && (!is_long_mode(vcpu))) {
-				if (load_pdptrs(vcpu) != 0) {
-					err_found = true;
-					pr_dbg("Err found,cr4:0x%lx,cr0:0x%lx ", cr4, vcpu_get_cr0(vcpu));
-					vcpu_inject_gp(vcpu, 0U);
-				}
+				err_found = true;
+				pr_err("%s: fail to set CR4.PAE, PAE paging mode is not supported",__func__);
+				vcpu_inject_gp(vcpu, 0U);
 			}
 			vcpu_make_request(vcpu, ACRN_REQUEST_EPT_FLUSH);
 		}

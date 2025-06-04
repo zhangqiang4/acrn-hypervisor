@@ -231,53 +231,6 @@ static int32_t local_gva2gpa_common(struct acrn_vcpu *vcpu, const struct page_wa
 }
 
 /**
- * @brief Translate Guest Virtual Address (GVA) to Guest Physical Address (GPA) using PAE paging
- *
- * This function translates a given GVA to a GPA for a specific vCPU using the Page Address Extension (PAE) paging
- * mechanism.
- *
- * @param[in]    vcpu     The virtual CPU for which the address translation is performed.
- * @param[in]    pw_info  Pointer to the page walk information structure.
- * @param[in]    gva      The guest virtual address to be translated.
- * @param[out]   gpa      Pointer to store the resulting guest physical address.
- * @param[inout] err_code Pointer to the page fault error code.
- *
- * @return 0 on success, or error code if `Convert Guest Physical Address (GPA) to Host Virtual Address (HVA)` or
- * `Translate Guest Virtual Address (GVA) to Guest Physical Address (GPA)` fails.
- *
- * @retval 0       Success
- * @retval -EFAULT A page fault occurs during translation
- *
- * @pre vcpu != NULL && pw_info != NULL && gpa != NULL && err_code != NULL
- */
-static int32_t local_gva2gpa_pae(struct acrn_vcpu *vcpu, struct page_walk_info *pw_info,
-	uint64_t gva, uint64_t *gpa, uint32_t *err_code)
-{
-	uint32_t index;
-	uint64_t *base;
-	uint64_t entry;
-	uint64_t addr;
-	int32_t ret = -EFAULT;
-
-	addr = get_pae_pdpt_addr(pw_info->top_entry);
-	base = (uint64_t *)gpa2hva(vcpu->vm, addr);
-	if (base != NULL) {
-		index = (uint32_t)gva >> 30U;
-		stac();
-		entry = base[index];
-		clac();
-
-		if ((entry & PAGE_PRESENT) != 0U) {
-			pw_info->level = 2U;
-			pw_info->top_entry = entry;
-			ret = local_gva2gpa_common(vcpu, pw_info, gva, gpa, err_code);
-		}
-	}
-
-	return ret;
-}
-
-/**
  * @brief Validate LASS constraints for the given vCPU and guest virtual address.
  *
  * Checks whether a guest memory access or instruction fetch aligns with LASS rules.
@@ -327,7 +280,7 @@ static bool lass_validate(struct acrn_vcpu *vcpu, const struct page_walk_info *p
  * @return 0 on success, or error code if the translation fails.
  *
  * @retval 0       Success
- * @retval -EINVAL gpa or err_code is NULL
+ * @retval -EINVAL gpa or err_code is NULL or paging mode is PAGING_MODE_3_LEVEL (PAE paging)
  * @retval -EFAULT A page fault occurs during translation
  * @retval -EACCES LASS violation occurs during translation
  *
@@ -340,7 +293,7 @@ int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa,
 	struct page_walk_info pw_info;
 	int32_t ret = 0;
 
-	if ((gpa == NULL) || (err_code == NULL)) {
+	if ((gpa == NULL) || (err_code == NULL)|| (pm == PAGING_MODE_3_LEVEL)) {
 		ret = -EINVAL;
 	} else {
 		*gpa = 0UL;
@@ -374,15 +327,13 @@ int32_t gva2gpa(struct acrn_vcpu *vcpu, uint64_t gva, uint64_t *gpa,
 			} else {
 				ret = local_gva2gpa_common(vcpu, &pw_info, gva, gpa, err_code);
 			}
-		} else if (pm == PAGING_MODE_3_LEVEL) {
-			pw_info.width = 9U;
-			ret = local_gva2gpa_pae(vcpu, &pw_info, gva, gpa, err_code);
 		} else if (pm == PAGING_MODE_2_LEVEL) {
 			pw_info.width = 10U;
 			pw_info.pse = ((vcpu_get_cr4(vcpu) & CR4_PSE) != 0UL);
 			pw_info.nxe = false;
 			ret = local_gva2gpa_common(vcpu, &pw_info, gva, gpa, err_code);
 		} else {
+			/* PAGING_MODE_0_LEVEL */
 			*gpa = gva;
 		}
 
