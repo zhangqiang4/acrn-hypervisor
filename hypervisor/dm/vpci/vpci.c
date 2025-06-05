@@ -1152,8 +1152,7 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 	uint32_t id = (uint32_t)ffz64_ex(vpci->vdev_bitmaps, CONFIG_MAX_PCI_DEV_NUM);
 
 	if ((id < CONFIG_MAX_PCI_DEV_NUM) &&
-	    (dev_config->vdev_ops ||
-	    ((!dev_config->vdev_ops) && (dev_config->emu_type == PCI_DEV_TYPE_PTDEV)))) {
+	    (dev_config->vdev_ops || (dev_config->emu_type == PCI_DEV_TYPE_PTDEV))) {
 		bitmap_set_nolock((id & 0x3FU), &vpci->vdev_bitmaps[id >> 6U]);
 
 		vdev = &vpci->pci_vdevs[id];
