@@ -208,6 +208,8 @@ static inline bool is_valid_cr0(uint64_t cr0)
  * - CR0.CD == 0 and CR0.NW == 1.
  * - CR0.PG == 0 and cpu_mode == CPU_MODE_64BIT.
  * - CR0.PG == 0 and CR4.PCIDE == 1
+ * - Previously CR0.PG == 0, new CR0.PG == 1, CR4.PAE == 1, IA32_EFER.LME == 1 and guest CS has the L-bit set.
+ * - Previously CR0.PG == 0, new CR0.PG == 1, CR4.PAE == 1, IA32_EFER.LME == 1 and guest TR is a 16-bit TSS.
  *
  * If these invalid cases are not detected, then the write value is valid, otherwise invalid.
  *
@@ -223,7 +225,8 @@ static inline bool is_valid_cr0(uint64_t cr0)
 static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 {
 	bool ret = true;
-
+	uint32_t cs_attr;
+	uint32_t tr_attr;
 	/*
 	 * Set 1 in high 32 bits (part of reserved bits) leads to #GP.
 	 */
@@ -236,10 +239,36 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 		 *
 		 * CR0.PG = 1, CR4.PAE = 0 and IA32_EFER.LME = 1 is invalid.
 		 * CR0.PE = 0 and CR0.PG = 1 is invalid.
+		 *
+		 * SDM 10.8.5 Initializing IA-32e mode:
+		 *
+		 * We check if the current CS has the L-bit set
+		 * or the TR contains a 16-bit TSS on an attempt to activate IA-32e mode.
+		 * If so, this write is invalid.
 		 */
-		if (((cr0 & CR0_PG) != 0UL) && (!is_pae(vcpu)) &&
-			((vcpu_get_efer(vcpu) & MSR_IA32_EFER_LME_BIT) != 0UL)) {
-			ret = false;
+		if (((cr0 & CR0_PG) != 0UL) && ((exec_vmread32(VMX_GUEST_CR0) & CR0_PG) == 0UL)
+			 && ((vcpu_get_efer(vcpu) & MSR_IA32_EFER_LME_BIT) != 0UL)) {
+			if (!is_pae(vcpu)) {
+				ret = false;
+			} else {
+				cs_attr = exec_vmread32(VMX_GUEST_CS_ATTR);
+				tr_attr = exec_vmread32(VMX_GUEST_TR_ATTR);
+				/*
+				 * SDM Table 3-2 System-Segment and Gate-Descriptor Types
+				 * In 32-bit Mode:
+				 * Type 1-16-bit TSS (Available)
+				 * Type 3-16-bit TSS (Busy)
+				 *
+				 * SDM 25.4.1 Guest Register State - Table 25-2 Format of Access Rights
+				 * Bit[3:0] Segment type
+				 * Bit[13] L-bit 64-bit mode active (for CS only)
+				 */
+				if (((cs_attr & 0x2000U) != 0U) || ((tr_attr & 0xFU) == 0x1U)
+					 || ((tr_attr & 0xFU) == 0x3U)) {
+					/* Current CR0.PG = 0, and CS.L = 1 or TR contains a 16-bit TSS */
+					ret = false;
+				}
+			}
 		} else {
 			if (((cr0 & CR0_PE) == 0UL) && ((cr0 & CR0_PG) != 0UL)) {
 				ret = false;
