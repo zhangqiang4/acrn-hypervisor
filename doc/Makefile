@@ -126,10 +126,13 @@ pdf: html
 	$(MAKE) latex_pdf
 
 patch_ds_tex:
-	@echo "Filter misleading #include <...> in struct/union docs and rebuild"
+	@echo "Update .tex formatting and rebuild"
+#	Filter misleading #include <...> in struct/union docs and rebuild
 	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i '/\\#include <.*>/d' {} +
-	@echo "Patch dispatch_table[] code block"
-	@find $(BUILDDIR)/latex -name '*.tex' -exec python3 $(SOURCEDIR)/etc/patch_dispatch_table.py {} \;
+#	Remove redundant sequences like \DUrole{p}{ }\DUrole{w}{   }\DUrole{p}{\hspace*{2em} }\DUrole{p}{\newline }
+	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i "s/\\\\DUrole{p}{ }\\\\DUrole{w}{   }\\\\DUrole{p}{\\\\hspace\\*{2em} }\\\\DUrole{p}{\\\\newline }//g" {} +
+#	Refine formatting
+	@find $(BUILDDIR)/latex -name '*.tex' -exec python3 $(SOURCEDIR)/etc/refine_ds_tex_format.py {} \;
 	$(Q)make -silent -C $(BUILDDIR)/latex LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
 
 mdspdf: mdshtml
