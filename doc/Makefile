@@ -127,7 +127,8 @@ pdf: html
 
 patch_ds_tex:
 	@echo "Update .tex formatting and rebuild"
-#	Filter misleading #include <...> in struct/union docs and rebuild
+	@find "$(BUILDDIR)/latex" -name '*.tex' -exec cp {} {}.org \;
+#	Filter misleading #include <...> in struct/union docs
 	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i '/\\#include <.*>/d' {} +
 #	Remove redundant sequences like \DUrole{p}{ }\DUrole{w}{   }\DUrole{p}{\hspace*{2em} }\DUrole{p}{\newline }
 	@find $(BUILDDIR)/latex -name '*.tex' -exec sed -i "s/\\\\DUrole{p}{ }\\\\DUrole{w}{   }\\\\DUrole{p}{\\\\hspace\\*{2em} }\\\\DUrole{p}{\\\\newline }//g" {} +
@@ -135,15 +136,17 @@ patch_ds_tex:
 	@find $(BUILDDIR)/latex -name '*.tex' -exec python3 $(SOURCEDIR)/etc/refine_ds_tex_format.py {} \;
 	$(Q)make -silent -C $(BUILDDIR)/latex LATEXMKOPTS=$(LATEXMKOPTS) >> $(BUILDDIR)/doc.log 2>&1
 
-mdspdf: mdshtml
-	@echo making $(BUILDDIR)/latex/Detailed_Design_of_Modules.pdf
+dspdf:
 	$(MAKE) latex_pdf
 	$(MAKE) patch_ds_tex
 
+mdspdf: mdshtml
+	@echo making $(BUILDDIR)/latex/Detailed_Design_of_Modules.pdf
+	$(MAKE) dspdf
+
 saspdf: sashtml
 	@echo making $(BUILDDIR)/latex/Design_of_Module_External_Interfaces.pdf
-	$(MAKE) latex_pdf
-	$(MAKE) patch_ds_tex
+	$(MAKE) dspdf
 
 # Remove generated content (Sphinx and doxygen)
 

@@ -495,7 +495,7 @@ class BreatheLaTeXTranslator:
         # elif text.endswith('\\'):  # dont add additional newline
         #     encoded = self.encode(text) + '\\newline'
         else:  # general situation
-            encoded = self.encode(text).replace(CR, '')
+            encoded = self.encode(text).replace(CR, ' ')
 
         self.body.append(encoded)
 

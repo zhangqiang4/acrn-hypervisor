@@ -1,7 +1,7 @@
 import re
 import sys
 
-def reduce_fontsize(tex_text, label_suffix):
+def reduce_fontsize_and_setstretch(tex_text, label_suffix, new_fontsize, new_stretch):
     pattern = re.compile(
         r"(\\begin\{fulllineitems\}\s*\n\s*"
         r"\\phantomsection\s*\\label\{\\detokenize\{([^\}]+?" + re.escape(label_suffix) + r")\}\})"
@@ -14,11 +14,16 @@ def reduce_fontsize(tex_text, label_suffix):
         full_start = match.group(1)
         block_content = match.group(3)
         rest = match.group(4) or ""
+        org_fontsize = 10
 
         return (
-            f"{{\\fontsize{{8}}{{9}}\\selectfont\n"
+            f"{{\\setstretch{{{new_stretch}}}\n"
+            f"{{\\fontsize{{{new_fontsize}}}{{{int(new_fontsize)+1}}}\\selectfont\n"
             f"{full_start}{block_content}}}\n"
-            f"{{\\small\n{rest}\\end{{fulllineitems}}\n}}"
+            f"}}\n"
+            f"{{\\fontsize{{{org_fontsize}}}{{{int(org_fontsize)+1}}}\\selectfont\n"
+            f"{rest}"
+            f"\\end{{fulllineitems}}\n}}"
         )
 
     return pattern.sub(shrink_block, tex_text)
@@ -77,18 +82,52 @@ def patch_pysigline_block(tex_text, label_suffix, keep_nth=2):
 
     return pattern.sub(modify_block, tex_text)
 
+def remove_newline_after_fulllineitems_and_itemize(tex_text):
+    # Match:
+    # 1. \end{fulllineitems} or \end{itemize}
+    # 2. Followed by blank lines or lines with whitespace
+    # 3. Then a line containing ~\newline
+    pattern = re.compile(
+        r'(\\end\{(?:fulllineitems|itemize)\})'  # group(1): either \end{fulllineitems} or \end{itemize}
+        r'(?:\s*\n)*'                            # optional blank/whitespace-only lines
+        r'\s*~\\newline\s*\n?',                  # match the ~\newline line
+        re.MULTILINE
+    )
+    return pattern.sub(r"\1\n", tex_text)
+
 
 if __name__ == "__main__":
     tex_file = sys.argv[1]
     with open(tex_file, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # reduce the fontsize to 8 for the dispatch_table[] code block
-    new_content = reduce_fontsize(content, label_suffix="c.dispatch_table")
+    # Adjust fontsize and spacing in dispatch_table[]
+    new_content = reduce_fontsize_and_setstretch(
+        content,
+        label_suffix="c.dispatch_table",
+        new_fontsize="8",
+        new_stretch="1.1"
+    )
 
+    # Clean up long repetitive formatting lines in unsupported_msrs[].
     # To save up the space and for better layout, only keep the 2nd occurrences of
     # \DUrole{w}{   }\DUrole{p}{\newline }\DUrole{p}{ }\DUrole{w}{   }\DUrole{p}{\hspace*{2em} }
-    new_content = patch_pysigline_block(new_content, label_suffix="c.unsupported_msrs", keep_nth=2)
+    new_content = patch_pysigline_block(
+        new_content,
+        label_suffix="c.unsupported_msrs",
+        keep_nth=2
+    )
+
+    # Adjust fontsize and spacing in unsupported_msrs[]
+    new_content = reduce_fontsize_and_setstretch(
+        new_content,
+        label_suffix="c.unsupported_msrs",
+        new_fontsize="10",
+        new_stretch="1.2"
+    )
+
+    # Remove unnecessary ~\newline after certain block endings, e.g., \end{fulllineitems} or \end{itemize}
+    new_content = remove_newline_after_fulllineitems_and_itemize(new_content)
 
     with open(tex_file, "w", encoding="utf-8") as f:
         f.write(new_content)

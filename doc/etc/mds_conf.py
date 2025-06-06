@@ -305,7 +305,7 @@ latex_elements = {
 
         % Add spacing between lines within paragraphs
         \usepackage{setspace}
-        \setstretch{1.1}
+        \setstretch{1.2}
     ''',
 
     # Sphinx-specific visual tuning
