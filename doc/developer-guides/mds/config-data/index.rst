@@ -5,7 +5,15 @@ Design of Component `config-data`
 
 This section contains the documentation of the component `config-data`.
 
-[TO BE UPDATED] Refer to the WP [Configuration Data].
+While below C files are part of the Hypervisor source code, additional details
+on the configuration data are specified in the
+Software Configuration Data Specification and Software Configuration Data documents.
+These documents aim to ensure the correct usage of configurable software, including:
+
+a. the valid values of the configuration data;
+b. the intent and usage of the configuration data;
+c. the range, scaling, units; and
+d. the interdependencies between different elements of the configuration data.
 
 .. doxygengroup:: config-data
    :project: Project ACRN
