@@ -302,7 +302,8 @@ void init_lapic(uint16_t pcpu_id)
  * @brief Save the current state of the Local APIC registers
  *
  * This function reads and saves the current values of various Local APIC
- * registers into a provided structure.
+ * registers into a provided structure. This function only saves the writable
+ * Local APIC registers.
  *
  * @param[out] regs  A pointer to a lapic_regs structure where the LAPIC register
  *              values will be stored.
@@ -335,7 +336,6 @@ static void save_lapic(struct lapic_regs *regs)
 	regs->lvt[APIC_LVT_ERROR].v =
 		(uint32_t) msr_read(MSR_IA32_EXT_APIC_LVT_ERROR);
 	regs->icr_timer.v = (uint32_t) msr_read(MSR_IA32_EXT_APIC_INIT_COUNT);
-	regs->ccr_timer.v = (uint32_t) msr_read(MSR_IA32_EXT_APIC_CUR_COUNT);
 	regs->dcr_timer.v =
 		(uint32_t) msr_read(MSR_IA32_EXT_APIC_DIV_CONF);
 }
