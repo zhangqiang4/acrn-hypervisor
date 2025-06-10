@@ -24,6 +24,7 @@
 #include <asm/board.h>
 #include <asm/cpuid.h>
 #include <asm/platform_caps.h>
+#include <bsp.h>
 
 /**
  * @addtogroup hwmgmt_pm
@@ -417,6 +418,8 @@ void host_enter_s3(void)
 	asm_enter_s3(sstate_data, system_pm1a_cnt_val, system_pm1b_cnt_val);
 
 	platform_s3_resume = true;
+
+	bsp_init();
 
 	resume_lapic();
 	resume_iommu();

@@ -39,6 +39,7 @@
 #include <thermal.h>
 #include <asm/mce.h>
 #include <asm/platform_caps.h>
+#include <bsp.h>
 /**
  * @defgroup hwmgmt_cpu hwmgmt.cpu
  * @ingroup hwmgmt
@@ -319,7 +320,8 @@ static void enable_gp_for_uclock(void)
  * - Setting the BSP CPU ID.
  * - Getting the CPU start tick counter.
  * - Initializing CPU capabilities through CPUID.
- * - Detecting hardware support.
+ * - Detecting hardware support. Panic system if any required features are not supported.
+ * - Let Board Support Package to the pre-processor init.
  * - Initializing the CPU model name.
  * - Initializing the frequency policy.
  * - Initializing the E820 memory map.
@@ -362,8 +364,11 @@ void init_pcpu_pre(bool is_bsp)
 		init_pcpu_capabilities();
 
 		if (detect_hardware_support() != 0) {
-			panic("hardware not support!");
+			panic("Failed to detect required hardware features!");
 		}
+
+		/* Let BSP (Board Support Package) do the per-processor initialization. */
+		bsp_init();
 
 		init_pcpu_model_name();
 
@@ -410,6 +415,8 @@ void init_pcpu_pre(bool is_bsp)
 		 */
 		pci_switch_to_mmio_cfg_ops();
 	} else {
+		/* Let BSP (Board Support Package) do the per-processor initialization. */
+		bsp_init();
 
 		/* Switch this CPU to use the same page tables set-up by the
 		 * primary/boot CPU
