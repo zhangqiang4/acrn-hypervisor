@@ -11,7 +11,7 @@
 #include <public/acrn_common.h>
 
 /**
- * @addtogroup hwmgmt_irq hwmgmt.irq
+ * @addtogroup hwmgmt_irq
  *
  * @{
  */

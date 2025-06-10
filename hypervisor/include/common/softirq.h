@@ -8,7 +8,7 @@
 #define SOFTIRQ_H
 
 /**
- * @addtogroup hwmgmt_softirq hwmgmt.softirq
+ * @addtogroup hwmgmt_softirq
  *
  * @{
  */

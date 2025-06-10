@@ -11,7 +11,7 @@
 #include <asm/guest/virq.h>
 
 /**
- * @addtogroup hwmgmt_irq hwmgmt.irq
+ * @addtogroup hwmgmt_irq
  *
  * @{
  */

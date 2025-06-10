@@ -10,7 +10,7 @@
 #include <asm/apicreg.h>
 
 /**
- * @addtogroup  hwmgmt_ioapic hwmgmt.ioapic
+ * @addtogroup hwmgmt_ioapic
  *
  * @{
  */

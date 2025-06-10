@@ -10,7 +10,7 @@
 #include <asm/mce.h>
 
 /**
- * @addtogroup hwmgmt_irq hwmgmt.irq
+ * @addtogroup hwmgmt_irq
  *
  * @{
  */

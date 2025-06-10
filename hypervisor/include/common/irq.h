@@ -11,7 +11,7 @@
 #include <asm/lib/spinlock.h>
 
 /**
- * @addtogroup hwmgmt_irq hwmgmt.irq
+ * @addtogroup hwmgmt_irq
  *
  * @{
  */

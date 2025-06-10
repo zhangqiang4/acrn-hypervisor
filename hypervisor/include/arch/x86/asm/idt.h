@@ -8,7 +8,7 @@
 #define IDT_H
 
 /**
- * @addtogroup hwmgmt_irq hwmgmt.irq
+ * @addtogroup hwmgmt_irq
  *
  * @{
  */

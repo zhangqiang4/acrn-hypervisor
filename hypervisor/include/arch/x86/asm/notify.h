@@ -8,7 +8,7 @@
 #define NOTIFY_H
 
 /**
- * @addtogroup hwmgmt_smpcall hwmgmt.smpcall
+ * @addtogroup hwmgmt_smpcall
  *
  * @{
  */
