@@ -321,7 +321,7 @@ uint64_t service_vm_hpa2gpa(uint64_t hpa)
  *
  * @return A value indicates the status of VM-Exit handling.
  *
- * @retval -EINVAL
+ * @retval -EINVAL Always return -EINVAL as ACRN doesn't handle EPT misconfiguration.
  */
 int32_t ept_misconfig_vmexit_handler(__unused struct acrn_vcpu *vcpu)
 {
