@@ -130,7 +130,7 @@
  *
  * @{
  */
-#define INTR_LAPIC_ICR_USE_DEST_ARRAY  0x0U /**< Use destination array */
+#define INTR_LAPIC_ICR_NO_SHORTHAND   0x0U  /**< No shorthand, use destination array */
 #define INTR_LAPIC_ICR_SELF            0x1U /**< Send interrupt to self */
 #define INTR_LAPIC_ICR_ALL_INC_SELF    0x2U /**< Send interrupt to all processors including self */
 #define INTR_LAPIC_ICR_ALL_EX_SELF     0x3U /**< Send interrupt to all processors excluding self */
@@ -472,7 +472,7 @@ uint32_t get_cur_lapic_id(void)
  *
  * - Sends an INIT IPI by writing to the target CPU's IA32_X2APIC_ICR MSR with:
  *    - Physical destination mode (INTR_LAPIC_ICR_PHYSICAL)
- *    - Destination specified through destination array (INTR_LAPIC_ICR_USE_DEST_ARRAY)
+ *    - Destination specified through destination array (INTR_LAPIC_ICR_NO_SHORTHAND)
  *    - INIT delivery mode (INTR_LAPIC_ICR_INIT)
  *
  * - Waits for the INIT sequence to complete:
@@ -508,7 +508,7 @@ send_startup_ipi(uint16_t dest_pcpu_id, uint64_t cpu_startup_start_address)
 
 	/* Assert INIT IPI */
 	icr.bits.destination_mode = INTR_LAPIC_ICR_PHYSICAL;
-	icr.bits.shorthand = INTR_LAPIC_ICR_USE_DEST_ARRAY;
+	icr.bits.shorthand = INTR_LAPIC_ICR_NO_SHORTHAND;
 	icr.bits.delivery_mode = INTR_LAPIC_ICR_INIT;
 	msr_write(MSR_IA32_EXT_APIC_ICR, icr.value);
 
@@ -526,7 +526,7 @@ send_startup_ipi(uint16_t dest_pcpu_id, uint64_t cpu_startup_start_address)
 
 	/* Send Start IPI with page number of secondary reset code */
 	icr.value_32.lo_32 = 0U;
-	icr.bits.shorthand = INTR_LAPIC_ICR_USE_DEST_ARRAY;
+	icr.bits.shorthand = INTR_LAPIC_ICR_NO_SHORTHAND;
 	icr.bits.delivery_mode = INTR_LAPIC_ICR_STARTUP;
 	icr.bits.vector = (uint8_t)(cpu_startup_start_address >> 12U);
 	msr_write(MSR_IA32_EXT_APIC_ICR, icr.value);
