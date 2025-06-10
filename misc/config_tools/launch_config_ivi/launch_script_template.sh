@@ -438,7 +438,7 @@ function enable_dgpu_vf() {
 	if [ ! -e $dg2_totalvfs_file ]; then
 		log2stderr "dGPU SR-IOV not supported. Skipping."
 	else
-		local dg2_numvfs=2
+		local dg2_numvfs=1
 		local iov_dir=""
 		if [ -d "$dgpu_path/prelim_iov" ]; then
 			iov_dir="$dgpu_path/prelim_iov"
