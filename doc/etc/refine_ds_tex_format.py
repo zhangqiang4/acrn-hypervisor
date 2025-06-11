@@ -82,19 +82,28 @@ def patch_pysigline_block(tex_text, label_suffix, keep_nth=2):
 
     return pattern.sub(modify_block, tex_text)
 
-def remove_newline_after_fulllineitems_and_itemize(tex_text):
-    # Match:
-    # 1. \end{fulllineitems} or \end{itemize}
-    # 2. Followed by blank lines or lines with whitespace
-    # 3. Then a line containing ~\newline
-    pattern = re.compile(
-        r'(\\end\{(?:fulllineitems|itemize)\})'  # group(1): either \end{fulllineitems} or \end{itemize}
-        r'(?:\s*\n)*'                            # optional blank/whitespace-only lines
-        r'\s*~\\newline\s*\n?',                  # match the ~\newline line
-        re.MULTILINE
+def tweak_newline(tex_text):
+    # Pattern 1: Remove ~\newline after \end{fulllineitems} or \end{itemize}, along with trailing blank lines
+    tex_text = re.sub(
+        r'(\\end\{(?:fulllineitems|itemize)\})'  # group 1: block end
+        r'(?:\s*\n)*'                            # optional blank lines
+        r'\s*~\\newline\s*\n?',                  # the ~\newline line
+        r'\1\n',
+        tex_text,
+        flags=re.MULTILINE
     )
-    return pattern.sub(r"\1\n", tex_text)
 
+    # Pattern 2: Remove only the ~\newline after \begin{sphinxadmonition}{note}{Remark},
+    #            preserve any blank lines before it
+    tex_text = re.sub(
+        r'(?<=\\begin\{sphinxadmonition\}\{note\}\{Remark\}\n\n)'  # lookbehind
+        r'\s*~\\newline\s*\n?',                                    # remove ~\newline only
+        '',
+        tex_text,
+        flags=re.MULTILINE
+    )
+
+    return tex_text
 
 if __name__ == "__main__":
     tex_file = sys.argv[1]
@@ -126,8 +135,8 @@ if __name__ == "__main__":
         new_stretch="1.2"
     )
 
-    # Remove unnecessary ~\newline after certain block endings, e.g., \end{fulllineitems} or \end{itemize}
-    new_content = remove_newline_after_fulllineitems_and_itemize(new_content)
+    # Remove unnecessary ~\newline
+    new_content = tweak_newline(new_content)
 
     with open(tex_file, "w", encoding="utf-8") as f:
         f.write(new_content)
