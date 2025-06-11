@@ -1018,7 +1018,7 @@ static inline void cpu_compiler_barrier(void)
  * This function executes INVLPG instruction to invalidate the Translation Lookaside Buffer (TLB) entry associated with
  * the specified address. This is typically used to ensure that changes to page tables are recognized by the CPU.
  *
- * @param addr The address for which the TLB entry should be invalidated.
+ * @param[in] addr The address for which the TLB entry should be invalidated.
  *
  * @return None
  *
@@ -1053,7 +1053,7 @@ static inline void wbinvd(void)
  * This function executes CLFLUSH instruction to flush a cache line that contains the specified address. This ensures
  * that any modifications to the memory at that address are written back to main memory and invalidated in the cache.
  *
- * @param p Pointer to the memory address to be flushed.
+ * @param[in] p Pointer to the memory address to be flushed.
  *
  * @return None
  *
@@ -1072,7 +1072,7 @@ static inline void clflush(const volatile void *p)
  * The CLFLUSHOPT instruction is an optimized version of the CLFLUSH instruction, which may provide better performance
  * on some processors.
  *
- * @param p Pointer to the memory address to be flushed.
+ * @param[in] p Pointer to the memory address to be flushed.
  *
  * @return None
  *
@@ -1221,8 +1221,8 @@ static inline uint64_t msr_read(uint32_t reg_num)
  *
  * This function writes a 64-bit value to the specified MSR register.
  *
- * @param reg_num The MSR register number to write to.
- * @param value64 The 64-bit value to write to the MSR register.
+ * @param[in] reg_num The MSR register number to write to.
+ * @param[in] value64 The 64-bit value to write to the MSR register.
  *
  * @return None
  *
