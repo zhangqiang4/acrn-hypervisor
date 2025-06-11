@@ -30,12 +30,39 @@
  * maintaining TEE VM lifecycle operations.
  */
 
+
 /**
  * @brief TEE VM pointer
  *
  * A pointer to ACRN Virtual Machine structure of TEE VM.
  */
 static struct acrn_vm *tee_vm_ptr = NULL;
+
+/**
+ * @brief VM id to be read.
+ *
+ * Records the VM ID to be read.
+ */
+static uint32_t optee_read_vm_id = 0xffffffffU;
+
+/**
+ * @brief Bitmap for resetting VMs.
+ *
+ * Bitmap used to record which VM is resetting.
+ */
+static uint64_t vm_reset_bitmap;
+
+/**
+ * @brief Get the address of the bitmap for resetting VMs.
+ *
+ * Get the address of the bitmap used for resetting VMs.
+ *
+ * @return The address of the bitmap for resetting VMs.
+ */
+uint64_t *optee_vm_reset_bitmap(void)
+{
+	return &vm_reset_bitmap;
+}
 
 /**
  * @brief Get ACRN Virtual Machine data structure associated with the TEE VM.
@@ -48,6 +75,79 @@ static struct acrn_vm *tee_vm_ptr = NULL;
 struct acrn_vm *get_tee_vm(void)
 {
 	return tee_vm_ptr;
+}
+
+/**
+ * @brief Test and clear the VM reset bitmap.
+ *
+ * Tests and clears the \p vm_reset_bitmap for the VM recorded in \p optee_read_vm_id.
+ *
+ * @param[inout] vcpu Pointer to the virtual CPU that is reading.
+ * @param[in] addr The address port to read from. This parameter is not used in this function.
+ * @param[in] width The width of the data to be read. This parameter is not used in this function.
+ *
+ * @return Always returns true, indicating the read operation is successful.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
+static bool optee_ctl_io_read(struct acrn_vcpu *vcpu, __unused uint16_t addr, __unused size_t width)
+{
+	struct acrn_pio_request *pio_req = &vcpu->req.reqs.pio_request;
+
+	pio_req->value = (optee_read_vm_id < CONFIG_MAX_VM_NUM) ?
+				bitmap_test_and_clear_lock(optee_read_vm_id, &vm_reset_bitmap) : 0U;
+
+	pr_err("%s_2 vm_reset_bitmap: 0x%x, ret val: %d\n", __func__, vm_reset_bitmap, pio_req->value);
+	return true;
+}
+
+/**
+ * @brief Set the VM ID for the VM to read.
+ *
+ * Sets \p optee_read_vm_id to record which VM to read.
+ *
+ * @param[inout] vcpu Pointer to the virtual CPU that is writing. This parameter is not used in this function.
+ * @param[in] addr The address port to write to. This parameter is not used in this function.
+ * @param[in] width The width of the value to be written to the virtual RTC. This parameter is not used in this function.
+ * @param[in] v The VM ID for the VM to read, which is recorded in \p optee_read_vm_id.
+ *
+ * @return Always returns true, indicating the operation is successful.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
+static bool optee_ctl_io_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t addr, __unused size_t width, uint32_t v)
+{
+	optee_read_vm_id = v;
+	return true;
+}
+
+/**
+ * @brief Register TEE VM control register's PIO handler.
+ *
+ * Registers the TEE VM control register's PIO handler to the VM's PIO handler array. The OPTEE control register
+ * address range (which base address is 0x600U and length is 1U) is aligned with OPTEE.
+ *
+ * @param[inout] vm The VM to which the port I/O handlers are registered.
+ *
+ * @return N/A
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
+void optee_register_io_handler(struct acrn_vm *vm)
+{
+	struct vm_io_range optee_ctl_range = {
+		.base = 0x600U,
+		.len = 1U
+	};
+
+	register_pio_emulation_handler(vm, OPTEE_CTL_PIO_IDX, &optee_ctl_range,
+			optee_ctl_io_read, optee_ctl_io_write);
 }
 
 /**

@@ -1064,6 +1064,11 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 			*/
 			vioapic_init(vm);
 
+			/* hardcode: now VM 0 is OPTEE, but can't use guest_flag_ to do this check */
+			if (is_tee_vm(vm)) {
+				optee_register_io_handler(vm);
+			}
+
 			/* Populate return VM handle */
 			*rtn_vm = vm;
 			vm->sw.io_shared_page = NULL;
@@ -1334,6 +1339,9 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 		shutdown_system();
 	}
 
+	/* Notify TEE VM for VM shutdown */
+	bitmap_set_lock(vm->vm_id, optee_vm_reset_bitmap());
+
 	/* Return status to caller */
 	return ret;
 }
@@ -1418,6 +1426,9 @@ int32_t reset_vm(struct acrn_vm *vm, enum vm_reset_mode mode)
 	reset_vioapics(vm);
 	vm->arch_vm.iwkey_backup_status = 0UL;
 	vm->state = VM_CREATED;
+
+	/* Notify TEE VM for VM reset */
+	bitmap_set_lock(vm->vm_id, optee_vm_reset_bitmap());
 
 	return ret;
 }

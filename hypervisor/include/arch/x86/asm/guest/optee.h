@@ -29,6 +29,8 @@ bool is_tee_vm(struct acrn_vm *vm);
 void enter_refrigerator(struct acrn_vcpu *vcpu);
 void freeze_vm(struct acrn_vm *vm);
 void thaw_vm(struct acrn_vm *vm);
+void optee_register_io_handler(struct acrn_vm *vm);
+uint64_t *optee_vm_reset_bitmap(void);
 
 /**
  * @}
