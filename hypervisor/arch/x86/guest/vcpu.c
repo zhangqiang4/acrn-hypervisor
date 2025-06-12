@@ -645,7 +645,7 @@ void load_iwkey(struct acrn_vcpu *vcpu)
 	}
 }
 
-static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
+static void reset_vcpu_regs(struct acrn_vcpu *vcpu);
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu);
 static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu);
 
@@ -687,6 +687,7 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	int32_t i;
 	uint64_t vmx_rev_id;
 
+	vcpu->arch.contexts.ext_ctx.reset_mode = mode;
 	vcpu->launched = false;
 	vcpu->frozen = false;
 	vcpu->arch.nr_sipi = 0U;
@@ -695,21 +696,16 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	vcpu->arch.irq_window_enabled = false;
 	vcpu->arch.emulating_lock = false;
 
-	(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
-	/*
-	 * Obtain the VM Rev ID from HW and populate VMCS page with it so that VMCS can be
-	 * loaded when scheduling to the vCPU thread.
-	 */
-	vmx_rev_id = msr_read(MSR_IA32_VMX_BASIC);
-	(void)memcpy_s(vcpu->arch.vmcs, 4U, (void *)&vmx_rev_id, 4U);
-	/*
-	 * Execute VMCLEAR VMCS to initialize parts of the VMCS region (e.g. it sets the
-	 * launch state of the VMCS to clear).
-	 */
-	clear_va_vmcs(vcpu->arch.vmcs);
-
 	/* vcpu init reset won't change local apic state */
 	if (mode != VCPU_INIT_RESET) {
+		(void)memset((void *)vcpu->arch.vmcs, 0U, PAGE_SIZE);
+		/*
+		 * Obtain the VM Rev ID from HW and populate VMCS page with it so that VMCS can be
+		 * loaded when scheduling to the vCPU thread.
+		 */
+		vmx_rev_id = msr_read(MSR_IA32_VMX_BASIC);
+		(void)memcpy_s(vcpu->arch.vmcs, 4U, (void *)&vmx_rev_id, 4U);
+
 		per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_CX;
 		if (is_using_init_ipi()) {
 			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
@@ -719,6 +715,11 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 		pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
 			per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
 	}
+	/*
+	 * Execute VMCLEAR VMCS to initialize parts of the VMCS region (e.g. it sets the
+	 * launch state of the VMCS to clear).
+	 */
+	clear_va_vmcs(vcpu->arch.vmcs);
 
 	(void)memset((void *)(&vcpu->arch.contexts), 0U,
 			sizeof(struct run_context));
@@ -728,7 +729,7 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 	/* reset vcpu default memory type */
 	vcpu_reset_mtrr_def_type(vcpu);
 
-	reset_vcpu_regs(vcpu, mode);
+	reset_vcpu_regs(vcpu);
 
 	/* Need to rebuild vcpu thread stack if pcpu offline */
 	if (pcpu_get_current_state(pcpuid_from_vcpu(vcpu)) == PCPU_STATE_DEAD) {
@@ -1088,17 +1089,14 @@ bool sanitize_cr0_cr4_pattern(struct acrn_vm *vm)
  * Reset tsc_aux flag if the target reset mode is not INIT_RESET.
  *
  * @param[inout] vcpu Target vCPU to reset
- * @param[in] mode The reset type
  *
  * @return None
  *
  * @pre vcpu != NULL
  *
  * @post N/A
- *
- * @remark mode is a pre-defined value in vcpu_reset_mode.
  */
-static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
+static void reset_vcpu_regs(struct acrn_vcpu *vcpu)
 {
 	set_vcpu_regs(vcpu, &realmode_init_vregs);
 
@@ -1112,11 +1110,9 @@ static void reset_vcpu_regs(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode)
 	 *    set_vcpu_regs above.
 	 *  - Otherwise, handle it below.
 	 */
-	if (mode != VCPU_INIT_RESET) {
-		struct ext_context *ectx = &(vcpu->arch.contexts.ext_ctx);
-
+	if (vcpu->arch.contexts.ext_ctx.reset_mode != VCPU_INIT_RESET) {
 		/* IA32_TSC_AUX: 0 following Power-up/Reset, unchanged following INIT */
-		ectx->tsc_aux = 0UL;
+		vcpu->arch.contexts.ext_ctx.tsc_aux = 0UL;
 	}
 }
 
@@ -1852,7 +1848,6 @@ static void context_switch_out(struct thread_object *prev)
 	ectx->ia32_fmask = msr_read(MSR_IA32_FMASK);
 	ectx->ia32_kernel_gs_base = msr_read(MSR_IA32_KERNEL_GS_BASE);
 	ectx->tsc_aux = msr_read(MSR_IA32_TSC_AUX);
-
 	save_xsave_area(vcpu, ectx);
 }
 

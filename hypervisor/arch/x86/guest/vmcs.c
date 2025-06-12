@@ -107,10 +107,14 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 
 	vcpu_set_guest_msr(vcpu, MSR_IA32_PERF_CTL, msr_read(MSR_IA32_PERF_CTL));
 
+	/* Set to default for Power-up/Reset events, not for INIT event */
+	if (ectx->reset_mode != VCPU_INIT_RESET) {
+		exec_vmwrite32(VMX_GUEST_IA32_SYSENTER_CS, 0U);
+		exec_vmwrite(VMX_GUEST_IA32_SYSENTER_ESP, 0UL);
+		exec_vmwrite(VMX_GUEST_IA32_SYSENTER_EIP, 0UL);
+	}
+
 	/* fixed values */
-	exec_vmwrite32(VMX_GUEST_IA32_SYSENTER_CS, 0U);
-	exec_vmwrite(VMX_GUEST_IA32_SYSENTER_ESP, 0UL);
-	exec_vmwrite(VMX_GUEST_IA32_SYSENTER_EIP, 0UL);
 	exec_vmwrite(VMX_GUEST_PENDING_DEBUG_EXCEPT, 0UL);
 	exec_vmwrite(VMX_GUEST_IA32_DEBUGCTL_FULL, 0UL);
 	exec_vmwrite32(VMX_GUEST_INTERRUPTIBILITY_INFO, 0U);

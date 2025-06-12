@@ -724,6 +724,7 @@ struct ext_context {
 	 */
 	struct xsave_area xs_area;
 	uint64_t xcr0; /**< The guest XCR0 register */
+	enum vcpu_reset_mode reset_mode; /**< The guest reset mode */
 };
 
 /**
