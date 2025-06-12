@@ -119,12 +119,14 @@ static const struct hc_dispatch hc_dispatch_table[] = {
 		.handler = hcall_vm_intr_monitor},		/**< Handler for HC_VM_INTR_MONITOR hypercall */
 	[HC_IDX(HC_SETUP_SBUF)] = {
 		.handler = hcall_setup_sbuf},			/**< Handler for HC_SETUP_SBUF hypercall */
+#ifdef HV_DEBUG
 	[HC_IDX(HC_SETUP_HV_NPK_LOG)] = {
 		.handler = hcall_setup_hv_npk_log},		/**< Handler for HC_SETUP_HV_NPK_LOG hypercall */
 	[HC_IDX(HC_PROFILING_OPS)] = {
 		.handler = hcall_profiling_ops},		/**< Handler for HC_PROFILING_OPS hypercall */
 	[HC_IDX(HC_GET_HW_INFO)] = {
 		.handler = hcall_get_hw_info},			/**< Handler for HC_GET_HW_INFO hypercall */
+#endif
 };
 
 /**
@@ -150,6 +152,9 @@ static const struct hc_dispatch hc_dispatch_table[] = {
  *
  * Note: If `target_vm` is `NULL` and the resulting `vm_id` is greater than or equal to `CONFIG_MAX_VM_NUM`,
  * a NULL pointer is returned, indicating that the target VM cannot be determined.
+ *
+ * Note: These three hypercalls are debug only: `HC_SETUP_HV_NPK_LOG`, `HC_PROFILING_OPS`,
+ * and `HC_GET_HW_INFO`.
  *
  * @param[inout] service_vm Pointer to the acrn_vm structure representing the service VM.
  * @param[in] hcall_id The hypercall ID.
@@ -207,9 +212,11 @@ static struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcal
 		break;
 	case HC_SERVICE_VM_OFFLINE_CPU:
 	case HC_SET_CALLBACK_VECTOR:
+#ifdef HV_DEBUG
 	case HC_SETUP_HV_NPK_LOG:
 	case HC_PROFILING_OPS:
 	case HC_GET_HW_INFO:
+#endif
 		target_vm = service_vm;
 		break;
 	default:

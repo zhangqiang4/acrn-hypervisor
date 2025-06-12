@@ -145,8 +145,11 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	uint16_t pcpu_id;
 	char *buffer;
 	struct thread_object *current;
-
+#ifdef HV_DEBUG
 	if (mem_need_log(severity) || console_need_log(severity) || npk_need_log(severity)) {
+#else
+	if (mem_need_log(severity) || console_need_log(severity)) {
+#endif
 		/* Get time-stamp value */
 		timestamp = cpu_ticks();
 
@@ -179,11 +182,12 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 		if (console_need_log(severity)) {
 			console_log(buffer);
 		}
-
+#ifdef HV_DEBUG
 		/* Check whether output to NPK */
 		if (npk_need_log(severity)) {
 			npk_log(buffer);
 		}
+#endif
 	}
 }
 

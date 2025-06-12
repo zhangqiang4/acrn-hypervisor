@@ -207,6 +207,8 @@
  */
 #define HC_REMOVE_VDEV              BASE_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0AUL)
 
+#ifdef HV_DEBUG
+
 /* DEBUG */
 #define HC_ID_DBG_BASE              0x60UL  /**< Base offset for debug hypercalls */
 /**
@@ -221,6 +223,8 @@
  * @brief Hypercall to retrieve hardware information.
  */
 #define HC_GET_HW_INFO              BASE_HC_ID(HC_ID, HC_ID_DBG_BASE + 0x03UL)
+
+#endif
 
 /* Power management */
 #define HC_ID_PM_BASE               0x80UL  /**< Base offset for power management hypercalls */
