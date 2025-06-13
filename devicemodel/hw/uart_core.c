@@ -701,7 +701,7 @@ uart_sock_accept(int fd __attribute__((unused)),
 	uart->be.opened = true;
 	uart->be.fd2 = s;
 	uart->be.evp2 = mevent_add(s, EVF_READ, uart_drain, uart,
-		uart_mevent_teardown, uart);
+		NULL, NULL);
 	if (!uart->be.evp2)
 		pr_err("mevent_add evp2 failed\n");
 	pr_dbg("%s\r\n", __func__);
@@ -736,18 +736,25 @@ uart_backend_read(struct uart_backend *be)
 		break;
 	case UART_BE_SOCK:
 		rc = recv(be->fd2, &rb, 1, 0);
-		if (rc <= 0 && errno != EAGAIN) {
-			if (be->evp2) {
-				mevent_delete(be->evp2);
-				be->evp2 = NULL;
+		/*
+		 * rc == 0, remote disconnection
+		 * rc < 0 && errno == EAGAIN, no more data to recv
+		 * rc < 0 && errno != EAGAIN, other unintentional error
+		 */
+		if (rc <= 0) {
+			if ((rc != -1) || (errno != EAGAIN)) {
+				if (be->evp2) {
+					mevent_delete(be->evp2);
+					be->evp2 = NULL;
+				}
+				if (be->fd2 > 0) {
+					close(be->fd2);
+					be->fd2 = -1;
+				}
+				be->opened = false;
+				pr_err("%s connection closed, rc = %d, errno = %d\n",
+					__func__, rc, errno);
 			}
-			if (be->fd2 > 0) {
-				close(be->fd2);
-				be->fd2 = -1;
-			}
-			be->opened = false;
-			pr_err("%s connection closed, rc = %d, errno = %d\n",
-				__func__, rc, errno);
 		}
 		break;
 	default:
@@ -976,7 +983,7 @@ uart_config_backend(struct uart_vdev *uart, struct uart_backend *be, long port)
 			return -1;
 		}
 		be->opened = false;
-		be->evp = mevent_add(fd, EVF_READ, uart_sock_accept, uart, NULL, NULL);
+		be->evp = mevent_add(fd, EVF_READ, uart_sock_accept, uart, uart_mevent_teardown, uart);
 		if (!be->evp) {
 			pr_err("mevent_add failed\n");
 			return -1;
