@@ -91,11 +91,11 @@ void vcpu_thread(struct thread_object *obj)
 		}
 
 		reset_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
-		profiling_vmenter_handler(vcpu);
-
 		TRACE_2L(TRACE_VM_ENTER, 0UL, 0UL);
+#ifdef HV_DEBUG
+		profiling_vmenter_handler(vcpu);
 		sample_vmexit_end(vcpu);
-
+#endif
 		ret = run_vcpu(vcpu);
 		if (ret != 0) {
 			pr_fatal("vcpu resume failed");
@@ -106,10 +106,10 @@ void vcpu_thread(struct thread_object *obj)
 			continue;
 		}
 		TRACE_2L(TRACE_VM_EXIT, vcpu->arch.exit_reason, vcpu_get_rip(vcpu));
+#ifdef HV_DEBUG
 		sample_vmexit_begin(vcpu);
-
 		profiling_pre_vmexit_handler(vcpu);
-
+#endif
 		if (!is_lapic_pt_configured(vcpu->vm)) {
 			CPU_IRQ_ENABLE();
 		}
@@ -121,8 +121,9 @@ void vcpu_thread(struct thread_object *obj)
 			vcpu_inject_gp(vcpu, 0U);
 			continue;
 		}
-
+#ifdef HV_DEBUG
 		profiling_post_vmexit_handler(vcpu);
+#endif
 	} while (true);
 }
 
