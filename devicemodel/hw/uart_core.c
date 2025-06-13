@@ -41,6 +41,8 @@
 #include <netinet/in.h>
 #include <sys/errno.h>
 
+#define pr_prefix "uart: "
+
 #include "types.h"
 #include "mevent.h"
 #include "uart_core.h"
@@ -76,10 +78,6 @@
 
 #define	DEFAULT_FIFOSZ	(256)
 #define	SOCK_FIFOSZ	(32 * 1024)
-
-static int uart_debug;
-#define DPRINTF(params) do { if (uart_debug) pr_dbg params; } while (0)
-#define WPRINTF(params) (pr_err params)
 
 static struct termios tio_stdio_orig;
 
@@ -687,12 +685,12 @@ uart_sock_accept(int fd __attribute__((unused)),
 
 	s = accept(uart->be.fd, NULL, NULL);
 	if (s < 0) {
-		DPRINTF(("uart: accept error %d\n", s));
+		pr_dbg("accept error %d\n", s);
 		return;
 	}
 
 	if (uart->be.opened) {
-		DPRINTF(("uart: already connected\n"));
+		pr_dbg("already connected\n");
 		close(s);
 		return;
 	}
@@ -705,8 +703,8 @@ uart_sock_accept(int fd __attribute__((unused)),
 	uart->be.evp2 = mevent_add(s, EVF_READ, uart_drain, uart,
 		uart_mevent_teardown, uart);
 	if (!uart->be.evp2)
-		WPRINTF(("uart: mevent_add evp2 failed\n"));
-	DPRINTF(("uart: %s\r\n", __func__));
+		pr_err("mevent_add evp2 failed\n");
+	pr_dbg("%s\r\n", __func__);
 }
 
 static int
@@ -722,11 +720,11 @@ uart_backend_read(struct uart_backend *be)
 	case UART_BE_STDIO:
 		rc = read(be->fd, &rb, 1);
 		if (rb == 0x01) {  // Ctrl-a
-			DPRINTF(("%s: Got Ctrl-a\n", __func__));
+			pr_dbg("%s: Got Ctrl-a\n", __func__);
 			stdio_ctrl_a_pressed = true;
 		} else if (stdio_ctrl_a_pressed) {
 			if (rb == 'x') {
-				DPRINTF(("%s: Got Ctrl-a x\n", __func__));
+				pr_dbg("%s: Got Ctrl-a x\n", __func__);
 				kill(getpid(), SIGINT);
 			}
 			stdio_ctrl_a_pressed = false;
@@ -748,12 +746,12 @@ uart_backend_read(struct uart_backend *be)
 				be->fd2 = -1;
 			}
 			be->opened = false;
-			WPRINTF(("%s connection closed, rc = %d, errno = %d\n",
-				__func__, rc, errno));
+			pr_err("%s connection closed, rc = %d, errno = %d\n",
+				__func__, rc, errno);
 		}
 		break;
 	default:
-		WPRINTF(("not supported backend %d!\n", be->be_type));
+		pr_err("not supported backend %d!\n", be->be_type);
 	}
 
 	if (rc <= 0)
@@ -779,11 +777,11 @@ uart_backend_write(struct uart_backend *be, unsigned char wb)
 	case UART_BE_SOCK:
 		rc = send(be->fd2, &wb, 1, 0);
 		if (rc != 1)
-			WPRINTF(("%s: send error, rc = %d, errno = %d\r\n",
-				__func__, rc, errno));
+			pr_err("%s: send error, rc = %d, errno = %d\r\n",
+				__func__, rc, errno);
 		break;
 	default:
-		WPRINTF(("not supported backend %d!\n", be->be_type));
+		pr_err("not supported backend %d!\n", be->be_type);
 	}
 
 	return rc;
@@ -812,7 +810,7 @@ uart_reset_backend(struct uart_backend *be)
 		evp = be->evp2;
 		break;
 	default:
-		WPRINTF(("not supported backend %d!\n", be->be_type));
+		pr_err("not supported backend %d!\n", be->be_type);
 		return -1;
 	}
 
@@ -826,7 +824,7 @@ uart_reset_backend(struct uart_backend *be)
 	if (evp) {
 		error = mevent_enable(evp);
 		if (error) {
-			WPRINTF(("mevent_enable error\n"));
+			pr_err("mevent_enable error\n");
 			return -1;
 		}
 	}
@@ -852,7 +850,7 @@ uart_enable_backend(struct uart_backend *be, bool enable)
 		evp = be->evp2;
 		break;
 	default:
-		WPRINTF(("not supported backend %d!\n", be->be_type));
+		pr_err("not supported backend %d!\n", be->be_type);
 		return -1;
 	}
 
@@ -862,7 +860,7 @@ uart_enable_backend(struct uart_backend *be, bool enable)
 		else
 			error = mevent_disable(evp);
 		if (error) {
-			WPRINTF(("mevent %s error\n", enable ? "enable" : "disable"));
+			pr_err("mevent %s error\n", enable ? "enable" : "disable");
 			return -1;
 		}
 	}
@@ -879,7 +877,7 @@ uart_open_backend(struct uart_backend *be, const char *path,
 	switch (be_type) {
 	case UART_BE_STDIO:
 		if (stdio_in_use) {
-			WPRINTF(("uart: stdio is used by other device\n"));
+			pr_err("stdio is used by other device\n");
 			break;
 		}
 		be->fd = STDIN_FILENO;
@@ -890,9 +888,9 @@ uart_open_backend(struct uart_backend *be, const char *path,
 	case UART_BE_TTY:
 		fd = open(path, O_RDWR | O_NONBLOCK);
 		if (fd < 0)
-			WPRINTF(("uart: open failed: %s\n", path));
+			pr_err("open failed: %s\n", path);
 		else if (!isatty(fd)) {
-			WPRINTF(("uart: not a tty: %s\n", path));
+			pr_err("not a tty: %s\n", path);
 			close(fd);
 			fd = -1;
 		} else {
@@ -904,14 +902,14 @@ uart_open_backend(struct uart_backend *be, const char *path,
 	case UART_BE_SOCK:
 		fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
 		if (fd < 0)
-			WPRINTF(("uart: open socket failed\n"));
+			pr_err("open socket failed\n");
 		else {
 			be->fd = fd;
 			rc = 0;
 		}
 		break;
 	default:
-		WPRINTF(("not supported backend %d!\n", be_type));
+		pr_err("not supported backend %d!\n", be_type);
 	}
 
 	return rc;
@@ -955,7 +953,7 @@ uart_config_backend(struct uart_vdev *uart, struct uart_backend *be, long port)
 			be->evp = mevent_add(fd, EVF_READ, uart_drain, uart,
 				uart_mevent_teardown, uart);
 			if (!be->evp) {
-				WPRINTF(("uart: mevent_add failed\n"));
+				pr_err("uart: mevent_add failed\n");
 				return -1;
 			}
 		}
@@ -963,27 +961,24 @@ uart_config_backend(struct uart_vdev *uart, struct uart_backend *be, long port)
 	case UART_BE_SOCK:
 		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt,
 			sizeof(opt)) < 0) {
-			WPRINTF(("uart: setsockopt failed, errno = %d\n",
-				errno));
+			pr_err("setsockopt failed, errno = %d\n", errno);
 			return -1;
 		}
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = INADDR_ANY;
 		addr.sin_port = htons(port);
 		if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-			WPRINTF(("uart: bind failed, errno = %d\n",
-				errno));
+			pr_err("bind failed, errno = %d\n", errno);
 			return -1;
 		}
 		if (listen(fd, 1) < 0) {
-			WPRINTF(("uart: listen failed, errno = %d\n",
-				errno));
+			pr_err("listen failed, errno = %d\n", errno);
 			return -1;
 		}
 		be->opened = false;
 		be->evp = mevent_add(fd, EVF_READ, uart_sock_accept, uart, NULL, NULL);
 		if (!be->evp) {
-			WPRINTF(("uart: mevent_add failed\n"));
+			pr_err("mevent_add failed\n");
 			return -1;
 		}
 		break;
@@ -1042,13 +1037,13 @@ uart_set_backend(uart_intr_func_t intr_assert, uart_intr_func_t intr_deassert,
 	be = &uart->be;
 	retval = uart_open_backend(be, path, be_type);
 	if (retval < 0) {
-		WPRINTF(("uart: open_backend failed\n"));
+		pr_err("uart: open_backend failed\n");
 		goto open_fail;
 	}
 
 	be->be_type = be_type;
 	if (uart_config_backend(uart, be, port) < 0) {
-		WPRINTF(("uart: config_backend failed\n"));
+		pr_err("uart: config_backend failed\n");
 		goto config_fail;
 	}
 
