@@ -79,6 +79,9 @@
 #define	DEFAULT_FIFOSZ	(256)
 #define	SOCK_FIFOSZ	(32 * 1024)
 
+#define IAC		255
+#define IAC_BREAK	243
+
 static struct termios tio_stdio_orig;
 
 static struct {
@@ -128,6 +131,7 @@ struct uart_backend {
 	 */
 	int			fd2;
 	struct mevent		*evp2;
+	int			telnet_cmd;
 
 	enum uart_be_type	be_type;
 	bool			opened;
@@ -704,6 +708,17 @@ uart_sock_accept(int fd __attribute__((unused)),
 		NULL, NULL);
 	if (!uart->be.evp2)
 		pr_err("mevent_add evp2 failed\n");
+
+	unsigned char iac_buf[] = {
+		0xff, 0xfb, 0x01,
+		0xff, 0xfb, 0x03,
+		0xff, 0xfb, 0x00,
+		0xff, 0xfd, 0x00,
+	};
+	if (write(s, iac_buf, sizeof(iac_buf)) != sizeof(iac_buf)) {
+		pr_warn("failed to send telnet IAC to client\n");
+	}
+
 	pr_dbg("%s\r\n", __func__);
 }
 
@@ -741,21 +756,38 @@ uart_backend_read(struct uart_backend *be)
 		 * rc < 0 && errno == EAGAIN, no more data to recv
 		 * rc < 0 && errno != EAGAIN, other unintentional error
 		 */
-		if (rc <= 0) {
-			if ((rc != -1) || (errno != EAGAIN)) {
-				if (be->evp2) {
-					mevent_delete(be->evp2);
-					be->evp2 = NULL;
+		if (rc > 0) {
+			if (be->telnet_cmd > 1) {
+				pr_dbg("IAC byte: %d\n", rb);
+				if (rb == IAC_BREAK) {
+					// TODO send break
 				}
-				if (be->fd2 > 0) {
-					close(be->fd2);
-					be->fd2 = -1;
+				be->telnet_cmd++;
+				if (be->telnet_cmd == 4)
+					be->telnet_cmd = 1;
+				rc = 0;
+			} else {
+				if (rb == IAC) {
+					be->telnet_cmd++;
+					pr_dbg("IAC\n");
+					rc = 0;
 				}
-				be->opened = false;
-				pr_err("%s connection closed, rc = %d, errno = %d\n",
-					__func__, rc, errno);
+				/* got a plain character */
 			}
+		} else if (rc == 0 || (rc < 0 && errno != EAGAIN)) {
+			if (be->evp2) {
+				mevent_delete(be->evp2);
+				be->evp2 = NULL;
+			}
+			if (be->fd2 > 0) {
+				close(be->fd2);
+				be->fd2 = -1;
+			}
+			be->opened = false;
+			pr_err("%s connection closed, rc = %d, errno = %d\n",
+				__func__, rc, errno);
 		}
+
 		break;
 	default:
 		pr_err("not supported backend %d!\n", be->be_type);
@@ -983,6 +1015,7 @@ uart_config_backend(struct uart_vdev *uart, struct uart_backend *be, long port)
 			return -1;
 		}
 		be->opened = false;
+		be->telnet_cmd = 1;
 		be->evp = mevent_add(fd, EVF_READ, uart_sock_accept, uart, uart_mevent_teardown, uart);
 		if (!be->evp) {
 			pr_err("mevent_add failed\n");
