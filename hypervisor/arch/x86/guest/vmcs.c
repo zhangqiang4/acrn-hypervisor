@@ -112,6 +112,8 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 		exec_vmwrite32(VMX_GUEST_IA32_SYSENTER_CS, 0U);
 		exec_vmwrite(VMX_GUEST_IA32_SYSENTER_ESP, 0UL);
 		exec_vmwrite(VMX_GUEST_IA32_SYSENTER_EIP, 0UL);
+		vcpu_set_guest_msr(vcpu, MSR_IA32_PAT, PAT_POWER_ON_VALUE);
+		exec_vmwrite(VMX_GUEST_IA32_PAT_FULL, PAT_POWER_ON_VALUE);
 	}
 
 	/* fixed values */
@@ -120,8 +122,6 @@ static void init_guest_vmx(struct acrn_vcpu *vcpu, uint64_t cr0, uint64_t cr3,
 	exec_vmwrite32(VMX_GUEST_INTERRUPTIBILITY_INFO, 0U);
 	exec_vmwrite32(VMX_GUEST_ACTIVITY_STATE, 0U);
 	exec_vmwrite32(VMX_GUEST_SMBASE, 0U);
-	vcpu_set_guest_msr(vcpu, MSR_IA32_PAT, PAT_POWER_ON_VALUE);
-	exec_vmwrite(VMX_GUEST_IA32_PAT_FULL, PAT_POWER_ON_VALUE);
 	exec_vmwrite(VMX_GUEST_DR7, DR7_INIT_VALUE);
 }
 
