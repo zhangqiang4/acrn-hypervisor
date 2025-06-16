@@ -110,7 +110,7 @@ if __name__ == "__main__":
     with open(tex_file, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Adjust fontsize and spacing in dispatch_table[]
+    # Step 1: Adjust font size and spacing for dispatch_table[]
     new_content = reduce_fontsize_and_setstretch(
         content,
         label_suffix="c.dispatch_table",
@@ -118,16 +118,22 @@ if __name__ == "__main__":
         new_stretch="1.1"
     )
 
-    # Clean up long repetitive formatting lines in unsupported_msrs[].
+    # Step 2: Clean up repeated formatting in long static arrays
     # To save up the space and for better layout, only keep the 2nd occurrences of
     # \DUrole{w}{   }\DUrole{p}{\newline }\DUrole{p}{ }\DUrole{w}{   }\DUrole{p}{\hspace*{2em} }
-    new_content = patch_pysigline_block(
-        new_content,
-        label_suffix="c.unsupported_msrs",
-        keep_nth=2
-    )
+    labels = [
+        "c.emulated_guest_msrs",
+        "c.pmc_msrs",
+        "c.unsupported_msrs",
+    ]
+    for label in labels:
+        new_content = patch_pysigline_block(
+            new_content,
+            label_suffix=label,
+            keep_nth=2
+        )
 
-    # Adjust fontsize and spacing in unsupported_msrs[]
+    # Step 3: Adjust font size and spacing for unsupported_msrs[]
     new_content = reduce_fontsize_and_setstretch(
         new_content,
         label_suffix="c.unsupported_msrs",
@@ -135,7 +141,7 @@ if __name__ == "__main__":
         new_stretch="1.2"
     )
 
-    # Remove unnecessary ~\newline
+    # Step 4: Remove unnecessary ~\newline
     new_content = tweak_newline(new_content)
 
     with open(tex_file, "w", encoding="utf-8") as f:
