@@ -36,28 +36,10 @@ This section contains the documentation of the component `debug`.
 .. doxygenfile:: dump.c
    :project: Project ACRN
 
-[File] release/hypercall.c
-======================================================================
-
-.. doxygenfile:: release/hypercall.c
-   :project: Project ACRN
-
-[File] release/npk_log.c
-======================================================================
-
-.. doxygenfile:: npk_log.c
-   :project: Project ACRN
-
 [File] release/printf.c
 ======================================================================
 
 .. doxygenfile:: printf.c
-   :project: Project ACRN
-
-[File] release/profiling.c
-======================================================================
-
-.. doxygenfile:: profiling.c
    :project: Project ACRN
 
 [File] release/uart16550.c

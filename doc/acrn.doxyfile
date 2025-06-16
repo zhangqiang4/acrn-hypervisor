@@ -980,10 +980,7 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/debug/uart16550.h \
                           ../hypervisor/release/console.c \
                           ../hypervisor/release/dump.c \
-                          ../hypervisor/release/hypercall.c \
-                          ../hypervisor/release/npk_log.c \
                           ../hypervisor/release/printf.c \
-                          ../hypervisor/release/profiling.c \
                           ../hypervisor/release/uart16550.c \
                           ../hypervisor/dm/vpci/vsriov.c \
                           ../hypervisor/dm/vpci/vmsi.c \
