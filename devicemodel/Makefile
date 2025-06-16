@@ -229,6 +229,14 @@ SRCS += log/disk_logger.c
 # profiling
 SRCS += profiling/time_profiling.c
 
+# Virtual SPI-based power management device for AAOS
+ifdef PM_VSPI
+CFLAGS += -DDM_PM_VSPI
+LIBS += -lprotobuf-c
+SRCS += hw/pci/virtio/pm_vspi/pm_vspi.c
+SRCS += hw/pci/virtio/pm_vspi/VehicleHalProto.pb-c.c
+endif
+
 OBJS := $(patsubst %.c,$(DM_OBJDIR)/%.o,$(SRCS))
 
 VERSION_H := $(DM_OBJDIR)/include/version.h

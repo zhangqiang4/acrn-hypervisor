@@ -9,6 +9,7 @@
 #define	PWR_EVENT_NOTIFY_PWR_BT			0x2
 #define	PWR_EVENT_NOTIFY_UART			0x3
 #define	PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5	0x4
+#define	PWR_EVENT_NOTIFY_SPI			0x5
 
 enum vm_suspend_how {
 	VM_SUSPEND_NONE = 0,

@@ -174,7 +174,7 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 	int32_t ret = 0;
 	uint32_t lapicid = (uint32_t)param1;
 
-	pr_info("Service VM offline cpu with lapicid %d", lapicid);
+	pr_fatal("Service VM offline cpu with lapicid %d", lapicid);
 
 	foreach_vcpu(i, vcpu->vm, target_vcpu) {
 		if (vlapic_get_apicid(vcpu_vlapic(target_vcpu)) == lapicid) {

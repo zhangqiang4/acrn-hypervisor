@@ -74,7 +74,9 @@
 #include "vm_event.h"
 #include "virtio_be.h"
 #include "time_profiling.h"
-
+#ifdef DM_PM_VSPI
+#include "pm_vspi.h"
+#endif
 
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
 
@@ -545,6 +547,10 @@ guest_pm_notify_init(struct vmctx *ctx)
 		 PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5 == pm_notify_channel)
 		ret = pm_by_vuart_init(ctx,
 			(PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5 == pm_notify_channel));
+#ifdef DM_PM_VSPI
+	else if (PWR_EVENT_NOTIFY_SPI == pm_notify_channel)
+		ret = pm_vspi_init(ctx);
+#endif
 	else
 		pr_info("No pm notification channel specified\n");
 
@@ -564,6 +570,10 @@ guest_pm_notify_deinit(struct vmctx *ctx)
 	else if (PWR_EVENT_NOTIFY_UART == pm_notify_channel ||
 		 PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5 == pm_notify_channel)
 		pm_by_vuart_deinit(ctx);
+#ifdef DM_PM_VSPI
+	else if (PWR_EVENT_NOTIFY_SPI == pm_notify_channel)
+		pm_vspi_deinit(ctx);
+#endif
 	else
 		pr_err("No correct pm notify channel given\n");
 }
@@ -1194,7 +1204,12 @@ main(int argc, char *argv[])
 					pm_notify_channel = PWR_EVENT_NOTIFY_UART_TRIG_PLAT_S5;
 				else
 					errx(EX_USAGE, "invalid pm_notify_channel: %s", optarg);
-			} else
+			} else 
+#ifdef DM_PM_VSPI
+			if (strncmp("vspi", optarg, sizeof("vspi")) == 0)
+				pm_notify_channel = PWR_EVENT_NOTIFY_SPI;
+			else
+#endif
 				errx(EX_USAGE, "invalid pm_notify_channel: %s", optarg);
 			pr_warn("The \"--pm_notify_channel\" parameter is obsolete\n");
 			break;

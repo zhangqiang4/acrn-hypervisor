@@ -33,6 +33,9 @@
 #include "virtio.h"
 #include "acpi.h"
 #include "virtio_spi.h"
+#ifdef DM_PM_VSPI
+#include "pm_vspi.h"
+#endif
 
 /* SPI controller virtualization architecture
  *
@@ -475,6 +478,9 @@ struct vspidev_be *vspidev_bes[] = {
 	&vspidev_loopback,
 	&vspidev_physical,
 	&vspidev_tcp,
+#ifdef DM_PM_VSPI
+	&vspidev_pm_be,
+#endif
 };
 
 struct vspidev_be *find_vspidev_be_from_name(const char *name)
