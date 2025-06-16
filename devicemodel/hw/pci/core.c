@@ -1187,12 +1187,25 @@ pci_populate_msicap(struct msicap *msicap, int msgnum, int nextptr)
 		pr_err("%s: invalid number of msi messages!\n", __func__);
 		return -1;
 	}
+
+	/* The original old codebase has support for multi-message MSI, but now
+	 * the guest is never able to use it since guest (Linux) needs vIOMMU to
+	 * allocate continuous vector numbers, and we don't support vIOMMU (yet).
+	 *
+	 * So leave the API unchanged, and add a warning here.
+	 */
+	if (msgnum > 1) {
+		pr_warn("Warning: MSI capability message number greater than 1.");
+		pr_warn("Multi-message MSI not implemented. Reducing message number to 1.");
+		msgnum = 1;
+	}
+
 	mmc = ffs(msgnum) - 1;
 
 	bzero(msicap, sizeof(struct msicap));
 	msicap->capid = PCIY_MSI;
 	msicap->nextptr = nextptr;
-	msicap->msgctrl = PCIM_MSICTRL_64BIT | PCIM_MSICTRL_PVMC | (mmc << 1);
+	msicap->msgctrl = PCIM_MSICTRL_64BIT | (mmc << 1);
 
 	return 0;
 }
