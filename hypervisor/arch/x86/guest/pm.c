@@ -355,17 +355,16 @@ static inline void enter_s3(struct acrn_vm *vm, uint32_t pm1a_cnt_val, uint32_t 
  */
 static bool pm1ab_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width, uint32_t v)
 {
-	static uint32_t pm1a_cnt_ready = 0U;
 	uint32_t pm1a_cnt_val;
 	bool to_write = true;
 	struct acrn_vm *vm = vcpu->vm;
+	uint32_t *pm1a_cnt_ready = &(vm->pm.sx_state_data->pm1a_cnt_ready);
 
 	if (width == 2U) {
 		uint8_t val = get_slp_typx(v);
-
 		if ((addr == vm->pm.sx_state_data->pm1a_cnt.address) && is_s3_enabled(v)) {
 			if (vm->pm.sx_state_data->pm1b_cnt.address != 0UL) {
-				pm1a_cnt_ready = v;
+				*pm1a_cnt_ready = v;
 			} else {
 				if (vm->pm.sx_state_data->s3_pkg.val_pm1a == val) {
 					enter_s3(vm, v, 0U);
@@ -379,9 +378,9 @@ static bool pm1ab_io_write(struct acrn_vcpu *vcpu, uint16_t addr, size_t width, 
 			to_write = false;
 		} else if ((addr == vm->pm.sx_state_data->pm1b_cnt.address) && is_s3_enabled(v)) {
 
-			if (pm1a_cnt_ready != 0U) {
-				pm1a_cnt_val = pm1a_cnt_ready;
-				pm1a_cnt_ready = 0U;
+			if (*pm1a_cnt_ready != 0U) {
+				pm1a_cnt_val = *pm1a_cnt_ready;
+				*pm1a_cnt_ready = 0U;
 
 				if (vm->pm.sx_state_data->s3_pkg.val_pm1b == val) {
 					enter_s3(vm, pm1a_cnt_val, v);

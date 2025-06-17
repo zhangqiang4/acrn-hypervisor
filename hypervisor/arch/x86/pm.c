@@ -103,7 +103,8 @@ static struct pm_s_state_data host_pm_s_state = {
 		.reserved = S5_PKG_RESERVED
 	},
 	.wake_vector_32 = (uint32_t *)WAKE_VECTOR_32,
-	.wake_vector_64 = (uint64_t *)WAKE_VECTOR_64
+	.wake_vector_64 = (uint64_t *)WAKE_VECTOR_64,
+	.pm1a_cnt_ready = 0U
 };
 
 /**

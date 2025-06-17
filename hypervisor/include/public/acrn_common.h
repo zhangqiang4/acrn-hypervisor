@@ -707,6 +707,7 @@ struct pm_s_state_data {
 	struct acpi_sx_pkg s5_pkg;  /**< The ACPI Sx package for the S5 state */
 	uint32_t *wake_vector_32;   /**< 32-bit wake vector for the VM */
 	uint64_t *wake_vector_64;   /**< 64-bit wake vector for the VM */
+	uint32_t pm1a_cnt_ready;    /**< Whether pm1a_cnt is already written */
 } __aligned(8);
 
 /**
