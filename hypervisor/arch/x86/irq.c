@@ -484,7 +484,9 @@ static inline void set_idt(struct host_idt_descriptor *idtd)
  * If the specified physical cpu is the BSP,
  *	Fix up the 64-bit IDT descriptor.
  *	Disable PIC.
- * For any cpu, this function loads the 64-bit IDT descriptor and initializes local APIC.
+ * For any cpu, this function loads the 64-bit IDT descriptor and reads the physical LDR register
+ * (IA32_X2APIC_LDR MSR) value and records it in the per-CPU data structure for the designated
+ * physical CPU (pCPU).
  *
  * @param[in] pcpu_id Physical cpu id.
  *
@@ -498,7 +500,8 @@ void init_interrupt_arch(uint16_t pcpu_id)
 		fixup_idt(idtd);
 	}
 	set_idt(idtd);
-	init_lapic(pcpu_id);
+
+	per_cpu(lapic_ldr, pcpu_id) = (uint32_t) msr_read(MSR_IA32_EXT_APIC_LDR);
 
 	if (pcpu_id == BSP_CPU_ID) {
 		/* we use ioapic only, disable legacy PIC */

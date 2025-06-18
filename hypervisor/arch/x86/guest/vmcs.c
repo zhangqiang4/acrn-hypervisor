@@ -753,8 +753,9 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu);
  * @brief VMCS initialization for a given vCPU.
  *
  * This function initializes the VMCS for the given vCPU. It sets up the host and guest states, execution controls,
- * entry controls, and exit controls. Now ACRN Hypervisor locks guest in x2apic mode, so would use virtualize x2APIC
- * mode instead of virtualize APIC accesses in secondary processor-based VM-execution controls for default.
+ * entry controls, and exit controls. It also calls vlapic_reset to perform a reset of the vLAPIC. Now ACRN Hypervisor
+ * locks guest in x2apic mode, so would use virtualize x2APIC mode instead of virtualize APIC accesses in secondary
+ * processor-based VM-execution controls for default.
  *
  * @param[inout] vcpu The pointer to the specified vCPU.
  *
@@ -785,6 +786,7 @@ void init_vmcs(struct acrn_vcpu *vcpu)
 	init_entry_ctrl(vcpu);
 	init_exit_ctrl(vcpu);
 
+	vlapic_reset(vcpu);
 	/* TODO: remove switch_apicv_mode_x2apic */
 	switch_apicv_mode_x2apic(vcpu);
 }
@@ -843,6 +845,7 @@ static void switch_apicv_mode_x2apic(struct acrn_vcpu *vcpu)
 {
 	uint32_t value32;
 	uint64_t value64;
+
 	if (is_lapic_pt_configured(vcpu->vm)) {
 		dev_dbg(DBG_LEVEL_LAPICPT, "%s: switching to x2apic and passthru", __func__);
 

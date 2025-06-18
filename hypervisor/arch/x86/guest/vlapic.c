@@ -2479,17 +2479,10 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 }
 
 /**
- * @brief This function performs a reset of the virtual LAPIC for a given vCPU.
+ * @brief Perform a reset of the vLAPIC for a given vCPU.
  *
- * According to section 12.4.7.1 Local APIC State After Power-Up or Reset, Volume 3,
- * Intel SDM 325462-087US, the following registers are reset to all 0s:
- * - Timer initial count and timer current count registers.
- * - Divide configuration register.
- *
- * Additionally,
- * - The APICv operations callback set of this virtual LAPIC is initialized based on the virtual
- *   LAPIC configuration (whether local APIC pass-through or virtual APIC is used).
- * - Initializes value of IA32_APIC_BASE of this vlapic to 0xFEE00000.
+ * This function retrieves the vLAPIC structure associated with the specified vCPU and invokes the reset
+ * operation defined in the vLAPIC's operations structure.
  *
  * @param[inout] vcpu Pointer to the vcpu whose vlapic is going to be reset.
  *
@@ -2504,46 +2497,9 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 void
 vlapic_reset(struct acrn_vcpu *vcpu)
 {
-	struct lapic_regs *lapic;
+	// Retrieve the vLAPIC structure associated with the given vCPU.
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
-
-	vlapic->msr_apicbase = DEFAULT_APIC_BASE;
-
-	if (vlapic2vcpu(vlapic)->vcpu_id == BSP_CPU_ID) {
-		vlapic->msr_apicbase |= APICBASE_BSP;
-	}
-
-	/* vlapic is always locked on x2APIC mode. */
-	vlapic->msr_apicbase |= APICBASE_XAPIC | APICBASE_X2APIC;
-
-	lapic = &(vlapic->apic_page);
-	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
-
-	/* LAPIC ID register is Read-only in x2APIC mode */
-	vlapic_build_x2apic_id(vlapic);
-
-	lapic->version.v = VLAPIC_VERSION;
-	lapic->version.v |= (VLAPIC_MAXLVT_INDEX << MAXLVTSHIFT);
-	lapic->dfr.v = 0xffffffffU;
-	lapic->svr.v = APIC_SVR_VECTOR;
-	vlapic_mask_lvts(vlapic);
-	vlapic_reset_tmr(vlapic);
-
-	lapic->icr_timer.v = 0U;
-	lapic->dcr_timer.v = 0U;
-	vlapic_write_dcr(vlapic);
-	vlapic_reset_timer(vlapic);
-
-	vlapic->svr_last = lapic->svr.v;
-
-	vlapic->isrv = 0U;
-
-	if (!is_lapic_pt_configured(vcpu->vm)) {
-		vlapic->ops = &apicv_advanced_ops;
-	} else {
-		vlapic->ops = &ptapic_ops;
-	}
-
+	vlapic->ops->reset(vcpu);
 }
 
 /**
@@ -2682,6 +2638,27 @@ static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
 }
 
 /**
+ * @brief Reset the Local APIC with pass-through mode for a given virtual CPU (vCPU).
+ *
+ * This function initializes the local APIC for the specified vCPU with local APIC pass-through.
+ * It invokes the init_lapic() function to initialize the local APIC registers.
+ *
+ * @param[in] vcpu Pointer to the virtual CPU structure (unused in this implementation).
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark This function should run in the context of the vCPU that is being reset.
+ */
+static void ptapic_reset(__unused struct acrn_vcpu *vcpu)
+{
+	init_lapic();
+}
+
+/**
  * @brief APICv operation callback functions set supporting local APIC pass-through configuration.
  *
  * Specifically, it initializes acrn_apicv_ops callback functions as below:
@@ -2700,6 +2677,8 @@ static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
  * - x2apic_write_msr_may_valid  This callback function verifies if a write operation is permitted
  *                               for a given register offset, writing APIC_OFFSET_ICR_LOW,
  *                               APIC_OFFSET_THERM_LVT is allowed.
+ *
+ * - reset  This callback function resets the virtual LAPIC, initializes the local APIC operations.
  */
 static const struct acrn_apicv_ops ptapic_ops = {
 	.accept_intr = ptapic_accept_intr,
@@ -2707,6 +2686,7 @@ static const struct acrn_apicv_ops ptapic_ops = {
 	.has_pending_intr = ptapic_has_pending_intr,
 	.x2apic_read_msr_may_valid  = ptapic_read_msr_may_may_invalid,
 	.x2apic_write_msr_may_valid  = ptapic_write_msr_may_may_invalid,
+	.reset = ptapic_reset,
 };
 
 /**
@@ -3169,6 +3149,46 @@ static bool apicv_advanced_x2apic_write_msr_may_valid(uint32_t offset)
 }
 
 /**
+ * @brief Reset the APICv for a given virtual CPU.
+ *
+ * Reset the registers of APICv to default value according to the section 11.4.7.1, Local APIC State After Power-Up
+ * or Reset, Volume 3, Intel SDM 325462-087US.
+ *
+ * @param[inout] vcpu Pointer to the virtual CPU structure whose APICv state is to be reset.
+ *
+ * @return none.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ */
+static void apicv_reset(struct acrn_vcpu *vcpu)
+{
+	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
+	struct lapic_regs *lapic = &(vlapic->apic_page);
+
+	/* Set default value for regisers of APICv */
+	/* clear all to zero */
+	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
+
+	/* LAPIC ID register is Read-only in x2APIC mode */
+	vlapic_build_x2apic_id(vlapic);
+
+	/* set non-zero default */
+	lapic->version.v = VLAPIC_VERSION;
+	lapic->version.v |= (VLAPIC_MAXLVT_INDEX << MAXLVTSHIFT);
+	lapic->dfr.v = 0xffffffffU;
+	lapic->svr.v = APIC_SVR_VECTOR;
+
+	vlapic_mask_lvts(vlapic);
+	vlapic_reset_tmr(vlapic);
+	vlapic_write_dcr(vlapic);
+	vlapic_reset_timer(vlapic);
+	vlapic->svr_last = lapic->svr.v;
+	vlapic->isrv = 0U;
+}
+
+/**
  * @brief Handle a read from MSR in virtual LAPIC registers in x2APIC mode.
  *
  * This API emulates x2APIC MSR read for both APIC pass-through and LAPIC virtualization cases.
@@ -3322,6 +3342,13 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
  *   initializes the PID (Posted-Interrupt Descriptor) pointer field which is indexed by
  *   APIC ID of current virtual LAPIC.
  *
+ * - The vLAPIC operation callback for this virtual LAPIC is initialized based on the virtual
+ *   LAPIC configuration (whether local APIC pass-through or virtual APIC is used).
+ *
+ * - The vLAPIC is always locked in x2APIC mode as part of the ACRN-specific design.
+ *
+ * - Initializes the value of IA32_APIC_BASE for this vLAPIC to 0xFEE00000.
+ *
  * @param[in] vcpu Pointer to the vCPU whose virtual LAPIC is being created.
  * @param[in] pcpu_id ID of the pCPU where the vCPU will run.
  *
@@ -3336,6 +3363,7 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 {
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
+	struct lapic_regs *lapic;
 
 	if (is_vcpu_bsp(vcpu)) {
 		uint64_t *pml4_page =
@@ -3364,6 +3392,28 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 			/* the max lapic_id is small than 512 when arch.pid_table is valid */
 			vcpu->vm->arch_vm.max_lapic_id = (uint16_t)vlapic->vapic_id;
 		}
+	}
+
+	vlapic->msr_apicbase = DEFAULT_APIC_BASE;
+
+	if (vlapic2vcpu(vlapic)->vcpu_id == BSP_CPU_ID) {
+		vlapic->msr_apicbase |= APICBASE_BSP;
+	}
+
+	/* vlapic is always locked on x2APIC mode. */
+	vlapic->msr_apicbase |= APICBASE_XAPIC | APICBASE_X2APIC;
+
+	lapic = &(vlapic->apic_page);
+	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
+
+	/* LAPIC ID register is Read-only in x2APIC mode */
+	vlapic_build_x2apic_id(vlapic);
+
+	/* set the callback operations for vlapic */
+	if (!is_lapic_pt_configured(vcpu->vm)) {
+		vlapic->ops = &apicv_advanced_ops;
+	} else {
+		vlapic->ops = &ptapic_ops;
 	}
 
 	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic APIC ID : 0x%04x", vlapic->vapic_id);
@@ -3845,6 +3895,8 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
  *                               for a given register offset in virtual-APIC page. Write on below
  *                               regisers are emulated in x2APIC mode: APIC_OFFSET_DFR,
  *                               APIC_OFFSET_ICR_HI, APIC_OFFSET_EOI and APIC_OFFSET_SELF_IPI.
+ *
+ * - reset  This callback function resets the APICv by calling apicv_reset function.
  */
 static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.accept_intr = apicv_advanced_accept_intr,
@@ -3852,6 +3904,7 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.has_pending_intr = apicv_advanced_has_pending_intr,
 	.x2apic_read_msr_may_valid  = apicv_advanced_x2apic_read_msr_may_valid,
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
+	.reset = apicv_reset,
 };
 /**
  * @}

@@ -141,6 +141,11 @@ struct acrn_apicv_ops {
 	 * @brief Check x2APIC MSR writable callback function type.
 	 */
 	bool (*x2apic_write_msr_may_valid)(uint32_t offset);
+
+	/**
+	 * @brief vCPU reset callback function type.
+	 */
+	void (*reset)(struct acrn_vcpu *vcpu);
 };
 
 void vlapic_inject_intr(struct acrn_vlapic *vlapic);

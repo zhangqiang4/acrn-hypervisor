@@ -277,13 +277,10 @@ void early_init_lapic(void)
 }
 
 /**
- * @brief Initialize Local APIC with the specific physical CPU ID
+ * @brief Initialize the Local APIC for current physical CPU.
  *
- * The function reads the physical LDR register (IA32_X2APIC_LDR MSR) value and records it in the
- * per-CPU data structure for the designated physical CPU (pCPU).
- *
- * @param[in] pcpu_id  The physical CPU ID to be set in the LAPIC's Logical
- *                     Destination Register.
+ * This function initializes local APIC registers of x2APIC mode according to section 11.12.5.1 x2APIC States,
+ * Volume 3, Intel SDM 325462-087US.
  *
  * @return None
  *
@@ -291,11 +288,24 @@ void early_init_lapic(void)
  *
  * @post N/A
  *
- * @remark Can not put this to early_init_lapic because logical ID is not updated yet.
+ * @remark This function should run in the context of the physical CPU whose local APIC needs to be initialized.
  */
-void init_lapic(uint16_t pcpu_id)
-{
-	per_cpu(lapic_ldr, pcpu_id) = (uint32_t) msr_read(MSR_IA32_EXT_APIC_LDR);
+void init_lapic(void) {
+	/* Ensure there are no ISR bits set. */
+	clear_lapic_isr();
+	msr_write(MSR_IA32_EXT_APIC_LVT_CMCI, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_TIMER, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_THERMAL, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_PMI, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_LINT0, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_LINT1, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_LVT_ERROR, APIC_LVTT_M);
+	msr_write(MSR_IA32_EXT_APIC_SIVR, APIC_SVR_VECTOR);
+	msr_write(MSR_IA32_EXT_APIC_DIV_CONF, 0U);
+	msr_write(MSR_IA32_TSC_DEADLINE, 0U);
+	msr_write(MSR_IA32_EXT_APIC_ICR, 0U);
+	msr_write(MSR_IA32_EXT_APIC_TPR, 0U);
+	msr_write(MSR_IA32_EXT_APIC_INIT_COUNT, 0U);
 }
 
 /**

@@ -658,7 +658,6 @@ static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu);
  * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
  * - Call clear_va_vmcs to Clear VMCS data structure
  * - Initillize interrupt mode to kill vCPU out of non-root mode
- * - Call vlapic_reset to performs a reset of the virtual LAPIC
  * - Call set_vcpu_regs to Reset vCPU to initial states
  * - Rebuild vCPU thread stack if pCPU state is offline.
  * - Call reset_event to Reset all the vCPU schedule event
@@ -729,8 +728,6 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 
 	(void)memset((void *)(&vcpu->arch.contexts), 0U,
 			sizeof(struct run_context));
-
-	vlapic_reset(vcpu);
 
 	/* reset vcpu default memory type */
 	vcpu_reset_mtrr_def_type(vcpu);
@@ -1231,7 +1228,6 @@ static void vcpu_reset_mtrr_def_type(struct acrn_vcpu *vcpu)
  * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
  * - Call clear_va_vmcs to Clear VMCS data structure
  * - Initillize interrupt mode to kill vCPU out of non-root mode
- * - Call vlapic_reset to performs a reset of the virtual LAPIC
  * - Call set_vcpu_regs to Reset vCPU to initial states
  * - Rebuild vCPU thread stack if pCPU state is offline.
  * - Call reset_event to Reset all the vCPU schedule event
@@ -1676,7 +1672,6 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
  * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
  * - Call clear_va_vmcs to Clear VMCS data structure
  * - Initillize interrupt mode to kill vCPU out of non-root mode
- * - Call vlapic_reset to performs a reset of the virtual LAPIC
  * - Call set_vcpu_regs to Reset vCPU to initial states
  * - Rebuild vCPU thread stack if pCPU state is offline.
  * - Call reset_event to Reset all the vCPU schedule event
@@ -1956,7 +1951,6 @@ void launch_vcpu(struct acrn_vcpu *vcpu)
  * - Reset vCPU flags/VMCS/running context/MTRR default type to default values.
  * - Call clear_va_vmcs to Clear VMCS data structure
  * - Initillize interrupt mode to kill vCPU out of non-root mode
- * - Call vlapic_reset to performs a reset of the virtual LAPIC
  * - Call set_vcpu_regs to Reset vCPU to initial states
  * - Rebuild vCPU thread stack if pCPU state is offline.
  * - Call reset_event to Reset all the vCPU schedule event

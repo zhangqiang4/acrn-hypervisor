@@ -65,7 +65,7 @@ void resume_lapic(void);
 
 uint32_t get_cur_lapic_id(void);
 
-void init_lapic(uint16_t pcpu_id);
+void init_lapic(void);
 void send_lapic_eoi(void);
 void send_startup_ipi(uint16_t dest_pcpu_id, uint64_t cpu_startup_start_address);
 void send_dest_ipi_mask(uint32_t dest_mask, uint32_t vector);
