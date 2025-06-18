@@ -11,7 +11,9 @@
 #include <sbuf.h>
 #include <irq.h>
 #include <timer.h>
+#ifdef HV_DEBUG
 #include <profiling.h>
+#endif
 #include <logmsg.h>
 #include <schedule.h>
 #include <asm/notify.h>

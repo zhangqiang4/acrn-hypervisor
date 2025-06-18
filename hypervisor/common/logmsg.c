@@ -10,8 +10,10 @@
 #include <asm/per_cpu.h>
 #include <logmsg.h>
 #include <ticks.h>
+#ifdef HV_DEBUG
 #include <console.h>
 #include <npk_log.h>
+#endif
 
 /**
  * @defgroup debug debug
@@ -148,7 +150,7 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 #ifdef HV_DEBUG
 	if (mem_need_log(severity) || console_need_log(severity) || npk_need_log(severity)) {
 #else
-	if (mem_need_log(severity) || console_need_log(severity)) {
+	if (mem_need_log(severity)) {
 #endif
 		/* Get time-stamp value */
 		timestamp = cpu_ticks();
@@ -177,12 +179,12 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 		if (mem_need_log(severity)) {
 			mem_log(pcpu_id, buffer);
 		}
-
+#ifdef HV_DEBUG
 		/* Check whether output to stdout */
 		if (console_need_log(severity)) {
 			console_log(buffer);
 		}
-#ifdef HV_DEBUG
+
 		/* Check whether output to NPK */
 		if (npk_need_log(severity)) {
 			npk_log(buffer);

@@ -12,10 +12,12 @@
 #include <asm/guest/guest_pm.h>
 #include <hv_main.h>
 #include <schedule.h>
-#include <profiling.h>
 #include <sprintf.h>
 #include <trace.h>
 #include <logmsg.h>
+#ifdef HV_DEBUG
+#include <profiling.h>
+#endif
 
 /**
  * @addtogroup vp-base_hv-main

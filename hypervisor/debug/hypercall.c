@@ -8,8 +8,10 @@
 #include <errno.h>
 #include <profiling.h>
 #include <sbuf.h>
+#ifdef HV_DEBUG
 #include <debug/hypercall.h>
 #include <npk_log.h>
+#endif
 #include <asm/guest/vm.h>
 #include <logmsg.h>
 

@@ -13,7 +13,9 @@
 #include <asm/host_pm.h>
 #include <asm/trampoline.h>
 #include <asm/vmx.h>
+#ifdef HV_DEBUG
 #include <console.h>
+#endif
 #include <asm/ioapic.h>
 #include <asm/vtd.h>
 #include <asm/lapic.h>
@@ -403,7 +405,9 @@ void host_enter_s3(void)
 	CPU_IRQ_DISABLE();
 	vmx_off();
 
+#ifdef HV_DEBUG
 	suspend_console();
+#endif
 	suspend_vrtc();
 	suspend_sched();
 	suspend_ioapic();
@@ -440,7 +444,9 @@ void host_enter_s3(void)
 	/* console must be resumed after TSC restored since it will setup timer base on TSC */
 	resume_sched();
 	resume_vrtc();
+#ifdef HV_DEBUG
 	resume_console();
+#endif
 }
 
 /**

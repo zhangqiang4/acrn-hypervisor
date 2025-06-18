@@ -29,12 +29,14 @@
 
 #include <types.h>
 #include <pci.h>
-#include <uart16550.h>
-#include <console.h>
 #include <vuart.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>
 #include <vmcs9900.h>
+#ifdef HV_DEBUG
+#include <uart16550.h>
+#include <console.h>
+#endif
 
 /**
  * @addtogroup vp-dm_vperipheral

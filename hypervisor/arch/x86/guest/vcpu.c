@@ -22,7 +22,9 @@
 #include <lib/sprintf.h>
 #include <asm/lapic.h>
 #include <asm/irq.h>
+#ifdef HV_DEBUG
 #include <console.h>
+#endif
 #include <hv_main.h>
 
 /**
@@ -707,13 +709,17 @@ static void vcpu_reset_internal(uint16_t pcpu_id, struct acrn_vcpu *vcpu, enum v
 		(void)memcpy_s(vcpu->arch.vmcs, 4U, (void *)&vmx_rev_id, 4U);
 
 		per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_CX;
+
+#ifdef HV_DEBUG
 		if (is_using_init_ipi()) {
 			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_INIT;
-		} else {
+			pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
+				per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
+		} else
+#endif
+		{
 			per_cpu(mode_to_kick_pcpu, pcpu_id) = DEL_MODE_IPI;
 		}
-		pr_info("pcpu=%d, kick-mode=%d, use_init_flag=%d", pcpu_id,
-			per_cpu(mode_to_kick_pcpu, pcpu_id), is_using_init_ipi());
 	}
 	/*
 	 * Execute VMCLEAR VMCS to initialize parts of the VMCS region (e.g. it sets the

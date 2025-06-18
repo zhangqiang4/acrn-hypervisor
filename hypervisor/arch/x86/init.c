@@ -7,8 +7,10 @@
 #include <types.h>
 #include <asm/init.h>
 #include <asm/per_cpu.h>
+#ifdef HV_DEBUG
 #include <console.h>
 #include <shell.h>
+#endif
 #include <asm/vmx.h>
 #include <asm/guest/vm.h>
 #include <logmsg.h>

@@ -6,8 +6,11 @@
 
 #include <asm/cpu.h>
 #include <asm/irq.h>
-#include <debug/dump.h>
 #include <asm/mce.h>
+#ifdef HV_DEBUG
+#include <debug/dump.h>
+#endif
+
 
 /**
  * @addtogroup hwmgmt_irq
@@ -39,13 +42,15 @@
  */
 void dispatch_exception(struct intr_excp_ctx *ctx)
 {
-	uint16_t pcpu_id = get_pcpu_id();
-
 	if (ctx->vector == IDT_MC) {
 		handle_mce();
 	} else {
+
+#ifdef HV_DEBUG
+		uint16_t pcpu_id = get_pcpu_id();
 		/* Dump exception context */
 		dump_exception(ctx, pcpu_id);
+#endif
 
 		/* Halt the CPU */
 		cpu_dead();

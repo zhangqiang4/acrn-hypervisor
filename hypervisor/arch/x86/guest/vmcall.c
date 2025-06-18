@@ -12,7 +12,9 @@
 #include <asm/guest/virq.h>
 #include <acrn_hv_defs.h>
 #include <hypercall.h>
+#ifdef HV_DEBUG
 #include <debug/hypercall.h>
+#endif
 #include <trace.h>
 #include <logmsg.h>
 

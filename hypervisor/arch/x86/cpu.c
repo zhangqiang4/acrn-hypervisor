@@ -28,7 +28,9 @@
 #include <logmsg.h>
 #include <asm/rdt.h>
 #include <asm/sgx.h>
+#ifdef HV_DEBUG
 #include <uart16550.h>
+#endif
 #include <vpci.h>
 #include <ivshmem.h>
 #include <boot.h>
@@ -375,11 +377,13 @@ void init_pcpu_pre(bool is_bsp)
 		/* Initialize the hypervisor paging */
 		init_paging();
 
+#ifdef HV_DEBUG
 		/*
 		 * Need update uart_base_address here for vaddr2paddr mapping may changed
 		 * WARNING: DO NOT CALL PRINTF BETWEEN ENABLE PAGING IN init_paging AND HERE!
 		 */
 		uart16550_init(false);
+#endif
 
 		early_init_lapic();
 
@@ -957,7 +961,7 @@ static void print_hv_banner(void)
 	const char *boot_msg = "ACRN Hypervisor\n\r";
 
 	/* Print the boot message */
-	printf(boot_msg);
+	pr_acrnlog(boot_msg);
 }
 
 /**

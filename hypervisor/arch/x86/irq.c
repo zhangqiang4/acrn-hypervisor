@@ -12,7 +12,9 @@
 #include <asm/idt.h>
 #include <asm/ioapic.h>
 #include <asm/lapic.h>
+#ifdef HV_DEBUG
 #include <dump.h>
+#endif
 #include <logmsg.h>
 #include <asm/vmx.h>
 #include <irq.h>

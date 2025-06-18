@@ -18,7 +18,6 @@
 #include <asm/vtd.h>
 #include <asm/guest/ept.h>
 #include <asm/guest/guest_pm.h>
-#include <console.h>
 #include <ptdev.h>
 #include <asm/guest/vmcs.h>
 #include <asm/pgtable.h>
@@ -38,7 +37,10 @@
 #include <vpic.h>
 #include <vgpio.h>
 #include <asm/irq.h>
+#ifdef HV_DEBUG
+#include <console.h>
 #include <uart16550.h>
+#endif
 #ifdef CONFIG_SECURITY_VM_FIXUP
 #include <quirks/security_vm_fixup.h>
 #endif
@@ -738,8 +740,11 @@ static void deny_pdevs(struct acrn_vm *service_vm, struct acrn_vm_pci_dev_config
  */
 static void deny_hv_owned_devices(struct acrn_vm *service_vm)
 {
+#ifdef HV_DEBUG
 	uint16_t pio_address;
-	uint32_t nbytes, i;
+	uint32_t nbytes;
+#endif
+	uint32_t i;
 
 	const struct pci_pdev **hv_owned = get_hv_owned_pdevs();
 
@@ -747,9 +752,11 @@ static void deny_hv_owned_devices(struct acrn_vm *service_vm)
 		deny_pci_bar_access(service_vm, hv_owned[i]);
 	}
 
+#ifdef HV_DEBUG
 	if (get_pio_dbg_uart_cfg(&pio_address, &nbytes)) {
 		deny_guest_pio_access(service_vm, pio_address, nbytes);
 	}
+#endif
 }
 
 #ifdef CONFIG_SGX_ENABLED

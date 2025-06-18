@@ -21,7 +21,9 @@
 #include <asm/guest/vcpuid.h>
 #include <trace.h>
 #include <common/hypercall.h>
+#ifdef HV_DEBUG
 #include <debug/console.h>
+#endif
 
 /**
  * @addtogroup vp-base_hv-main
@@ -569,9 +571,9 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 			}
 		}
 	}
-
+#ifdef HV_DEBUG
 	console_vmexit_callback(vcpu);
-
+#endif
 	return ret;
 }
 

@@ -131,7 +131,9 @@ ARCH_LDSCRIPT_IN = bsp/ld/link_ram.ld.in
 REL_INCLUDE_PATH += include
 REL_INCLUDE_PATH += include/lib
 REL_INCLUDE_PATH += include/common
+ifneq ($(CONFIG_RELEASE),y)
 REL_INCLUDE_PATH += include/debug
+endif
 REL_INCLUDE_PATH += include/public
 REL_INCLUDE_PATH += include/dm
 REL_INCLUDE_PATH += include/hw
@@ -372,11 +374,7 @@ MODULES += $(HW_MOD)
 MODULES += $(VP_BASE_MOD)
 MODULES += $(VP_DM_MOD)
 MODULES += $(VP_HCALL_MOD)
-ifeq ($(CONFIG_RELEASE),y)
-MODULES += $(LIB_RELEASE)
-LIB_BUILD = $(LIB_RELEASE)
-LIB_MK = release/Makefile
-else
+ifneq ($(CONFIG_RELEASE),y)
 MODULES += $(LIB_DEBUG)
 LIB_BUILD = $(LIB_DEBUG)
 LIB_MK = debug/Makefile

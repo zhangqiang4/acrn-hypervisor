@@ -941,15 +941,15 @@ static int32_t check_vmx_mmu_cap(void)
 	int32_t ret = 0;
 
 	if (!pcpu_has_vmx_ept_vpid_cap(VMX_EPT_INVEPT)) {
-		printf("%s, invept not supported\n", __func__);
+		pr_acrnlog("%s, invept not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_vmx_ept_vpid_cap(VMX_VPID_INVVPID) ||
 		!pcpu_has_vmx_ept_vpid_cap(VMX_VPID_INVVPID_SINGLE_CONTEXT) ||
 		!pcpu_has_vmx_ept_vpid_cap(VMX_VPID_INVVPID_GLOBAL_CONTEXT)) {
-		printf("%s, invvpid not supported\n", __func__);
+		pr_acrnlog("%s, invvpid not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_vmx_ept_vpid_cap(VMX_EPT_2MB_PAGE)) {
-		printf("%s, ept not support 2MB large page\n", __func__);
+		pr_acrnlog("%s, ept not support 2MB large page\n", __func__);
 		ret = -ENODEV;
 	} else {
 		/* No other state currently, do nothing */
@@ -1018,15 +1018,15 @@ static int32_t check_essential_vmx_caps(void)
 	if (check_vmx_mmu_cap() != 0) {
 		ret = -ENODEV;
 	} else if (!pcpu_has_vmx_unrestricted_guest_cap()) {
-		printf("%s, unrestricted guest not supported\n", __func__);
+		pr_acrnlog("%s, unrestricted guest not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (pcpu_vmx_set_32bit_addr_width()) {
-		printf("%s, Only support Intel 64 architecture.\n", __func__);
+		pr_acrnlog("%s, Only support Intel 64 architecture.\n", __func__);
 		ret = -ENODEV;
 	} else {
 		for (i = 0U; i < ARRAY_SIZE(vmx_caps); i++) {
 			if (!is_vmx_cap_supported(vmx_caps[i].msr, vmx_caps[i].bits)) {
-				printf("%s, check MSR[0x%x]:0x%lx bits:0x%x failed\n", __func__,
+				pr_acrnlog("%s, check MSR[0x%x]:0x%lx bits:0x%x failed\n", __func__,
 						vmx_caps[i].msr, msr_read(vmx_caps[i].msr), vmx_caps[i].bits);
 				ret = -ENODEV;
 				break;
@@ -1082,94 +1082,93 @@ static int32_t check_essential_vmx_caps(void)
 int32_t detect_hardware_support(void)
 {
 	int32_t ret;
-
 	/* Long Mode (x86-64, 64-bit support) */
 	if (!pcpu_has_cap(X86_FEATURE_LM)) {
-		printf("%s, LM not supported\n", __func__);
+		pr_acrnlog("%s, LM not supported\n", __func__);
 		ret = -ENODEV;
 	} else if ((boot_cpu_data.phys_bits == 0U) ||
 		(boot_cpu_data.virt_bits == 0U)) {
-		printf("%s, can't detect Linear/Physical Address size\n", __func__);
+		pr_acrnlog("%s, can't detect Linear/Physical Address size\n", __func__);
 		ret = -ENODEV;
 	} else if (boot_cpu_data.phys_bits > MAXIMUM_PA_WIDTH) {
-		printf("%s, physical-address width (%d) over maximum physical-address width (%d)\n",
+		pr_acrnlog("%s, physical-address width (%d) over maximum physical-address width (%d)\n",
 			__func__, boot_cpu_data.phys_bits, MAXIMUM_PA_WIDTH);
 		ret = -ENODEV;
 	} else if ((boot_cpu_data.phys_bits > 39U) && (!pcpu_has_cap(X86_FEATURE_PAGE1GB) ||
 			!pcpu_has_vmx_ept_vpid_cap(VMX_EPT_1GB_PAGE))) {
-		printf("%s, physical-address width %d over 39 bits must support 1GB large page\n",
+		pr_acrnlog("%s, physical-address width %d over 39 bits must support 1GB large page\n",
 			__func__, boot_cpu_data.phys_bits);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_INVA_TSC)) {
 		/* check invariant TSC */
-		printf("%s, invariant TSC not supported\n", __func__);
+		pr_acrnlog("%s, invariant TSC not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_TSC_DEADLINE)) {
 		/* lapic TSC deadline timer */
-		printf("%s, TSC deadline not supported\n", __func__);
+		pr_acrnlog("%s, TSC deadline not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_TSC_ADJ)) {
 		/* IA32_TSC_ADJUST MSR */
-		printf("%s, IA32_TSC_ADJUST MSR not supported\n", __func__);
+		pr_acrnlog("%s, IA32_TSC_ADJUST MSR not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_NX)) {
 		/* Execute Disable */
-		printf("%s, NX not supported\n", __func__);
+		pr_acrnlog("%s, NX not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_SMEP)) {
 		/* Supervisor-Mode Execution Prevention */
-		printf("%s, SMEP not supported\n", __func__);
+		pr_acrnlog("%s, SMEP not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_SMAP)) {
 		/* Supervisor-Mode Access Prevention */
-		printf("%s, SMAP not supported\n", __func__);
+		pr_acrnlog("%s, SMAP not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_MTRR)) {
-		printf("%s, MTRR not supported\n", __func__);
+		pr_acrnlog("%s, MTRR not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_CLFLUSHOPT)) {
-		printf("%s, CLFLUSHOPT not supported\n", __func__);
+		pr_acrnlog("%s, CLFLUSHOPT not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_VMX)) {
-		printf("%s, vmx not supported\n", __func__);
+		pr_acrnlog("%s, vmx not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!is_fast_string_erms_supported_and_enabled()) {
 		ret = -ENODEV;
 	} else if (!is_ept_supported()) {
-		printf("%s, EPT not supported\n", __func__);
+		pr_acrnlog("%s, EPT not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!is_apicv_advanced_feature_supported()) {
-		printf("%s, APICV not supported\n", __func__);
+		pr_acrnlog("%s, APICV not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (boot_cpu_data.cpuid_level < 0x15U) {
-		printf("%s, required CPU feature not supported\n", __func__);
+		pr_acrnlog("%s, required CPU feature not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (is_vmx_disabled()) {
-		printf("%s, VMX can not be enabled\n", __func__);
+		pr_acrnlog("%s, VMX can not be enabled\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_X2APIC)) {
-		printf("%s, x2APIC not supported\n", __func__);
+		pr_acrnlog("%s, x2APIC not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_POPCNT)) {
-		printf("%s, popcnt instruction not supported\n", __func__);
+		pr_acrnlog("%s, popcnt instruction not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_SSE)) {
-		printf("%s, SSE not supported\n", __func__);
+		pr_acrnlog("%s, SSE not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_RDRAND)) {
-		printf("%s, RDRAND is not supported\n", __func__);
+		pr_acrnlog("%s, RDRAND is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_ARCH_CAP)){
-		printf("%s, IA32_ARCH_CAPABILITIES MSR is not supported\n", __func__);
+		pr_acrnlog("%s, IA32_ARCH_CAPABILITIES MSR is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_MONITOR)) {
-		printf("%s, MONITOR/MWAIT is not supported\n", __func__);
+		pr_acrnlog("%s, MONITOR/MWAIT is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (!pcpu_has_cap(X86_FEATURE_HWP)) {
-		printf("%s, HWP is not supported\n", __func__);
+		pr_acrnlog("%s, HWP is not supported\n", __func__);
 		ret = -ENODEV;
 	} else if ((msr_read(MSR_IA32_ARCH_CAPABILITIES) & IA32_ARCH_CAP_IF_PSCHANGE_MC_NO) == 0UL) {
-		printf("%s, vulnerable to Machine Check Error on Page Size Change\n", __func__);
+		pr_acrnlog("%s, vulnerable to Machine Check Error on Page Size Change\n", __func__);
 		ret = -ENODEV;
 	} else {
 		ret = check_essential_vmx_caps();

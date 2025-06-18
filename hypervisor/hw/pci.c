@@ -36,7 +36,9 @@
 #include <asm/pgtable.h>
 #include <asm/mmu.h>
 #include <pci.h>
+#ifdef HV_DEBUG
 #include <uart16550.h>
+#endif
 #include <logmsg.h>
 #include <asm/pci_dev.h>
 #include <asm/vtd.h>
@@ -1391,12 +1393,13 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index)
 			}
 
 #if (PRE_VM_NUM != 0U)
-			/* HV owned pdev: 1.typ1 pdev if pre-launched VM exist; 2.pci debug uart */
-			is_hv_owned = (hdr_layout == PCIM_HDRTYPE_BRIDGE) || is_pci_dbg_uart(bdf);
-#else
-			/* HV owned pdev: 1.pci debug uart */
-			is_hv_owned = is_pci_dbg_uart(bdf);
+			is_hv_owned = (hdr_layout == PCIM_HDRTYPE_BRIDGE);
+#endif /* PRE_VM_NUM == 0U */
+
+#ifdef HV_DEBUG
+			is_hv_owned = (is_hv_owned || is_pci_dbg_uart(bdf));
 #endif
+
 			if (is_hv_owned) {
 				hv_owned_pci_pdevs[num_hv_owned_pci_pdev] = pdev;
 				num_hv_owned_pci_pdev++;
