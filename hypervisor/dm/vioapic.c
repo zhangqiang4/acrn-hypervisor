@@ -684,13 +684,11 @@ vioapic_mmio_rw(struct acrn_single_vioapic *vioapic, uint64_t gpa,
 /**
  * @brief Processes an EOI for a specific vector.
  *
- * This function first get the ioapic pin by the EOI vector and Remote IRR bit.
- * Then it call ptirq_intx_ack which acknowledge a virtual INTx interrupt for passthrough device.
- *
- * After acknowledge the above virtual INTx interrupt, it will get the vioapic->lock and clear the Remote IRR
- * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr to receive an interrupt from the
- * IOAPIC and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there because of this
- * Remote IRR and then release the lock.
+ * This function first get the ioapic pin by the EOI vector and Remote IRR bit under the lock protection.
+ * Then it call ptirq_intx_ack to Acknowledge a virtual INTx interrupt for passthrough device with this IOAPIC pin.
+ * At last, it will clear the Remote IRR in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr
+ * Receive an interrupt from the IOAPIC and inject it to the virtual local APIC if the IOAPIC pin interrupt pending
+ * there becuase of this Remote IRR and then release the lock.
  *
  * @param[inout] vioapic Pointer to the VIOAPIC instance, representing the virtualized IOAPIC.
  * @param[in] vector The interrupt vector for which to process the EOI, indicating the specific
@@ -719,17 +717,6 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
 
 	dev_dbg(DBG_LEVEL_VIOAPIC, "ioapic processing eoi for vector %u", vector);
 
-	/* notify device to ack if assigned pin */
-	for (pin = 0U; pin < pincount; pin++) {
-		rte = vioapic->rtbl[pin];
-		if ((rte.bits.vector != vector) ||
-			(rte.bits.remote_irr == 0U)) {
-			continue;
-		}
-
-		ptirq_intx_ack(vioapic->vm, vioapic->chipinfo.gsi_base + pin);
-	}
-
 	/*
 	 * XXX keep track of the pins associated with this vector instead
 	 * of iterating on every single pin each time.
@@ -741,6 +728,9 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
 			(rte.bits.remote_irr == 0U)) {
 			continue;
 		}
+
+		/* notify device to ack if assigned pin */
+		ptirq_intx_ack(vioapic->vm, vioapic->chipinfo.gsi_base + pin);
 
 		vioapic->rtbl[pin].bits.remote_irr = 0U;
 		if (vioapic_need_intr(vioapic, (uint16_t)pin)) {

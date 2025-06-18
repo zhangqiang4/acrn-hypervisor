@@ -696,9 +696,9 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
 		 * means we have this vioapic or vpic or both enabled
 		 */
 		if (entry->polarity != 0U) {
-			vioapic_set_irqline_lock(vm, virt_gsi, GSI_SET_HIGH);
+			vioapic_set_irqline_nolock(vm, virt_gsi, GSI_SET_HIGH);
 		} else {
-			vioapic_set_irqline_lock(vm, virt_gsi, GSI_SET_LOW);
+			vioapic_set_irqline_nolock(vm, virt_gsi, GSI_SET_LOW);
 		}
 
 		dev_dbg(DBG_LEVEL_PTIRQ, "dev-assign: irq=0x%x acked vr: 0x%x",
