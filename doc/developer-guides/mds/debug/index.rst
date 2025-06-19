@@ -24,30 +24,6 @@ This section contains the documentation of the component `debug`.
 .. doxygenfile:: trace.c
    :project: Project ACRN
 
-[File] release/console.c
-======================================================================
-
-.. doxygenfile:: console.c
-   :project: Project ACRN
-
-[File] release/dump.c
-======================================================================
-
-.. doxygenfile:: dump.c
-   :project: Project ACRN
-
-[File] release/printf.c
-======================================================================
-
-.. doxygenfile:: printf.c
-   :project: Project ACRN
-
-[File] release/uart16550.c
-======================================================================
-
-.. doxygenfile:: uart16550.c
-   :project: Project ACRN
-
 [File] include/common/logmsg.h
 ======================================================================
 
