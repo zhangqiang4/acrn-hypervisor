@@ -276,7 +276,7 @@ static int32_t vpci_mmio_cfg_access(struct io_request *io_req, void *private_dat
 
 	/**
 	 * Enhanced Configuration Address Mapping
-	 * A[(20+n-1):20] Bus Number 1 ≤ n ≤ 8
+	 * A[(20+n-1):20] Bus Number 1 <= n <= 8
 	 * A[19:15] Device Number
 	 * A[14:12] Function Number
 	 * A[11:8] Extended Register Number

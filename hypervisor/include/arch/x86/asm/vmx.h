@@ -468,7 +468,7 @@
 
 /*
  * INVPCID types
- * Refer to INVPCID—Invalidate Process-Context Identifier, Vol. 2, SDM 325462-078US for details.
+ * Refer to INVPCID-Invalidate Process-Context Identifier, Vol. 2, SDM 325462-078US for details.
  */
 #define VMX_VPID_TYPE_INDIVIDUAL_ADDR	0UL	/**< Individual-address INVVPID type */
 #define VMX_VPID_TYPE_SINGLE_CONTEXT	1UL	/**< Single-context INVVPID type */

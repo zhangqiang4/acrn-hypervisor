@@ -923,7 +923,7 @@ static inline bool pcpu_has_vmx_unrestricted_guest_cap(void)
 /**
  * @brief The internal function to check if the CPU supports the required EPT capabilities.
  *
- * This function checks if the required EPT (Extended page table）capabilities are supported by the CPU.
+ * This function checks if the required EPT (Extended page table) capabilities are supported by the CPU.
  * It verifies support for the INVEPT instruction, the INVVPID instruction and EPT 2MB large pages by invoking the
  * `pcpu_has_vmx_ept_vpid_cap` function with the appropriate capability flags.
  *

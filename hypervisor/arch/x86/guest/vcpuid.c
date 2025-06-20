@@ -114,7 +114,7 @@ static inline const struct vcpuid_entry *local_find_vcpuid_entry(const struct ac
  * @brief Find specific vCPUID entry with CPUID leaf and subleaf
  *
  * This is used to find specific vCPUID through local_find_vcpuid_entry(). If the target vCPUID
- * entry is not found, handle the returned vCPUID values as stated in SDM. Refer to CPUID—CPU
+ * entry is not found, handle the returned vCPUID values as stated in SDM. Refer to CPUID-CPU
  * Identification Vol.2, SDM 325462-078US for details.
  *
  * @param[in] vcpu Target vCPU to find the vCPUID entry
@@ -669,7 +669,7 @@ static int32_t set_vcpuid_thermal_power(struct acrn_vm *vm)
  *   - CPUID.(EAX=0x40000010H,ECX=0H) : Return the current TSC frequency and current Bus frequency in kHz.
  * - extended CPUIDs:
  *   - CPUID.(EAX=0x80000000H,ECX=0H), CPUID.(EAX=0x80000002H,ECX=0H) and other extended entries.
- *   Refer to CPUID—CPU Identification instruction, SDM Vol.2 325462-078US for details.
+ *   Refer to CPUID-CPU Identification instruction, SDM Vol.2 325462-078US for details.
  *
  * @param[in] vm Target VM to set vCPUID entries
  *

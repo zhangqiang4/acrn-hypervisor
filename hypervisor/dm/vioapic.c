@@ -359,11 +359,11 @@ vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
  *
  * This function just returns the cached value for the target writable register directly.
  *
- * For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
+ * For Read-only IOAPIC VERSION REGISTER,in addition to the version number, bits 23:16 need to be
  * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
  * for the IOAPIC minus one.
  *
- * For Read-only bit Remote IRR— in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
+ * For Read-only bit Remote IRR- in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
  * EOI would not trigger VM-exit. So virtual 'Remote IRR' would not be updated. Needs to read physical
  * IOxAPIC RTE to update virtual 'Remote IRR' field each time when guest wants to read I/O REDIRECTION
  * TABLE REGISTERS
@@ -598,11 +598,11 @@ static void vioapic_indirect_write(struct acrn_single_vioapic *vioapic, uint32_t
  * For the reading process:
  * 1 Returns the cached value for the target writable register directly
  *
- * 2 For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
+ * 2 For Read-only IOAPIC VERSION REGISTER,in addition to the version number, bits 23:16 need to be
  * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
  * for the IOAPIC minus one.
  *
- * 3 For Read-only bit Remote IRR— in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
+ * 3 For Read-only bit Remote IRR- in I/O REDIRECTION TABLE REGISTER, for local APIC passthrough case,
  * EOI would not trigger VM-exit. So virtual 'Remote IRR' would not be updated. Needs to read physical
  * IOxAPIC RTE to update virtual 'Remote IRR' field each time when guest wants to read I/O REDIRECTION
  * TABLE REGISTERS
@@ -761,7 +761,7 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
  * It iterates over all virtual IOAPICs (VIOAPICs) associated with the specified VM and processes the
  * EOI for the given interrupt vector on all these VIOAPICs.
  *
- * For each VIOAPIC，call ptirq_intx_ack which will call an lock protection interface "vioapic_set_irqline_lock"
+ * For each VIOAPIC,call ptirq_intx_ack which will call an lock protection interface "vioapic_set_irqline_lock"
  * to acknowledge a virtual INTx interrupt for passthrough device with this IOAPIC pin and clear the Remote IRR
  * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr receive an interrupt from the IOAPIC
  * and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there because of this Remote IRR
@@ -834,7 +834,7 @@ static void reset_one_vioapic(struct acrn_single_vioapic *vioapic)
 /**
  * @brief Resets all VIOAPICs in the VM.
  *
- * This function iterates over all VIOAPICs associated with the specified VM and reset the IOAPIC’s
+ * This function iterates over all VIOAPICs associated with the specified VM and reset the IOAPIC's
  * internal logic and sets the register bits to their default value..
  *
  * It ensures that all VIOAPICs are returned to a known, clean state, and it is a necessary step

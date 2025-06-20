@@ -793,7 +793,7 @@
  */
 #define CPUID_FEATURES          1U
 /**
- * @brief A CPUID entry provide the information about the processor’s internal TLBs,
+ * @brief A CPUID entry provide the information about the processor's internal TLBs,
  * cache, and prefetch hardware.
  */
 #define CPUID_TLB               2U

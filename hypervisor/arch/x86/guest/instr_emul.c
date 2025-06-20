@@ -263,7 +263,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
  *
  * This macro represents the indirect addressing mode in the `mod` field in Instruction
  * (refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
- * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US).
  * In this mode, the effective address is computed using a base register without any displacement.
  */
  #define VIE_MOD_INDIRECT 0U
@@ -273,7 +273,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
   *
   * This macro represents the indirect addressing mode with an 8-bit displacement in the `mod` field
   * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
-  * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the
+  * 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). In this mode, the
   * effective address is computed using a base register and an 8-bit displacement.
   */
  #define VIE_MOD_INDIRECT_DISP8 1U
@@ -283,7 +283,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
   *
   * This macro represents the indirect addressing mode with a 32-bit displacement in the `mod` field
   * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel®
-  * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the
+  * 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). In this mode, the
   * effective address is computed using a base register and a 32-bit displacement.
   */
  #define VIE_MOD_INDIRECT_DISP32 2U
@@ -293,7 +293,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
   *
   * This macro represents the direct addressing mode in the `mod` field in Instruction(refer to Figure 2-1.
   * Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures Software
-  * Developer’s Manual Order Number: 325462-078US). In this mode, of the `vie` structure. In this mode, the
+  * Developer's Manual Order Number: 325462-078US). In this mode, of the `vie` structure. In this mode, the
   * effective address is directly specified by the instruction.
   */
  #define VIE_MOD_DIRECT 3U
@@ -303,7 +303,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
   *
   * This macro represents the Scale-Index-Base (SIB) addressing mode in the `rm` field in Instruction(refer
   * to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures
-  * Software Developer’s Manual Order Number: 325462-078US). This mode allows for complex address calculations
+  * Software Developer's Manual Order Number: 325462-078US). This mode allows for complex address calculations
   * using a combination of base, index, and scale factors.
   */
  #define VIE_RM_SIB 4U
@@ -313,7 +313,7 @@ static const struct instr_emul_vie_op one_byte_opcodes[256] = {
   *
   * This macro represents an addressing mode with a 32-bit displacement and no base register in the `rm` field
   * in Instruction(refer to Figure 2-1. Intel 64 and IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and
-  * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In this mode, the effective
+  * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). In this mode, the effective
   * address is computed using only the 32-bit displacement.
   */
  #define VIE_RM_DISP32 5U
@@ -372,7 +372,7 @@ struct seg_desc {
  * Get segment type and descriptor type from the access rights field.
  * The access rights field is contained in the guest-state area of the VMCS(refer
  * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
- * Software Developer’s Manual Order Number 325462-078US).
+ * Software Developer's Manual Order Number 325462-078US).
  *
  * @param[in] access Value of access rights.
  *
@@ -393,7 +393,7 @@ static inline uint32_t seg_desc_type(uint32_t access)
  * Get segment present from the access rights field.
  * The access rights field is contained in the guest-state area of the VMCS(refer
  * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
- * Software Developer’s Manual Order Number 325462-078US).
+ * Software Developer's Manual Order Number 325462-078US).
  *
  * @param[in] access Value of access rights.
  *
@@ -414,7 +414,7 @@ __unused static inline bool seg_desc_present(uint32_t access)
  * Get the default operation size from the access rights field.
  * The access rights field is contained in the guest-state area of the VMCS(refer
  * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
- * Software Developer’s Manual Order Number 325462-078US).
+ * Software Developer's Manual Order Number 325462-078US).
  *
  * @param[in] access Value of access rights.
  *
@@ -435,7 +435,7 @@ static inline bool seg_desc_def32(uint32_t access)
  * Get the segment unusable value from the access rights field.
  * The access rights field is contained in the guest-state area of the VMCS(refer
  * to Table 25-2. Format of Access Rights, Vol 3, Intel® 64 and IA-32 Architectures
- * Software Developer’s Manual Order Number 325462-078US).
+ * Software Developer's Manual Order Number 325462-078US).
  *
  * @param[in] access Value of access rights.
  *
@@ -912,12 +912,12 @@ static inline void vie_mmio_write(struct acrn_vcpu *vcpu, uint64_t wval)
  * @brief Calculate byte register index.
  *
  * Calculate byte register index(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate General-Purpose
- * Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US).
  * For 16-bit mode, refers to Table 2-1. 16-Bit Addressing Forms with the ModR/M Byte (r8(/r) and (In binary) REG =),
- * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-087US. Use Bits 0-1 of
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-087US. Use Bits 0-1 of
  * \p REG as the Register Index and Bit 2 of \p REG as the indicator for legacy high byte registers (lhbr).
  * For 32-bit mode, refers to Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte (r8(/r) and (In binary) REG =),
- * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-087US. Use Bits 0-1 of
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-087US. Use Bits 0-1 of
  * \p REG as the Register Index and Bit 2 of \p REG as the indicator for legacy high byte registers (lhbr).
  * For 64-bit mode, With a REX prefix in 64-bit mode, attempts to access AH, BH, CH, or DH will instead access SPL,
  * DIL, BPL, or SIL, respectively. Just use Bits 0-2 of \p REG as the Register Index.
@@ -962,7 +962,7 @@ static void vie_calc_bytereg(const struct instr_emul_vie *vie,
  * @brief Read byte register.
  *
  * Read a byte from byte register.(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate
- * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer's Manual
  * Order Number: 325462-078US)
  * For legacy high byte registers (lhbr) (AH, CH, DH, or BH), shift the base register right by 8 bits.
  * Otherwise, return the value directly.
@@ -1003,7 +1003,7 @@ static uint8_t vie_read_bytereg(const struct acrn_vcpu *vcpu, const struct instr
  * @brief Write a byte to a byte register.
  *
  * Write a byte to byte register.(AL, CL, DL, DL, AH, CH, DH, or BH refers to Figure 3-5. Alternate
- * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * General-Purpose Register Names, Vol 1, Intel® 64 and IA-32 Architectures Software Developer's Manual
  * Order Number: 325462-078US)
  * For legacy high byte registers (lhbr) (AH, CH, DH, or BH), shift left by 8 bits to store 'byte' in high-byte
  * register. Otherwise, write the value directly.
@@ -1264,8 +1264,8 @@ static uint64_t getcc(uint8_t opsize, uint64_t x, uint64_t y)
 /**
  * @brief Emulate MOV instruction.
  *
- * Emulate Move instruction (Refer to MOV—Move, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
- * Architectures Software Developer’s Manual Order Number: 325462-078US). In this function, copies the
+ * Emulate Move instruction (Refer to MOV-Move, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
+ * Architectures Software Developer's Manual Order Number: 325462-078US). In this function, copies the
  * source operand to the destination operand.
  *
  * @param[in] vie Pointer to instruction emulation information.
@@ -1388,8 +1388,8 @@ static int32_t emulate_mov(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 /**
  * @brief Emulate MOV With Extend instruction.
  *
- * Emulate Move With Extend(Refer to MOVZX—Move With Zero-Extend, MOVSX/MOVSXD—Move With
- * Sign-Extension, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s
+ * Emulate Move With Extend(Refer to MOVZX-Move With Zero-Extend, MOVSX/MOVSXD-Move With
+ * Sign-Extension, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer's
  * Manual Order Number: 325462-078US). 
  * In this function, copies the source operand to the destination operand and extends the value.
  * The size of the converted value depends on the operand-size attribute.
@@ -1615,8 +1615,8 @@ static int32_t get_gva_di_check(struct acrn_vcpu *vcpu, struct instr_emul_vie *v
 /**
  * @brief Emulate Move Data from String to String.
  *
- * Emulate Move Data From String to String (Refer to MOVS/MOVSB/MOVSW/MOVSD/MOVSQ—Move Data From
- * String to String, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s
+ * Emulate Move Data From String to String (Refer to MOVS/MOVSB/MOVSW/MOVSD/MOVSQ-Move Data From
+ * String to String, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer's
  * Manual Order Number: 325462-078US).
  * Moves the byte, word, or doubleword from the source operand to the destination operand. Then update
  * RSI (source operand), RDI (destination operand), and RCX (count) for the next instruction. If the
@@ -1735,8 +1735,8 @@ static int32_t emulate_movs(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 /**
  * @brief Emulate Store String
  *
- * Emulate store string instruction (Refer to STOS/STOSB/STOSW/STOSD/STOSQ—Store String, in 4.3
- * Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number:
+ * Emulate store string instruction (Refer to STOS/STOSB/STOSW/STOSD/STOSQ-Store String, in 4.3
+ * Instructions, Vol 2, Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number:
  * 325462-078US). In this function, stores a byte, word, or doubleword from the RAX register into the
  * destination operand. The destination operand is a memory location, the address of which is read from
  * RDI. Then update RDI for the next instruction. If the count register (RCX) is not zero, retain RIP and
@@ -1810,8 +1810,8 @@ static int32_t emulate_stos(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
  * @brief Emulate Logical Compare.
  *
  * Computes the bit-wise logical AND of operands and sets RFLAGS (SF, ZF, PF) according to the result.
- * Emulate Test instruction (Refer to TEST—Logical Compare, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
- * Architectures Software Developer’s Manual Order Number: 325462-078US). In this function, computes the
+ * Emulate Test instruction (Refer to TEST-Logical Compare, in 4.3 Instructions, Vol 2, Intel® 64 and IA-32
+ * Architectures Software Developer's Manual Order Number: 325462-078US). In this function, computes the
  * bit-wise logical AND of the two source operands and update RFLAGS according to the result.
  *
  * @param[in] vie Pointer to instruction emulation information.
@@ -1890,8 +1890,8 @@ static int32_t emulate_test(struct acrn_vcpu *vcpu, const struct instr_emul_vie 
 /**
  * @brief Emulate logical AND instruction.
  *
- * Emulate the logical AND instruction (Refer to AND—Logical AND, in 3.3 Instructions, Vol 2, Intel® 64 and
- * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * Emulate the logical AND instruction (Refer to AND-Logical AND, in 3.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Get the two operands following the
  * instruction, and calculate the logical AND result. Write the result to \p mmio_request or target register and
  * update RFLAGS.
  *
@@ -1990,8 +1990,8 @@ static int32_t emulate_and(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 /**
  * @brief Emulate logical OR instruction.
  *
- * Emulate the logical OR instruction (Refer to OR—Logical Inclusive OR, in 4.3 Instructions, Vol 2, Intel® 64 and
- * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * Emulate the logical OR instruction (Refer to OR-Logical Inclusive OR, in 4.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Get the two operands following the
  * instruction, and calculate the logical OR result. Write the result to \p mmio_request and update RFLAGS.
  *
  * @param[in] vie Pointer to instruction emulation information.
@@ -2092,8 +2092,8 @@ static int32_t emulate_or(struct acrn_vcpu *vcpu, const struct instr_emul_vie *v
 /**
  * @brief Emulate compare two operands.
  *
- * Emulate the compare instruction (Refer to CMP—Compare Two Operands, in 3.3 Instructions, Vol 2, Intel® 64 and
- * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the two operands following the
+ * Emulate the compare instruction (Refer to CMP-Compare Two Operands, in 3.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Get the two operands following the
  * instruction, compare them, and update RFLAGS.
  *
  * @param[in] vie Pointer to instruction emulation information.
@@ -2195,8 +2195,8 @@ static int32_t emulate_cmp(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 /**
  * @brief Emulate Subtract.
  *
- * Emulate the subtract instruction (Refer to SUB—Subtract, in 4.3 Instructions, Vol 2, Intel® 64 and
- * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Subtracts the source operand
+ * Emulate the subtract instruction (Refer to SUB-Subtract, in 4.3 Instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Subtracts the source operand
  * from the destination operand and stores the result in the destination operand. Then update RFLAGS (OF, CF).
  *
  * @param[in] vie Pointer to instruction emulation information.
@@ -2261,9 +2261,9 @@ static int32_t emulate_sub(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 /**
  * @brief Emulate a group of instructions.
  *
- * Emulate a group of instructions with first opcodes 0x80, 0x81, and 0x83 (Refers to AND—Logical AND, CMP—Compare
- * Two Operands, in 3.3 instructions; OR—Logical Inclusive OR, in 4.3 instructions, Vol 2, Intel® 64 and
- * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). These instructions have
+ * Emulate a group of instructions with first opcodes 0x80, 0x81, and 0x83 (Refers to AND-Logical AND, CMP-Compare
+ * Two Operands, in 3.3 instructions; OR-Logical Inclusive OR, in 4.3 instructions, Vol 2, Intel® 64 and
+ * IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). These instructions have
  * two operands: an immediate data and the content of a general-purpose register. And the second opcode
  * is defined by the ModR/M Opcode field.
  *
@@ -2301,8 +2301,8 @@ static int32_t emulate_group1(struct acrn_vcpu *vcpu, const struct instr_emul_vi
 /**
  * @brief Emulate Bit Test.
  *
- * Emulate Bit Test instruction (Refer to BT—Bit Test, in 3.3 Instructions, Vol 2, Intel®
- * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). This
+ * Emulate Bit Test instruction (Refer to BT-Bit Test, in 3.3 Instructions, Vol 2, Intel®
+ * 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). This
  * function selects the bit in a bit string at the bit-position designated by the bit offset
  * and stores the value of the bit in the CF flag.
  *
@@ -2360,8 +2360,8 @@ static int32_t emulate_bittest(struct acrn_vcpu *vcpu, const struct instr_emul_v
 /**
  * @brief Emulate Exchange Rigester/Memory with Register.
  *
- * Emulate XCHG instruction (Refer to XCHG—Exchange Register/Memory With Register, in 4.3 Instructions,
- * Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). In
+ * Emulate XCHG instruction (Refer to XCHG-Exchange Register/Memory With Register, in 4.3 Instructions,
+ * Vol 2, Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). In
  * this function, exchanges the contents of the destination and source operands. Inject an exception (PF)
  * to the VM if a page fault occurs.
  *
@@ -2555,7 +2555,7 @@ static void vie_advance(struct instr_emul_vie *vie)
  * @brief Decode segment override.
  *
  * Decode segment override for Group 2 Instruction Prefixes(Refer to 2.1.1 Instruction Prefixes, Vol 2,
- * Intel® 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US)
+ * Intel® 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US)
  *
  * @param[in] x Instruction prefix code.
  * @param[out] seg Pointer to return the segment register name.
@@ -2649,10 +2649,10 @@ static void decode_op_and_addr_size(struct instr_emul_vie *vie, enum vm_cpu_mode
  * This function decodes instruction prefixes and the REX prefix according to SDM definitions and sets members in
  * the \p instr_emul_vie.
  * - There are four groups of instruction prefixes (Refer to 2.1.1 Instruction Prefixes, Vol 2, Intel® 64 and IA-32
- *   Architectures Software Developer’s Manual Order Number: 325462-078US). These four groups may be placed in any
+ *   Architectures Software Developer's Manual Order Number: 325462-078US). These four groups may be placed in any
  *   order relative to each other.
  * - In 64-bit mode, the REX prefix may be used (Refer to 2.2.1 REX Prefixes, Vol 2, Intel® 64 and IA-32
- *   Architectures Software Developer’s Manual Order Number: 325462-078US).
+ *   Architectures Software Developer's Manual Order Number: 325462-078US).
  *
  * @param[inout] vie Pointer to instruction emulation information.
  * @param[in] cpu_mode vCPU's CPU mode.
@@ -2753,7 +2753,7 @@ static int32_t decode_two_byte_opcode(struct instr_emul_vie *vie)
  * @brief Decode opcodes.
  *
  * This function decodes opcodes (Refer to 2.1.2 Opcode, Vol 2, Intel® 64 and IA-32 Architectures Software
- * Developer’s Manual Order Number: 325462-078US) and translates them to \p instr_emul_vie_op. One-byte and
+ * Developer's Manual Order Number: 325462-078US) and translates them to \p instr_emul_vie_op. One-byte and
  * two-byte opcode decoding is supported.
  * - One-byte opcodes are translated by \p one_byte_opcodes.
  * - Two-byte opcodes are translated by \p two_byte_opcodes, consisting of an escape opcode byte 0x0F as the
@@ -2796,7 +2796,7 @@ static int32_t decode_opcode(struct instr_emul_vie *vie)
  * @brief Decode ModR/M byte.
  *
  * Decode the addressing-form specifier byte called the ModR/M (Refer to 2.1.3 ModR/M and SIB Bytes, Vol 2, Intel®
- * 64 and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). The ModR/M byte contains
+ * 64 and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). The ModR/M byte contains
  * three fields of information.
  * Bits 6-7 for the mod field, which specifies direct addressing or indirect addressing.
  * Bits 5-3 for the Reg/Opcode field, which specifies a register number or three more bits of opcode information.
@@ -2901,7 +2901,7 @@ static int32_t decode_modrm(struct instr_emul_vie *vie, enum vm_cpu_mode cpu_mod
  * @brief Decode SIB byte.
  *
  * This function decodes the SIB byte (Refer to 2.1.3 ModR/M and SIB Bytes, Vol 2, Intel® 64 and IA-32 Architectures
- * Software Developer’s Manual Order Number: 325462-078US). SIB is a second addressing byte:
+ * Software Developer's Manual Order Number: 325462-078US). SIB is a second addressing byte:
  * - Bits 6-7 for the scale field, which specifies the scale factor.
  * - Bits 5-3 for the index field, which specifies the register number of the index register.
  * - Bits 2-0 for the base field, which specifies the register number of the base register.
@@ -3000,7 +3000,7 @@ static int32_t decode_sib(struct instr_emul_vie *vie)
  * @brief Decode Displacement Bytes.
  *
  * Decode the Displacement and Immediate Bytes (Refer to 2.1.4 Displacement and Immediate Bytes, Vol 2, Intel® 64
- * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the displacement bytes
+ * and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Get the displacement bytes
  * which can be 1, 2, or 4 bytes; it is defined by ModR/W and SIB.
  *
  * @param[inout] vie Pointer to instruction emulation information.
@@ -3060,7 +3060,7 @@ static int32_t decode_displacement(struct instr_emul_vie *vie)
  * @brief Decode Immediate bytes.
  *
  * Decode the Immediate Bytes (Refer to 2.1.4 Displacement and Immediate Bytes, Vol 2, Intel® 64
- * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Get the Immediate bytes
+ * and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US). Get the Immediate bytes
  * which can be 1, 2, or 4 bytes; it is consistent with operand size which define by Instruction Prefixes.
  *
  * @param[inout] vie Pointer to instruction emulation information.
@@ -3143,7 +3143,7 @@ static int32_t decode_immediate(struct instr_emul_vie *vie)
  * @brief Decode direct memory-offset.
  *
  * Decode the Direct Memory-Offset(Refer to 2.2.1.4 Direct Memory-Offset MOVs, Vol 2, Intel® 64
- * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US).
+ * and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US).
  * In 64-bit mode, direct memory-offset forms of the MOV instruction are extended to specify a 64-bit immediate
  * absolute address. For MOV instructions, the size of the memory offset follows the address-size.
  *
@@ -3201,7 +3201,7 @@ static int32_t decode_moffset(struct instr_emul_vie *vie)
  * @brief Decode instruction.
  *
  * Decode the instruction saved in the VIE pointer. (The instruction format refers to Figure 2-1, Intel 64 and
- * IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures Software Developer’s Manual
+ * IA-32 Architectures Instruction Format, Vol 2, Intel® 64 and IA-32 Architectures Software Developer's Manual
  * Order Number: 325462-078US) The instruction consists of optional prefixes, primary opcode bytes, an
  * addressing-form specifier consisting of the ModR/M byte and the SIB, a displacement, an immediate data field,
  * and sometimes a memory offset. Instruction encodings are a subset of these bytes.
@@ -3390,7 +3390,7 @@ static int32_t instr_check_gva(struct acrn_vcpu *vcpu, enum vm_cpu_mode cpu_mode
  *
  * This function decodes the instruction which causes VM-exit.
  * It first copy the instruction from this Guest RIP, then it decodes the instructions following Vol 2, Intel® 64
- * and IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US. Now ACRN only supports \p CMP,
+ * and IA-32 Architectures Software Developer's Manual Order Number: 325462-078US. Now ACRN only supports \p CMP,
  * \p MOV, \p MOVZX, \p MOVSX, \p MOVS, \p STOS, \p AND, \p TEST, \p OR, \p SUB, \p BT, XCHG.
  * It also performs some checks during the decode, such as whether the GVA is valid: is it a valid canonical
  * address, and whether di/si is valid for MOVS. If any check fails, inject an exception accordingly.
@@ -3484,7 +3484,7 @@ int32_t decode_instruction(struct acrn_vcpu *vcpu, bool full_decode)
  * @brief Emulate instruction which caused a trap.
  *
  * This function emulates the instruction behavior following  Vol 2, Intel® 64 and IA-32 Architectures Software
- * Developer’s Manual Order Number: 325462-078US. Current ACRN Hypervisor only supports \p CMP, \p MOV, \p MOVZX,
+ * Developer's Manual Order Number: 325462-078US. Current ACRN Hypervisor only supports \p CMP, \p MOV, \p MOVZX,
  * \p MOVSX, \p MOVS, \p STOS, \p AND, \p TEST, \p OR, \p SUB, \p BT, XCHG.
  *
  * @param[inout] vcpu Pointer to the vCPU that processes the instruction.

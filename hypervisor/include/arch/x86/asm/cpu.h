@@ -233,7 +233,7 @@
  * @brief Macro indicating the XCR0 BNDREGS state.
  *
  * If the BNDREGS state is enabled, MPX instructions can be executed and the XSAVE feature set can be used to manage
- * the bounds registers BND0–BND3.
+ * the bounds registers BND0-BND3.
  */
 #define XCR0_BNDREGS		(1UL<<3U)
 /**

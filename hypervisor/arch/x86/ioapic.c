@@ -71,7 +71,7 @@
 struct gsi_table {
 	bool is_valid;/**< Indicates whether the GSI table entry is valid, true if valid, false otherwise. */
 	struct {
-		uint8_t acpi_id;/**< The IOAPIC’s ID in MADT. */
+		uint8_t acpi_id;/**< The IOAPIC's ID in MADT. */
 		uint8_t index;/**< Index of the IOAPIC,used to identify the specific IOAPIC in the system. */
 		uint32_t pin;/**< Pin number on the IOAPIC,represents the specific interrupt pin being configured. */
 		/**

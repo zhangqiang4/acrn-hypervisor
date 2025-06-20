@@ -866,7 +866,7 @@ static void scan_pci_hierarchy(uint8_t bus, uint64_t buses_visited[BUSES_BITMAP_
 			hdr_type = (uint8_t)pci_pdev_read_cfg(pbdf, PCIR_HDRTYPE, 1U);
 
 			/* Do not probe beyond function 0 if not a multi-function device
-			 * unless device supports ARI or SR-IOV (PCIe spec r5.0 §7.5.1.1.9)
+			 * unless device supports ARI or SR-IOV (PCIe spec r5.0 section 7.5.1.1.9)
 			 */
 			func_max = is_pci_cfg_multifunction(hdr_type) ? PCI_FUNCMAX : 0U;
 			for (func = 0U; func <= func_max; func++) {

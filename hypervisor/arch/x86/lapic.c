@@ -477,15 +477,15 @@ uint32_t get_cur_lapic_id(void)
  *
  * - Waits for the INIT sequence to complete:
  *    - 10ms delay for older processors (family != 6)
- *    - 10μs delay for modern processors (family == 6)
+ *    - 10us delay for modern processors (family == 6)
  *
  * - Sends the first Startup IPI by writing to IA32_X2APIC_ICR with:
  *    - STARTUP delivery mode (INTR_LAPIC_ICR_STARTUP) 
  *    - Vector field containing the page number of reset code (cpu_startup_start_address >> 12)
  *
  * - Waits for the first SIPI sequence to complete:
- *    - 200μs delay for older processors
- *    - 10μs delay for modern processors
+ *    - 200us delay for older processors
+ *    - 10us delay for modern processors
  *
  * @param[in] dest_pcpu_id        The ID of the destination processor.
  * @param[in] cpu_startup_start_address  The start address for the secondary reset code.

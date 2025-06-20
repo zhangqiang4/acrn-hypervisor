@@ -284,7 +284,7 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 
 				if ((cr0 & CR0_PG) == 0UL) {
 					if (vcpu->arch.cpu_mode == CPU_MODE_64BIT) {
-						/* SDM Vol.2 "MOV—Move to/from Control Registers"
+						/* SDM Vol.2 "MOV-Move to/from Control Registers"
 						 *
 						 * In 64-Bit mode, clearing CR0.PG causes #GP(0).
 						 */

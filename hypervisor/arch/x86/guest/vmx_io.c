@@ -111,7 +111,7 @@ emulate_pio_complete(struct acrn_vcpu *vcpu, const struct io_request *io_req)
  *
  * This function decodes I/O Instruction Size of access, Direction of the attempted access and
  * Port number from Exit Qualification for I/O Instructions (refer to Table 29-5. Exit Qualification
- * for I/O Instructions, Vol 3, Intel® 64 and IA-32 Architectures Software Developer’s Manual Order
+ * for I/O Instructions, Vol 3, Intel® 64 and IA-32 Architectures Software Developer's Manual Order
  * Number: 325462-078US) and call emulate_io to simulate the read/write option based on its
  * instructions.
  *
