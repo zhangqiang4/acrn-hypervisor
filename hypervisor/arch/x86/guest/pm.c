@@ -656,7 +656,7 @@ static void register_prelaunched_vm_sleep_handler(struct acrn_vm *vm)
  * @brief Initialize the guest power management.
  *
  * This is called when a VM is created.
- *  - Initialize system_pm1a_cnt_val/system_pm1b_cnt_val incase no service VM is presented.
+ *  - Initialize system_pm1a_cnt_val/system_pm1b_cnt_val in case no service VM is presented.
  *  - Setup Px/Cx states.
  *  - Load Sx states for service VM and register PM1a/b handlers.
  *  - Register PM1a/b handlers for RTVMs.

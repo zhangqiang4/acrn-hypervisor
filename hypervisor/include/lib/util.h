@@ -19,7 +19,7 @@
  * @brief Implementation of number calculation function.
  *
  * This file implements all the APIs to support memory boundary check and
- * UUID comparation and sum and checksum calculation.
+ * UUID comparison and sum and checksum calculation.
  */
 
 /**

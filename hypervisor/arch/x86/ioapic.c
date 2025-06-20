@@ -865,7 +865,7 @@ int32_t init_ioapic_id_info(void)
 
 		/*
 		 * Check if total pin count, can be inferred by GSI, is
-		 * atleast same as the number of Legacy IRQs, NR_LEGACY_IRQ
+		 * at least same as the number of Legacy IRQs, NR_LEGACY_IRQ
 		 */
 
 		if (ret == 0) {

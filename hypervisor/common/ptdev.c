@@ -309,7 +309,7 @@ static void ptirq_interrupt_handler(__unused uint32_t irq, void *data)
 
 	/*
 	 * "interrupt storm" detection & delay intr injection just for User VM
-	 * pass-thru devices, collect its data and delay injection if needed
+	 * pass-through devices, collect its data and delay injection if needed
 	 */
 	if (!is_service_vm(entry->vm)) {
 		entry->intr_count++;

@@ -600,7 +600,7 @@ uint8_t vuart_read_reg(struct acrn_vuart *vu, uint16_t offset)
 	vuart_toggle_intr(vu);
 	release_vuart_lock(vu, rflags);
 
-	/* For commnunication vuart, when the data in FIFO is read out, should
+	/* For communication vuart, when the data in FIFO is read out, should
 	 * notify the target vuart to send more data. */
 	if (offset == UART16550_RBR) {
 		notify_target(vu);

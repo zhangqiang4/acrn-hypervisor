@@ -57,7 +57,7 @@ struct page *alloc_page(struct page_pool *pool)
 	}
 	spinlock_release(&pool->lock);
 
-	ASSERT(page != NULL, "no page aviable!");
+	ASSERT(page != NULL, "no page available!");
 	page = (page != NULL) ? page : pool->dummy_page;
 	if (page == NULL) {
 		/* For HV MMU page-table mapping, we didn't use dummy page when there's no page
@@ -66,7 +66,7 @@ struct page *alloc_page(struct page_pool *pool)
 		 * not do any MMU page-table mapping. We would let the system boot fail when page
 		 * allocation failed.
 		 */
-		panic("no dummy aviable!");
+		panic("no dummy available!");
 	}
 	(void)memset(page, 0U, PAGE_SIZE);
 	return page;

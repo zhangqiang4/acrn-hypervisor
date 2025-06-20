@@ -277,7 +277,7 @@ static uint16_t vm_apicid2vcpu_id(struct acrn_vm *vm, uint32_t lapicid)
  * @brief This function initializes the virtual local x2APIC ID Register and
  *        Logical Destination Register in x2APIC mode.
  *
- * This function sets the values for the virutal local x2APIC ID Register and
+ * This function sets the values for the virtual local x2APIC ID Register and
  * Logical Destination Register:
  * - Local x2APIC ID of virtual LAPIC is initialized with the x2APIC ID of physical local APIC
  * - Initializes Logical Destination Register (LDR) following section 12.12.10.2 Deriving Logical
@@ -728,7 +728,7 @@ static void vlapic_write_dcr(struct acrn_vlapic *vlapic)
  * mode timer.
  *
  * It checks whether the current timer mode is one-shot or periodic, if yes, it calls del_timer to
- * disarm the existing timer, then calcuate the expiration count according to section 12.5.4
+ * disarm the existing timer, then calculate the expiration count according to section 12.5.4
  * APIC Timer, Volume 3, Intel SDM 325462-087US and calls add_timer to start the one-shot or
  * periodic timer, which depends on the timer mode configured in LVT Timer Register.
  *
@@ -864,7 +864,7 @@ void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg)
 		vcpu_set_guest_msr(vcpu, MSR_IA32_TSC_DEADLINE, val);
 		/* If val is not zero, which mean guest intends to arm the tsc_deadline timer,
 		 * if the calculated value to write to the physical TSC_DEADLINE msr is zero,
-		 * we plus 1 to not disarm the physcial timer falsely;
+		 * we plus 1 to not disarm the physical timer falsely;
 		 * If val is zero, which means guest intends to disarm the tsc_deadline timer,
 		 * we disarm the physical timer.
 		 */
@@ -2212,7 +2212,7 @@ vlapic_write_svr(struct acrn_vlapic *vlapic)
  *                          shift and timer ratio which is calculated according to section
  *                          12.5.4 APIC Timer, Volume 3, Intel SDM 325462-087US.
  *
- * For other registers, value in virtual-APIC page for given regiser offset will be used
+ * For other registers, value in virtual-APIC page for given register offset will be used
  * as read value.
  *
  * @param[in]   vlapic       Pointer to the vlapic structure.
@@ -2373,7 +2373,7 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
  *
  * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
  *                          APIC timer is configured as One-shot or periodic. Disarm the existing
- *                          timer, then calcuate the expiration count according to section 12.5.4
+ *                          timer, then calculate the expiration count according to section 12.5.4
  *                          APIC Timer, Volume 3, Intel SDM 325462-087US and then starts the timer.
  *
  * - APIC_OFFSET_TIMER_DCR: Calculates the divisor shift for the vlapic timer based on the target
@@ -2691,7 +2691,7 @@ static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
  * - inject_intr  This callback function is dummy and print debug message only.
  *
  * - has_pending_intr  This callback function always returns false, interrupts are injected via
- *                     physcial local APIC interface.
+ *                     physical local APIC interface.
  *
  * - x2apic_read_msr_may_valid   This callback function verifies if a read operation is permitted
  *                               for a given register offset, Reading APIC_OFFSET_ID,
@@ -2720,7 +2720,7 @@ static const struct acrn_apicv_ops ptapic_ops = {
  *
  * So the only part of IA32_APIC_BASE MSR could be written is the `APIC Base`(bit 35:12) field.
  * While ACRN Hypervisor does not support change on this field to other value except 0xFEE.
- * As a reslut, ACRN Hypervisor emulates this MSR as a Read-Only register.
+ * As a result, ACRN Hypervisor emulates this MSR as a Read-Only register.
  *
  * @param[in] vlapic Pointer to the virtual LAPIC data structure.
  * @param[in] new    Target value for the IA32_APIC_BASE MSR.
@@ -3043,7 +3043,7 @@ static inline  uint32_t x2apic_msr_to_regoff(uint32_t msr)
  * - INIT and Startup delivery modes: Process INIT or STARTUP IPI for vCPU(s) according to section
  *                                    10.4.3 MP Initialization Protocol Algorithm for MP System,
  *                                    Volume 3, Intel SDM 325462-087US.
- * - FIXED and NMI delivery mode: Writes ICR Regiser to trigger an IPI to target vCPU(s) by calling
+ * - FIXED and NMI delivery mode: Writes ICR Register to trigger an IPI to target vCPU(s) by calling
  *                                msr_write function with Destination Mode of physical and APIC ID
  *                                of target physical CPU(s).
  * - LOWPRIO delivery mode: Delivery mode of Lowest Priority is not supported in x2APIC mode,
@@ -3184,7 +3184,7 @@ static bool apicv_advanced_x2apic_write_msr_may_valid(uint32_t offset)
  * For APIC pass-through case, reading on below registers are emulated:
  * - APIC_OFFSET_ID,
  *   APIC_OFFSET_LDR:
- *                     Value in virtual-APIC page for given regiser is used as read value.
+ *                     Value in virtual-APIC page for given register is used as read value.
  * - APIC_OFFSET_THERM_LVT: Cached value in `lvt_last` in vlapic with index of APIC_LVT_THERMAL is
  *                          used as read value.
  *
@@ -3248,7 +3248,7 @@ int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
  *
  * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
  *                          APIC timer is configured as One-shot or periodic. Disarm the existing
- *                          timer, then calcuate the expiration count according to section 12.5.4
+ *                          timer, then calculate the expiration count according to section 12.5.4
  *                          APIC Timer, Volume 3, Intel SDM 325462-087US and then starts the timer.
  *
  * - APIC_OFFSET_TIMER_DCR: Calculates the divisor shift for the vlapic timer based on the target

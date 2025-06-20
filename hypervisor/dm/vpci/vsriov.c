@@ -183,7 +183,7 @@ static void create_vf(struct pci_vdev *pf_vdev, union pci_bdf vf_bdf, uint16_t v
 		control = read_sriov_reg(pf_vdev, PCIR_SRIOV_CONTROL);
 		control &= (~PCIM_SRIOV_VF_ENABLE);
 		pci_pdev_write_cfg(pf_vdev->bdf, pf_vdev->sriov.capoff + PCIR_SRIOV_CONTROL, 2U, control);
-		pr_err("PF %x:%x.%x can't creat VF, unset VF_ENABLE",
+		pr_err("PF %x:%x.%x can't create VF, unset VF_ENABLE",
 			pf_vdev->bdf.bits.b, pf_vdev->bdf.bits.d, pf_vdev->bdf.bits.f);
 	} else {
 		uint32_t bar_idx;
@@ -265,7 +265,7 @@ static void enable_vfs(struct pci_vdev *pf_vdev)
 	 *    Reporting capability associated with the VF or a value determined
 	 *    by system software/firmware.
 	 *
-	 * Curerntly, we use the first way to wait for VF physical devices to be ready.
+	 * Currently, we use the first way to wait for VF physical devices to be ready.
 	 */
 	fst_off = read_sriov_reg(pf_vdev, PCIR_SRIOV_FST_VF_OFF);
 	stride = read_sriov_reg(pf_vdev, PCIR_SRIOV_VF_STRIDE);

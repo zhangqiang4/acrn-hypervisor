@@ -59,7 +59,7 @@ struct bzimage_boot_para {
 	char reserved_trampoline[MEM_4K * 2]; /**< Reserved space for trampoline code. */
 } __packed __aligned(8);
 
-/* The value is referenced from Linux boot protocal for old kernels, it should ideally be configurable
+/* The value is referenced from Linux boot protocol for old kernels, it should ideally be configurable
  * to accommodate different operating systems and their specific requirements.
  * TODO: Make this value configurable for different OS environments.
  */
@@ -172,7 +172,7 @@ static void *get_bzimage_kernel_load_addr(struct acrn_vm *vm)
 	struct vm_sw_info *sw_info = &vm->sw;
 	struct zero_page *zeropage;
 
-	/* According to the explaination for pref_address
+	/* According to the explanation for pref_address
 	 * in Documentation/x86/boot.txt, a relocating
 	 * bootloader should attempt to load kernel at pref_address
 	 * if possible. A non-relocatable kernel will unconditionally
@@ -455,7 +455,7 @@ static void load_bzimage(struct acrn_vm *vm, struct acrn_vcpu *vcpu,
 
 	/* The bzImage file consists of three parts:
 	 * boot_params(i.e. zero page) + real mode setup code + compressed protected mode code
-	 * The compressed proteced mode code start at offset (setup_sectors + 1U) * 512U of bzImage.
+	 * The compressed protected mode code start at offset (setup_sectors + 1U) * 512U of bzImage.
 	 * Only protected mode code need to be loaded.
 	 */
 	stac();

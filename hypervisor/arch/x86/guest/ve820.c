@@ -189,7 +189,7 @@ static void sort_vm_e820(struct acrn_vm *vm)
  * @brief Filter memory regions from Service VM virtual E820
  *
  * This function filters memory region from start_pa to end_pa from virtual E820.
- * The removal action might cause original RAM E820 entry to be shrinked, splitted
+ * The removal action might cause original RAM E820 entry to be shrunk, split
  * or type-changed. The removed region is guaranteed not to be of type E820_TYPE_RAM,
  * but it is not necessarily marked as E820_TYPE_RESERVED. It is possible that
  * part of the region forms an E820 hole (the region is not described in E820 table
@@ -327,7 +327,7 @@ static const struct e820_entry pre_ve820_template[E820_MAX_ENTRIES] = {
 		.length   = 0xA0000UL,		/* 640KB */
 		.type     = E820_TYPE_RAM
 	},
-	{	/* Video/BIOS extentions */
+	{	/* Video/BIOS extensions */
 		.baseaddr = 0xA0000UL,
 		.length   = 0x60000UL,		/* 384KB */
 		.type     = E820_TYPE_RESERVED

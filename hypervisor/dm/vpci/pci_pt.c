@@ -131,7 +131,7 @@ static void mask_one_msix_vector(const struct pci_vdev *vdev, uint32_t index)
 /**
  * @brief Do Interrupt Remapping for MSI-X
  *
- * This function uses VTD IRTE to do Interrupt Remapping for one MSI-X table entry when guest tring to
+ * This function uses VTD IRTE to do Interrupt Remapping for one MSI-X table entry when guest trying to
  * enable this MSI-X table entry. It will first disable corresponding physical MSI-X table entry by setting
  * physical Vector Control register Mask Bit. Then, it uses VTD IRTE to do the Interrupt Remapping. If
  * remapping succeeds, it update physical MSI-X table entry in Remappable format (refer to Chap 5.1.5.2
@@ -784,9 +784,9 @@ static void passthru_gpu_opregion(struct pci_vdev *vdev)
  *
  * If the given vdev represents a passthrough SR-IOV virtual function(VF):
  *   - if the VF is assigned to a VM, initialize the Vendor ID and Device ID in VF's virtual Configuration Space
- *     by reading the corresponding phsyical device's Vendor ID and Device ID. Furthermore, set the number of BARs
+ *     by reading the corresponding physical device's Vendor ID and Device ID. Furthermore, set the number of BARs
  *     to PCI_BAR_COUNT.
- *   - if the VF is unassinged, i.e. when VF was first created, map the vBARs one by one by adding the memory of
+ *   - if the VF is unassigned, i.e. when VF was first created, map the vBARs one by one by adding the memory of
  *     vBAR to the EPT and DMAR mapping. Then, it maps the MSI-X table if the vBAR points to the MSI-X table and
  *     device supports the MSI-X.
  *
@@ -840,7 +840,7 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
 			pci_vdev_write_vcfg(vdev, PCIR_VENDOR, 2U, vid);
 			pci_vdev_write_vcfg(vdev, PCIR_DEVICE, 2U, did);
 		} else {
-			/* VF is unassinged: when VF was first created, the VF's BARs hasn't been assigned */
+			/* VF is unassigned: when VF was first created, the VF's BARs hasn't been assigned */
 			uint32_t bar_idx;
 
 			for (bar_idx = 0U; bar_idx < vdev->nr_bars; bar_idx++) {

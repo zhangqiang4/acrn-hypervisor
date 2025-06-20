@@ -168,7 +168,7 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
  * the passed pin less then the nr_pins to detect whether it is a valid value.
  *
  * If the pin is valid, it obtains the corresponding RTE for the pin and then clear the bit for
- * low state or set the bit for hight state, that clear or set not relying on old states.
+ * low state or set the bit for high state, that clear or set not relying on old states.
  *
  * Once the setting is complete, it determines whether to generate an interrupt base on the
  * Interrupt Input Pin Polarity bit in the I/O REDIRECTION TABLE REGISTER, if the pin state
@@ -203,7 +203,7 @@ vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t
 				vioapic_generate_intr(vioapic, pin);
 			}
 		} else {
-			/* set pin_state and deliver intrrupt according to polarity */
+			/* set pin_state and deliver interrupt according to polarity */
 			bitmap_set_nolock((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
 			if ((rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_AHI)
 				&& (old_lvl != level)) {
@@ -357,7 +357,7 @@ vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
 /**
  * @brief Reads a register from the Virtual IOAPIC (VIOAPIC).
  *
- * This function just returns the cached value for the target writable register diretly.
+ * This function just returns the cached value for the target writable register directly.
  *
  * For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
  * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
@@ -596,7 +596,7 @@ static void vioapic_indirect_write(struct acrn_single_vioapic *vioapic, uint32_t
  * IOAPIC Registers 82093AA I/O ADVANCED PROGRAMMABLE INTERRUPT CONTROLLER (IOAPIC).
  *
  * For the reading process:
- * 1 Returns the cached value for the target writable register diretly
+ * 1 Returns the cached value for the target writable register directly
  *
  * 2 For Read-only IOAPIC VERSION REGISTER，in addition to the version number, bits 23:16 need to be
  * written with the Maximum Redirection Entry, which is equal to the number of interrupt input pins
@@ -689,7 +689,7 @@ vioapic_mmio_rw(struct acrn_single_vioapic *vioapic, uint64_t gpa,
  *
  * After acknowledge the above virtual INTx interrupt, it will get the vioapic->lock and clear the Remote IRR
  * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr to receive an interrupt from the
- * IOAPIC and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there becuase of this
+ * IOAPIC and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there because of this
  * Remote IRR and then release the lock.
  *
  * @param[inout] vioapic Pointer to the VIOAPIC instance, representing the virtualized IOAPIC.
@@ -764,7 +764,7 @@ vioapic_process_eoi(struct acrn_single_vioapic *vioapic, uint32_t vector)
  * For each VIOAPIC，call ptirq_intx_ack which will call an lock protection interface "vioapic_set_irqline_lock"
  * to acknowledge a virtual INTx interrupt for passthrough device with this IOAPIC pin and clear the Remote IRR
  * in this pin I/O REDIRECTION TABLE REGISTER and call vlapic_receive_intr receive an interrupt from the IOAPIC
- * and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there becuase of this Remote IRR
+ * and inject it to the virtual local APIC if the IOAPIC pin interrupt pending there because of this Remote IRR
  * and then release the lock.
  *
  * @param[in] vm Pointer to the VM instance, representing the virtual machine containing the VIOAPICs.
@@ -966,7 +966,7 @@ get_vm_gsicount(const struct acrn_vm *vm)
 /**
  * @brief Handles MMIO access requests to the VIOAPIC.
  *
- * This function is a callback function for the vioapic address range and will be registed by the
+ * This function is a callback function for the vioapic address range and will be registered by the
  * "register_mmio_emulation_handler" when the vioapic init, it will processes MMIO access requests
  * directed at the VIOAPIC, supporting both read and write operations, it ensures that all accesses
  * are 32-bit in size, as required by the IOAPIC specification.

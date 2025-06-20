@@ -856,7 +856,7 @@ static int32_t cpuid_vmexit_handler(struct acrn_vcpu *vcpu)
  * This function handles the VM exit caused by XSETBV instruction to write the contents of registers EDX:EAX into
  * the 64-bit extended control register (XCR) specified in the ECX register. It checks whether Enable XSAVES/XRSTORS
  * field in Secondary Processor-Based VM-Execution Controls is set and the CR4.OSXSAVE bit is set:
- * - If yes: It checks if the current privilege level is 0. If yes, it checkes whether the low 32-bits of ECX is 0
+ * - If yes: It checks if the current privilege level is 0. If yes, it checks whether the low 32-bits of ECX is 0
  *   since only XCR0 is supported currently. If the ECX is 0, it gets the supported XCR0 from CPUID.0DH and hides the
  *   bits about Intel MPX and PKRU. Then it checks if the XCR0[0] is set and the supported XCR0 is equal to the value
  *   from reading RAX and RDX. If checks are passed, it writes the value to XCR0 if the value of SSE and AVX is not
@@ -1094,7 +1094,7 @@ static int32_t init_signal_vmexit_handler(struct acrn_vcpu *vcpu)
 {
 	/*
 	* Intel SDM Volume 3, 26.2:
-	*   INIT signals. INIT signals cause VM exits. A logical processer performs none
+	*   INIT signals. INIT signals cause VM exits. A logical processor performs none
 	*   of the operations normally associated with these events. Such exits do not modify
 	*   register state or clear pending events as they would outside of VMX operation (If
 	*   a logical processor is the wait-for-SIPI state, INIT signals are blocked. They do

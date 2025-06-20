@@ -222,7 +222,7 @@ static void init_e820_from_efi_mmap(void)
 		hv_e820[e820_idx].baseaddr = efi_mmap_entry[i].phys_addr;
 		hv_e820[e820_idx].length = efi_mmap_entry[i].num_pages * PAGE_SIZE;
 
-		/* The EFI BOOT Service releated regions need to be set to reserved and avoid being touched by
+		/* The EFI BOOT Service related regions need to be set to reserved and avoid being touched by
 		 * hypervisor, because at least below software modules rely on them:
 		 * 1. EFI ESRT(The EFI System Resource Table) which used for UEFI firmware upgrade;
 		 * 2. Image resource in ACPI BGRT(Boottime Graphics Resource Table) which used for boot time logo;

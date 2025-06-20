@@ -258,7 +258,7 @@ struct acrn_vm_acpi_config {
 	char acpi_mod_tag[MAX_MOD_TAG_LEN];		/**< multiboot module tag for ACPI */
 } __aligned(8);
 
-/* the vbdf is assgined by device model */
+/* the vbdf is assigned by device model */
 #define UNASSIGNED_VBDF        0xFFFFU	/**< A BDF representing unassigned device */
 
 /**

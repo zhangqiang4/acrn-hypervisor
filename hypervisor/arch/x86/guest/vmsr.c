@@ -633,7 +633,7 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		 * After switch to x2apic mode, most MSRs are passthrough to guest.
 		 * for virtualization of some MSRs for security consideration:
 		 * - XAPICID/LDR: Read to XAPICID/LDR need to be trapped to guarantee guest always see right vlapic_id.
-		 * - ICR: Write to ICR need to be trapped to avoid milicious IPI.
+		 * - ICR: Write to ICR need to be trapped to avoid malicious IPI.
 		 */
 		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_DISABLE);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_XAPICID, INTERCEPT_READ);
@@ -1902,7 +1902,7 @@ int32_t wrmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 		 */
 		if (has_core_cap(CORE_CAP_SPLIT_LOCK) || has_core_cap(CORE_CAP_UC_LOCK)) {
 			vcpu_set_guest_msr(vcpu, MSR_TEST_CTL, v);
-			pr_warn("Ignore writting 0x%llx to MSR_TEST_CTL from VM%d", v, vcpu->vm->vm_id);
+			pr_warn("Ignore writing 0x%llx to MSR_TEST_CTL from VM%d", v, vcpu->vm->vm_id);
 		} else {
 			vcpu_inject_gp(vcpu, 0U);
 		}

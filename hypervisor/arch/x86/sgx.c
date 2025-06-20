@@ -15,9 +15,9 @@
 
 #define SGX_OPTED_IN (MSR_IA32_FEATURE_CONTROL_SGX_GE | MSR_IA32_FEATURE_CONTROL_LOCK)
 
-/* For the static variables, which are not explicitly initialzed will be inited to 0 */
+/* For the static variables, which are not explicitly initialized will be inited to 0 */
 static int32_t init_sgx_ret = 0;
-static struct epc_section pepc_sections[MAX_EPC_SECTIONS];			/* physcial epc sections */
+static struct epc_section pepc_sections[MAX_EPC_SECTIONS];			/* physical epc sections */
 static struct epc_map vm_epc_maps[MAX_EPC_SECTIONS][CONFIG_MAX_VM_NUM];		/* epc resource mapping for VMs */
 
 static int32_t get_epc_section(uint32_t sec_id, uint64_t* base, uint64_t* size)
@@ -41,14 +41,14 @@ static int32_t get_epc_section(uint32_t sec_id, uint64_t* base, uint64_t* size)
 	} else if (type == CPUID_SGX_EPC_TYPE_INVALID) {
 		/* indicate the end of epc enumeration */
 	} else {
-		pr_err("%s: unsupport EPC type %u", __func__, type);
+		pr_err("%s: unsupported EPC type %u", __func__, type);
 		ret = -EINVAL;
 	}
 
 	return ret;
 }
 
-/* Enumerate physcial EPC resource and partition it according to VM configurations.
+/* Enumerate physical EPC resource and partition it according to VM configurations.
  * Build the mappings between HPA and GPA for EPT mapping later.
  * EPC resource partition and mapping relationship will stay unchanged after sgx init.
  */

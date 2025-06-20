@@ -50,7 +50,7 @@
 /**
  * @brief Enable/disable MSI
  *
- * Set MSI Message Controler register to enable/disable MSI.
+ * Set MSI Message Controller register to enable/disable MSI.
  *
  * @param[in] vdev   Pointer to the virtual PCI device.
  * @param[in] enable A boolean value to indicate to enable/disable MSI.
@@ -77,7 +77,7 @@ static inline void enable_disable_msi(const struct pci_vdev *vdev, bool enable)
 /**
  * @brief Do Interrupt Remapping for MSI
  *
- * This function uses VTD IRTE to do Interrupt Remapping for MSI when guest tring to enable MSI.
+ * This function uses VTD IRTE to do Interrupt Remapping for MSI when guest trying to enable MSI.
  * It will first disable physical MSI before calling ptirq_prepare_msix_remap to the remapping.
  * If remapping succeeds, it enables MSI and disables INTx.
  *
@@ -194,7 +194,7 @@ void deinit_vmsi(struct pci_vdev *vdev)
 /**
  * @brief Initialize the virtual PCI device MSI
  *
- * This function will cache PCI MSI capability inforamtion, if the physical PCI device supports MSI capability,
+ * This function will cache PCI MSI capability information, if the physical PCI device supports MSI capability,
  * by getting the MSI Capability length and whether 64 bit mode supported by reading physical register, then
  * clear the MMC/MME bits from the value read out and write the value into virtual MSI Capability registers to
  * initialize virtual MSI Capability structure.

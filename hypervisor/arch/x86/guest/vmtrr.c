@@ -238,7 +238,7 @@ void init_vmtrr(struct acrn_vm *vm)
 				vmtrr->variable_range[i].physmask.value);
 		}
 	} else {
-		/* Emulate Variale MTRRs for pre-launch and post-launch VMs */
+		/* Emulate Variable MTRRs for pre-launch and post-launch VMs */
 		vmtrr->cap.value = 0UL;
 		vmtrr->def_type.value = 0UL;
 		vmtrr->def_type.bits.enable = 1UL;

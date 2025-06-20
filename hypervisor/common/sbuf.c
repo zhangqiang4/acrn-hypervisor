@@ -35,7 +35,7 @@
 /**
  * @brief Calculate the next position in a circular buffer of sbuf.
  *
- * This function is used to get the next position in a circular buffer when writting span byes into sbuf memory.
+ * This function is used to get the next position in a circular buffer when writing span byes into sbuf memory.
  * It ensures that the position wraps around correctly when it reaches the end of the buffer.
  * When writing data to sbuf, should firstly use this function to get the next position.
  * This position is useful for checking whether the ring buffer is overrun.
@@ -276,7 +276,7 @@ int32_t sbuf_setup_common(struct acrn_vm *vm, uint16_t cpu_id, uint32_t sbuf_id,
 	hva = (uint64_t)sbuf + PAGE_SIZE;
 	for (temp_gpa = (gpa + PAGE_SIZE); temp_gpa < (gpa + size); temp_gpa += PAGE_SIZE) {
 		if ((uint64_t)gpa2hva(vm, temp_gpa) != hva) {
-			pr_err("sbuf: gpa 0x%016lx is not mapped to continous hva", temp_gpa);
+			pr_err("sbuf: gpa 0x%016lx is not mapped to continuous hva", temp_gpa);
 			ret = -EINVAL;
 			break;
 		}

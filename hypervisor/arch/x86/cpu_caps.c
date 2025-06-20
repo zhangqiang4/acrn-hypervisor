@@ -889,7 +889,7 @@ static inline bool is_vmx_disabled(void)
 	uint64_t msr_val;
 	bool ret = false;
 
-	/* Read Feature ControL MSR */
+	/* Read Feature control MSR */
 	msr_val = msr_read(MSR_IA32_FEATURE_CONTROL);
 
 	/* Check if feature control is locked and vmx cannot be enabled */

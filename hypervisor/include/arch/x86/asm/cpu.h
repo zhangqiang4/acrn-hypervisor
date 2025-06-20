@@ -450,7 +450,7 @@ extern const char version_info[VER_INFO_MAX_LENGTH];
  * kept in order:
  * General register names group (CPU_REG_RAX~CPU_REG_R15);
  * Non general register names group (CPU_REG_CR0~CPU_REG_GDTR);
- * Segement register names group (CPU_REG_ES~CPU_REG_GS).
+ * Segment register names group (CPU_REG_ES~CPU_REG_GS).
  */
 /**
  * @brief This enumeration type defines identifiers for architecturally defined registers. The order of general-purpose

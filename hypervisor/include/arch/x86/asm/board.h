@@ -46,7 +46,7 @@ union clos_config {
 	 * @brief Memory Bandwidth Allocation delay
 	 *
 	 * This controls the memory bandwidth allocated to a thread.
-	 * Smaller value indicates larger allocated bandwith.
+	 * Smaller value indicates larger allocated bandwidth.
 	 */
 	uint16_t mba_delay;
 	/**

@@ -2195,7 +2195,7 @@ static int32_t emulate_cmp(struct acrn_vcpu *vcpu, const struct instr_emul_vie *
 /**
  * @brief Emulate Subtract.
  *
- * Emulate the substract instruction (Refer to SUB—Subtract, in 4.3 Instructions, Vol 2, Intel® 64 and
+ * Emulate the subtract instruction (Refer to SUB—Subtract, in 4.3 Instructions, Vol 2, Intel® 64 and
  * IA-32 Architectures Software Developer’s Manual Order Number: 325462-078US). Subtracts the source operand
  * from the destination operand and stores the result in the destination operand. Then update RFLAGS (OF, CF).
  *

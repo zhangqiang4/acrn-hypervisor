@@ -73,7 +73,7 @@ trampoline_start16:
     .byte 0xea	/* Opcode of "JMP ptr16:16" */
     .global trampoline_fixup_ip
 trampoline_fixup_ip:
-    .word   0	/* "EIP is intruction following JUMP instruction" */
+    .word   0	/* "EIP is instruction following JUMP instruction" */
     .global trampoline_fixup_cs
 trampoline_fixup_cs:
     .word   0	/* CS */
@@ -120,7 +120,7 @@ trampoline_fixup_target:
     orl     $0x80000023, %ebx
     mov     %ebx, %cr0
 
-    /* Load temportary GDT pointer value */
+    /* Load temporary GDT pointer value */
     lgdt    (trampoline_gdt_ptr - trampoline_start16)
 
     /* Perform a long jump based to start executing in 64-bit mode */

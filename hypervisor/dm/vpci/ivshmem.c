@@ -270,7 +270,7 @@ static void ivshmem_server_notify_peer(struct ivshmem_device *src_ivs_dev, uint1
 
 				dest_vm = vpci2vm(dest_ivs_dev->pcidev->vpci);
 				if (vlapic_inject_msi(dest_vm, entry->addr, entry->data) != 0) {
-					pr_err("%s, vm%d faild injecting msi msi_addr:0x%lx msi_data:0x%x",
+					pr_err("%s, vm%d failed injecting msi msi_addr:0x%lx msi_data:0x%x",
 						__func__, dest_vm->vm_id, entry->addr, entry->data);
 				}
 			} else {

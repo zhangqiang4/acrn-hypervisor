@@ -169,7 +169,7 @@ struct pci_mmcfg_region *get_mmcfg_region(void)
 
 #if defined(HV_DEBUG)
 /**
- * @brief Calculate CONFIG_ADDRESS Register Vaule using PIO method
+ * @brief Calculate CONFIG_ADDRESS Register Value using PIO method
  *
  * Refer to Chapter 3.2.2.3.2 Software Generation of Configuration Transactions,
  * PCI Local Bus Specification Revision 3.0.
@@ -177,7 +177,7 @@ struct pci_mmcfg_region *get_mmcfg_region(void)
  * @param[in] bdf    The data structure of PCI device BDF.
  * @param[in] offset The register offset in configuration space.
  *
- * @return An unsigned integer which indicates the CONFIG_ADDRESS Register Vaule
+ * @return An unsigned integer which indicates the CONFIG_ADDRESS Register Value
  *
  * @remark The function is valid when hypervisor debug mode is enabled
  */
@@ -988,11 +988,11 @@ static void config_pci_bridge(const struct pci_pdev *pdev)
 {
 	uint32_t offset, val, msgctrl;
 
-	/* for command regsiters, disable INTx */
+	/* for command registers, disable INTx */
 	val = pci_pdev_read_cfg(pdev->bdf, PCIR_COMMAND, 2U);
 	pci_pdev_write_cfg(pdev->bdf, PCIR_COMMAND, 2U, val | PCIM_CMD_INTxDIS);
 
-	/* disale MSI */
+	/* disable MSI */
 	if (pdev->msi_capoff != 0x00UL) {
 		offset = pdev->msi_capoff + PCIR_MSI_CTRL;
 

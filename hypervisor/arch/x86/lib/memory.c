@@ -131,7 +131,7 @@ void memcpy_erms_backwards(void *d, const void *s, size_t slen)
  * This function does the memory copy when runtime-constrain checking passes, and the checking
  * includes that both d and s are not NULL, and the destination buffer size dmax is at least as
  * large as the source length slen, and source and destination buffer are either non-overlapping
- * or properly seperated, that is that the address position of destination buffer is more than that
+ * or properly separated, that is that the address position of destination buffer is more than that
  * of the end of the source buffer with the slen length, or the address position of source buffer is more
  * than that of the end of destination buffer with the dmax length.
  *

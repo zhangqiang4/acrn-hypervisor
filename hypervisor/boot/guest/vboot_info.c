@@ -179,7 +179,7 @@ static void init_vm_bootargs_info(struct acrn_vm *vm, const struct acrn_boot_inf
 	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
 	vm->sw.bootargs_info.src_addr = vm_config->os_config.bootargs;
-	/* If module string of the kernel module exists, it would OVERRIDE the pre-configured build-in VM bootargs,
+	/* If module string of the kernel module exists, it would OVERRIDE the pre-configured built-in VM bootargs,
 	 * which means we give user a chance to re-configure VM bootargs at bootloader runtime. e.g. GRUB menu
 	 */
 	if (kernel_mod_string[vm->vm_id][0] != '\0') {

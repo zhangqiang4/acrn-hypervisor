@@ -1094,7 +1094,7 @@ struct rtc_change_event_data {
 	int64_t delta_time; /**< \p delta of time (in seconds) the RTC has been changed */
 };
 
-/* DM vrtc's reference time is besed on sys time, while the HV vrtc is based on pRTC.
+/* DM vrtc's reference time is based on sys time, while the HV vrtc is based on pRTC.
  * When the delta time is sent to users, they need to know what it is relative to.
  */
 #define RTC_CHG_RELATIVE_PHYSICAL_RTC         0  /**< RTC change relative to the physical RTC change */

@@ -555,7 +555,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 			if (is_lapic_pt_configured(vcpu->vm)) {
 				uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
-				/* For local APIC pass-thru, disable interrupt in root mode. */
+				/* For local APIC pass-through, disable interrupt in root mode. */
 				CPU_IRQ_DISABLE();
 
 				per_cpu(mode_to_idle, pcpu_id) = IDLE_MODE_PAUSE;

@@ -185,7 +185,7 @@ static void update_trampoline_code_refs(uint64_t dest_pa)
 	 * dynamically.
 	 *
 	 * trampoline code starts in real mode,
-	 * so the target addres is HPA
+	 * so the target address is HPA
 	 */
 	val = dest_pa + trampoline_relo_addr(&trampoline_fixup_target);
 

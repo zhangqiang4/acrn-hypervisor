@@ -93,7 +93,7 @@ void vmx_on(void)
 	CPU_CR_READ(cr4, &tmp64);
 	CPU_CR_WRITE(cr4, tmp64 | CR4_VMXE);
 
-	/* Read Feature ControL MSR */
+	/* Read Feature control MSR */
 	tmp64 = msr_read(MSR_IA32_FEATURE_CONTROL);
 
 	/* Check if feature control is locked */

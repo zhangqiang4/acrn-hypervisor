@@ -611,7 +611,7 @@ static void start_pcpu(uint16_t pcpu_id)
 	clac();
 
 	/* Using the MFENCE to make sure trampoline code
-	 * has been updated (clflush) into memory beforing start APs.
+	 * has been updated (clflush) into memory before start APs.
 	 */
 	cpu_memory_barrier();
 	send_startup_ipi(pcpu_id, startup_paddr);

@@ -25,7 +25,7 @@
 #define SMBIOS_EPS_SEARCH_START 0xf0000UL
 #define SMBIOS_EPS_SEARCH_END   0xfffffUL
 
-/* For subsequent code, "smbios2" will be specifically refering to 32bit SMBIOS (major version 2),
+/* For subsequent code, "smbios2" will be specifically referring to 32bit SMBIOS (major version 2),
  * and "smbios3" will refer to 64-bit SMBIOS (major version 3). "smbios" will be a generic
  * reference to SMBIOS structure.
  */

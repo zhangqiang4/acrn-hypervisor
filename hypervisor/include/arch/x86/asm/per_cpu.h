@@ -104,7 +104,7 @@ struct per_cpu_region {
 	 */
 	uint8_t stack[CONFIG_STACK_SIZE] __aligned(16);
 	uint32_t lapic_id; /**< Local APIC ID. */
-	uint32_t lapic_ldr; /**< Local destination register of local APIC. */
+	uint32_t lapic_ldr; /**< Logical destination register of local APIC. */
 	uint32_t softirq_servicing; /**< Flag indicating whether the logical processor is handling softirq. */
 	uint32_t mode_to_kick_pcpu; /**< Field indicating the kick-mode of the logical processor. */
 	uint32_t mode_to_idle; /**< Field indicating the idle-mode of the logical processor. */

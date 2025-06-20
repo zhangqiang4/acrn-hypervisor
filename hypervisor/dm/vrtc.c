@@ -381,13 +381,13 @@ static int32_t clk_ts_to_ct(time_t secs, struct clktime *ct)
 
 	ct->dow = day_of_week(days);
 
-	/* Substract out whole years, counting them in i. */
+	/* Subtract out whole years, counting them in i. */
 	for (year = POSIX_BASE_YEAR; days >= days_in_year(year); year++) {
 		days -= days_in_year(year);
 	}
 	ct->year = year;
 
-	/* Substract out whole months, counting them in i. */
+	/* Subtract out whole months, counting them in i. */
 	for (i = 1; days >= days_in_month(year, i); i++) {
 		days -= days_in_month(year, i);
 	}
@@ -755,7 +755,7 @@ static void cmos_set_reg_val(uint8_t addr, uint8_t value)
 	spinlock_release(&cmos_lock);
 }
 
-#define TRIGGER_ALARM	(RTCIR_ALARM | RTCIR_INT) /**< Register value for triggerring alarm. */
+#define TRIGGER_ALARM	(RTCIR_ALARM | RTCIR_INT) /**< Register value for triggering alarm. */
 #define RTC_DELTA	1	/**< For RTC and system time may out of sync for no more than 1s. */
 
 /**
@@ -791,7 +791,7 @@ static uint8_t vrtc_get_reg_c(struct acrn_vrtc *vrtc)
 			 * RTC time, and then read the interrupt flag register. If the value was not
 			 * correct, read failure will occurs. So if alarm interrupt is enabled
 			 * and rtc time is in alarm time scale, set the interrupt flag. The
-			 * interrupt is not acturally triggered for driver will read the register
+			 * interrupt is not actually triggered for driver will read the register
 			 * proactively.
 			 */
 			ret |= TRIGGER_ALARM;

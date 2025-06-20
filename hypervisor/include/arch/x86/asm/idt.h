@@ -108,7 +108,7 @@ struct host_idt {
 } __aligned(16);
 
 /**
- * @brief Definition of the IDT Regsiter (IDTR) in 64-bit mode.
+ * @brief Definition of the IDT Register (IDTR) in 64-bit mode.
  *
  * the processor locates the IDT using the IDTR register. This register holds both a 64-bit
  * base address and a 16-bit limit for the IDT.

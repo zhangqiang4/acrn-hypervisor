@@ -150,7 +150,7 @@ static void dump_guest_context(uint16_t pcpu_id)
 static void do_logbuffer(uint32_t severity, uint16_t vm_id, char *buffer)
 {
 	char *minidump_start;
-	/* Caculate start address of uart tx dump of specified vm in minidump region.
+	/* Calculate start address of uart tx dump of specified vm in minidump region.
 	 * Config tool set mimidump region behind HVLOG region, the size accumulates the
 	 * console tx buffer of all VMs. */
 	minidump_start =
@@ -321,7 +321,7 @@ void dump_exception(struct intr_excp_ctx *ctx, uint16_t pcpu_id)
 	/* Release lock to let other CPUs handle exception */
 	spinlock_release(&exception_spinlock);
 #ifdef CONFIG_HV_COREDUMP_ENABLED
-	/* triger warm reset, let Slimbootloader to boot coredump process */
+	/* trigger warm reset, let Slimbootloader to boot coredump process */
 	reset_host(true);
 #endif
 }

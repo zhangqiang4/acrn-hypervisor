@@ -89,7 +89,7 @@ static int32_t ibrs_type;
  *        on underlying platform.
  *
  * This function determines the mitigation option for Spectre Variant 2
- * which is a branch target injection attack that target a CPU optimation
+ * which is a branch target injection attack that target a CPU optimization
  * technique called speculation execution.
  *
  * Available Mitigations:
@@ -108,7 +108,7 @@ static int32_t ibrs_type;
  *      buffers to launch Specture-style attack.
  *
  * Retpoline: A software mitigation introduced to prevent indirect branch prediction
- *            attackes by using a software-based mechnism to avoid speculation on
+ *            attacked by using a software-based mechanism to avoid speculation on
  *            indirect branches.
  *
  * Below mitigation options are defined for speculation defence:
@@ -125,7 +125,7 @@ static int32_t ibrs_type;
  *            mitigations like IBRS or STIBP, this feature also can be enabled on platform
  *            that hardware-based mitigation is supported, because hardware-based mitigation
  *            has higher performance overhead, retpoline solution is a good balance between
- *            security and performace.
+ *            security and performance.
  *
  * @return None
  *
@@ -327,7 +327,7 @@ bool check_cpu_security_cap(void)
 #endif
 		} else {
 			/** Processor is affected by MDS but no mitigation software
-			 *  interface is enumerated, CPU microcode need to be udpated.
+			 *  interface is enumerated, CPU microcode need to be updated.
 			 *  Set the qualification of CPU ucode to false.
 			 */
 			ret = false;

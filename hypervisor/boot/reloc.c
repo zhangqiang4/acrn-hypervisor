@@ -48,7 +48,7 @@ void relocate(void)
 	delta = get_hv_image_delta();
 	if (delta != 0U) {
 
-		/* Look for the descriptoin of relocation sections */
+		/* Look for the description of relocation sections */
 		for (dyn = (struct Elf64_Dyn *)_DYNAMIC; dyn->d_tag != DT_NULL; dyn++) {
 			switch (dyn->d_tag) {
 			case DT_RELA:

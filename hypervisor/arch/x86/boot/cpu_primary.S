@@ -53,7 +53,7 @@ mb2_header_start:
     /* please be aware that each tag should be 8 bytes aligned */
     .align     MULTIBOOT2_TAG_ALIGN
     /*
-     * Request infomation from boot loader, which is supposed to provide th relevant information
+     * Request information from boot loader, which is supposed to provide th relevant information
      * specified in the following tags to the image through the MBI if it is available
      */
 info_req_tag_start:
@@ -61,7 +61,7 @@ info_req_tag_start:
     .short  0
     .long   info_req_tag_end - info_req_tag_start
     .long   MULTIBOOT2_TAG_TYPE_MMAP        /* memory map */
-    .long   MULTIBOOT2_TAG_TYPE_MODULE      /* boot modules infomation */
+    .long   MULTIBOOT2_TAG_TYPE_MODULE      /* boot modules information */
     .long   MULTIBOOT2_TAG_TYPE_ACPI_NEW    /* a copy of RSDP as defined per ACPI 2.0 or later specification */
     .long   MULTIBOOT2_TAG_TYPE_EFI64       /* EFI system table, to be passed to guest Linux  */
     .long   MULTIBOOT2_TAG_TYPE_EFI_MMAP    /* EFI memory map, to be passed to guest Linux */
@@ -197,7 +197,7 @@ cpu_primary_start_32:
     orl     $0x80000023, %ebx
     mov     %ebx, %cr0
 
-    /* Load temportary GDT pointer value */
+    /* Load temporary GDT pointer value */
     mov     $cpu_primary32_gdt_ptr, %ebx
     addl    %esi, %ebx
     addl    %esi, 2(%ebx)
@@ -235,7 +235,7 @@ primary_start_long_mode:
 0:  pop     %rsi
     sub     $0b, %rsi    /* relocation delta */
 
-    /* Load temportary GDT pointer value */
+    /* Load temporary GDT pointer value */
     lea     cpu_primary64_gdt_ptr(%rip), %rbx
     addq    %rsi, 2(%rbx)
     lgdt    (%ebx)

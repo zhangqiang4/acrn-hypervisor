@@ -39,13 +39,13 @@ struct epc_section
 
 struct epc_map
 {
-	uint64_t hpa;		/* EPC reource address in host, must be page aligned */
-	uint64_t gpa;		/* EPC reource address in guest, must be page aligned */
-	uint64_t size;		/* EPC reource size in byte, must be page aligned */
+	uint64_t hpa;		/* EPC resource address in host, must be page aligned */
+	uint64_t gpa;		/* EPC resource address in guest, must be page aligned */
+	uint64_t size;		/* EPC resource size in byte, must be page aligned */
 };
 
 /**
- * @brief Get physcial EPC sections of the platform.
+ * @brief Get physical EPC sections of the platform.
  *
  * @retval Physical EPC sections of the platform
  *
@@ -80,7 +80,7 @@ bool is_vsgx_supported(uint16_t vm_id);
 /**
  * @brief SGX initialization.
  *
- * Init SGX and parition EPC resource for VMs.
+ * Init SGX and partition EPC resource for VMs.
  *
  * @retval 0 on success
  * @retval <0 on failure

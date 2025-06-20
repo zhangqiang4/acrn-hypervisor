@@ -250,7 +250,7 @@ void do_acpi_sx(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val
 	}
 
 	do {
-		/* polling PM1 state register to detect wether
+		/* polling PM1 state register to detect whether
 		 * the Sx state enter is interrupted by wakeup event.
 		 */
 		s1 = acpi_gas_read(&(sstate_data->pm1a_evt));

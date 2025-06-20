@@ -273,7 +273,7 @@ static bool is_cr0_write_valid(struct acrn_vcpu *vcpu, uint64_t cr0)
 			if (((cr0 & CR0_PE) == 0UL) && ((cr0 & CR0_PG) != 0UL)) {
 				ret = false;
 			} else {
-				/* SDM 6.15 "Exception and Interrupt Refrerence" GP Exception
+				/* SDM 6.15 "Exception and Interrupt Reference" GP Exception
 				 *
 				 * Loading CR0 register with a set NW flag and a clear CD flag
 				 * is invalid
@@ -699,7 +699,7 @@ void init_cr0_cr4_flexible_bits(void)
 	/*
 	 * vcpuid should always consult cr4_reserved_bits_mask when reporting capability.
 	 *
-	 * The guest value of reserved bits are likely identical to fixed bits, but certains
+	 * The guest value of reserved bits are likely identical to fixed bits, but certain
 	 * exceptions may be applied, i.e. for CR4_EMULATED_RESERVE_BITS.
 	 */
 	cr4_reserved_bits_mask = ~(cr4_passthru_mask | cr4_trap_and_passthru_mask | CR4_TRAP_AND_EMULATE_BITS);

@@ -129,7 +129,7 @@ static bool vpci_pio_cfgaddr_read(struct acrn_vcpu *vcpu, uint16_t addr, size_t 
  * @return A boolean value to indicate whether the write is successful or not
  *
  * @retval true  Succeed.
- * @retval false Fail if the vdev cannot be found or it is a quirk devcie (ACRN will deliver this
+ * @retval false Fail if the vdev cannot be found or it is a quirk device (ACRN will deliver this
  *               IO request to DM to handle for post-launched VM).
  *
  * @pre vcpu != NULL
@@ -721,7 +721,7 @@ static const struct cfg_header_perm cfg_hdr_perm = {
  * This function is used to read Configuration Space Header register value out base on Configuration
  * Space Header permission. If the register is a passthrough register, the native register value is
  * returned. Otherwise, the virtual register value is returned. For BARs access, the size to read must
- * be 4 bytes and the offset must also be 4 bytes aligned, then the virutal register value is returned.
+ * be 4 bytes and the offset must also be 4 bytes aligned, then the virtual register value is returned.
  * Otherwise, 0xFFFFFFFF is returned. If the read is for PCIR_BIOS register of quirk passthrough device,
  * return ENODEV. If the read is for PCIR_COMMAND register of VF, always set MSE(Memory Space Enable)
  * bit.
@@ -1293,7 +1293,7 @@ static int32_t vpci_init_vdevs(struct acrn_vm *vm)
  * After passing these checks, follow below steps to assign the device to target VM:
  *   - For device which supports FLR or PM reset, restore the physical device BARs to initial
  *     values. Otherwise, print fatal error out.
- *   - Excute callback function to deinitialize the found out vdev.
+ *   - Execute callback function to deinitialize the found out vdev.
  *   - Create and initialize a new virtual PCI device. If this action fails, error is returned.
  *   - Configure Interrupt Line/Interrupt Pin/BARs registers for the new virtual PCI device.
  *   - If PIO BAR is supported for the new vdev, add the device into virtual PCI device hash
@@ -1464,7 +1464,7 @@ int32_t vpci_deassign_pcidev(struct acrn_vm *tgt_vm, struct acrn_pcidev *pcidev)
  *
  * This function is used to emulate BAR sizing or BAR re-program of a virtual PCI device. First, it calls
  * unmap callback function to deny PIO access by clearing I/O bitmap or prevent MMIO access by deleting EPT/
- * DMAR mapping according to the space type. Then, it updates the vBAR value in virutal configuration space. At
+ * DMAR mapping according to the space type. Then, it updates the vBAR value in virtual configuration space. At
  * last, it calls map callback function to map the memory pointed by the new vBAR value if map callback
  * function exists and the vBAR value is updated successfully, i.e. set I/O bitmap or add EPT/DMAR mapping
  * according to the space type.
@@ -1505,7 +1505,7 @@ void vpci_update_one_vbar(struct pci_vdev *vdev, uint32_t bar_idx, uint32_t val,
  * Status register to get the new capability offset according to whether the Capabilities List is supported.
  * Then, it checks if the new capability offset plus the new capability length is not greater than the
  * limitation of the size of Configuration Space, i.e. 256 bytes. At last, it updates the virtual Configuration
- * Space registers to add the new capability and record the new capability offet/length in vdev.
+ * Space registers to add the new capability and record the new capability offset/length in vdev.
  *
  * @param[in] vdev    Pointer to a virtual PCI device.
  * @param[in] capdata Pointer to buffer that holds the capability data to be added.

@@ -248,7 +248,7 @@ static inline void local_modify_or_del_pte(uint64_t *pte,
  * table page with given properties
  *
  * @param[inout] pde     Pointer to the page directory entry to operate on.
- * @param[in]    pt_page Pointer to the page whic pde is going to point to.
+ * @param[in]    pt_page Pointer to the page which pde is going to point to.
  * @param[in]    prot    Properties of pde.
  * @param[in]    table   Pointer to the page table struct which pde belongs to.
  *
@@ -332,7 +332,7 @@ static void modify_or_del_pte(uint64_t *pde, uint64_t vaddr_start, uint64_t vadd
  * (PDEs or PTEs) for specified virtual address range in given page directory
  *
  * If the virtual address range covered a whole page directory entry (PDE), modify or unmap this PDE; otherwise,
- * modify or unmap the PTE for thoese virtual addresses range. In this case, the large directory page for this PDE
+ * modify or unmap the PTE for those virtual addresses range. In this case, the large directory page for this PDE
  * would split into small table page.
  *
  * This function also try to free the given page directory pointer table entry.
@@ -401,9 +401,9 @@ static void modify_or_del_pde(uint64_t *pdpte, uint64_t vaddr_start, uint64_t va
  * entries (PDPTEs or PDEs or PTEs) for specified virtual address range in given page directory pointer table
  *
  * If the virtual address range covered a whole page directory pointer table entry (PDPTE), modify or unmap this PDPTE;
- * otherwise, modify or unmap the PDPTE for thoese virtual addresses range. In this case, the large directory page for
- * this PDPTE would split into small table page. If the address range is also not convered a whole page directory entry
- * (PDE), PDE would also be splited into next level page table.
+ * otherwise, modify or unmap the PDPTE for those virtual addresses range. In this case, the large directory page for
+ * this PDPTE would split into small table page. If the address range is also not covered a whole page directory entry
+ * (PDE), PDE would also be split into next level page table.
  *
  * This function also try to free the given page directory pointer table entry.
  *

@@ -2071,7 +2071,7 @@ static void resume_dmar(struct dmar_drhd_rt *dmar_unit)
  *
  * Find device's DMAR unit. If the device's DMAR unit is not present or the DMAR unit doesn't support the device
  * domain's address width, do nothing and return error code -EINVAL. Otherwise, do the following actions:
- * - get device's root tabel entry indexed by device's bus number,
+ * - get device's root table entry indexed by device's bus number,
  * - if the entry is not present, create context table, set context table address in the entry, and flush cache lines
  *   to the entry,
  * - if the entry is present, get context table address from the entry,

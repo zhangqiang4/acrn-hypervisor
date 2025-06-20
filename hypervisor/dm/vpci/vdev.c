@@ -228,8 +228,8 @@ static void pci_vdev_update_vbar_base(struct pci_vdev *vdev, uint32_t idx)
 		if (is_pci_io_bar(vbar)) {
 			/*
 			 * ACRN-DM and acrn-config should ensure the identical mapping of PIO bar of
-			 * pass-thru devs. Currently, we don't support the reprogram of PIO bar of
-			 * pass-thru devs. If guest tries to reprogram, hv will inject #GP to guest.
+			 * pass-through devs. Currently, we don't support the reprogram of PIO bar of
+			 * pass-through devs. If guest tries to reprogram, hv will inject #GP to guest.
 			 */
 			if ((vdev->pdev != NULL) &&
 			    ((lo & PCI_BASE_ADDRESS_IO_MASK) != (uint32_t)vbar->base_hpa)) {

@@ -1227,7 +1227,7 @@ int32_t profiling_get_pcpu_id(struct acrn_vm *vm, uint64_t addr)
 }
 
 /*
- * Update collection statictics
+ * Update collection statistics
  */
 int32_t profiling_get_status_info(struct acrn_vm *vm, uint64_t gpa)
 {

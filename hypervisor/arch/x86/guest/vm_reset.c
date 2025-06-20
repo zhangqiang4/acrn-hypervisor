@@ -59,7 +59,7 @@ void triple_fault_shutdown_vm(struct acrn_vcpu *vcpu)
 #ifdef CONFIG_VMEVENT_ENABLED
 		{
 			struct vm_event trp_event;
-			/* Send the tripple fault event to DM. */
+			/* Send the triple fault event to DM. */
 			trp_event.type = VM_EVENT_TRIPLE_FAULT;
 			send_vm_event(vcpu->vm, &trp_event);
 		}

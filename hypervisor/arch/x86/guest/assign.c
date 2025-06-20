@@ -87,7 +87,7 @@ static uint32_t calculate_logical_dest_mask(uint64_t pdmask)
 	pcpu_id = ffs64(pcpu_mask);
 	if (pcpu_id != INVALID_BIT_INDEX) {
 		/* Guests working in xAPIC mode may use 'Flat Model' to select an
-		 * arbitrary list of CPUs. But as the HW is woring in x2APIC mode and can only
+		 * arbitrary list of CPUs. But as the HW is working in x2APIC mode and can only
 		 * use 'Cluster Model', destination mask can only be assigned to pCPUs within
 		 * one Cluster. So some pCPUs may not be included.
 		 * Here we use the first Cluster of all the requested pCPUs.
@@ -883,7 +883,7 @@ int32_t ptirq_intx_pin_remap(struct acrn_vm *vm, uint32_t virt_gsi)
 				}
 			} else {
 				/* ptirq_intx_pin_remap is triggered by vIOAPIC
-				 * everytime a pin get unmask, here filter out pins
+				 * every time a pin get unmask, here filter out pins
 				 * not get mapped.
 				 */
 				status = -ENODEV;
