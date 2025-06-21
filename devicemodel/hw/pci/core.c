@@ -2398,27 +2398,29 @@ pci_bus_write_dsdt(int bus)
 	}
 	dsdt_line("    }");
 
-	dsdt_line("    Device (GED) /* GED for hotplug */");
-	dsdt_line("    {");
-	dsdt_line("      Name (_HID, \"ACPI0013\")");
-	dsdt_line("      Name (_UID, Zero)");
-	dsdt_line("      Name (_CRS, ResourceTemplate ()");
-	dsdt_line("      {");
-	dsdt_line("        Interrupt (ResourceConsumer, Level, ActiveLow, Exclusive, ,, )");
-	dsdt_line("        {");
-	dsdt_line("          0x%x,", bi->hp_vgsi);
-	dsdt_line("        }");
-	dsdt_line("      })");
-	dsdt_line("      Method (_EVT, 1, Serialized)");
-	dsdt_line("      {");
-	dsdt_line("        If ((Arg0 == 0x%x))", bi->hp_vgsi);
-	dsdt_line("        {");
-	dsdt_line("          Acquire (\\_SB.BLCK, 0xFFFF)");
-	dsdt_line("          \\_SB.PCI%01X.PCNT ()", bus);
-	dsdt_line("          Release (\\_SB.BLCK)");
-	dsdt_line("        }");
-	dsdt_line("      }");
-	dsdt_line("    }");
+	if (bi->hp_slots) {
+		dsdt_line("    Device (GED) /* GED for hotplug */");
+		dsdt_line("    {");
+		dsdt_line("      Name (_HID, \"ACPI0013\")");
+		dsdt_line("      Name (_UID, Zero)");
+		dsdt_line("      Name (_CRS, ResourceTemplate ()");
+		dsdt_line("      {");
+		dsdt_line("        Interrupt (ResourceConsumer, Level, ActiveLow, Exclusive, ,, )");
+		dsdt_line("        {");
+		dsdt_line("          0x%x,", bi->hp_vgsi);
+		dsdt_line("        }");
+		dsdt_line("      })");
+		dsdt_line("      Method (_EVT, 1, Serialized)");
+		dsdt_line("      {");
+		dsdt_line("        If ((Arg0 == 0x%x))", bi->hp_vgsi);
+		dsdt_line("        {");
+		dsdt_line("          Acquire (\\_SB.BLCK, 0xFFFF)");
+		dsdt_line("          \\_SB.PCI%01X.PCNT ()", bus);
+		dsdt_line("          Release (\\_SB.BLCK)");
+		dsdt_line("        }");
+		dsdt_line("      }");
+		dsdt_line("    }");
+	}
 
 done:
 	dsdt_line("  }");
