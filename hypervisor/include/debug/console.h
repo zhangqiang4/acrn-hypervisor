@@ -42,9 +42,10 @@ bool is_using_init_ipi(void);
 bool console_need_log(uint32_t severity);
 void console_log(char *buffer);
 
-#if defined(HV_DEBUG)
 struct acrn_vuart *vm_console_vuart(struct acrn_vm *vm);
-#endif
+
+void printf(const char *fmt, ...);
+void vprintf(const char *fmt, va_list args);
 
 /**
  * @}

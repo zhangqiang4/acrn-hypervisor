@@ -662,7 +662,7 @@ static bool vuart_register_io_handler(struct acrn_vm *vm, uint16_t port_base, ui
 	if (vuart_idx < MAX_VUART_NUM_PER_VM) {
 		register_pio_emulation_handler(vm, UART_PIO_IDX0 + vuart_idx, &range, vuart_read, vuart_write);
 	} else {
-		printf("Not support vuart index %d, will not register \n", vuart_idx);
+		pr_err("Not support vuart index %d, will not register \n", vuart_idx);
 		ret = false;
 	}
 	return ret;

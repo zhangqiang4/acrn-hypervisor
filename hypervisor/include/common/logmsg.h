@@ -75,8 +75,6 @@ void asm_assert(int32_t line, const char *file, const char *txt);
 #endif /* HV_DEBUG */
 
 void do_logmsg(uint32_t severity, const char *fmt, ...);
-void printf(const char *fmt, ...);
-void vprintf(const char *fmt, va_list args);
 
 /**
  * @brief Define a macro for the print prefix if not already defined.
