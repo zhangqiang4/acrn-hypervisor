@@ -975,13 +975,6 @@ INPUT                  =  custom-doxygen/mainpage.md \
                           ../hypervisor/include/hw/pci.h \
                           ../hypervisor/include/lib/sprintf.h \
                           ../hypervisor/lib/sprintf.c \
-                          ../hypervisor/include/debug/console.h \
-                          ../hypervisor/include/debug/dbg_cmd.h \
-                          ../hypervisor/include/debug/dump.h \
-                          ../hypervisor/include/debug/npk_log.h \
-                          ../hypervisor/include/debug/profiling.h \
-                          ../hypervisor/include/debug/shell.h \
-                          ../hypervisor/include/debug/uart16550.h \
                           ../hypervisor/dm/vpci/vsriov.c \
                           ../hypervisor/dm/vpci/vmsi.c \
                           ../hypervisor/dm/vpci/vmsix.c \
