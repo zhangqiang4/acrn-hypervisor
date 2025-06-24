@@ -167,8 +167,8 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
  * voltage level state of a pin on the virtual machine, this function first checks whether
  * the passed pin less then the nr_pins to detect whether it is a valid value.
  *
- * If the pin is valid, it obtains the corresponding RTE for the pin and then clear the bit for
- * low state or set the bit for high state, that clear or set not relying on old states.
+ * If the pin is valid and the new state different from old state, it obtains the corresponding
+ * RTE for the pin and then clear the bit for low state or set the bit for high state.
  *
  * Once the setting is complete, it determines whether to generate an interrupt base on the
  * Interrupt Input Pin Polarity bit in the I/O REDIRECTION TABLE REGISTER, if the pin state
@@ -193,21 +193,22 @@ vioapic_set_pinstate(struct acrn_single_vioapic *vioapic, uint32_t pin, uint32_t
 	union ioapic_rte rte;
 
 	if (pin < vioapic->chipinfo.nr_pins) {
-		rte = vioapic->rtbl[pin];
 		old_lvl = (uint32_t)bitmap_test((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
-		if (level == 0U) {
-			/* clear pin_state and deliver interrupt according to polarity */
-			bitmap_clear_nolock((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
-			if ((rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_ALO)
-				&& (old_lvl != level)) {
-				vioapic_generate_intr(vioapic, pin);
-			}
-		} else {
-			/* set pin_state and deliver interrupt according to polarity */
-			bitmap_set_nolock((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
-			if ((rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_AHI)
-				&& (old_lvl != level)) {
-				vioapic_generate_intr(vioapic, pin);
+
+		if (old_lvl != level) {
+			rte = vioapic->rtbl[pin];
+			if (level == 0U) {
+				/* clear pin_state and deliver interrupt according to polarity */
+				bitmap_clear_nolock((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
+				if (rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_ALO) {
+					vioapic_generate_intr(vioapic, pin);
+				}
+			} else {
+				/* set pin_state and deliver intrrupt according to polarity */
+				bitmap_set_nolock((uint16_t)(pin & 0x3FU), &vioapic->pin_state[pin >> 6U]);
+				if (rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_AHI) {
+					vioapic_generate_intr(vioapic, pin);
+				}
 			}
 		}
 	}
