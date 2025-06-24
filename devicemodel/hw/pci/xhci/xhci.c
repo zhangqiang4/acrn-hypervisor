@@ -2907,6 +2907,17 @@ static int pci_xhci_parse_opts(struct xhci_hw_configs *configs, char *opts)
 	while ((seg = strsep(&opts, ",:"))) {
 		if (!strcmp(seg, "cap=apl")) {
 			configs->model = PCI_XHCI_APL;
+		} else if (!strncmp(seg, "drd=", 4)) {
+			const char *opt = seg + 4;
+			uint8_t bus;
+			struct usb_devpath path;
+			if (usb_parse_bus_devpath_str(opt, &bus, &path) ||
+					(path.port[0] == 0 || path.port[1] != 0)) {
+				pr_err("invalid drd option: '%s'\n", seg);
+				return -1;
+			}
+			configs->drd_bus = bus;
+			configs->drd_port = path.port[0];
 		} else {
 			configs->device_opts[configs->device_num++] = seg;
 		}

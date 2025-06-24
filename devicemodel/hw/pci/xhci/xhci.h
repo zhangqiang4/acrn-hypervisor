@@ -61,6 +61,8 @@ struct xhci_hw_configs {
 		PCI_XHCI_ACRN,
 		PCI_XHCI_APL,
 	} model;
+	uint16_t drd_bus, drd_port;	/* physical location of DAP port which is exposed to guest
+					   via DRD capability */
 	uint16_t xhci_version;
 	uint32_t page_size_mask;
 	uint8_t usb3_ports;
