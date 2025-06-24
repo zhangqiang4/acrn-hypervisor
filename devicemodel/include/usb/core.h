@@ -252,4 +252,18 @@ static inline uint32_t usb_transfer_total_len(struct usb_transfer *xfer)
 int usb_core_init(void);
 void usb_core_deinit(void);
 
+/*
+ * Add delay in some handlers to expose timing issues
+ */
+#define USB_MOCK_DELAY
+#ifdef USB_MOCK_DELAY
+static inline void mock_delay(unsigned ms)
+{
+	usleep(ms * 1000);
+}
+#else
+static inline void mock_delay(unsigned ms) {}
+#endif
+
+
 #endif

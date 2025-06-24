@@ -203,6 +203,7 @@ static int usb_host_direct_xfer(struct usb_device *dev, struct usb_transfer *xfe
 		uint8_t alt = setup->wValue;
 		pr_dbg("device %d:%d interface %d alt setting changed to %d\n",
 				pdata->bus, pdata->addr, intf, alt);
+		mock_delay(2000);
 		if (libusb_set_interface_alt_setting(pdata->handle, intf, alt) != LIBUSB_SUCCESS) {
 			pr_err("device %d:%d failed to set interface %d to alt setting %d!\n",
 					pdata->bus, pdata->addr, intf, alt);
