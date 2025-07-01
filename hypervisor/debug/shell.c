@@ -60,6 +60,8 @@ static int32_t shell_wrmsr(int32_t argc, char **argv);
 static int32_t shell_show_vmexit_profile(__unused int argc, __unused char **argv);
 static int32_t shell_dump_vm_console_out(int32_t argc, char **argv);
 static int32_t shell_vm_resume(int32_t argc, char **argv);
+static int32_t shell_dump_pci(int32_t argc, char **argv);
+static int32_t shell_lspci(int32_t argc, char **argv);
 
 static struct shell_cmd shell_cmds[] = {
 	{
@@ -189,6 +191,18 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VM_RESUME_PARAM,
 		.help_str	= SHELL_CMD_VM_RESUME_HELP,
 		.fcn		= shell_vm_resume,
+	},
+	{
+		.str		= SHELL_CMD_DUMP_PCI,
+		.cmd_param	= SHELL_CMD_DUMP_PCI_PARAM,
+		.help_str	= SHELL_CMD_DUMP_PCI_HELP,
+		.fcn		= shell_dump_pci,
+	},
+	{
+		.str		= SHELL_CMD_LSPCI,
+		.cmd_param	= SHELL_CMD_LSPCI_PARAM,
+		.help_str	= SHELL_CMD_LSPCI_HELP,
+		.fcn		= shell_lspci,
 	},
 };
 
@@ -2021,6 +2035,130 @@ static int32_t shell_vm_resume(int32_t argc, char **argv)
 	vm = get_vm_from_vmid(vm_id);
 
 	ret = s3_resume_vm(vm);
+
+	return ret;
+}
+
+static int parse_bdf(char *bdf_str, union pci_bdf *bdf)
+{
+	int bus = 0, dev = 0, func = 0;
+	char *colon_pos;
+	char *dot_pos;
+	char bus_str[8] = {0}, device_str[8] = {0}, function_str[5] = {0};
+	uint32_t bus_len;
+	uint32_t dev_len;
+	int ret = 0;
+
+	if (strnlen_s(bdf_str, 128) > 7) {
+		shell_puts("BDF string is too long! BDF format should be XX:YY.Z, XX:Y.Z or X:YY.Z.\n");
+		ret = -EINVAL;
+		goto end;
+	}
+
+	colon_pos = strchr(bdf_str, ':');
+	dot_pos = strchr(bdf_str, '.');
+	if (!colon_pos || !dot_pos || colon_pos > dot_pos) {
+		shell_puts("Fail to parse BDF! BDF format should be XX:YY.Z, XX:Y.Z or X:YY.Z.\n");
+		ret = -EINVAL;
+		goto end;
+	}
+	bus_len = (uint32_t)(colon_pos - bdf_str);
+	dev_len = (uint32_t)(dot_pos - colon_pos - 1);
+	strncpy_s(bus_str, bus_len + 1, bdf_str, bus_len);
+	bus_str[bus_len] = '\0';
+	strncpy_s(device_str, dev_len + 1, colon_pos + 1, dev_len);
+	device_str[dev_len] = '\0';
+	strncpy_s(function_str, 2, dot_pos + 1, 2);
+
+	bus = strtoul_hex(bus_str);
+	dev = strtoul_hex(device_str);
+	func = strtoul_hex(function_str);
+
+	bdf->bits.b = bus;
+	bdf->bits.d = dev;
+	bdf->bits.f = func;
+
+end:
+	return ret;
+}
+
+static int32_t shell_dump_pci(int32_t argc, char **argv)
+{
+	uint16_t vm_id = 0;
+	int ret = 0;
+	uint32_t offset, length;
+	union pci_bdf bdf;
+	char bdf_str[10] = {0};
+
+	switch (argc) {
+	case 4:
+		strncpy_s(bdf_str, 10, argv[1], 8);
+		ret = parse_bdf(bdf_str, &bdf);
+		if (ret) {
+			goto end;
+		}
+
+		offset = strtoul_hex(argv[2]);
+		length = (uint64_t)strtol_deci(argv[3]);
+
+		snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- Dump physical device (%02x:%02x.%x) PCI CFG: offset 0x%x, len %d -----\r\n",
+			 bdf.bits.b, bdf.bits.d, bdf.bits.f, offset, length);
+		shell_puts(shell_log_buf);
+		break;
+
+	case 6:
+		if ((argv[1][0] == '-') && (argv[1][1] == 'v') && (argv[1][2] == 'm')
+		    && (argv[1][3] == '_') && (argv[1][4] == 'i') && (argv[1][5] == 'd')) {
+			vm_id = (uint16_t)strtol_deci(argv[2]);
+
+			strncpy_s(bdf_str, 10, argv[3], 8);
+			ret = parse_bdf(bdf_str, &bdf);
+			if (ret) {
+				goto end;
+			}
+
+			offset = strtoul_hex(argv[4]);
+			length = (uint64_t)strtol_deci(argv[5]);
+
+			snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- Dump VM %d device (%02x:%02x.%x) PCI CFG: offset 0x%x, len %d -----\r\n",
+				 vm_id, bdf.bits.b, bdf.bits.d, bdf.bits.f, offset, length);
+			shell_puts(shell_log_buf);
+		} else {
+			ret = -EINVAL;
+		}
+		break;
+	default:
+		shell_puts("\r\n----- Parameter error for dump_pci -----\r\n");
+		ret = -EINVAL;
+	}
+
+end:
+	return ret;
+}
+
+static int32_t shell_lspci(int32_t argc, char **argv)
+{
+	uint16_t vm_id = 0;
+	int ret = 0;
+
+	switch (argc) {
+	case 1:
+		shell_puts("\r\n----- List physical devices BDF -----\r\n");
+		break;
+	case 3:
+		if ((argv[1][0] == '-') && (argv[1][1] == 'v') && (argv[1][2] == 'm')
+		    && (argv[1][3] == '_') && (argv[1][4] == 'i') && (argv[1][5] == 'd')) {
+			vm_id = (uint16_t)strtol_deci(argv[2]);
+			snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- List VM %d devices BDF (virt bdf -> phys bdf) -----\r\n", vm_id);
+			shell_puts(shell_log_buf);
+		} else {
+			ret = -EINVAL;
+		}
+		break;
+	default:
+		shell_puts("\r\n----- Parameter error for lspci -----\r\n");
+		ret = -EINVAL;
+	}
 
 	return ret;
 }
