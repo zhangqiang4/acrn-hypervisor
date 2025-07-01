@@ -3,7 +3,7 @@
 #
 
 SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o)
+OBJS = $(patsubst %.c,$(HV_OBJDIR)/bsp/%.o,$(SRCS))
 
 .PHONY: default
 default: lib
@@ -18,6 +18,6 @@ clean:
 
 -include $(OBJS:.o=.d)
 
-%.o: %.c
+$(HV_OBJDIR)/bsp/%.o: %.c
 	[ ! -e $@ ] && mkdir -p $(dir $@) && mkdir -p $(HV_MODDIR); \
 	$(CC) $(patsubst %, -I%, $(INCLUDE_PATH)) -I. -c $(CFLAGS) $(ARCH_CFLAGS) $< -o $@ -MMD -MT $@

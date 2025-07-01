@@ -467,7 +467,7 @@ $(SYS_INIT_MOD): $(SYS_INIT_C_OBJS)
 
 sys-init-mod: $(SYS_INIT_MOD)
 
-$(BSP_MOD):
+$(BSP_MOD): $(HV_CONFIG_H)
 	$(MAKE) -C $(BSP_MOD_DIR)
 
 bsp-mod: $(BSP_MOD)
