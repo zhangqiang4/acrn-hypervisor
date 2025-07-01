@@ -87,6 +87,12 @@ ACRN requires this feature to function properly. Please enable it in BIOS.</xs:d
     </xs:annotation>
   </xs:assert>
 
+  <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='ia32_tsc_adjust_msr'])">
+    <xs:annotation acrn:severity="error">
+      <xs:documentation>IA32_TSC_ADJUST MSR is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
   <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='execute_disable'])">
     <xs:annotation acrn:severity="error">
       <xs:documentation>NX feature is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
@@ -282,6 +288,30 @@ ACRN requires this feature to function properly. Please enable it in BIOS.</xs:d
   <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='vmx_procbased_ctls2_unrestrict'])">
     <xs:annotation acrn:severity="error">
       <xs:documentation>VMX capability Unrestricted guest for VM execution controls feature is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='ia32_arch_capabilities'])">
+    <xs:annotation acrn:severity="error">
+      <xs:documentation>IA32_ARCH_CAPABILITIES MSR is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="every $model in processors/model satisfies (($model/attribute[@id='arch_cap_if_pschange_mc_no']) != 0)">
+    <xs:annotation acrn:severity="error">
+      <xs:documentation>IA32_ARCH_CAPABILITIES does not support IF_PSCHANGE_MC_NO on this processor. ACRN requires this feature to function properly.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='monitor'])">
+    <xs:annotation acrn:severity="error">
+      <xs:documentation>MONITOR/MWAIT feature is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
+    </xs:annotation>
+  </xs:assert>
+
+  <xs:assert test="every $model in processors/model satisfies exists($model/capability[@id='hwp_supported'])">
+    <xs:annotation acrn:severity="error">
+      <xs:documentation>HWP feature is not supported on this processor. ACRN requires this feature to function properly.</xs:documentation>
     </xs:annotation>
   </xs:assert>
 

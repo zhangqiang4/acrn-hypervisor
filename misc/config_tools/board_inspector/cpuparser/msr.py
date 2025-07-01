@@ -302,3 +302,11 @@ class MSR_TURBO_ACTIVATION_RATIO(MSR):
     attribute_bits = [
         "max_none_turbo_ratio",
     ]
+
+class MSR_IA32_ARCH_CAPABILITIES(MSR):
+    addr = 0x0000010a
+    arch_cap_if_pschange_mc_no = msrfield(6, 6, doc=None)
+
+    attribute_bits = [
+        "arch_cap_if_pschange_mc_no",
+    ]

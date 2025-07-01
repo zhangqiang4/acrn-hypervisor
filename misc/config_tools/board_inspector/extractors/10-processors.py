@@ -70,7 +70,7 @@ def extract_model(processors_node, cpu_id, family_id, model_id, core_type, nativ
             for cap in leaf_data.attribute_bits:
                 add_child(n, "attribute", str(getattr(leaf_data, cap)), id=cap)
 
-        msr_regs = [MSR_TURBO_RATIO_LIMIT, MSR_TURBO_ACTIVATION_RATIO]
+        msr_regs = [MSR_TURBO_RATIO_LIMIT, MSR_TURBO_ACTIVATION_RATIO, MSR_IA32_ARCH_CAPABILITIES]
         for msr_reg in msr_regs:
             try:
                 msr_data = msr_reg.rdmsr(cpu_id)
