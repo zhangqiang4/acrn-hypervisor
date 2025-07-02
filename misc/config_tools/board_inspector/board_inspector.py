@@ -194,6 +194,14 @@ def main(board_name, board_xml, args):
             count = validator.validate_board(os.path.join(script_dir, 'schema', 'boardchecks.xsd'), board_etree)
             if count == 0:
                 logger.info("All board checks passed.")
+            else:
+                if not args.force:
+                    logger.critical("Board checks failed. (--force option is not set, so exiting)")
+                    summary_loginfo(board_xml)
+                    pbar.update(10)
+                    sys.exit(1)
+                else:
+                    logger.warning("Ignoring the board checks error as per --force option.")
 
             # Finally overwrite the output with the updated XML
             if not args.cam:
@@ -229,6 +237,7 @@ if __name__ == "__main__":
                         metavar="<capacity_mask_length:int>,<clos_number:int>,<has_CDP:bool>", help="manually set the Cache Allocation Technology capability of the last level cache")
     parser.add_argument("--cam", action="store_true", default=False,
                         help="retrieve camera configuration from board")
+    parser.add_argument("--force", action="store_true", default=False, help="ignore the board check error and continue to generate a board configuration file")
     args = parser.parse_args()
     try:
         tmpfile = tempfile.NamedTemporaryFile(delete=True)
