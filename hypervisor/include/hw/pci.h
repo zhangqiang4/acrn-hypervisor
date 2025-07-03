@@ -591,6 +591,10 @@ void init_pci_pdev_list(void);
 
 uint32_t pci_lookup_drhd_for_pbdf(uint16_t pbdf);
 
+#ifdef HV_DEBUG
+int32_t pci_get_hw_bdf(char *str_arg, size_t str_max);
+#endif
+
 /**
  * @brief Check whether the input Vendor ID is valid
  *

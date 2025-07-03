@@ -47,6 +47,7 @@
 #include <platform_acpi_info.h>
 #include <hash.h>
 #include <util.h>
+#include <sprintf.h>
 
 /**
  * @defgroup hwmgmt_pci hwmgmt.pci
@@ -608,6 +609,40 @@ static const struct pci_pdev *pci_find_pdev(uint16_t pbdf)
 	}
 	return found;
 }
+
+#ifdef HV_DEBUG
+int32_t pci_get_hw_bdf(char *str_arg, size_t str_max)
+{
+	uint32_t idx;
+	char *str = str_arg;
+	size_t len, size = str_max;
+	struct pci_pdev *pdev = NULL;
+	int ret = 0;
+
+	for (idx = 0U; idx < num_pci_pdev; idx++) {
+		pdev = &pci_pdevs[idx];
+		len = snprintf(str, size, "%02x:%02x.%x \t0x%x:0x%x\n",
+				pdev->bdf.bits.b, pdev->bdf.bits.d, pdev->bdf.bits.f, pdev->vendor_id, pdev->device_id);
+		if (len >= size) {
+			pr_err("%s: Buffer size is not be enough! Please check!\n", __func__);
+			ret = -ENOMEM;
+			break;
+		}
+		size -= len;
+		str += len;
+	}
+
+	if ((ret == 0) && (size > 2)) {
+		len = snprintf(str, size, "\r\n");
+		size -= len;
+		str += len;
+	} else {
+		ret = -ENOMEM;
+	}
+
+	return ret;
+}
+#endif
 
 /**
  * @brief Find the DRHD index corresponding to a PCI physical device

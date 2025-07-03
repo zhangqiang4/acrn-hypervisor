@@ -2144,6 +2144,10 @@ static int32_t shell_lspci(int32_t argc, char **argv)
 	switch (argc) {
 	case 1:
 		shell_puts("\r\n----- List physical devices BDF -----\r\n");
+		ret = pci_get_hw_bdf(shell_log_buf, SHELL_LOG_BUF_SIZE);
+		if (!ret) {
+			shell_puts(shell_log_buf);
+		}
 		break;
 	case 3:
 		if ((argv[1][0] == '-') && (argv[1][1] == 'v') && (argv[1][2] == 'm')
