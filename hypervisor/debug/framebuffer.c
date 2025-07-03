@@ -282,6 +282,11 @@ void fb_init(bool early_boot)
 	struct acrn_boot_info *abi = get_acrn_boot_info();
 	uint64_t fb_end = 0UL;
 	static bool is_fb_valid = false;
+	const char *cmd_src = abi->cmdline;
+
+	if (strstr_s(cmd_src, MAX_BOOTARGS_SIZE, "fb_hvlog", 8U) == NULL) {
+		return;
+	}
 
 	/* Hv gets framebuffer's address, width, height, format through multiboot protocol */
 	if (early_boot) {
