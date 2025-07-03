@@ -1397,6 +1397,7 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 void start_vm(struct acrn_vm *vm)
 {
 	struct acrn_vcpu *bsp = NULL;
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
 
 	vm->state = VM_RUNNING;
 
@@ -1404,8 +1405,7 @@ void start_vm(struct acrn_vm *vm)
 	bsp = vcpu_from_vid(vm, BSP_CPU_ID);
 	vcpu_make_request(bsp, ACRN_REQUEST_INIT_VMCS);
 	launch_vcpu(bsp);
-
-	pr_acrnlog("VM[%d] EPTP at %016lx\n", vm->vm_id, vm->arch_vm.nworld_eptp);
+	pr_acrnlog("Start VM id: %x name: %s EPTP at %016lx\n", vm->vm_id, vm_config->name, vm->arch_vm.nworld_eptp);
 }
 
 /**
@@ -1655,7 +1655,6 @@ void launch_vms(uint16_t pcpu_id)
 				 */
 				if (prepare_vm(vm_id, vm_config) == 0) {
 					start_vm(get_vm_from_vmid(vm_id));
-					pr_acrnlog("Start VM id: %x name: %s", vm_id, vm_config->name);
 				}
 			}
 		}

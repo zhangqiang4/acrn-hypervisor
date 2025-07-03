@@ -1289,6 +1289,11 @@ void guest_cpuid(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx, uint32_t 
 			*ecx = 0U;
 			*edx = 0U;
 		}
+#ifdef HV_DEBUG
+		if (leaf == 0x40000010U) {
+			pr_acrnlog("Guest access TSC cpuid, tsc_khz=%ld \n",*eax);
+		}
+#endif
 	} else {
 		/* percpu related */
 		switch (leaf) {
