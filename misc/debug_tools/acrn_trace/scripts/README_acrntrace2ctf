@@ -1,0 +1,70 @@
+#Below script example to sample ftrace and ACRN trace and convert ACRN trace to Chrome Trace Format(CTF)
+#JSON format using acrntrace2ctf.py, then pack them together and upload it perfetto for view:
+#https://ui.perfetto.dev/
+
+#Refer to acrntrace2ctf.py for usage.
+
+#./acrntrace2ctf.py formats acrntrace_filepath.dat output_filepath.json tsc_freq cpuid
+
+# - 'acrntrace_filepath' is file path to ACRN trace log, which is CPU specific
+# - 'output_filepath.json' file path for output of JSON file.
+# - 'tsc_freq' is the frequency of TSC in unit of Hz.
+# - 'cpuid' is to identify specific ACRN trace log which is CPU specific.
+
+
+#!/bin/bash
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <tsc_freq>"
+  exit 1
+fi
+
+ACRNTRACE_FOLDER=./acrntrace
+
+rm -rf ${ACRNTRACE_FOLDER}
+
+TSC_FREQ=$1
+FTRACE_INPUT_FILE=./ftrace
+
+FTRACE_OUTPUT_FILE=./ftrace_realtime
+ACRNTRACE_OUTPUT_FILE=./acrntrace
+
+TAR_FILE=./trace.tar
+
+echo "Start tracing"
+echo > /sys/kernel/debug/tracing/trace
+
+FTRACE_FODLER=/sys/kernel/debug/tracing
+FTRACE_EVENTS_FOLDER=${FTRACE_FODLER}/events
+
+echo x86-tsc > ${FTRACE_FODLER}/trace_clock
+echo 100000 > ${FTRACE_FODLER}/buffer_size_kb
+echo 1 > ${FTRACE_EVENTS_FOLDER}/sched/sched_switch/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/sched/sched_wakeup/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/irq/irq_handler_entry/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/irq/irq_handler_exit/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/irq/softirq_entry/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/irq/softirq_exit/enable
+echo 1 > ${FTRACE_EVENTS_FOLDER}/workqueue/enable
+
+echo 1 > ${FTRACE_FODLER}/tracing_on
+
+
+acrntrace -t 15
+
+#echo "Stop tracing"
+echo 0 > ${FTRACE_FOLDER}/tracing_on
+
+#cp /sys/kernel/debug/tracing/trace ${FTRACE_INPUT_FILE}
+
+echo "Convert ftrace timestamp from tsc to realtime"
+./ftrace.py ${FTRACE_INPUT_FILE} ${FTRACE_OUTPUT_FILE} ${TSC_FREQ}
+
+for file in ${ACRNTRACE_FOLDER}/*/*; do
+	cpuid=`basename ${file}`
+	echo "Convert acrntrace on cpu${cpuid} to perfetto format"
+	./trace.py formats ${file} ${ACRNTRACE_OUTPUT_FILE}_${cpuid}.json ${TSC_FREQ} ${cpuid}
+done
+
+echo "package result to ${TAR_FILE}"
+tar -cf ${TAR_FILE} ${FTRACE_OUTPUT_FILE} ${ACRNTRACE_OUTPUT_FILE}_*
