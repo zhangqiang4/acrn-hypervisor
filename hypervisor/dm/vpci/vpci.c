@@ -55,8 +55,6 @@
  */
 
 static int32_t vpci_init_vdevs(struct acrn_vm *vm);
-static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf, uint32_t offset,
-			     uint32_t bytes, uint32_t *val);
 static int32_t vpci_write_cfg(struct acrn_vpci *vpci, union pci_bdf bdf, uint32_t offset,
 			      uint32_t bytes, uint32_t val);
 static struct pci_vdev *find_available_vdev(struct acrn_vpci *vpci, union pci_bdf bdf);
@@ -1040,8 +1038,8 @@ static const struct pci_vdev_ops pci_pt_dev_ops = {
  * @pre vpci != NULL
  * @pre val != NULL
  */
-static int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
-	uint32_t offset, uint32_t bytes, uint32_t *val)
+int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
+		      uint32_t offset, uint32_t bytes, uint32_t *val)
 {
 	int32_t ret = 0;
 	struct pci_vdev *vdev;

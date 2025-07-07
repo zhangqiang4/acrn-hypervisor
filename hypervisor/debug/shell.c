@@ -2113,6 +2113,82 @@ end:
 	return ret;
 }
 
+static int32_t vpci_get_dev_cfg(struct acrn_vm *vm, union pci_bdf bdf, uint32_t offset, uint32_t cfg_len,
+				 char *str_arg, size_t str_max)
+{
+	int32_t ret = -ENOMEM;
+	struct acrn_vpci *vpci = &(vm->vpci);
+	char *str = str_arg;
+	size_t len, size = str_max;
+	uint32_t i;
+	uint32_t val = ~0U;
+	char temp_str[TEMP_STR_SIZE];
+
+	if (!pci_is_valid_access(offset, 4)) {
+		snprintf(temp_str, TEMP_STR_SIZE, "Offset 0x%x does not align with 4 bytes, error\n", offset);
+		shell_puts(temp_str);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	if (cfg_len % 4) {
+		snprintf(temp_str, TEMP_STR_SIZE, "Length %d is not multiple of 4 bytes, error\n", cfg_len);
+		shell_puts(temp_str);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	len = snprintf(str, size, "%02x:%02x.%x\n", bdf.bits.b, bdf.bits.d, bdf.bits.f);
+	if (len >= size) {
+		goto end;
+	}
+	size -= len;
+	str += len;
+
+	for (i = 0; i < cfg_len; i += 4) {
+		ret = vpci_read_cfg(vpci, bdf, offset + i, 4, &val);
+		if (ret == -ENODEV) {
+			snprintf(temp_str, TEMP_STR_SIZE, "%02x:%02x.%x is an acrn-dm virtual PCI device.\n",
+					bdf.bits.b, bdf.bits.d, bdf.bits.f);
+			shell_puts(temp_str);
+			goto end;
+		} else if (ret) {
+			snprintf(temp_str, TEMP_STR_SIZE, "Fail to read dev %02x:%02x.%x, offset 0x%x, len %d\n",
+					bdf.bits.b, bdf.bits.d, bdf.bits.f, offset, cfg_len);
+			shell_puts(temp_str);
+			goto end;
+		}
+
+		len = snprintf(str, size, "%08x ", val);
+		if (len >= size) {
+			goto end;
+		}
+		size -= len;
+		str += len;
+
+		if (((i + 4) % 16) == 0) {
+			len = snprintf(str, size, "\n");
+			if (len >= size) {
+				goto end;
+			}
+			size -= len;
+			str += len;
+		}
+	}
+
+	len = snprintf(str, size, "\r\n");
+	if (len >= size) {
+		goto end;
+	}
+	size -= len;
+	str += len;
+
+	ret = 0;
+
+end:
+	return ret;
+}
+
 static int parse_bdf(char *bdf_str, union pci_bdf *bdf)
 {
 	int bus = 0, dev = 0, func = 0;
@@ -2163,6 +2239,7 @@ static int32_t shell_dump_pci(int32_t argc, char **argv)
 	uint32_t offset, length;
 	union pci_bdf bdf;
 	char bdf_str[10] = {0};
+	struct acrn_vm *vm;
 
 	switch (argc) {
 	case 4:
@@ -2199,6 +2276,12 @@ static int32_t shell_dump_pci(int32_t argc, char **argv)
 			snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- Dump VM %d device (%02x:%02x.%x) PCI CFG: offset 0x%x, len %d -----\r\n",
 				 vm_id, bdf.bits.b, bdf.bits.d, bdf.bits.f, offset, length);
 			shell_puts(shell_log_buf);
+
+			vm = get_vm_from_vmid(vm_id);
+			ret = vpci_get_dev_cfg(vm, bdf, offset, length, shell_log_buf, SHELL_LOG_BUF_SIZE);
+			if (!ret) {
+				shell_puts(shell_log_buf);
+			}
 		} else {
 			ret = -EINVAL;
 		}

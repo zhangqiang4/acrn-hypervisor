@@ -373,6 +373,8 @@ int32_t vpci_deassign_pcidev(struct acrn_vm *tgt_vm, struct acrn_pcidev *pcidev)
 struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_config *dev_config,
 				struct pci_vdev *parent_pf_vdev);
 void vpci_deinit_vdev(struct pci_vdev *vdev);
+int32_t vpci_read_cfg(struct acrn_vpci *vpci, union pci_bdf bdf,
+		      uint32_t offset, uint32_t bytes, uint32_t *val);
 
 /**
  * @brief Check if the BAR is mapped into I/O Space
