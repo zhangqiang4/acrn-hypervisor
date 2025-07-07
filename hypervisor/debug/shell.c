@@ -2212,10 +2212,58 @@ end:
 	return ret;
 }
 
+static int32_t vpci_get_vm_devs_bdf(struct acrn_vm *vm, char *str_arg, size_t str_max)
+{
+	uint16_t idx;
+	struct pci_vdev *vdev;
+	struct acrn_vpci *vpci = &(vm->vpci);
+	char *str = str_arg;
+	size_t len, size = str_max;
+	int ret = -ENOMEM;
+
+	for (idx = 0U; idx < CONFIG_MAX_PCI_DEV_NUM; idx++) {
+		if (!bitmap_test((idx & 0x3FU), &vpci->vdev_bitmaps[idx >> 6U])) {
+			continue;
+		}
+
+		vdev = &vpci->pci_vdevs[idx];
+		if (vdev->user == NULL) {
+			continue;
+		}
+
+		if (vdev->pdev) {
+			len = snprintf(str, size, "%02x:%02x.%x -> %02x:%02x.%x\n",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f,
+					vdev->pdev->bdf.bits.b, vdev->pdev->bdf.bits.d, vdev->pdev->bdf.bits.f);
+		} else {
+			len = snprintf(str, size, "%02x:%02x.%x -> NULL\n",
+					vdev->bdf.bits.b, vdev->bdf.bits.d, vdev->bdf.bits.f);
+		}
+		if (len >= size) {
+			goto end;
+		}
+		size -= len;
+		str += len;
+	}
+
+	len = snprintf(str, size, "\r\n");
+	if (len >= size) {
+		goto end;
+	}
+	size -= len;
+	str += len;
+
+	ret = 0;
+
+end:
+	return ret;
+}
+
 static int32_t shell_lspci(int32_t argc, char **argv)
 {
 	uint16_t vm_id = 0;
 	int ret = 0;
+	struct acrn_vm *vm;
 
 	switch (argc) {
 	case 1:
@@ -2231,6 +2279,11 @@ static int32_t shell_lspci(int32_t argc, char **argv)
 			vm_id = (uint16_t)strtol_deci(argv[2]);
 			snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- List VM %d devices BDF (virt bdf -> phys bdf) -----\r\n", vm_id);
 			shell_puts(shell_log_buf);
+			vm = get_vm_from_vmid(vm_id);
+			ret = vpci_get_vm_devs_bdf(vm, shell_log_buf, SHELL_LOG_BUF_SIZE);
+			if (!ret) {
+				shell_puts(shell_log_buf);
+			}
 		} else {
 			ret = -EINVAL;
 		}
