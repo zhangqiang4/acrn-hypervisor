@@ -444,6 +444,7 @@ uint64_t find_space_from_ve820(struct acrn_vm *vm, uint32_t size, uint64_t min_a
 
 bool vm_cpu_feature_enabled(const struct acrn_vm *vm, uint64_t feature);
 
+bool is_locked_in_xapic_configured(const struct acrn_vm *vm);
 bool is_lapic_pt_configured(const struct acrn_vm *vm);
 bool is_pmu_pt_configured(const struct acrn_vm *vm);
 bool is_rt_vm(const struct acrn_vm *vm);

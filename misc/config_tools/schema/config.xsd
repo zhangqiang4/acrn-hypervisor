@@ -494,6 +494,11 @@ These settings can only be changed at build time.</xs:documentation>
         <xs:annotation acrn:title="" acrn:views="basic" acrn:applicable-vms="post-launched">
       </xs:annotation>
     </xs:element>
+    <xs:element name="locked_in_xapic" type="Boolean" default="n" minOccurs="0">
+      <xs:annotation acrn:title="Locked in xAPIC" acrn:applicable-vms="pre-launched, post-launched, service-vm" acrn:views="advanced">
+        <xs:documentation>When this flag is set, the VM is restricted to xAPIC mode. ACRN does not support transitioning a guest from xAPIC to x2APIC. Therefore, `lapic_passthrough` must NOT be set in this case, as it is only applicable when the VM operates in x2APIC mode. When this flag is not set, the VM is locked in x2APIC. `lapic_passthrough` can be set in this case.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="lapic_passthrough" type="Boolean" default="n" minOccurs="0">
       <xs:annotation acrn:title="LAPIC passthrough" acrn:applicable-vms="pre-launched, post-launched, service-vm" acrn:views="advanced">
         <xs:documentation>Enable LAPIC passthrough for this VM. This feature is required for VMs with stringent real-time performance needs.</xs:documentation>

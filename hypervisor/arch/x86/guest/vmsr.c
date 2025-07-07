@@ -939,9 +939,17 @@ static void init_mc_msrs(struct acrn_vcpu *vcpu)
  * - For MTRR related MSRs exclusive of Fixed and SMRR MTRRs: intercept read and write.
  * - For Performance monitoring related MSRs: if PMU is not passed through to VM, intercept read and write,
  *   otherwise pass through the MSRs.
- * - For x2APIC MSRs: set up interception according to VM LAPIC pass-through state.
+ *
+ * - x2APIC MSRs:
+ *   - When `GUEST_FLAG_LOCKED_IN_XAPIC` is not set (i.e., the VM is locked in x2APIC mode):
+ *       - Interception behavior is configured based on whether LAPIC pass-through is enabled for the VM.
+ *
+ *   - When `GUEST_FLAG_LOCKED_IN_XAPIC` is set (i.e., the VM is restricted to xAPIC mode):
+ *       - Access to x2APIC MSRs is not expected; intercept both reads and writes to capture and handle such
+ *         invalid access attempts.
+ *
  * - For CAT Mask MSRs: intercept read and write.
- * - For MSR_IA32_TIME_STAMP_COUNTER and MSR_IA32_XSS: intercpet write.
+ * - For MSR_IA32_TIME_STAMP_COUNTER and MSR_IA32_XSS: intercept write.
  * - For Machine Check MSRs: if machine-check is not passed through to VM, intercept read and write,
  *   otherwise pass through the MSRs.
  * - For thermal monitor related MSRs: if the feature is not passed through to VM, intercept read and write,
@@ -988,7 +996,11 @@ void init_msr_emulation(struct acrn_vcpu *vcpu)
 		}
 	}
 
-	init_x2apic_msrs(vcpu);
+	if (!is_locked_in_xapic_configured(vcpu->vm)) {
+		init_x2apic_msrs(vcpu);
+	} else {
+		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_READ_WRITE);
+	}
 
 	for (i = 0U; i < ARRAY_SIZE(unsupported_msrs); i++) {
 		enable_msr_interception(msr_bitmap, unsupported_msrs[i], INTERCEPT_READ_WRITE);
@@ -1349,14 +1361,29 @@ int32_t rdmsr_vmexit_handler(struct acrn_vcpu *vcpu)
 	}
 	case MSR_IA32_XAPIC_DIS_STATUS:
 	{
-		v = IA32_LEGACY_XAPIC_DISABLED;
+		if (!is_locked_in_xapic_configured(vcpu->vm)) {
+			/* When GUEST_FLAG_LOCKED_IN_XAPIC is not set, the VM is locked in x2APIC. */
+			v = IA32_LEGACY_XAPIC_DISABLED;
+		} else {
+			/*
+			 * Guest should access IA32_XAPIC_DISABLE_STATUS only after verifying that
+			 * MSR_IA32_ARCH_CAPABILITIES indicates support for it.
+			 */
+			err = -EACCES;
+		}
 		break;
 	}
 	case MSR_IA32_ARCH_CAPABILITIES:
 	{
-		v =  msr_read(MSR_IA32_ARCH_CAPABILITIES);
-		/* always emulate the IA32_XAPIC_DISABLE_STATUS MSR exists */
-		v |= IA32_ARCH_CAP_XAPIC_DIS_STATUS;
+		v = msr_read(MSR_IA32_ARCH_CAPABILITIES);
+
+		if (!is_locked_in_xapic_configured(vcpu->vm)) {
+			/* always emulate the IA32_XAPIC_DISABLE_STATUS MSR exists */
+			v |= IA32_ARCH_CAP_XAPIC_DIS_STATUS;
+		} else {
+			/* always emulate the IA32_XAPIC_DISABLE_STATUS MSR does not exist */
+			v &= ~IA32_ARCH_CAP_XAPIC_DIS_STATUS;
+		}
 		break;
 	}
 	default:

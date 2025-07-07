@@ -499,7 +499,10 @@ static int32_t set_vcpuid_extfeat(struct acrn_vm *vm)
 	}
 #endif
 
-	entry.edx |= CPUID_EDX_ARCH_CAP;
+	if (!is_locked_in_xapic_configured(vm)) {
+		/* When GUEST_FLAG_LOCKED_IN_XAPIC is not set, the VM is locked in x2APIC. */
+		entry.edx |= CPUID_EDX_ARCH_CAP;
+	}
 
 	entry.leaf = CPUID_EXTEND_FEATURE;
 	entry.subleaf = 0U;
@@ -992,6 +995,11 @@ static void guest_cpuid_01h(struct acrn_vcpu *vcpu, uint32_t *eax, uint32_t *ebx
 		if ((cr4 & CR4_OSXSAVE) != 0UL) {
 			*ecx |= CPUID_ECX_OSXSAVE;
 		}
+	}
+
+	if (is_locked_in_xapic_configured(vcpu->vm)) {
+		/* hide the x2APIC capability to guest if GUEST_FLAG_LOCKED_IN_XAPIC is set */
+		*ecx &= ~CPUID_ECX_x2APIC;
 	}
 
 	if ((cr4_reserved_mask & CR4_VME) != 0UL) {

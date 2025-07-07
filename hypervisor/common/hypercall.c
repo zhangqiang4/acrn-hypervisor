@@ -215,8 +215,10 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
  * 3. Filter and assign guest flags, ensuring that only allowed flags are set by the Device Model (DM).
  * 4. Validate the CPU affinity specified in the configuration, ensuring it is within allowed limits.
  *    - Returns -1 if the CPU affinity is invalid.
- * 5. Check for required guest flags, such as `GUEST_FLAG_LAPIC_PASSTHROUGH` when `GUEST_FLAG_RT` is set.
- *    - Returns -1 if required flags are missing.
+ * 5. Validate guest flag combinations, returns -1 if any of the below conditions are violated.
+ *    - If `GUEST_FLAG_RT` is set, `GUEST_FLAG_LAPIC_PASSTHROUGH` must also be set.
+ *    - If `GUEST_FLAG_LOCKED_IN_XAPIC` is set, `GUEST_FLAG_LAPIC_PASSTHROUGH` must not be set.
+ *      These flags are mutually exclusive because LAPIC pass-through is incompatible with xAPIC-only mode.
  * 6. Attempt to create the VM with the specified configuration and CPU affinity.
  *    - If successful, set the relative VM ID and the number of created vCPUs to the `cv`.
  *    - If creation fails, log an error and set `cv.vmid` to `ACRN_INVALID_VMID`
@@ -273,6 +275,10 @@ int32_t hcall_create_vm(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint6
 				if (((vm_config->guest_flags & GUEST_FLAG_RT) != 0UL)
 						&& ((vm_config->guest_flags & GUEST_FLAG_LAPIC_PASSTHROUGH) == 0UL)) {
 					pr_err("Wrong guest flags 0x%lx\n", vm_config->guest_flags);
+				} else if (((vm_config->guest_flags & GUEST_FLAG_LOCKED_IN_XAPIC) != 0UL)
+						&& ((vm_config->guest_flags & GUEST_FLAG_LAPIC_PASSTHROUGH) != 0UL)) {
+					pr_err("GUEST_FLAG_LAPIC_PASSTHROUGH cannot be set "
+						"when GUEST_FLAG_LOCKED_IN_XAPIC is enabled. \n");
 				} else {
 					if (create_vm(vmid, pcpu_bitmap, vm_config, &tgt_vm) == 0) {
 						/* return a relative vm_id from Service VM view */

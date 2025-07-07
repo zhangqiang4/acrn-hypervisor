@@ -314,6 +314,32 @@ bool is_lapic_pt_configured(const struct acrn_vm *vm)
 }
 
 /**
+ * @brief Check if the VM is restricted to xAPIC mode.
+ *
+ * This function checks whether a VM is restricted to xAPIC mode,
+ * by verifying if the `GUEST_FLAG_LOCKED_IN_XAPIC` flag is set in
+ * the VM's guest configuration.
+ *
+ * A VM configured with this flag cannot switch to x2APIC mode.
+ *
+ * @pre vm != NULL
+ * @pre vm->vm_id < CONFIG_MAX_VM_NUM
+ * @pre get_vm_config(vm->vm_id) != NULL
+ *
+ * @post N/A
+ *
+ * @param[in] vm The VM to be checked.
+ *
+ * @return true if the VM is restricted to xAPIC mode, false otherwise.
+ */
+bool is_locked_in_xapic_configured(const struct acrn_vm *vm)
+{
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
+
+	return ((vm_config->guest_flags & GUEST_FLAG_LOCKED_IN_XAPIC) != 0U);
+}
+
+/**
  * @brief Checks if a VM has configured PMU passthrough.
  *
  * This function checks if a VM has configured PMU passthrough.

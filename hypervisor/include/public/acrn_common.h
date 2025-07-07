@@ -199,6 +199,19 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #define GUEST_FLAG_VPTM  (1UL << 15U)  /**< [DEPRECATED] Whether the VM supports virtual package thermal management */
 
 /**
+ * @brief Whether the VM needs to be locked in xAPIC.
+ *
+ * - When GUEST_FLAG_LOCKED_IN_XAPIC is set, the VM is restricted to xAPIC mode.
+ *   ACRN does not support transitioning a guest from xAPIC to x2APIC.
+ *   Therefore, GUEST_FLAG_LAPIC_PASSTHROUGH must NOT be set in this case, as it is only applicable
+ *   when the VM operates in x2APIC mode.
+ *
+ * - When GUEST_FLAG_LOCKED_IN_XAPIC is not set, the VM is locked in x2APIC mode.
+ *   GUEST_FLAG_LAPIC_PASSTHROUGH can be set in this case.
+ */
+#define GUEST_FLAG_LOCKED_IN_XAPIC  (1UL << 16U)
+
+/**
  * @brief Whether the vCPU supports vHWP
  */
 #define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)

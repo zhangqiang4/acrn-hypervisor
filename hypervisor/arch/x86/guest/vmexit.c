@@ -334,11 +334,11 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_TPR_BELOW_THRESHOLD] = {
 		.handler = tpr_below_threshold_vmexit_handler},
 	/**
-	 * @brief VM exit handler for APIC access is unhandled_vmexit_handler
+	 * @brief VM exit handler for APIC access is apic_access_vmexit_handler
 	 * and the exit qualification information is necessary for the handler.
 	 */
 	[VMX_EXIT_REASON_APIC_ACCESS] = {
-		.handler = unhandled_vmexit_handler,
+		.handler = apic_access_vmexit_handler,
 		.need_exit_qualification = 1},
 	/**
 	 * @brief VM exit handler for Virtualized EOI is veoi_vmexit_handler

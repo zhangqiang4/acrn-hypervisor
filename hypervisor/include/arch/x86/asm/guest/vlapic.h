@@ -228,6 +228,8 @@ int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu);
 int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu);
 uint64_t vlapic_calc_dest_noshort(struct acrn_vm *vm, bool is_broadcast,
 		uint32_t dest, bool phys, bool lowprio);
+int32_t apic_access_vmexit_handler(struct acrn_vcpu *vcpu);
+
 /**
  * @}
  */

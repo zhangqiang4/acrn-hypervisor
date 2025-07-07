@@ -84,6 +84,34 @@
 
 #define PID_TABLE_ENTRY_VALID	1UL  /**< Bitmask indicating a valid PID table entry */
 
+/**
+ * @brief Check whether x2APIC mode is enabled for the given virtual Local APIC.
+ *
+ * This function inspects the APIC base MSR of the given virtual LAPIC and determines
+ * whether it is operating in x2APIC mode.
+ *
+ * The check confirms both xAPIC global enable (IA32_APIC_BASE[11]) and x2APIC enable (IA32_APIC_BASE[10]) bits are set.
+ *
+ * @param[in] vlapic Pointer to the virtual Local APIC structure to check.
+ *
+ * @return true if x2APIC mode is enabled; false otherwise.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static bool is_x2apic_enabled(const struct acrn_vlapic *vlapic)
+{
+	bool ret = false;
+
+	if ((vlapic_get_apicbase(vlapic) & APICBASE_LAPIC_MODE) == (APICBASE_X2APIC | APICBASE_XAPIC)) {
+		ret = true;
+	}
+
+	return ret;
+}
 
 /**
  * @brief Get vcpu context pointer from vlapic context.
@@ -569,7 +597,7 @@ static uint32_t get_timer_ratio(const struct acrn_vlapic *vlapic)
 /**
  * @brief Configure and arm the vlapic timer.
  *
- * This function calculates the timeout counter and starts a one-short or periodic vlapic timer.
+ * This function calculates the timeout counter and starts a one-shot or periodic vlapic timer.
  * The timeout interval is determined by the combination of the Initial Count Register(for Timer),
  * the timer divisor shift, and the timer ratio.
  *
@@ -688,6 +716,65 @@ static uint32_t vlapic_get_ccr(const struct acrn_vlapic *vlapic)
 	}
 
 	return remain_count;
+}
+
+/**
+ * @brief Emulates writing to the Logical Destination Register (LDR) of the vlapic.
+ *
+ * This function handles a write operation to the Logical Destination Register (LDR)
+ * of the virtual Local APIC (vlapic). It clears the reserved bits in the LDR value.
+ * Refer to Figure 12-13. Logical Destination Register (LDR), Vol. 3, SDM 325462-087.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure whose LDR is being written.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static void vlapic_write_ldr(struct acrn_vlapic *vlapic)
+{
+	struct lapic_regs *lapic = &(vlapic->apic_page);
+
+	lapic->ldr.v &= ~APIC_LDR_RESERVED;
+	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic LDR set to %#x", lapic->ldr);
+}
+
+/**
+ * @brief Emulates writing to the Destination Format Register (DFR) of the vlapic.
+ *
+ * This function handles a write to the Destination Format Register (DFR) of the
+ * virtual Local APIC (vlapic). It ensures that only the valid model bits are retained
+ * and sets the reserved bits.
+ * Refer to Figure 12-14. Destination Format Register (DFR), Vol. 3, SDM 325462-087.
+ *
+ * @param[inout] vlapic Pointer to the vlapic structure whose DFR is being written.
+ *
+ * @return None
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static void vlapic_write_dfr(struct acrn_vlapic *vlapic)
+{
+	struct lapic_regs *lapic = &(vlapic->apic_page);
+
+	lapic->dfr.v &= APIC_DFR_MODEL_MASK;
+	lapic->dfr.v |= APIC_DFR_RESERVED;
+
+	if ((lapic->dfr.v & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_FLAT) {
+		dev_dbg(DBG_LEVEL_VLAPIC, "vlapic DFR in Flat Model");
+	} else if ((lapic->dfr.v & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_CLUSTER) {
+		dev_dbg(DBG_LEVEL_VLAPIC, "vlapic DFR in Cluster Model");
+	} else {
+		dev_dbg(DBG_LEVEL_VLAPIC, "DFR in Unknown Model %#x", lapic->dfr);
+	}
 }
 
 /**
@@ -839,7 +926,7 @@ uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic)
  * schedules or disarms the virtual timer as necessary.
  * If the TSC deadline is zero, the timer is disarmed by calling update_timer function.
  * When arming the timer, the provided `val_arg` is adjusted for the TSC offset to synchronize
- * with the host's TSC, then a One-short vlapic timer is scheduled to emuate this TSC timer
+ * with the host's TSC, then a one-shot vlapic timer is scheduled to emulate this TSC timer
  * by calling update_timer and add_timer function.
  *
  * If the TSC deadline timer is unsupported or unnecessary, the function performs no action.
@@ -1725,8 +1812,16 @@ static inline void set_dest_mask_phys(struct acrn_vm *vm, uint64_t *dmask, uint3
  * @brief This function checks whether the vlapic belongs to the given destination
  *        of the IPI message.
  *
- * This function compares the logical and cluster IDs in the Logical Destination
- * Register for the vlapic.
+ * This function determines whether the vlapic belongs to the given destination of the IPI message,
+ * based on the APIC mode and logical model configuration. It supports both x2APIC and xAPIC modes.
+ *
+ * - In **x2APIC mode**, it checks for a match between the cluster ID and logical ID.
+ * - In **xAPIC Flat model**, the match is based on an 8-bit logical ID mask.
+ * - In **xAPIC Cluster model**, the match is based on a combination of 4-bit
+ *   cluster and logical IDs.
+ *
+ * Refer to 12.6.2.2 Logical Destination Mode and 12.12.10 Determining IPI Destination in x2APIC Mode,
+ * Vol. 3, SDM 325462-087 for more details.
  *
  * @param[in] vlapic  Pointer to the vlapic structure.
  * @param[in] dest    The LAPIC ID for locating the destination vcpu.
@@ -1747,12 +1842,42 @@ static inline bool is_dest_field_matched(const struct acrn_vlapic *vlapic, uint3
 	uint32_t ldr = vlapic->apic_page.ldr.v;
 	bool ret = false;
 
-	logical_id = ldr & 0xFFFFU;
-	cluster_id = (ldr >> 16U) & 0xFFFFU;
-	dest_logical_id = dest & 0xFFFFU;
-	dest_cluster_id = (dest >> 16U) & 0xFFFFU;
-	if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
-		ret = true;
+	if (is_x2apic_enabled(vlapic)) {
+		logical_id = ldr & 0xFFFFU;
+		cluster_id = (ldr >> 16U) & 0xFFFFU;
+		dest_logical_id = dest & 0xFFFFU;
+		dest_cluster_id = (dest >> 16U) & 0xFFFFU;
+		if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
+			ret = true;
+		}
+	} else {
+		uint32_t dfr = vlapic->apic_page.dfr.v;
+		if ((dfr & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_FLAT) {
+			/*
+			 * In the "Flat Model" the MDA is interpreted as an 8-bit wide
+			 * bitmask. This model is available in the xAPIC mode only.
+			 */
+			logical_id = ldr >> 24U;
+			dest_logical_id = dest & 0xffU;
+			if ((logical_id & dest_logical_id) != 0U) {
+				ret = true;
+			}
+		} else if ((dfr & APIC_DFR_MODEL_MASK) == APIC_DFR_MODEL_CLUSTER) {
+			/*
+			 * In the "Cluster Model" the MDA is used to identify a
+			 * specific cluster and a set of APICs in that cluster.
+			 */
+			logical_id = (ldr >> 24U) & 0xfU;
+			cluster_id = ldr >> 28U;
+			dest_logical_id = dest & 0xfU;
+			dest_cluster_id = (dest >> 4U) & 0xfU;
+			if ((cluster_id == dest_cluster_id) && ((logical_id & dest_logical_id) != 0U)) {
+				ret = true;
+			}
+		} else {
+			/* Guest has configured a bad logical model for this vcpu. */
+			dev_dbg(DBG_LEVEL_VLAPIC, "vlapic has bad logical model %x", dfr);
+		}
 	}
 
 	return ret;
@@ -2042,9 +2167,17 @@ static void vlapic_write_icrlo(struct acrn_vlapic *vlapic)
 	const struct lapic_regs *lapic = &(vlapic->apic_page);
 
 	icr_low = lapic->icr_lo.v;
-	icr_high = lapic->icr_lo.v_ext;
-	dest = icr_high;
-	is_broadcast = (dest == 0xffffffffU);
+
+	if (is_x2apic_enabled(vlapic)) {
+		icr_high = lapic->icr_lo.v_ext;
+		dest = icr_high;
+		is_broadcast = (dest == 0xffffffffU);
+	} else {
+		icr_high = lapic->icr_hi.v;
+		dest = icr_high >> APIC_ID_SHIFT;
+		is_broadcast = (dest == 0xffU);
+	}
+
 	vec = icr_low & APIC_VECTOR_MASK;
 	mode = icr_low & APIC_DELMODE_MASK;
 	phys = ((icr_low & APIC_DESTMODE_LOG) == 0UL);
@@ -2294,7 +2427,9 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
 			break;
 		case APIC_OFFSET_ICR_LOW:
 			*data = lapic->icr_lo.v;
-			*data |= ((uint64_t)lapic->icr_lo.v_ext << 32U);
+			if (is_x2apic_enabled(vlapic)) {
+				*data |= ((uint64_t)lapic->icr_lo.v_ext << 32U);
+			}
 			break;
 		case APIC_OFFSET_CMCI_LVT:
 		case APIC_OFFSET_TIMER_LVT:
@@ -2322,6 +2457,15 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
 			break;
 		case APIC_OFFSET_TIMER_DCR:
 			*data = lapic->dcr_timer.v;
+			break;
+		case APIC_OFFSET_EOI:
+			*data = lapic->eoi.v;
+			break;
+		case APIC_OFFSET_DFR:
+			*data = lapic->dfr.v;
+			break;
+		case APIC_OFFSET_ICR_HI:
+			*data = lapic->icr_hi.v;
 			break;
 		default:
 			ret = -EACCES;
@@ -2368,7 +2512,7 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
  *                          12.5.1 Local Vector Table, and Figure 12-8. Local Vector Table (LVT),
  *                          Volume 3, Intel SDM 325462-087US, and value of target LVT register
  *                          is also cached in `lvt_last` table of vlapic.
- *                          For APIC_OFFSET_TIMER_LVT case, additionally disarms and resete emulated
+ *                          For APIC_OFFSET_TIMER_LVT case, additionally disarms and resets emulated
  *                          vlapic timer if timer mode to be updated.
  *
  * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
@@ -2387,10 +2531,22 @@ static int32_t vlapic_read(const struct acrn_vlapic *vlapic, uint32_t offset_arg
  *                          detected since the last write to the ESR, it reloads virtual ESR
  *                          register with any pending errors.
  *
- * - APIC_OFFSET_SELF_IPI:  Emulates writing SELF IPI MSR, if given vector number is valid (> 15),
+ * - APIC_OFFSET_SELF_IPI:  Emulates writing SELF IPI MSR.
+ *                          When x2APIC is enabled, if given vector number is valid (> 15),
  *                          it triggers an edge-triggered self-IPI delivery by calling
  *                          vlapic_set_intr function, otherwise it logs
  *                          APIC_ESR_SEND_ILLEGAL_VECTOR ESR error bit and delivers an interrupt.
+ *                          When x2APIC is not enabled, it returns -EACCES to indicate that the access is invalid.
+ *
+ * - APIC_OFFSET_ICR_HI:    Emulates writing Interrupt Command Register (ICR) bits 32-63.
+ *                          It caches the value in the apic_page of the vlapic.
+ *
+ * - APIC_OFFSET_ID:        Emulates writing Local APIC ID register.
+ *                          It ignores the write and returns 0.
+ *
+ * - APIC_OFFSET_DFR:       Emulates writing Destination Format Register.
+ *                          It caches the processed value in the apic_page of the vlapic,
+ *                          according to Figure 12-14. Destination Format Register (DFR), Vol. 3, SDM 325462-087.
  *
  * @param[inout] vlapic    Pointer to the vlapic structure.
  * @param[in]    offset    The register with MMIO offset in the LAPIC register page.
@@ -2422,8 +2578,10 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 			if (is_lapic_pt_configured(vcpu->vm)) {
 				ret = vlapic_x2apic_pt_icr_access(vcpu, data);
 			} else {
+				if (is_x2apic_enabled(vlapic)) {
+					lapic->icr_lo.v_ext = (uint32_t)(data >> 32U);
+				}
 				lapic->icr_lo.v = data32;
-				lapic->icr_lo.v_ext = (uint32_t)(data >> 32U);
 				vlapic_write_icrlo(vlapic);
 			}
 			break;
@@ -2461,10 +2619,23 @@ static int32_t vlapic_write(struct acrn_vlapic *vlapic, uint32_t offset, uint64_
 		case APIC_OFFSET_ESR:
 			vlapic_write_esr(vlapic);
 			break;
-
 		case APIC_OFFSET_SELF_IPI:
-			lapic->self_ipi.v = data32;
-			vlapic_x2apic_self_ipi_handler(vlapic);
+			if (is_x2apic_enabled(vlapic)) {
+				lapic->self_ipi.v = data32;
+				vlapic_x2apic_self_ipi_handler(vlapic);
+			} else {
+				ret = -EACCES;
+			}
+			break;
+		case APIC_OFFSET_ICR_HI:
+			lapic->icr_hi.v = data32;
+			break;
+		case APIC_OFFSET_ID:
+			/* Force APIC ID as read only */
+			break;
+		case APIC_OFFSET_DFR:
+			lapic->dfr.v = data32;
+			vlapic_write_dfr(vlapic);
 			break;
 		default:
 			ret = -EACCES;
@@ -2692,15 +2863,22 @@ static const struct acrn_apicv_ops ptapic_ops = {
 /**
  * @brief Set the IA32_APIC_BASE MSR for the virtual LAPIC.
  *
- * This function compares the cached value and given target value of IA32_APIC_BASE MSR,
- * and reports error if they're not the same, which means guest is not allowed to write this MSR.
+ * - When GUEST_FLAG_LOCKED_IN_XAPIC is set, the VM is restricted to xAPIC mode.
  *
- * ACRN elumates IA32_XAPIC_DISABLE_STATUS MSR and always sets LEGACY_XAPIC_DISABLED bit of this
- * MSR, which indicates that the local APIC locked in x2APIC mode.
+ *   ACRN does not support transitioning a guest from xAPIC to x2APIC.
+ *   So, only APICBASE_ENABLED bit is writable.
  *
- * So the only part of IA32_APIC_BASE MSR could be written is the `APIC Base`(bit 35:12) field.
- * While ACRN Hypervisor does not support change on this field to other value except 0xFEE.
- * As a result, ACRN Hypervisor emulates this MSR as a Read-Only register.
+ * - When GUEST_FLAG_LOCKED_IN_XAPIC is not set, the VM is locked in x2APIC mode.
+ *
+ *    This function compares the cached value and given target value of IA32_APIC_BASE MSR,
+ *    and reports error if they're not the same, which means guest is not allowed to write this MSR.
+ *
+ *    ACRN emulates IA32_XAPIC_DISABLE_STATUS MSR and always sets LEGACY_XAPIC_DISABLED bit of this
+ *    MSR, which indicates that the local APIC locked in x2APIC mode.
+ *
+ *    So the only part of IA32_APIC_BASE MSR could be written is the `APIC Base`(bit 35:12) field.
+ *    While ACRN Hypervisor does not support change on this field to other value except 0xFEE.
+ *    As a result, ACRN Hypervisor emulates this MSR as a Read-Only register.
  *
  * @param[in] vlapic Pointer to the virtual LAPIC data structure.
  * @param[in] new    Target value for the IA32_APIC_BASE MSR.
@@ -2716,11 +2894,31 @@ static const struct acrn_apicv_ops ptapic_ops = {
 int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
 {
 	int32_t ret = 0;
+	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 
 	if (vlapic->msr_apicbase != new) {
-		/* Guest can only use x2APIC mode, the whole IA32_APIC_BASE is Read-only. */
-		pr_err("%s, guest can't change it.", __func__);
-		ret = -EACCES;
+		if (is_locked_in_xapic_configured(vcpu->vm)) {
+			uint64_t changed = vlapic->msr_apicbase ^ new;
+			/*
+			 * When GUEST_FLAG_LOCKED_IN_XAPIC is set, the VM is restricted to xAPIC mode.
+			 * ACRN does not support transitioning a guest from xAPIC to x2APIC.
+			 * So, only APICBASE_ENABLED bit is writable.
+			 */
+			if ((changed & ~APICBASE_ENABLED) != 0UL) {
+				pr_err("%s: only APICBASE_ENABLED bit can be changed (old=0x%llx, new=0x%llx).",
+					__func__, vlapic->msr_apicbase, new);
+				ret = -EACCES;
+			} else {
+				vlapic->msr_apicbase = new;
+			}
+		} else {
+			/*
+			 * When GUEST_FLAG_LOCKED_IN_XAPIC is not set, the VM is locked in x2APIC mode.
+			 * Guest can only use x2APIC mode, the whole IA32_APIC_BASE is Read-only.
+			 */
+			pr_err("%s, guest can't change it.", __func__);
+			ret = -EACCES;
+		}
 	}
 
 	return ret;
@@ -2730,7 +2928,7 @@ int32_t vlapic_set_apicbase(struct acrn_vlapic *vlapic, uint64_t new)
  * @brief Receive an interrupt from the IOAPIC or MSI and inject it to the virtual local APIC
  *
  * Only Delivery Mode of IOAPIC_RTE_DELMODE_FIXED and IOAPIC_RTE_DELMODE_LOPRI are supported,
- * SMI/NMI/INIT/ExtINT interrupts are not supporeted from devices.
+ * SMI/NMI/INIT/ExtINT interrupts are not supported from devices.
  *
  * It calculates the destination bitmask of vCPU(s) by following
  * section 12.6.2 Determining IPI Destination, Volume 3, Intel SDM 325462-087US,
@@ -3151,8 +3349,8 @@ static bool apicv_advanced_x2apic_write_msr_may_valid(uint32_t offset)
 /**
  * @brief Reset the APICv for a given virtual CPU.
  *
- * Reset the registers of APICv to default value according to the section 11.4.7.1, Local APIC State After Power-Up
- * or Reset, Volume 3, Intel SDM 325462-087US.
+ * Reset the registers of APICv to default value according to the section 12.4.7 Local APIC State,
+ * Volume 3, Intel SDM 325462-087US.
  *
  * @param[inout] vcpu Pointer to the virtual CPU structure whose APICv state is to be reset.
  *
@@ -3166,13 +3364,33 @@ static void apicv_reset(struct acrn_vcpu *vcpu)
 {
 	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
 	struct lapic_regs *lapic = &(vlapic->apic_page);
+	uint32_t preserved_apic_id = lapic->id.v;
 
-	/* Set default value for regisers of APICv */
+	/* Set default value for registers of APICv */
 	/* clear all to zero */
 	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
 
-	/* LAPIC ID register is Read-only in x2APIC mode */
-	vlapic_build_x2apic_id(vlapic);
+	if (!is_locked_in_xapic_configured(vcpu->vm)) {
+		/* LAPIC ID register is Read-only in x2APIC mode */
+		vlapic_build_x2apic_id(vlapic);
+	} else {
+		if (vlapic2vcpu(vlapic)->vcpu_id == BSP_CPU_ID) {
+			/* BSP only supports reset */
+			vlapic->msr_apicbase = DEFAULT_APIC_BASE | APICBASE_XAPIC | APICBASE_BSP;
+			lapic->id.v = vlapic->vapic_id;
+			lapic->id.v <<= APIC_ID_SHIFT;
+		} else {
+			/*
+			 * AP only supports INIT.
+			 *
+			 * The value of IA32_APIC_BASE is preserved, since only APICBASE_ENABLED bit is writable and
+			 * the LAPIC mode shall be preserved after INIT.
+			 *
+			 * The local APIC ID register shall be preserved after INIT.
+			 */
+			lapic->id.v = preserved_apic_id;
+		}
+	}
 
 	/* set non-zero default */
 	lapic->version.v = VLAPIC_VERSION;
@@ -3263,7 +3481,7 @@ int32_t vlapic_x2apic_read(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t *val)
  *                          12.5.1 Local Vector Table, and Figure 12-8. Local Vector Table (LVT),
  *                          Volume 3, Intel SDM 325462-087US, and value of target LVT register
  *                          is cached in `lvt_last` table of vlapic, for APIC_OFFSET_TIMER_LVT,
- *                          additionally disarms and resete emulated vlapic timer if timer mode
+ *                          additionally disarms and resets emulated vlapic timer if timer mode
  *                          to be updated.
  *
  * - APIC_OFFSET_TIMER_ICR: Emulates writing on Initial Count Register(for Timer) if timer mode of
@@ -3334,7 +3552,7 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
  * - Sets up the EPT mapping for GPA of DEFAULT_APIC_BASE on the address to APIC-Access page,
  *   which is statically allocated and fetched by calling vlapic_apicv_get_apic_access_addr function.
  *
- * - Initializes a emulated APIC timer of vlapic, this timer is configured to onshort mode and not armed.
+ * - Initializes a emulated APIC timer of vlapic, this timer is configured to one-shot mode and not armed.
  *
  * - Configures the APIC ID of vlapic to be same as physical LAPIC ID.
  *
@@ -3345,9 +3563,22 @@ int32_t vlapic_x2apic_write(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
  * - The vLAPIC operation callback for this virtual LAPIC is initialized based on the virtual
  *   LAPIC configuration (whether local APIC pass-through or virtual APIC is used).
  *
- * - The vLAPIC is always locked in x2APIC mode as part of the ACRN-specific design.
+ * - The `IA32_APIC_BASE` MSR and the local APIC ID register are initialized based on the
+ *   `GUEST_FLAG_LOCKED_IN_XAPIC` flag:
  *
- * - Initializes the value of IA32_APIC_BASE for this vLAPIC to 0xFEE00000.
+ *   - If `GUEST_FLAG_LOCKED_IN_XAPIC` is set:
+ *     - The VM is restricted to xAPIC mode.
+ *     - The `IA32_APIC_BASE` of the vLAPIC is initialized to `DEFAULT_APIC_BASE | APICBASE_XAPIC`.
+ *     - Bit 8 (the BSP bit) of `IA32_APIC_BASE` is set based on whether the given vCPU is the BSP of the VM.
+ *     - The local APIC ID register is initialized according to Figure 12-6. Local APIC ID Register,
+ *       Vol. 3, SDM 325462-087.
+ *
+ *   - If `GUEST_FLAG_LOCKED_IN_XAPIC` is not set:
+ *     - The VM is locked in x2APIC mode.
+ *     - The `IA32_APIC_BASE` of the vLAPIC is initialized to `DEFAULT_APIC_BASE | APICBASE_XAPIC | APICBASE_X2APIC`.
+ *     - Bit 8 (the BSP bit) of `IA32_APIC_BASE` is set based on whether the given vCPU is the BSP of the VM.
+ *     - The local APIC ID register is initialized according to Figure 12-6. Local APIC ID Register,
+ *       Vol. 3, SDM 325462-087.
  *
  * @param[in] vcpu Pointer to the vCPU whose virtual LAPIC is being created.
  * @param[in] pcpu_id ID of the pCPU where the vCPU will run.
@@ -3394,26 +3625,27 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 		}
 	}
 
-	vlapic->msr_apicbase = DEFAULT_APIC_BASE;
+	lapic = &(vlapic->apic_page);
+	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
+
+	vlapic->msr_apicbase = DEFAULT_APIC_BASE | APICBASE_XAPIC;
 
 	if (vlapic2vcpu(vlapic)->vcpu_id == BSP_CPU_ID) {
 		vlapic->msr_apicbase |= APICBASE_BSP;
 	}
 
-	/* vlapic is always locked on x2APIC mode. */
-	vlapic->msr_apicbase |= APICBASE_XAPIC | APICBASE_X2APIC;
-
-	lapic = &(vlapic->apic_page);
-	(void)memset((void *)lapic, 0U, sizeof(struct lapic_regs));
-
-	/* LAPIC ID register is Read-only in x2APIC mode */
-	vlapic_build_x2apic_id(vlapic);
-
-	/* set the callback operations for vlapic */
-	if (!is_lapic_pt_configured(vcpu->vm)) {
-		vlapic->ops = &apicv_advanced_ops;
+	vlapic->ops = &apicv_advanced_ops;
+	if (is_locked_in_xapic_configured(vcpu->vm)) {
+		lapic->id.v = vlapic->vapic_id;
+		lapic->id.v <<= APIC_ID_SHIFT;
 	} else {
-		vlapic->ops = &ptapic_ops;
+		/* vlapic is always locked on x2APIC mode if GUEST_FLAG_LOCKED_IN_XAPIC is not set. */
+		vlapic->msr_apicbase |= APICBASE_X2APIC;
+		/* LAPIC ID register is Read-only in x2APIC mode */
+		vlapic_build_x2apic_id(vlapic);
+		if (is_lapic_pt_configured(vcpu->vm)) {
+			vlapic->ops = &ptapic_ops;
+		}
 	}
 
 	dev_dbg(DBG_LEVEL_VLAPIC, "vlapic APIC ID : 0x%04x", vlapic->vapic_id);
@@ -3656,6 +3888,146 @@ bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu)
 }
 
 /**
+ * @brief Check if the APIC read access is potentially valid in xAPIC mode.
+ *
+ * This function determines whether the specified APIC register offset
+ * is a supported read target for advanced APIC virtualization under xAPIC mode.
+ *
+ * Below registers are allowed:
+ * - LVT Corrected Machine Check Interrupt (CMCI) Register
+ * - Current Count Register (for Timer)
+ *
+ * @param[in] offset Offset within the APIC-access page to validate.
+ *
+ * @return true if the offset corresponds to a supported read register; false otherwise.
+ *
+ * @pre N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_advanced_apic_read_access_may_valid(uint32_t offset)
+{
+	return ((offset == APIC_OFFSET_CMCI_LVT) || (offset == APIC_OFFSET_TIMER_CCR));
+}
+
+/**
+ * @brief Check if the APIC write access is potentially valid in xAPIC mode.
+ *
+ * This function determines whether the specified APIC register offset
+ * is a supported write target for advanced APIC virtualization under xAPIC mode.
+ *
+ * Below registers are allowed:
+ * - LVT Corrected Machine Check Interrupt (CMCI) Register
+ *
+ * @param[in] offset Offset within the APIC-access page to validate.
+ *
+ * @return true if the offset corresponds to a supported write register; false otherwise.
+ *
+ * @pre N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_advanced_apic_write_access_may_valid(uint32_t offset)
+{
+	return (offset == APIC_OFFSET_CMCI_LVT);
+}
+
+/**
+ * @brief Handle VM exit caused by guest access to the APIC-access page.
+ *
+ * This function emulates guest access (read or write) to the virtual Local APIC (vLAPIC)
+ * when a VM exit is triggered due to access to the APIC-access page. This is
+ * only applicable when the VM is operated in xAPIC mode (`GUEST_FLAG_LOCKED_IN_XAPIC` set).
+ *
+ * The function performs the following steps:
+ * 1. Retrieves the APIC access type from the VM-exit qualification.
+ * 2. Attempts to decode the guest instruction via `decode_instruction()`.
+ * 3. If the access type is supported and instruction decoding succeeds:
+ *    - For valid write offsets: emulates the instruction via `emulate_instruction()` and
+ *      writes the value to the vLAPIC register.
+ *    - For valid read offsets: reads from the vLAPIC register, stores the result in the MMIO request and
+ *      completes the handling via `emulate_instruction()`.
+ *    - For invalid write offsets: silently ignored.
+ *    - For invalid read offsets: stores all zero in the MMIO request and
+ *      completes the handling via `emulate_instruction()`.
+ *
+ * ### Supported access types
+ * - Linear access for a data read during instruction execution.
+ * - Linear access for a data write during instruction execution.
+ *
+ * ### Allowed register offsets
+ * - Read: APIC_OFFSET_CMCI_LVT and APIC_OFFSET_TIMER_CCR
+ * - Write: APIC_OFFSET_CMCI_LVT
+ *
+ * @param[inout] vcpu Pointer to the vCPU structure that triggered the VM exit.
+ *
+ * @return Status code indicating the result of the VM exit handling.
+ *
+ * @retval 0       The VM exit was successfully handled.
+ * @retval -EINVAL One of the following occurred:
+ *                 - The access type is unsupported.
+ *                 - Instruction decoding failed.
+ * @retval Others  The instruction emulation failed. See `emulate_instruction()` for details.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+int32_t apic_access_vmexit_handler(struct acrn_vcpu *vcpu)
+{
+	int32_t err = 0;
+	uint32_t offset;
+	struct acrn_mmio_request *mmio;
+	uint64_t qual = vcpu->arch.exit_qualification;
+	uint64_t access_type = apic_access_type(qual);
+	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
+
+	/*
+	 * We only support linear access for a data read/write during instruction execution.
+	 * for other access types:
+	 * a) we don't support vLAPIC work in real mode;
+	 * 10 = guest-physical access during event delivery
+	 * 15 = guest-physical access for an instruction fetch or during instruction execution
+	 * b) we don't support fetch from APIC-access page since its memory type is UC;
+	 * 2 = linear access for an instruction fetch
+	 * c) we suppose the guest goes wrong when it will access the APIC-access page
+	 * when process event-delivery. According chap 26.5.1.2 VM Exits During Event Injection,
+	 * vol 3, SDM: If the "virtualize APIC accesses" VM-execution control is 1 and
+	 * event delivery generates an access to the APIC-access page, that access is treated as
+	 * described in Section 29.4 and may cause a VM exit.
+	 * 3 = linear access (read or write) during event delivery
+	 */
+	if (((access_type == TYPE_LINEAR_APIC_INST_READ) || (access_type == TYPE_LINEAR_APIC_INST_WRITE)) &&
+			(decode_instruction(vcpu, true) >= 0)) {
+		offset = (uint32_t)apic_access_offset(qual);
+		mmio = &vcpu->req.reqs.mmio_request;
+		if (access_type == TYPE_LINEAR_APIC_INST_WRITE) {
+			err = emulate_instruction(vcpu);
+			if (err == 0) {
+				if (apicv_advanced_apic_write_access_may_valid(offset)) {
+					(void)vlapic_write(vlapic, offset, mmio->value);
+				}
+			}
+		} else {
+			if (apicv_advanced_apic_read_access_may_valid(offset)) {
+				(void)vlapic_read(vlapic, offset, &mmio->value);
+			} else {
+				mmio->value = 0UL;
+			}
+			err = emulate_instruction(vcpu);
+		}
+		TRACE_2L(TRACE_VMEXIT_APICV_ACCESS, qual, (uint64_t)vlapic);
+	} else {
+		pr_err("%s, unhandled access type: %lu\n", __func__, access_type);
+		err = -EINVAL;
+	}
+
+	return err;
+}
+
+/**
  * @brief Handler to VM Exit with reason of Virtualized EOI.
  *
  * According to section 26.6.8 Controls for APIC Virtualization, and
@@ -3711,11 +4083,15 @@ int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
  * @brief Handler to APIC-write VM exit.
  *
  * This function processes VM APIC-write VM exits, to complete the virtualization of a write
- * access to registers in the APIC-access page, according to section 31.4.3.3 APIC-Write VM Exits,
- * section 31.5 VIRTUALIZING MSR-BASED APIC ACCESSES and section 31.1.6.2 IPI Virtualization Using
- * Virtual-Interrupt Posting, Volume 3, Intel SDM 325462-087US.
- * Below cases may lead to an APIC-Write exit:
+ * access to registers in the APIC-access page, according to below sections in Volume 3, Intel SDM 325462-087US:
+ * - 31.4.3.3 APIC-Write VM Exits,
+ * - 31.5 Virtualizing MSR-Based APIC Accesses, and
+ * - 31.1.6.2 IPI Virtualization Using Virtual-Interrupt Posting.
  *
+ * The behaviors are different depending on the VM's APIC mode, determined by the `GUEST_FLAG_LOCKED_IN_XAPIC` flag:
+ *
+ * ### VM operated in x2APIC mode (`GUEST_FLAG_LOCKED_IN_XAPIC` not set)
+ * In this mode, below cases may lead to an APIC-Write exit:
  * - Execution of WRMSR with ECX = 83FH (self-IPI MSR) in non-root mode if the
  *   "virtual-interrupt delivery" VM-execution control is 1;
  * - IPI virtualization and execution of SENDUIPI, according to
@@ -3723,26 +4099,67 @@ int32_t veoi_vmexit_handler(struct acrn_vcpu *vcpu)
  *   APIC-write VM exit occurs if the processor checks the value of VICR_L fail when it performs
  *   IPI virtualization.
  *
- * Write on below regisers are processed:
+ * #### Handled Registers:
  *
- * - APIC_OFFSET_ICR_LOW:  It examines the target value of ICR, and emulates an IPI to target vCPU
- *                         following 12.6.1 Interrupt Command Register (ICR), Volume 3,
- *                         Intel SDM 325462-087US, with given Delivery Mode in ICR:
- *                         Fixed: Fires an IPI with vector number and trigger level to target vCPU
- *                                via `accept_intr` APICv callback function.
- *                         NMI:   Injects NMI to target vCPU by calling vcpu_inject_nmi function.
- *                         INIT & Startup: Process INIT or SIPI IPI to target vCPU following:
- *                                         10.4.3 MP Initialization Protocol Algorithm for MP Systems,
- *                                         Volume 3, Intel SDM 325462-087US.
- *                         Other Delivery Modes are not supported.
- *
+ * - APIC_OFFSET_ICR_LOW: It examines the target value of ICR, and emulates an IPI to target vCPU
+ *                        following 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                        Intel SDM 325462-087US, with given Delivery Mode in ICR:
+ *                         - Fixed: Fires an IPI with vector number and trigger level to target vCPU
+ *                                  via `accept_intr` APICv callback function.
+ *                         - NMI: Injects NMI to target vCPU by calling vcpu_inject_nmi function..
+ *                         - INIT & Startup: Process INIT or SIPI IPI to target vCPU following:
+ *                                           10.4.3 MP Initialization Protocol Algorithm for MP Systems,
+ *                                           Volume 3, Intel SDM 325462-087US.
+ *                         - Other Delivery Modes are not supported.
  * - APIC_OFFSET_SELF_IPI: According to 31.1.6.2 IPI Virtualization Using Virtual-Interrupt Posting,
  *                         Volume 3, Intel SDM 325462-087US, APIC-write VM exit for illegal vector.
  *                         It logs APIC_ESR_SEND_ILLEGAL_VECTOR ESR error event and delivers
  *                         interrupt following section
  *                         12.5.2 Valid Interrupt Vectors, and 12.5.3 Error Handling, Volume 3,
  *                         Intel SDM 325462-087US.
- * - Reporting error status for other register offset.
+ *
+ * ### VM operated in xAPIC mode (`GUEST_FLAG_LOCKED_IN_XAPIC` set)
+ * In this mode, APIC-write VM exits occur as described in 31.4.3.2 APIC-Write Emulation, Vol. 3, SDM 325462-087.
+ *
+ * #### Handled Registers:
+ *
+ * - APIC_OFFSET_ICR_LOW: It examines the target value of ICR, and emulates an IPI to target vCPU
+ *                        following 12.6.1 Interrupt Command Register (ICR), Volume 3,
+ *                        Intel SDM 325462-087US, with given Delivery Mode in ICR:
+ *                         - Fixed: Fires an IPI with vector number and trigger level to target vCPU
+ *                                  via `accept_intr` APICv callback function.
+ *                         - NMI: Injects NMI to target vCPU by calling vcpu_inject_nmi function..
+ *                         - INIT & Startup: Process INIT or SIPI IPI to target vCPU following:
+ *                                           10.4.3 MP Initialization Protocol Algorithm for MP Systems,
+ *                                           Volume 3, Intel SDM 325462-087US.
+ *                         - Other Delivery Modes are not supported.
+ * - APIC_OFFSET_ID: Read-only; writes are ignored.
+ * - APIC_OFFSET_LDR: Updates the Local Destination Register according to
+ *                    Figure 12-13. Logical Destination Register (LDR), Vol. 3, SDM 325462-087.
+ * - APIC_OFFSET_DFR: Updates the Destination Format Register according to
+ *                    Figure 12-14. Destination Format Register (DFR), Vol. 3, SDM 325462-087.
+ * - APIC_OFFSET_SVR: Updates the Spurious Interrupt Vector Register according to
+ *                    12.4.3 Enabling or Disabling the Local APIC and
+ *                    12.4.7.2 Local APIC State After It Has Been Software Disabled, Vol. 3, SDM 325462-087.
+ * - APIC_OFFSET_ESR: Updates the Error Status Register according to 12.5.3 Error Handling, Vol. 3, SDM 325462-087.
+ * - Local Vector Table (LVT) entries are emulated according to
+ *   12.5.1 Local Vector Table, and Figure 12-8 Local Vector Table (LVT), Vol. 3, SDM 325462-087.
+ *   Below entries are covered:
+ *   - APIC_OFFSET_CMCI_LVT
+ *   - APIC_OFFSET_TIMER_LVT
+ *   - APIC_OFFSET_THERM_LVT
+ *   - APIC_OFFSET_PERF_LVT
+ *   - APIC_OFFSET_LINT0_LVT
+ *   - APIC_OFFSET_LINT1_LVT
+ *   - APIC_OFFSET_ERROR_LVT
+ * - APIC_OFFSET_TIMER_ICR: Updates the Timer Initial Count Register according to 12.5.4 APIC Timer,
+ *                          Vol. 3, SDM 325462-087.
+ * - APIC_OFFSET_TIMER_DCR: Updates the Timer Divide Configuration Register according to
+ *                          Figure 12-10. Divide Configuration Register, Vol. 3, SDM 325462-087.
+ *
+ * ### Unhandled Offsets:
+ * Any write to an unsupported register offset will result in an error return (`-EACCES`),
+ * and the access will be logged.
  *
  * @param[in] vcpu Pointer to the virtual CPU structure.
  *
@@ -3765,17 +4182,58 @@ int32_t apic_write_vmexit_handler(struct acrn_vcpu *vcpu)
 	vcpu_retain_rip(vcpu);
 	vlapic = vcpu_vlapic(vcpu);
 
-	/* refer to VIRTUALIZING MSR-BASED APIC ACCESSES - WRMSR */
-	if (offset == APIC_OFFSET_ICR_LOW) {
-		/* IPI virtualization */
-		vlapic_write_icrlo(vlapic);
-	} else {
-		if (offset == APIC_OFFSET_SELF_IPI) {
-			/* virtual-interrupt delivery, Vector < 16 */
-			vlapic_set_error(vlapic, APIC_ESR_SEND_ILLEGAL_VECTOR);
+	if (is_x2apic_enabled(vlapic)) {
+		if (offset == APIC_OFFSET_ICR_LOW) {
+			/* IPI virtualization */
+			vlapic_write_icrlo(vlapic);
 		} else {
+			if (offset == APIC_OFFSET_SELF_IPI) {
+				/* virtual-interrupt delivery, Vector < 16 */
+				vlapic_set_error(vlapic, APIC_ESR_SEND_ILLEGAL_VECTOR);
+			} else {
+				err = -EACCES;
+				pr_err("%s Unhandled APIC-Write, offset:0x%x", __func__, offset);
+			}
+		}
+	} else {
+		switch (offset) {
+		case APIC_OFFSET_ICR_LOW:
+			vlapic_write_icrlo(vlapic);
+			break;
+		case APIC_OFFSET_ID:
+			/* Force APIC ID as read only */
+			break;
+		case APIC_OFFSET_LDR:
+			vlapic_write_ldr(vlapic);
+			break;
+		case APIC_OFFSET_DFR:
+			vlapic_write_dfr(vlapic);
+			break;
+		case APIC_OFFSET_SVR:
+			vlapic_write_svr(vlapic);
+			break;
+		case APIC_OFFSET_ESR:
+			vlapic_write_esr(vlapic);
+			break;
+		case APIC_OFFSET_CMCI_LVT:
+		case APIC_OFFSET_TIMER_LVT:
+		case APIC_OFFSET_THERM_LVT:
+		case APIC_OFFSET_PERF_LVT:
+		case APIC_OFFSET_LINT0_LVT:
+		case APIC_OFFSET_LINT1_LVT:
+		case APIC_OFFSET_ERROR_LVT:
+			vlapic_write_lvt(vlapic, offset);
+			break;
+		case APIC_OFFSET_TIMER_ICR:
+			vlapic_write_icrtmr(vlapic);
+			break;
+		case APIC_OFFSET_TIMER_DCR:
+			vlapic_write_dcr(vlapic);
+			break;
+		default:
 			err = -EACCES;
 			pr_err("%s Unhandled APIC-Write, offset:0x%x", __func__, offset);
+			break;
 		}
 	}
 
@@ -3893,7 +4351,7 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
  *
  * - x2apic_write_msr_may_valid  This callback function verifies if a write operation is permitted
  *                               for a given register offset in virtual-APIC page. Write on below
- *                               regisers are emulated in x2APIC mode: APIC_OFFSET_DFR,
+ *                               registers are emulated in x2APIC mode: APIC_OFFSET_DFR,
  *                               APIC_OFFSET_ICR_HI, APIC_OFFSET_EOI and APIC_OFFSET_SELF_IPI.
  *
  * - reset  This callback function resets the APICv by calling apicv_reset function.
