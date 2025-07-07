@@ -635,6 +635,8 @@ static int32_t shell_process_cmd(const char *p_input_line)
 		status = p_cmd->fcn(cmd_argc, &cmd_argv[0]);
 		if (status == -EINVAL) {
 			shell_puts("\r\nError: Invalid parameters.\r\n");
+		} else if (status == -ENOMEM) {
+			shell_puts("\r\nBuffer size is not enough! Please check!\r\n");
 		} else if (status != 0) {
 			shell_puts("\r\nCommand launch failed.\r\n");
 		} else {
@@ -2039,6 +2041,78 @@ static int32_t shell_vm_resume(int32_t argc, char **argv)
 	return ret;
 }
 
+static int32_t pci_get_dev_cfg(char *str_arg, size_t str_max, union pci_bdf bdf, uint32_t offset, uint32_t cfg_len)
+{
+	uint32_t i;
+	char *str = str_arg;
+	size_t len, size = str_max;
+	uint16_t vendor, device;
+	char temp_str[TEMP_STR_SIZE];
+	int ret = -ENOMEM;
+
+	if (!pci_is_valid_access(offset, 4)) {
+		snprintf(temp_str, TEMP_STR_SIZE, "Offset 0x%x does not align with 4 bytes, error\n", offset);
+		shell_puts(temp_str);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	if (cfg_len % 4) {
+		snprintf(temp_str, TEMP_STR_SIZE, "Length %d is not multiple of 4 bytes, error\n", cfg_len);
+		shell_puts(temp_str);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	vendor = pci_pdev_read_cfg(bdf, PCIR_VENDOR, 2U);
+	if (!is_pci_vendor_valid(vendor)) {
+		snprintf(temp_str, TEMP_STR_SIZE, "Wrong BDF(%02x:%02x.%x) which VENDOR ID is 0x%x!\n", bdf.bits.b, bdf.bits.d, bdf.bits.f, vendor);
+		shell_puts(temp_str);
+		ret = -ENODEV;
+		goto end;
+	}
+
+	device = pci_pdev_read_cfg(bdf, PCIR_DEVICE, 2U);
+
+	len = snprintf(str, size, "%02x:%02x.%x \t0x%x:0x%x\n",
+			bdf.bits.b, bdf.bits.d, bdf.bits.f, vendor, device);
+	if (len >= size) {
+		goto end;
+	}
+	size -= len;
+	str += len;
+
+	for (i = 0; i < cfg_len; i += 4) {
+		len = snprintf(str, size, "%08x ", pci_pdev_read_cfg(bdf, offset + i, 4));
+		if (len >= size) {
+			goto end;
+		}
+		size -= len;
+		str += len;
+
+		if (((i + 4) % 16) == 0) {
+			len = snprintf(str, size, "\n");
+			if (len >= size) {
+				goto end;
+			}
+			size -= len;
+			str += len;
+		}
+	}
+
+	len = snprintf(str, size, "\r\n");
+	if (len >= size) {
+		goto end;
+	}
+	size -= len;
+	str += len;
+
+	ret = 0;
+
+end:
+	return ret;
+}
+
 static int parse_bdf(char *bdf_str, union pci_bdf *bdf)
 {
 	int bus = 0, dev = 0, func = 0;
@@ -2101,9 +2175,11 @@ static int32_t shell_dump_pci(int32_t argc, char **argv)
 		offset = strtoul_hex(argv[2]);
 		length = (uint64_t)strtol_deci(argv[3]);
 
-		snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\n----- Dump physical device (%02x:%02x.%x) PCI CFG: offset 0x%x, len %d -----\r\n",
-			 bdf.bits.b, bdf.bits.d, bdf.bits.f, offset, length);
-		shell_puts(shell_log_buf);
+		shell_puts("\r\n----- Dump physical devices PCI CFG -----\r\n");
+		ret = pci_get_dev_cfg(shell_log_buf, SHELL_LOG_BUF_SIZE, bdf, offset, length);
+		if (!ret) {
+			shell_puts(shell_log_buf);
+		}
 		break;
 
 	case 6:
