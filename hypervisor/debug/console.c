@@ -142,7 +142,7 @@ static void vuart_console_rx_chars(struct acrn_vuart *vu)
 
 	while (1) {
 		/* Get data from physical uart */
-		ch = uart16550_getc();
+		ch = console_getc();
 		if (ch == -1)
 			break;
 
@@ -215,7 +215,7 @@ static bool vuart_console_tx_chars(struct acrn_vuart *vu)
 			is_throttled = true;
 			break;
 		}
-		printf("%c", c);
+		console_putc(&c);
 
 		c = vuart_getchar(vu);
 	}
