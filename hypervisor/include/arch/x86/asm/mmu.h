@@ -338,6 +338,9 @@ static inline uint64_t get_pae_pdpt_addr(uint64_t cr3)
 void flush_invalidate_all_cache(void);
 void flush_cache_range(const volatile void *p, uint64_t size);
 void allocate_ppt_pages(void);
+#ifdef HV_DEBUG
+void get_high64_ram(uint64_t *high_min, uint64_t *high_max);
+#endif
 
 #endif /* ASSEMBLER not defined */
 

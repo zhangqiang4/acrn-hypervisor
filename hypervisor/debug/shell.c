@@ -1056,33 +1056,83 @@ out:
 	return status;
 }
 
+static inline bool is_valid_addr(uint64_t addr, uint32_t length) {
+	uint64_t high_min, high_max;
+	uint64_t end = addr + (((length & 0x1fU) == 0U) ? ((length >> 5U)) : ((length >> 5U) + 1U)) * 32U - 1U;
+	bool ret = false;
+
+	if (addr >= MMIO64_START && end < MMIO64_END) {
+		ret = true;
+	} else if (end < MEM_4G) {
+		ret = true;
+	} else {
+		get_high64_ram(&high_min, &high_max);
+		ret = (high_min == MEM_4G) ? (end < high_max) : (addr >= high_min && end < high_max);
+	}
+
+	return ret;
+}
+
 static int32_t shell_dump_host_mem(int32_t argc, char **argv)
 {
 	uint64_t *hva;
-	int32_t ret;
+	int32_t ret = 0;
 	uint32_t i, length, loop_cnt;
+	uint64_t high_min, high_max;
 	char temp_str[MAX_STR_SIZE];
 
 	/* User input invalidation */
-	if (argc != 3) {
-		ret = -EINVAL;
-	} else	{
+	if (argc == 2) {
+		if (strcmp(argv[1], "-h") == 0) {
+			get_high64_ram(&high_min, &high_max);
+			shell_puts("Available address range:\r\n");
+			if (high_min > MEM_4G) {
+				snprintf(temp_str, MAX_STR_SIZE, "0x%016lx - 0x%016lx\r\n", 0, MEM_4G);
+				shell_puts(temp_str);
+				snprintf(temp_str, MAX_STR_SIZE, "0x%016lx - 0x%016lx\r\n", high_min, high_max);
+				shell_puts(temp_str);
+			} else {
+				snprintf(temp_str, MAX_STR_SIZE, "0x%016lx - 0x%016lx\r\n", 0, high_max);
+				shell_puts(temp_str);
+			}
+			snprintf(temp_str, MAX_STR_SIZE, "0x%016lx - 0x%016lx\r\n", MMIO64_START, MMIO64_END);
+			shell_puts(temp_str);
+		} else {
+			ret = -EINVAL;
+		}
+	} else if (argc == 3) {
 		hva = (uint64_t *)strtoul_hex(argv[1]);
 		length = (uint32_t)strtol_deci(argv[2]);
 
 		snprintf(temp_str, MAX_STR_SIZE, "Dump physical memory addr: 0x%016lx, length %d:\r\n", hva, length);
 		shell_puts(temp_str);
+	
+		if (is_valid_addr((uint64_t)hva, length) == false) {
+			shell_puts("Invalid address region\r\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		if ((uint64_t)hva % 4 != 0) {
+			shell_puts("The address needs 4-byte alignment\r\n");
+			ret = -EINVAL;
+			goto out;
+		}		
 		/* Change the length to a multiple of 32 if the length is not */
 		loop_cnt = ((length & 0x1fU) == 0U) ? ((length >> 5U)) : ((length >> 5U) + 1U);
+		stac();
 		for (i = 0U; i < loop_cnt; i++) {
 			snprintf(temp_str, MAX_STR_SIZE, "HVA(0x%llx): 0x%016lx  0x%016lx  0x%016lx  0x%016lx\r\n",
-					hva, *hva, *(hva + 1UL), *(hva + 2UL), *(hva + 3UL));
+				hva, *hva, *(hva + 1UL), *(hva + 2UL), *(hva + 3UL));
 			hva += 4UL;
 			shell_puts(temp_str);
 		}
+		clac();
 		ret = 0;
+	} else {
+		ret = -EINVAL;
 	}
-
+out:
 	return ret;
 }
 

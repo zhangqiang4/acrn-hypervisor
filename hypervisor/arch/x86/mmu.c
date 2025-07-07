@@ -95,6 +95,40 @@ static uint8_t sanitized_page[PAGE_SIZE] __aligned(PAGE_SIZE);
  */
 #define PPT_PT_PAGE_NUM	0UL
 
+
+/**
+ * @brief High RAM region's min address
+ *
+ * The min address of the High RAM region(above 4GB).
+ */
+static uint64_t high64_min_ram = ~0UL;
+
+/**
+ * @brief High RAM region's max address
+ *
+ * The max address of the High RAM region(above 4GB).
+ */
+static uint64_t high64_max_ram = MEM_4G;
+
+#ifdef HV_DEBUG
+/**
+ * @brief Get high RAM region's address range
+ *
+ * Get high RAM region's(above 4GB) address range.
+ *
+ * @param[out] high_min High RAM region's min address
+ * @param[out] high_max High RAM region's max address
+ *
+ * @return None
+ *
+ * @pre N/A
+ * @post N/A
+ */
+void get_high64_ram(uint64_t *high_min, uint64_t *high_max) {
+	*high_min = high64_min_ram;
+	*high_max = high64_max_ram;
+}
+#endif
 /**
  * @brief Calculate the total number of pages needed for the primary page table.
  *
@@ -490,9 +524,6 @@ void init_paging(void)
 	uint64_t hv_hva;
 	uint32_t i;
 	uint64_t low32_max_ram = 0UL;
-	uint64_t high64_min_ram = ~0UL;
-	uint64_t high64_max_ram = MEM_4G;
-
 	struct acrn_boot_info *abi = get_acrn_boot_info();
 	const struct abi_mmap *entry;
 	uint32_t entries_count = abi->mmap_entries;
