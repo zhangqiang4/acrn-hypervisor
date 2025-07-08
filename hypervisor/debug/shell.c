@@ -1089,13 +1089,14 @@ static int32_t shell_dump_host_mem(int32_t argc, char **argv)
 static void dump_guest_mem(void *data)
 {
 	uint64_t i, fault_addr;
-	uint32_t err_code = 0;
+	uint32_t err_code = 0U;
 	uint64_t loop_cnt;
-	uint64_t buf[4];
+	uint64_t buf[4U];
 	char temp_str[MAX_STR_SIZE];
 	struct guest_mem_dump *dump = (struct guest_mem_dump *)data;
 	uint64_t length = dump->len;
-	uint64_t gva = dump->gva;
+	uint64_t ga = dump->ga;
+	bool is_gva = dump->is_gva;
 	struct acrn_vcpu *vcpu = dump->vcpu;
 	uint16_t pcpu_id = get_pcpu_id();
 	struct acrn_vcpu *curr = get_running_vcpu(pcpu_id);
@@ -1106,15 +1107,25 @@ static void dump_guest_mem(void *data)
 	loop_cnt = ((length & 0x1fUL) == 0UL) ? ((length >> 5UL)) : ((length >> 5UL) + 1UL);
 
 	for (i = 0UL; i < loop_cnt; i++) {
-
-		if (copy_from_gva(vcpu, buf, gva, 32U, &err_code, &fault_addr) != 0) {
-			printf("copy_from_gva error! err_code=0x%x fault_addr=0x%llx\r\n", err_code, fault_addr);
-			break;
+		if (is_gva) {
+			if (copy_from_gva(vcpu, buf, ga, 32U, &err_code, &fault_addr) == 0U) {
+				snprintf(temp_str, MAX_STR_SIZE, "GVA(0x%llx):  0x%016lx  0x%016lx  0x%016lx  0x%016lx\r\n",
+					ga, buf[0U], buf[1U], buf[2U], buf[3U]);
+			} else {
+				printf("copy_from_gva error! err_code=0x%x fault_addr=0x%llx\r\n", err_code, fault_addr);
+				break;
+			}
+		} else {
+			if (copy_from_gpa(vcpu->vm, buf, ga, 32U) == 0U) {
+				snprintf(temp_str, MAX_STR_SIZE, "GPA(0x%llx):  0x%016lx  0x%016lx  0x%016lx  0x%016lx\r\n",
+					ga, buf[0U], buf[1], buf[2U], buf[3U]);
+			} else {
+				printf("copy_from_gpa error!\r\n");
+				break;
+			}
 		}
-		snprintf(temp_str, MAX_STR_SIZE, "GVA(0x%llx):  0x%016lx  0x%016lx  0x%016lx  0x%016lx\r\n",
-				gva, buf[0], buf[1], buf[2], buf[3]);
 		shell_puts(temp_str);
-		gva += 32UL;
+		ga += 32UL;
 	}
 	if (curr != NULL) {
 		load_vmcs(curr);
@@ -1123,9 +1134,10 @@ static void dump_guest_mem(void *data)
 
 static int32_t shell_dump_guest_mem(int32_t argc, char **argv)
 {
-	uint16_t vm_id, pcpu_id;
-	int32_t ret;
-	uint64_t gva;
+	uint16_t vm_id, pcpu_id, addr_pos;
+	int32_t ret = 0U;
+	bool is_gva;
+	uint64_t ga;
 	uint64_t length;
 	uint64_t mask = 0UL;
 	struct acrn_vm *vm;
@@ -1133,24 +1145,33 @@ static int32_t shell_dump_guest_mem(int32_t argc, char **argv)
 	struct guest_mem_dump dump;
 
 	/* User input invalidation */
-	if (argc != 4) {
-		ret = -EINVAL;
+	if (argc == 4U) {
+		is_gva = true;
+		addr_pos = 2U;
+	} else if ((argc == 5U) && (strcmp(argv[2], "-p") == 0U)) {
+		is_gva = false;
+		addr_pos = 3U;
 	} else {
-		vm_id = sanitize_vmid((uint16_t)strtol_deci(argv[1]));
-		gva = strtoul_hex(argv[2]);
-		length = (uint64_t)strtol_deci(argv[3]);
+		ret = -EINVAL;
+	}
+
+	if (ret == 0U) {
+		vm_id = sanitize_vmid((uint16_t)strtol_deci(argv[1U]));
+		ga = strtoul_hex(argv[addr_pos]);
+		length = (uint64_t)strtol_deci(argv[addr_pos + 1U]);
 
 		vm = get_vm_from_vmid(vm_id);
 		vcpu = vcpu_from_vid(vm, BSP_CPU_ID);
 
 		dump.vcpu = vcpu;
-		dump.gva = gva;
+		dump.is_gva = is_gva;
+		dump.ga = ga;
 		dump.len = length;
 
 		pcpu_id = pcpuid_from_vcpu(vcpu);
 		bitmap_set_nolock(pcpu_id, &mask);
 		smp_call_function(mask, dump_guest_mem, &dump);
-		ret = 0;
+		ret = 0U;
 	}
 
 	return ret;

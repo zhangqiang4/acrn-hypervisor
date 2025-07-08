@@ -68,8 +68,10 @@ struct shell {
 #define SHELL_CMD_DUMP_HOST_MEM_HELP	"Dump host memory, starting at a given address(Hex), and for a given length (Dec in bytes)"
 
 #define SHELL_CMD_DUMP_GUEST_MEM	"dump_guest_mem"
-#define SHELL_CMD_DUMP_GUEST_MEM_PARAM	"<vm_id, addr, length>"
-#define SHELL_CMD_DUMP_GUEST_MEM_HELP	"Dump guest memory, vm id(Dec), starting at a given address(Hex), and for a given length (Dec in bytes)"
+#define SHELL_CMD_DUMP_GUEST_MEM_PARAM  "<vm_id, [-p], addr, length>"
+#define SHELL_CMD_DUMP_GUEST_MEM_HELP   "Dump guest memory, vm id(Dec), starting at a given virtual/physical address"\
+					"(Hex, default virtual address), and for a given length (Dec in bytes). "\
+					"Use option -p to indicate a guest physical address."
 
 #define SHELL_CMD_VM_CONSOLE		"vm_console"
 #define SHELL_CMD_VM_CONSOLE_PARAM	"<vm id>"

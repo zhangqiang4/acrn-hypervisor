@@ -427,7 +427,8 @@ struct vcpu_dump {
  */
 struct guest_mem_dump {
 	struct acrn_vcpu *vcpu; /**< Target vCPU to dump memory */
-	uint64_t gva; /**< Guest virtual address to dump from */
+	bool is_gva; /**< Guest address type (virtual or physical) indicator */
+	uint64_t ga; /**< Guest address to dump from */
 	uint64_t len; /**< Length of the memory block */
 };
 
