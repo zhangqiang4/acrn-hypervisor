@@ -63,6 +63,137 @@ static inline void reset_fifo(struct vuart_fifo *fifo)
 	fifo->num = 0U;
 }
 
+/**
+ * @brief Update virtual transmitter tx rate.
+ *
+ * This function calculates how long it takes to transmit one char for a physical UART
+ * that works on the same baudrate.
+ * Assuming 8N1 mode, it can be calculated with:
+ *   char_vtx_time = us_to_ticks(10U * 1000000U / baudrate);
+ *   baudrate = UART_CLOCK_RATE / (div * 16);
+ *
+ * @param[inout] vu Pointer to struct acrn_vuart.
+ *
+ * @return None.
+ *
+ * @pre vu != NULL.
+ */
+static void update_vtransmitter_tx_rate(struct acrn_vuart *vu)
+{
+	uint64_t div;
+	div = vu->dlh;
+	div = (div << 8) | vu->dll;
+	vu->char_vtx_time = us_to_ticks( 10UL * 1000000UL * 16U * div / UART_CLOCK_RATE);
+}
+
+/**
+ * @brief Update the virtual transmitter.
+ *
+ * By calling this function, the virtual transmitter updates its tx timing.
+ * It calculates how many chars should have been sent out after last
+ * update, then update vUART's thre_int_pending and lsr THRE/TEMT bits based on its
+ * virtual fifo empty status.
+ *
+ * @param[inout] vtx Pointer to struct vuart_transmitter.
+ *
+ * @return None.
+ *
+ * @pre vtx != NULL.
+ * @pre vtx->vu != NULL.
+ */
+static void update_vtransmitter(struct vuart_transmitter *vtx)
+{
+	struct acrn_vuart *vu = vtx->vu;
+	uint64_t now = cpu_ticks();
+	uint64_t n_char_sent;
+
+	/* how many chars should have been sent since last update */
+	n_char_sent = (now - vtx->vfifo_time_stamp) / vu->char_vtx_time;
+	if (n_char_sent >= vtx->vfifo_level) {
+		vtx->vfifo_level = 0;
+		vtx->vfifo_time_stamp = now;
+	} else {
+		vtx->vfifo_level = vtx->vfifo_level - n_char_sent;
+		/* avoid using 'now' as it may accumulate remainders. */
+		vtx->vfifo_time_stamp = vtx->vfifo_time_stamp + n_char_sent * vu->char_vtx_time;
+	}
+
+	if (vtx->vfifo_level == 0) {
+		vu->thre_int_pending = true;
+		vu->lsr |= (LSR_THRE | LSR_TEMT);
+	} else {
+		vu->thre_int_pending = false;
+		vu->lsr &= ~(LSR_THRE | LSR_TEMT);
+	}
+}
+
+/**
+ * @brief Push a chart to the virtual transmitter.
+ *
+ * The virtual fifo level is increased by 1.
+ * The actual char is not pushed to the target fifo here. The virtual
+ * transmitter is only used for tx timing.
+ *
+ * @param[inout] vtx Pointer to struct vuart_transmitter.
+ *
+ * @return None.
+ *
+ * @pre vtx != NULL.
+ */
+static inline void vtransmitter_push_char(struct vuart_transmitter *vtx)
+{
+	vtx->vfifo_level ++;
+}
+
+/**
+ * @brief Schedule a virtual transmitter update event.
+ *
+ * By setting up a one shot timer that triggers at the time when the virtual transmitter
+ * should have finished sending its chars in virtual fifo.
+ *
+ * @param[inout] vtx Pointer to struct vuart_transmitter.
+ *
+ * @return None.
+ *
+ * @pre vtx != NULL.
+ * @pre vtx->vu != NULL.
+ */
+static void schedule_vtransmitter_update(struct vuart_transmitter *vtx)
+{
+	struct acrn_vuart *vu = vtx->vu;
+
+	del_timer(&vtx->trans_timer);
+	update_timer(&vtx->trans_timer,
+		 cpu_ticks() + vu->char_vtx_time * vtx->vfifo_level,
+		 0);
+	(void)add_timer(&vtx->trans_timer);
+}
+
+/**
+ * @brief Virtual transmitter timer callback.
+ *
+ * When the timer triggers, the virtual fifo should be emptied.
+ * Update the virtual transmitter here and toggle interrupt if possible.
+ *
+ * @param[inout] param Pointer to struct vuart_transmitter.
+ *
+ * @return None.
+ *
+ * @pre param != NULL.
+ * @pre param->vu != NULL.
+ */
+static void vtransmitter_timer_handler(void *param)
+{
+	struct vuart_transmitter *fifo = param;
+	struct acrn_vuart *vu = fifo->vu;
+	uint64_t rflags;
+
+	obtain_vuart_lock(vu, rflags);
+	update_vtransmitter(fifo);
+	vuart_toggle_intr(vu);
+	release_vuart_lock(vu, rflags);
+}
+
 static inline void fifo_putchar(struct vuart_fifo *fifo, char ch)
 {
 	fifo->buf[fifo->windex] = ch;
@@ -318,8 +449,10 @@ static void write_reg(struct acrn_vuart *vu, uint16_t reg, uint8_t value_u8)
 	 */
 	if (((vu->lcr & LCR_DLAB) != 0U) && (reg == UART16550_DLL)) {
 		vu->dll = value_u8;
+		update_vtransmitter_tx_rate(vu);
 	} else if (((vu->lcr & LCR_DLAB) != 0U) && (reg == UART16550_DLM)) {
 		vu->dlh = value_u8;
+		update_vtransmitter_tx_rate(vu);
 	} else {
 		switch (reg) {
 		case UART16550_THR:
@@ -329,11 +462,19 @@ static void write_reg(struct acrn_vuart *vu, uint16_t reg, uint8_t value_u8)
 			} else {
 				fifo_putchar(&vu->txfifo, (char)value_u8);
 			}
-			vu->thre_int_pending = true;
+			vtransmitter_push_char(&vu->vtx);
+			update_vtransmitter(&vu->vtx);
+			if (!vu->thre_int_pending) {
+				/* vfifo is full now, generate THRE irq when it finishes tx. */
+				schedule_vtransmitter_update(&vu->vtx);
+			}
 			break;
 		case UART16550_IER:
 			if (((vu->ier & IER_ETBEI) == 0U) && ((value_u8 & IER_ETBEI) != 0U)) {
-				vu->thre_int_pending = true;
+				update_vtransmitter(&vu->vtx);
+				if (!vu->thre_int_pending) {
+					schedule_vtransmitter_update(&vu->vtx);
+				}
 			}
 			/*
 			 * Apply mask so that bits 4-7 are 0
@@ -433,7 +574,11 @@ void vuart_write_reg(struct acrn_vuart *vu, uint16_t offset, uint8_t value_u8)
 		if (!send_to_target(target_vu, value_u8)) {
 			/* FIFO is not full, raise THRE interrupt */
 			obtain_vuart_lock(vu, rflags);
-			vu->thre_int_pending = true;
+			vtransmitter_push_char(&vu->vtx);
+			update_vtransmitter(&vu->vtx);
+			if (!vu->thre_int_pending) {
+				schedule_vtransmitter_update(&vu->vtx);
+			}
 			vuart_toggle_intr(vu);
 			release_vuart_lock(vu, rflags);
 		}
@@ -489,7 +634,7 @@ static void notify_target(const struct acrn_vuart *vu)
 		t_vu = vu->target_vu;
 		if ((t_vu != NULL) && !fifo_isfull(&vu->rxfifo)) {
 			obtain_vuart_lock(t_vu, rflags);
-			t_vu->thre_int_pending = true;
+			update_vtransmitter(&t_vu->vtx);
 			vuart_toggle_intr(t_vu);
 			release_vuart_lock(t_vu, rflags);
 		}
@@ -522,11 +667,9 @@ static void notify_target(const struct acrn_vuart *vu)
  */
 uint8_t vuart_read_reg(struct acrn_vuart *vu, uint16_t offset)
 {
-	struct acrn_vuart *t_vu;
 	uint8_t iir, reg = 0U, intr_reason;
 	uint64_t rflags;
 
-	t_vu = vu->target_vu;
 	obtain_vuart_lock(vu, rflags);
 	/*
 	 * Take care of the special case DLAB accesses first
@@ -549,6 +692,7 @@ uint8_t vuart_read_reg(struct acrn_vuart *vu, uint16_t offset)
 			reg = vu->ier;
 			break;
 		case UART16550_IIR:
+			update_vtransmitter(&vu->vtx);
 			iir = ((vu->fcr & FCR_FIFOE) != 0U) ? IIR_FIFO_MASK : 0U;
 			intr_reason = vuart_intr_reason(vu);
 			/*
@@ -567,13 +711,8 @@ uint8_t vuart_read_reg(struct acrn_vuart *vu, uint16_t offset)
 			reg = vu->mcr;
 			break;
 		case UART16550_LSR:
-			if (t_vu != NULL) {
-				if (!fifo_isfull(&t_vu->rxfifo)) {
-					vu->lsr |= LSR_TEMT | LSR_THRE;
-				}
-			} else {
-				vu->lsr |= LSR_TEMT | LSR_THRE;
-			}
+			update_vtransmitter(&vu->vtx);
+
 			/* Check for new receive data */
 			if (fifo_numchars(&vu->rxfifo) > 0U) {
 				vu->lsr |= LSR_DR;
@@ -677,6 +816,11 @@ static void setup_vuart(struct acrn_vm *vm, uint16_t vuart_idx)
 	divisor = (UART_CLOCK_RATE / BAUD_115200) >> 4U;
 	vu->dll = (uint8_t)divisor;
 	vu->dlh = (uint8_t)(divisor >> 8U);
+	vu->vtx.vu = vu;
+	vu->vtx.vfifo_time_stamp = cpu_ticks();
+	update_vtransmitter_tx_rate(vu);
+	initialize_timer(&vu->vtx.trans_timer,
+		 vtransmitter_timer_handler, &vu->vtx, 0, 0);
 	vu->vm = vm;
 	init_fifo(vu);
 	init_vuart_lock(vu);

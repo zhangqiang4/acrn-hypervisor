@@ -72,6 +72,29 @@ struct vuart_fifo {
 	uint32_t size;		/* size of the fifo */
 };
 
+struct acrn_vuart;
+
+/**
+ * @brief Data structure to emulate a virtual transmitter.
+ *
+ * Virtual transmitter is a mechanism used to emulate the physical tx fifo and the data
+ * transmit process that consumes time. With this implementation, guest kernel does not
+ * spend all its time on the UART driver when there is a flood of message to be sent.
+ *
+ * The virtual transmitter is emulated by calculating time of how long a physical UART
+ * sends out its chars, then use that time to delay asserting THRE/TEMT bit and TX IRQ.
+ * The vUART would act more like a physical UART.
+ *
+ * Tx chars are still send to target fifo instantly. The virtual fifo only delays
+ * the asserting of THRE/TEMT and TX IRQ.
+ */
+struct vuart_transmitter {
+	uint64_t vfifo_level; /**< How many chars in the virtual fifo when it is last checked. */
+	uint64_t vfifo_time_stamp; /**< Time stamp in CPU ticks when virtual fifo is last checked. */
+	struct hv_timer trans_timer; /**< Timer used to emulate the physical transfer process */
+	struct acrn_vuart *vu;	/**< pointer to the vUART which owns this transmitter */
+};
+
 /**
  * @brief Data structure to illustrate a virtual UART device.
  *
@@ -96,6 +119,7 @@ struct acrn_vuart {
 
 	struct vuart_fifo rxfifo; /**< FIFO queue for received data. */
 	struct vuart_fifo txfifo; /**< FIFO queue for transmitted data. */
+	struct vuart_transmitter vtx; /**< Virtual transmitter to emulate tx timing. */
 	uint16_t port_base; /**< Base port address of the virtual UART device. */
 	uint32_t irq; /**< IRQ number of the virtual UART device. */
 	char vuart_rx_buf[RX_BUF_SIZE]; /**< Buffer for received data. */
@@ -107,6 +131,7 @@ struct acrn_vuart {
 	struct acrn_vm *vm; /**< Pointer to the VM that owns the virtual UART device. */
 	struct pci_vdev *vdev; /**< Pointer to the PCI device, only for a PCI vuart. */
 	spinlock_t lock; /**< The spinlock to protect simultaneous access of all elements. */
+	uint64_t char_vtx_time; /**< Time in CPU ticks to tx a char for a physical UART. */
 };
 
 void init_legacy_vuarts(struct acrn_vm *vm, const struct vuart_config *vu_config);
