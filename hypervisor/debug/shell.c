@@ -634,7 +634,8 @@ static int32_t shell_process_cmd(const char *p_input_line)
 
 		status = p_cmd->fcn(cmd_argc, &cmd_argv[0]);
 		if (status == -EINVAL) {
-			shell_puts("\r\nError: Invalid parameters.\r\n");
+			snprintf(shell_log_buf, SHELL_LOG_BUF_SIZE, "\r\nError: Invalid parameters. Please refer: %s\r\n", p_cmd->cmd_param);
+			shell_puts(shell_log_buf);
 		} else if (status == -ENOMEM) {
 			shell_puts("\r\nBuffer size is not enough! Please check!\r\n");
 		} else if (status != 0) {
@@ -1195,13 +1196,14 @@ static int32_t shell_to_vm_console(int32_t argc, char **argv)
  * @param[in]	str_max	The max size of the string containing interrupt info
  * @param[inout]	str_arg	Pointer to the output interrupt info
  */
-static void get_cpu_interrupt_info(char *str_arg, size_t str_max)
+static int get_cpu_interrupt_info(char *str_arg, size_t str_max)
 {
 	char *str = str_arg;
 	uint16_t pcpu_id;
 	uint32_t irq, vector;
 	size_t len, size = str_max;
 	uint16_t pcpu_nums = get_pcpu_nums();
+	int ret = -ENOMEM;
 
 	len = snprintf(str, size, "\r\nIRQ\tVECTOR");
 	if (len >= size) {
@@ -1242,17 +1244,23 @@ static void get_cpu_interrupt_info(char *str_arg, size_t str_max)
 		}
 	}
 	snprintf(str, size, "\r\n");
-	return;
+
+	ret = 0;
 
 overflow:
-	printf("buffer size could not be enough! please check!\n");
+	return ret;
 }
 
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv)
 {
-	get_cpu_interrupt_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
-	shell_puts(shell_log_buf);
-	return 0;
+	int ret = 0;
+
+	ret = get_cpu_interrupt_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
+	if(!ret) {
+		shell_puts(shell_log_buf);
+	}
+
+	return ret;
 }
 
 static void get_entry_info(const struct ptirq_remapping_info *entry, char *type,
@@ -1304,7 +1312,7 @@ static void get_entry_info(const struct ptirq_remapping_info *entry, char *type,
 	}
 }
 
-static void get_ptdev_info(char *str_arg, size_t str_max)
+static int get_ptdev_info(char *str_arg, size_t str_max)
 {
 	char *str = str_arg;
 	struct ptirq_remapping_info *entry;
@@ -1316,6 +1324,7 @@ static void get_ptdev_info(char *str_arg, size_t str_max)
 	bool lvl_tm;
 	uint32_t pgsi, vgsi;
 	union pci_bdf bdf, vbdf;
+	int ret = -ENOMEM;
 
 	len = snprintf(str, size, "\r\nVM\tTYPE\tIRQ\tVEC\tDEST\tTM\tGSI\tVGSI\tBDF\tVBDF");
 	if (len >= size) {
@@ -1350,21 +1359,26 @@ static void get_ptdev_info(char *str_arg, size_t str_max)
 	}
 
 	snprintf(str, size, "\r\n");
-	return;
+
+	ret = 0;
 
 overflow:
-	printf("buffer size could not be enough! please check!\n");
+	return ret;
 }
 
 static int32_t shell_show_ptdev_info(__unused int32_t argc, __unused char **argv)
 {
-	get_ptdev_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
-	shell_puts(shell_log_buf);
+	int ret = 0;
 
-	return 0;
+	ret = get_ptdev_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
+	if (!ret) {
+		shell_puts(shell_log_buf);
+	}
+
+	return ret;
 }
 
-static void get_vioapic_info(char *str_arg, size_t str_max, uint16_t vmid)
+static int get_vioapic_info(char *str_arg, size_t str_max, uint16_t vmid)
 {
 	char *str = str_arg;
 	size_t len, size = str_max;
@@ -1373,6 +1387,7 @@ static void get_vioapic_info(char *str_arg, size_t str_max, uint16_t vmid)
 	bool level, phys, remote_irr, mask;
 	struct acrn_vm *vm = get_vm_from_vmid(vmid);
 	uint32_t gsi, gsi_count;
+	int ret = -ENOMEM;
 
 	if (is_poweroff_vm(vm)) {
 		len = snprintf(str, size, "\r\nvm is not exist for vmid %hu", vmid);
@@ -1417,10 +1432,11 @@ static void get_vioapic_info(char *str_arg, size_t str_max, uint16_t vmid)
 	}
 END:
 	snprintf(str, size, "\r\n");
-	return;
+
+	ret = 0;
 
 overflow:
-	printf("buffer size could not be enough! please check!\n");
+	return ret;
 }
 
 static int32_t shell_show_vioapic_info(int32_t argc, char **argv)
@@ -1435,9 +1451,11 @@ static int32_t shell_show_vioapic_info(int32_t argc, char **argv)
 	ret = strtol_deci(argv[1]);
 	if (ret >= 0) {
 		vmid = sanitize_vmid((uint16_t) ret);
-		get_vioapic_info(shell_log_buf, SHELL_LOG_BUF_SIZE, vmid);
-		shell_puts(shell_log_buf);
-		return 0;
+		ret = get_vioapic_info(shell_log_buf, SHELL_LOG_BUF_SIZE, vmid);
+		if (!ret) {
+			shell_puts(shell_log_buf);
+		}
+		return ret;
 	}
 
 	return -EINVAL;
@@ -1458,6 +1476,7 @@ static int32_t get_ioapic_info(char *str_arg, size_t str_max_len)
 	uint32_t gsi;
 	size_t len, size = str_max_len;
 	uint32_t ioapic_nr_gsi = 0U;
+	int ret = -ENOMEM;
 
 	len = snprintf(str, size, "\r\nIRQ\tPIN\tRTE.HI32\tRTE.LO32\tVEC\tDST\tDM\tTM\tDELM\tIRR\tMASK");
 	if (len >= size) {
@@ -1501,11 +1520,11 @@ static int32_t get_ioapic_info(char *str_arg, size_t str_max_len)
 	}
 
 	snprintf(str, size, "\r\n");
-	return 0;
+
+	ret = 0;
 
 overflow:
-	printf("buffer size could not be enough! please check!\n");
-	return 0;
+	return ret;
 }
 
 static int32_t shell_show_ioapic_info(__unused int32_t argc, __unused char **argv)
@@ -1513,7 +1532,9 @@ static int32_t shell_show_ioapic_info(__unused int32_t argc, __unused char **arg
 	int32_t err = 0;
 
 	err = get_ioapic_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
-	shell_puts(shell_log_buf);
+	if (!err) {
+		shell_puts(shell_log_buf);
+	}
 
 	return err;
 }
@@ -1817,11 +1838,12 @@ static bool output_vmexit_info_per_vcpu(char **str_arg, size_t *size_max, uint16
 	return true;
 }
 
-static void get_vmexit_details_per_vcpu(char *str_arg, size_t str_max, uint16_t target_vm_id)
+static int get_vmexit_details_per_vcpu(char *str_arg, size_t str_max, uint16_t target_vm_id)
 {
 	char *str = str_arg;
 	uint16_t reason, level;
 	size_t len, size = str_max;
+	int ret = -ENOMEM;
 
 	len = snprintf(str, size, "\r\nNow=%lldus, for detailed latency of each vmexit on %s VM/vCPU:",
 		ticks_to_us(rdtsc()), (target_vm_id == CONFIG_MAX_VM_NUM) ? "each" : "one");
@@ -1878,10 +1900,11 @@ static void get_vmexit_details_per_vcpu(char *str_arg, size_t str_max, uint16_t 
 	}
 
 	snprintf(str, size, "\r\n");
-	return;
+
+	ret = 0;
 
 overflow:
-	printf("buffer size could not be enough! please check!\n");
+	return ret;
 }
 
 static void clear_vmexit_info_buffer(void)
@@ -1908,6 +1931,7 @@ static int shell_show_vmexit_profile(__unused int argc, __unused char **argv)
 {
 	uint16_t vm_id = CONFIG_MAX_VM_NUM;
 	bool to_continue = true;
+	int ret = 0;
 
 	if (argc == 2) {
 		if (strcmp(argv[1], "clear") == 0) {
@@ -1935,11 +1959,13 @@ static int shell_show_vmexit_profile(__unused int argc, __unused char **argv)
 	}
 
 	if (to_continue) {
-		get_vmexit_details_per_vcpu(shell_log_buf, SHELL_LOG_BUF_SIZE, vm_id);
-		shell_puts(shell_log_buf);
+		ret = get_vmexit_details_per_vcpu(shell_log_buf, SHELL_LOG_BUF_SIZE, vm_id);
+		if (!ret) {
+			shell_puts(shell_log_buf);
+		}
 	}
 
-	return 0;
+	return ret;
 }
 
 
