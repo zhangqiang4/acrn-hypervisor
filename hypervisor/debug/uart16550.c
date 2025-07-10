@@ -14,6 +14,11 @@
 
 #define MAX_BDF_LEN 8
 
+/* 16550 has a 16 byte tx fifo */
+#define TX_FIFO_DEPTH 16U
+
+uint32_t tx_fifo_counter;
+
 struct console_uart {
 	bool enabled;
 
@@ -239,6 +244,37 @@ char uart16550_getc(void)
 }
 
 /**
+ * @brief Get debug UART tx load size.
+ *
+ * The tx load size is how many chars the console can output without polling.
+ * 16550 has a tx fifo that can buff those tx chars.
+ * Once the console pushes in more chars than the load size, tx API
+ * (uart16550_putc/uart16550_puts) will poll lsr THRE/TEMT status until the
+ * tx fifo is empty again.
+ *
+ * @return Tx load size.
+ */
+uint32_t uart16550_get_tx_load_size(void)
+{
+	return TX_FIFO_DEPTH;
+}
+
+/**
+ * @brief Get debug UART tx load interval.
+ *
+ * The tx load interval is the time for UART transmitter to sends out all chars
+ * in its tx fifo. It is decided by baudrate and transfer modes. Here we
+ * assume that debug UART always uses 115200 8n1 mode.
+ *
+ * @return Tx load interval in CPU ticks.
+ */
+uint64_t uart16550_get_tx_load_interval(void)
+{
+	/* assume 115200 8n1 */
+	return us_to_ticks(TX_FIFO_DEPTH * 10UL * 1000000UL / 115200UL);
+}
+
+/**
  * @pre uart->enabled == true
  */
 static void uart16550_putc(char c)
@@ -246,14 +282,18 @@ static void uart16550_putc(char c)
 	uint8_t temp;
 	uint32_t reg;
 
-	/* Ensure there are no further Transmit buffer write requests */
-	do {
-		reg = uart16550_read_reg(uart, UART16550_LSR);
-	} while ((reg & LSR_THRE) == 0U || (reg & LSR_TEMT) == 0U);
+	/* We don't need to poll THRE/TEMT until fifo is fully filled up. */
+	if (tx_fifo_counter >= TX_FIFO_DEPTH) {
+		do {
+			reg = uart16550_read_reg(uart, UART16550_LSR);
+		} while ((reg & LSR_THRE) == 0U || (reg & LSR_TEMT) == 0U);
+		tx_fifo_counter = 0;
+	}
 
 	temp = (uint8_t)c;
 	/* Transmit the character. */
 	uart16550_write_reg(uart, (uint32_t)temp, UART16550_THR);
+	tx_fifo_counter ++;
 }
 
 size_t uart16550_puts(const char *buf, uint32_t len)

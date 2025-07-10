@@ -169,23 +169,34 @@ exit:
 }
 
 /**
+ * @brief Send out vUART tx to console
+ *
+ * This function reads vUART tx chars and print on console.
+ * The output is throttled as it may block CPU when there is a flood of message
+ * from vUART. We use debug UART tx fifo size as the throttle value.
+ * Polling is not needed when we output less chars than throttle value at one time.
+ *
+ * @return A bool value to indicate whether output is throttled.
+ *
  * @pre vu != NULL
  */
-static void vuart_console_tx_chars(struct acrn_vuart *vu)
+static bool vuart_console_tx_chars(struct acrn_vuart *vu)
 {
+	bool is_throttled = false;
 	char c = vuart_getchar(vu);
-	/* Rate limiting. Please see comments for macro
-	 * CONSOLE_TICK_MAX_TRANSFER_CHARS. */
-	int char_transferred = 0;
+	uint32_t char_transferred = 0;
 
 	while(c != -1) {
 		printf("%c", c);
 		char_transferred++;
-		if (char_transferred >= CONSOLE_TICK_MAX_TRANSFER_CHARS) {
+		if (char_transferred >= uart16550_get_tx_load_size()) {
+			is_throttled = true;
 			break;
 		}
 		c = vuart_getchar(vu);
 	}
+
+	return is_throttled;
 }
 
 static struct acrn_vuart *vuart_console_active(void)
@@ -209,9 +220,25 @@ static struct acrn_vuart *vuart_console_active(void)
 	return ((vu != NULL) && vu->active) ? vu : NULL;
 }
 
+/**
+ * @brief Console timer callback.
+ *
+ * vUART console tx and rx chars are processed here.
+ * Tx chars may be throttled as message flood may block CPU.
+ * When tx is throttled, next tick interval is reduced to the time when the debug UART
+ * is expected to send out all chars in its fifo.
+ *
+ * When we send less chars than tx fifo depth each time, the debug UART can avoid polling.
+ *
+ * @param data unused for timer callback.
+ *
+ * @return None.
+ */
 static void console_timer_callback(__unused void *data)
 {
 	struct acrn_vuart *vu;
+	bool is_tx_throttled;
+	uint64_t period;
 
 	/* Kick HV-Shell and Uart-Console tasks */
 	vu = vuart_console_active();
@@ -219,7 +246,15 @@ static void console_timer_callback(__unused void *data)
 		/* serial Console Rx operation */
 		vuart_console_rx_chars(vu);
 		/* serial Console Tx operation */
-		vuart_console_tx_chars(vu);
+		is_tx_throttled = vuart_console_tx_chars(vu);
+
+		/* Update timer period, so that we can fill UART tx fifo again
+		   right after chars in it been sent out. */
+		period = is_tx_throttled ?
+			uart16550_get_tx_load_interval() : (TICKS_PER_MS * CONSOLE_KICK_TIMER_TIMEOUT);
+		if (period != console_timer.period_in_cycle) {
+			update_timer(&console_timer, console_timer.timeout, period);
+		}
 	} else {
 		shell_kick();
 	}
