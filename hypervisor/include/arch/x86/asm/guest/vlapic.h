@@ -125,7 +125,14 @@ struct acrn_apicv_ops {
 	/**
 	 * @brief Inject interrupt callback function type.
 	 */
-	void (*inject_intr)(struct acrn_vlapic *vlapic);
+	void (*inject_intr)(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
+
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+	/**
+	 * @brief Check if there are any pending deliverable interrupts callback function type.
+	 */
+	bool (*has_pending_delivery_intr)(struct acrn_vcpu *vcpu);
+#endif
 
 	/**
 	 * @brief Check pending interrupt callback function type.
@@ -148,7 +155,13 @@ struct acrn_apicv_ops {
 	void (*reset)(struct acrn_vcpu *vcpu);
 };
 
-void vlapic_inject_intr(struct acrn_vlapic *vlapic);
+void vlapic_set_apicv_ops(void);
+void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
+
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu);
+#endif
+
 bool vlapic_has_pending_intr(struct acrn_vcpu *vcpu);
 uint64_t vlapic_get_tsc_deadline_msr(const struct acrn_vlapic *vlapic);
 void vlapic_set_tsc_deadline_msr(struct acrn_vlapic *vlapic, uint64_t val_arg);

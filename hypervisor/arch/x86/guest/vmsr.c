@@ -645,12 +645,18 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		set_tsc_msr_interception(vcpu, exec_vmread64(VMX_TSC_OFFSET_FULL) != 0UL);
 
 	} else {
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+		/*
+		 * For platforms that do not support register virtualization
+		 * all x2APIC MSRs need to intercepted.
+		 */
+		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_READ_WRITE);
+#else
 		intercept_x2apic_msrs(msr_bitmap, INTERCEPT_WRITE);
 
 		if (can_ipiv_enabled(vcpu->vm)) {
 			enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_ICR, INTERCEPT_DISABLE);
 		}
-
 		/*
 		 * Open read-only interception for write-only
 		 * registers to inject gp on reads. EOI and Self-IPI
@@ -661,6 +667,7 @@ static void init_x2apic_msrs(struct acrn_vcpu *vcpu)
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_CUR_COUNT, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_EOI, INTERCEPT_READ);
 		enable_msr_interception(msr_bitmap, MSR_IA32_EXT_APIC_SELF_IPI, INTERCEPT_READ);
+#endif
 
 		/*
 		 * TPR is virtualized even when register virtualization is not supported

@@ -53,6 +53,14 @@
 #define VAPIC_FEATURE_IPI_VIRT         (1U << 6U)
 
 /**
+ * @brief APICv basic features
+ *
+ * Define basic APICv features that must be supported by the physical platform and will be enabled by default:
+ * TPR shadow, Virtualize APIC accesses, Virtualize x2APIC mode.
+ */
+#define APICV_BASIC_FEATURE     (VAPIC_FEATURE_TPR_SHADOW | VAPIC_FEATURE_VIRT_ACCESS | VAPIC_FEATURE_VX2APIC_MODE)
+
+/**
  * @brief APICv advanced features
  *
  * Define advanced APICv features, enable them by default if the physical platform support them all, otherwise disable
@@ -399,6 +407,8 @@ uint32_t check_vmx_ctrl_64(uint32_t msr, uint64_t ctrl_req)
  * Virtualize APIC accesses, Virtualize x2APIC mode, APIC-register virtualization, Virtual-interrupt delivery,
  * and Process posted interrupts. Refer to Chapter A.3, Vol. 3, SDM 325462-078 to determine the capability.
  * The results are stored in the global variable `cpu_caps.apicv_features`.
+ * Finally, it sets the callbacks for APICv operations, either for basic mode or advanced mode (based on the detected
+ * results).
  *
  * @return None
  *
@@ -447,6 +457,11 @@ static void detect_apicv_cap(void)
 
 	/* Store the detected features in the cpu_caps.apicv_features variable */
 	cpu_caps.apicv_features = features;
+
+	/* Sets the callbacks for APICv operations, either for basic mode
+	 * or advanced mode (based on the detected results).
+	 */
+	vlapic_set_apicv_ops();
 }
 
 /**
@@ -702,6 +717,26 @@ static bool is_ept_supported(void)
 }
 
 /**
+ * @brief The internal function to query if APICv basic features are supported.
+ *
+ * This function checks the APICv (Advanced Programmable Interrupt Controller virtualization) basic feature bits
+ * in the global variable `cpu_caps.apicv_features` and returns a boolean value indicating the result.
+ *
+ * @return A boolean value indicating whether all APICv basic features are supported.
+ *
+ * @retval true The basic APICv features are supported.
+ * @retval false The basic APICv features are not supported.
+ *
+ * @pre N/A
+ * @post N/A
+ * @remark This API shall be called after `init_pcpu_capabilities` has been called once on the bootstrap processor.
+ */
+static inline bool is_apicv_basic_feature_supported(void)
+{
+	return ((cpu_caps.apicv_features & APICV_BASIC_FEATURE) == APICV_BASIC_FEATURE);
+}
+
+/**
  * @brief The interface to query if APICv advanced features are supported.
  *
  * This function checks the APICv (Advanced Programmable Interrupt Controller virtualization) advanced feature bits
@@ -722,10 +757,54 @@ bool is_apicv_advanced_feature_supported(void)
 }
 
 /**
+ * @brief The interface to check mandatory APICv capabilities on underlying hardware platform.
+ *
+ * This function checks the APICv capabilities on hardware platform:
+ *
+ * If CONFIG_ENFORCE_APICv_BASIC_SUPPORT is configured, it checks the support of
+ * basic APICv features, otherwise, checks that if  advanced APICv features are supported.
+ *
+ * @return A boolean value indicating whether mandatory APICv features are supported.
+ *
+ * @retval true The mandatory APICv features are supported.
+ * @retval false The mandatory APICv features are not supported.
+ *
+ * @pre N/A
+ * @post N/A
+ * @remark This API shall be called after `init_pcpu_capabilities` has been called once on the bootstrap processor.
+ */
+bool apicv_feature_supported(void)
+{
+	bool ret;
+
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+	if (is_apicv_advanced_feature_supported()) {
+		pr_warn("%s, Advanced APICv features are supported,"
+			" Disable CONFIG_ENFORCE_APICv_BASIC_SUPPORT to enhance"
+			" the efficiency of guest interrupt delivery", __func__);
+		ret = true;
+	} else {
+		ret = is_apicv_basic_feature_supported();
+	}
+#else
+	ret = is_apicv_advanced_feature_supported();
+	if (!ret) {
+		if (is_apicv_basic_feature_supported()) {
+			pr_warn("%s, Advanced APICv features are not supported,"
+				" Enable CONFIG_ENFORCE_APICv_BASIC_SUPPORT", __func__);
+		}
+	}
+#endif
+	return ret;
+}
+
+/**
  * @brief The interface to query if APICv IPI Virtualization feature is supported.
  *
  * This function checks if the APICv (Advanced Programmable Interrupt Controller virtualization) IPI (Inter-Processor
- * Interrupt) Virtualization feature is supported.
+ * Interrupt) Virtualization feature is supported. It does this by checking the APICv advanced IPI Virtualization
+ * feature bit in the global variable `cpu_caps.apicv_features` and the return result of
+ * `is_apicv_advanced_feature_supported()`.
  *
  * @return A boolean value indicating whether APICv IPI Virtualization is supported.
  *
@@ -738,7 +817,11 @@ bool is_apicv_advanced_feature_supported(void)
  */
 bool is_apicv_ipiv_feature_supported(void)
 {
-	return	((cpu_caps.apicv_features & VAPIC_FEATURE_IPI_VIRT) != 0U);
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+	return false;
+#else
+	return  ((cpu_caps.apicv_features & VAPIC_FEATURE_IPI_VIRT) != 0U);
+#endif
 }
 
 /**
@@ -1140,8 +1223,8 @@ int32_t detect_hardware_support(void)
 	} else if (!is_ept_supported()) {
 		pr_acrnlog("%s, EPT not supported\n", __func__);
 		ret = -ENODEV;
-	} else if (!is_apicv_advanced_feature_supported()) {
-		pr_acrnlog("%s, APICV not supported\n", __func__);
+	} else if (!apicv_feature_supported()) {
+		pr_acrnlog("%s, Required APICv not supported\n", __func__);
 		ret = -ENODEV;
 	} else if (boot_cpu_data.cpuid_level < 0x15U) {
 		pr_acrnlog("%s, required CPU feature not supported\n", __func__);

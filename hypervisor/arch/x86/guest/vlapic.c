@@ -188,7 +188,7 @@ static inline void vlapic_dump_isr(__unused const struct acrn_vlapic *vlapic, __
  * operations for guest interrupt handling when local APIC is pass-through to guest.
  */
 static const struct acrn_apicv_ops ptapic_ops;
-static const struct acrn_apicv_ops apicv_advanced_ops;
+static const struct acrn_apicv_ops *apicv_ops;
 
 static bool apicv_set_intr_ready(struct acrn_vlapic *vlapic, uint32_t vector);
 
@@ -2264,6 +2264,7 @@ static inline uint32_t vlapic_find_highest_irr(const struct acrn_vlapic *vlapic)
 	return vec;
 }
 
+
 /**
  * @brief Emulation of writing an APIC register Spurious-Interrupt Vector Register (SVR)
  *
@@ -2724,6 +2725,8 @@ static void ptapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, __un
  * This is a stub callback function and print debug message only.
  *
  * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ * @param[in] guest_irq_enabled Unused.
+ * @param[in] injected Unused.
  *
  * @return None.
  *
@@ -2733,7 +2736,7 @@ static void ptapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, __un
  *
  * @remark N/A
  */
-static void ptapic_inject_intr(struct acrn_vlapic *vlapic)
+static void ptapic_inject_intr(struct acrn_vlapic *vlapic, __unused bool guest_irq_enabled, __unused bool injected)
 {
 	pr_err("Invalid op %s, VM%u, vCPU%u", __func__, vlapic2vcpu(vlapic)->vm->vm_id, vlapic2vcpu(vlapic)->vcpu_id);
 }
@@ -2814,7 +2817,7 @@ static bool ptapic_write_msr_may_may_invalid(uint32_t offset)
  * This function initializes the local APIC for the specified vCPU with local APIC pass-through.
  * It invokes the init_lapic() function to initialize the local APIC registers.
  *
- * @param[in] vcpu Pointer to the virtual CPU structure (unused in this implementation).
+ * @param[in] vcpu Pointer to the virtual CPU structure.
  *
  * @return None.
  *
@@ -3634,7 +3637,7 @@ void vlapic_create(struct acrn_vcpu *vcpu, uint16_t pcpu_id)
 		vlapic->msr_apicbase |= APICBASE_BSP;
 	}
 
-	vlapic->ops = &apicv_advanced_ops;
+	vlapic->ops = apicv_ops;
 	if (is_locked_in_xapic_configured(vcpu->vm)) {
 		lapic->id.v = vlapic->vapic_id;
 		lapic->id.v <<= APIC_ID_SHIFT;
@@ -3764,6 +3767,7 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
 	return hva2hpa(&(vlapic->apic_page));
 }
 
+
 /**
  * @brief Inject all pending interrupts into a virtual LAPIC via Posted-Interrupt features.
  *
@@ -3774,6 +3778,8 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
  * Volume 3, Intel SDM 25462-087US.
  *
  * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ * @param[in] guest_irq_enabled Unused.
+ * @param[in] injected Unused.
  *
  * @return None.
  *
@@ -3784,7 +3790,8 @@ vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic)
  *
  * @remark N/A
  */
-static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
+static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic,
+		__unused bool guest_irq_enabled, __unused bool injected)
 {
 	struct acrn_vcpu *vcpu = vlapic2vcpu(vlapic);
 	struct pi_desc *pid = get_pi_desc(vcpu);
@@ -3821,7 +3828,10 @@ static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
  *
  * - APIC pass-through case: it is not applicable and do nothing.
  *
- * @param[in] vlapic Pointer to the virtual LAPIC structure.
+ * @param[in] vlapic             Pointer to the virtual LAPIC structure.
+ * @param[in] guest_irq_enabled  Boolean value indicating whether local interrupt of a vCPU
+ *                               is blocked..
+ * @param[in] injected           Boolean value indicating whether a vector has been injected.
  *
  * @return None.
  *
@@ -3831,15 +3841,14 @@ static void apicv_advanced_inject_intr(struct acrn_vlapic *vlapic)
  *
  * @remark N/A
  */
-void vlapic_inject_intr(struct acrn_vlapic *vlapic)
+void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected)
 {
-	vlapic->ops->inject_intr(vlapic);
+	vlapic->ops->inject_intr(vlapic, guest_irq_enabled, injected);
 }
 
-
 /**
- * @brief Check if there are any pending interrupts on given virtual CPU, with APIC virtualization
- *        is configured.
+ * @brief Check if there are any pending interrupts on given virtual CPU, with advanced APICv
+ *        is supported.
  *
  * This function checks if there is any bit set in all vIRR registers in virtual-APIC page, which
  * means there are interrupt(s) pending on current vlapic and return true if yes.
@@ -4305,6 +4314,431 @@ int32_t tpr_below_threshold_vmexit_handler(struct acrn_vcpu *vcpu)
 	return 0;
 }
 
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+
+/**
+ * @brief Update TPR threshold VM-execution control field.
+ *
+ * This function updates TPR threshold VM-execution control field based on TPR and IRR in virtual
+ * LAPIC page, according to 28.2.1.1 VM-Execution Control Fields, Volume 3, Intel SDM 25462-087US,
+ * the value of bits 3:0 of the TPR threshold VM-execution control field should not be greater than
+ * the value of bits 7:4 of VTPR.
+ *
+ * Bits 3:0 of the TPR threshold VM-execution control field is set with the value of bits 7:4
+ * for the highest vector in IRR if it is not greater than virtual TPR( bits 7:4) value, otherwise,
+ * TPR threshold is set to 0.
+ *
+ * @param[inout] vlapic Pointer to the virtual LAPIC structure.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static void vlapic_update_tpr_threshold(const struct acrn_vlapic *vlapic)
+{
+	uint32_t irr, tpr, threshold;
+
+	tpr = vlapic->apic_page.tpr.v;
+	tpr = ((tpr & 0xf0U) >> 4U);
+	irr = vlapic_find_highest_irr(vlapic);
+	irr >>= 4U;
+	threshold = (irr > tpr) ? 0U : irr;
+
+	exec_vmwrite32(VMX_TPR_THRESHOLD, threshold);
+}
+
+/**
+ * @brief Find a deliverable virtual interrupts in IRR in LAPIC Page for vLAPIC.
+ *
+ * This function retrieves vector number for the highest-priority bit set in the IRR in LAPIC page,
+ * when it is available, it returns this vector number if its priority (bits 7:4) is higher than
+ * virtual PPR(bits 7:4) in LAPIC page.
+ *
+ * @param[in]    vlapic Pointer to target vLAPIC data structure
+ * @param[inout] vecptr Pointer to vector buffer and will be filled with eligible vector if any.
+ *
+ * @return Returns true if There is deliverable vecto on the given vlapic,
+ *         otherwise, returns false.
+ *
+ * @remark The vector does not automatically transition to the ISR as a
+ *	       result of calling this function.
+ *	       This function is only for case that APICv/VID is NOT supported.
+ */
+static bool vlapic_find_deliverable_intr(const struct acrn_vlapic *vlapic, uint32_t *vecptr)
+{
+	const struct lapic_regs *lapic = &(vlapic->apic_page);
+	uint32_t vec;
+	bool ret = false;
+
+	vec = vlapic_find_highest_irr(vlapic);
+	if (prio(vec) > prio(lapic->ppr.v)) {
+		ret = true;
+		if (vecptr != NULL) {
+			*vecptr = vec;
+		}
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Move a deliverable virtual interrupt from vIRR to vISR.
+ *
+ * This function clear corresponding bit in vIRR and set corresponding bit in vISR
+ * for given interrupt vector number, caches the vector number and updates vPPR.
+ *
+ * @param[in] vlapic Pointer to target vLAPIC data structure
+ * @param[in] vector Target virtual interrupt vector
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @remark N/A
+ */
+static void vlapic_get_deliverable_intr(struct acrn_vlapic *vlapic, uint32_t vector)
+{
+	struct lapic_regs *lapic = &(vlapic->apic_page);
+	struct lapic_reg *irrptr, *isrptr;
+	uint32_t idx;
+
+	/*
+	 * clear the ready bit for vector being accepted in irr
+	 * and set the vector as in service in isr.
+	 */
+	idx = vector >> 5U;
+
+	irrptr = &lapic->irr[0];
+	bitmap32_clear_lock((uint16_t)(vector & 0x1fU), &irrptr[idx].v);
+
+	isrptr = &lapic->isr[0];
+	bitmap32_set_nolock((uint16_t)(vector & 0x1fU), &isrptr[idx].v);
+
+	vlapic->isrv = vector;
+
+	/*
+	 * Update the PPR
+	 */
+	vlapic_update_ppr(vlapic);
+}
+
+/**
+ * @brief Accepts an interrupt with the specified vector and trigger level for vlapic
+ *        supporting APICv basic features.
+ *
+ * This function handles interrupt acceptance for a vlapic that utilizes APICv basic
+ * features only.
+ *
+ * It sets corresponding bit vIRR register for given vector number and if this set operation
+ * is successful:
+ *
+ * - This function updates the Trigger Mode Register (TMR) to reflect the current trigger level
+ *   of the interrupt.
+ * - It makes a request to the virtual CPU (vCPU) to evaluate the interrupt on next VM entry
+ *   by calling vcpu_make_request function.
+ *
+ * @param[inout] vlapic  Pointer to the vlapic structure.
+ * @param[in] vector     Interrupt vector to be handled. Must be a valid interrupt number
+ *                       greater than 15.
+ * @param[in] level      Boolean value indicating trigger mode of the interrupt, true for
+ *                       level-triggered interrupts false for edge-triggered interrupts.
+ *
+ * @return None
+ *
+ * @pre vector >= 16
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static void apicv_basic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
+{
+	struct lapic_regs *lapic;
+	struct lapic_reg *irrptr;
+	uint32_t idx;
+
+	lapic = &(vlapic->apic_page);
+	idx = vector >> 5U;
+	irrptr = &lapic->irr[0];
+
+	/* If the interrupt is set, don't try to do it again */
+	if (!bitmap32_test_and_set_lock((uint16_t)(vector & 0x1fU), &irrptr[idx].v)) {
+		/* update TMR if interrupt trigger mode has changed */
+		vlapic_set_tmr(vlapic, vector, level);
+		vcpu_make_request(vlapic2vcpu(vlapic), ACRN_REQUEST_EVENT);
+	}
+}
+
+/**
+ * @brief Inject a pending interrupt into a virtual LAPIC with only basic APICv features support.
+ *
+ * This function injects a pending interrupt to specified vlapic if local interrupt of
+ * corresponding vCPU is not blocked and there is no injected vector in VM-entry
+ * interruption-information field:
+ *
+ * - Update virtual PPR(Processor Priority Register) in virtual LAPIC page.
+ * - Find a deliverable virtual interrupts from virtual IRR(Interrupt Request Register) in virtual
+ *   LAPIC page.
+ * - Inject interrupt to virtual LAPIC following 26.8.3 VM-Entry Controls for Event Injection,
+ *   Volume 3, Intel SDM 25462-087US.
+ * - Update virtual IRR and virtual ISR(In Service Register) in virtual LAPIC page.
+ *
+ * Update TPR threshold according to 28.2.1.1 VM-Execution Control Fields, Volume 3,
+ * Intel SDM 25462-087US.
+ *
+ * @param[in] vlapic             Pointer to the virtual LAPIC structure.
+ * @param[in] guest_irq_enabled  Boolean value indicating whether local interrupt of a vCPU
+ *                               is blocked.
+ * @param[in] injected           Boolean value indicating whether a vector has been injected.
+ *
+ * @return None.
+ *
+ * @pre vlapic != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static void apicv_basic_inject_intr(struct acrn_vlapic *vlapic,
+		bool guest_irq_enabled, bool injected)
+{
+	uint32_t vector = 0U;
+
+	if (guest_irq_enabled && (!injected)) {
+		vlapic_update_ppr(vlapic);
+		if (vlapic_find_deliverable_intr(vlapic, &vector)) {
+			exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, VMX_INT_INFO_VALID | vector);
+			vlapic_get_deliverable_intr(vlapic, vector);
+		}
+	}
+
+	vlapic_update_tpr_threshold(vlapic);
+}
+
+/**
+ * @brief Check if there are any pending deliverable interrupts on given virtual CPU supporting
+ *        basic APICv features only.
+ *
+ * - It updates the PPR based on the current values of the Task Priority Register (TPR)
+ *   and the highest-priority vector in the In-Service Register (ISR) following section
+ *   12.8.3.1 Task and Processor Priorities, Volume 3, Intel SDM 325462-087US.
+ *
+ * - Then it retrieves vector number for the highest-priority bit set in the IRR in LAPIC page,
+ *   and validate if it is deliverable by comparing the priority of it with virtual PPR.
+ *
+ * - If above interrupt is deliverable, it makes a request to the virtual CPU (vCPU) to evaluate
+ *   the interrupt on next VM entry by calling vcpu_make_request function.
+ *
+ * @param[in] vcpu pointer to the virtual CPU structure.
+ *
+ * @return Return true if there is pending deliverable interrupts on given vCPU,
+ *         otherwise return false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_basic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
+{
+	uint32_t vector;
+	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
+
+	vlapic_update_ppr(vlapic);
+
+	/* check and raise request if we have a deliverable irq in LAPIC IRR */
+	if (vlapic_find_deliverable_intr(vlapic, &vector)) {
+		/* we have pending IRR */
+		vcpu_make_request(vcpu, ACRN_REQUEST_EVENT);
+	}
+
+	return vcpu->arch.pending_req != 0UL;
+}
+
+/**
+ * @brief Check if there are any pending interrupts on given virtual CPU, with basic APICv
+ *        is supported.
+ *
+ * This function checks if there is any bits set in all vIRR registers in virtual-APIC page, which
+ * means there are interrupt(s) pending on current vlapic and return true if yes.
+ *
+ * @param[in] vcpu pointer to the virtual CPU structure.
+ *
+ * @return Return true if there is pending interrupts on given vCPU, otherwise return false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_basic_has_pending_intr(struct acrn_vcpu *vcpu)
+{
+	return vlapic_find_highest_irr(vcpu_vlapic(vcpu)) != 0UL;
+}
+
+/**
+ * @brief Verify if a read operation is permitted for a given register offset in virtual-APIC
+ *        with x2APIC mode supporting basic APICv features only.
+ *
+ *  Reading LAPIC registers except below ones are allowed:
+ * - APIC_OFFSET_DFR
+ * - APIC_OFFSET_ICR_HI
+ *
+ * @param[in] offset The offset of the LAPIC MSR in the APIC register page.
+ *
+ * @return true if the register with given offset can be read, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_basic_x2apic_read_msr_may_valid(uint32_t offset)
+{
+	return (offset != APIC_OFFSET_DFR) && (offset != APIC_OFFSET_ICR_HI);
+}
+
+/**
+ * @brief Verify if a write operation is permitted for a given register offset in virtual-APIC
+ *        with x2APIC mode supporting basic APICv features only.
+ *
+ *  Writing LAPIC registers except below ones are allowed:
+ * - APIC_OFFSET_DFR
+ * - APIC_OFFSET_ICR_HI
+ *
+ * @param[in] offset The offset of the LAPIC MSR in the APIC register page.
+ *
+ * @return true if the register with given offset can be programmed, false otherwise.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+static bool apicv_basic_x2apic_write_msr_may_valid(uint32_t offset)
+{
+	return (offset != APIC_OFFSET_DFR) && (offset != APIC_OFFSET_ICR_HI);
+}
+
+/**
+ * @brief Check if there are any pending deliverable interrupts on given virtual CPU.
+ *
+ * This API checks if there are any pending deliverable interrupts on the virtual LAPIC, by calling
+ * APICv `has_pending_delivery_intr` callback function.
+ *
+ * - APIC Virtualization supporting basic APICv features only:  the callback function updates PPR,
+ *   then it retrieves vector number for the highest-priority bit set in the IRR in LAPIC page,
+ *   and validates if this interrupt is deliverable by comparing the priority of it with virtual PPR.
+ *
+ *   If above interrupt is deliverable, it makes a request to the virtual CPU (vCPU) to evaluate
+ *   the interrupt on next VM entry by calling vcpu_make_request function.
+ *
+ *  - APIC Virtualization supporting advanced APICv features: it always returns false.
+ *
+ *  - APIC pass-through case: it always returns false.
+ *
+ * @param[in] vcpu pointer to the virtual CPU structure.
+ *
+ * @return Return true if there is pending deliverable interrupts on given vCPU,
+ *         otherwise return false.
+ *
+ * @pre vcpu != NULL
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+bool vlapic_has_pending_delivery_intr(struct acrn_vcpu *vcpu)
+{
+	struct acrn_vlapic *vlapic = vcpu_vlapic(vcpu);
+
+	return vlapic->ops->has_pending_delivery_intr(vcpu);
+}
+
+/**
+ * @brief APICv operation set implementing basic APIC virtualization features.
+ *
+ * This structure defines a set of function pointers corresponding to basic APICv operations
+ * which supports basic APIC virtualization capabilities only as below to provide interrupt
+ * handling for vCPUs:
+ * - Virtualize APIC accesses
+ * - Use TPR shadow
+ * - Virtualize x2APIC mode
+ *
+ * Specifically, it initializes acrn_apicv_ops callback functions as below:
+ * - accept_intr  This callback function handles interrupt acceptance of a vlapic that utilizes
+ *                APICv basic APICv features.
+ *
+ *                It sets corresponding bit vIRR register for given vector number, and updates the
+ *                Trigger Mode Register (TMR) to reflect current trigger level of the interrupt.
+ *
+ *                Then, this callback function makes a request to the virtual CPU (vCPU) to evaluate
+ *                the interrupt on next VM entry by calling vcpu_make_request function.
+ *
+ * - inject_intr  This callback function injects a pending interrupt to specified vlapic if local
+ *                interrupt of corresponding vCPU is not blocked and there is no injected vector in
+ *                VM-entry interruption-information field:
+ *
+ *                It updates virtual PPR in virtual LAPIC page, and find a deliverable virtual
+ *                interrupts from virtual IRR in virtual LAPIC page.
+ *
+ *                Then it injects interrupt to virtual LAPIC following section
+ *                26.8.3 VM-Entry Controls for Event Injection, Volume 3, Intel SDM 25462-087US.
+ *                and updates virtual IRR and virtual ISR in virtual LAPIC page.
+ *
+ *                Finally it updates TPR threshold according to 28.2.1.1 VM-Execution Control Fields,
+ *                Volume 3, Intel SDM 25462-087US.
+ *
+ * - has_pending_delivery_intr   This callback function checks if there are any pending deliverable
+ *                               interrupts on given virtual CPU.
+ *
+ *                               It updates the PPR based on the priority of Task Priority Register
+ *                               (TPR) and the highest-priority vector in the In-Service Register
+ *                               (ISR) following section 12.8.3.1 Task and Processor Priorities,
+ *                               Volume 3, Intel SDM 325462-087US.
+ *
+ *                                Then it retrieves vector number for the highest-priority bit set
+ *                                in the IRR in LAPIC page, and validate if it is deliverable by
+ *                                comparing the priority of it with virtual PPR.
+ *
+ *                                If above interrupt is deliverable, it makes a request to the virtual
+ *                                CPU to evaluate the interrupt on next VM entry by calling
+ *                                vcpu_make_request function.
+ *
+ * - has_pending_intr  This callback function checks if there is any bits set in all vIRR registers in
+ *                     virtual-APIC page, which means there are interrupt(s) pending on current vlapic
+ *                     and return true if yes.
+ *
+ * - x2apic_read_msr_may_valid   This callback function verifies if a read operation is permitted
+ *                               for a given register offset in virtual-APIC page. Read on LAPIC
+ *                               registers except APIC_OFFSET_DFR and APIC_OFFSET_ICR_HI is emulated.
+ *
+ * - x2apic_write_msr_may_valid  This callback function verifies if a write operation is permitted
+ *                               for a given register offset in virtual-APIC page. Write on LAPIC
+ *                               regisers except APIC_OFFSET_DFR and APIC_OFFSET_ICR_HI is emulated.
+ *
+ * - reset  This callback function resets the APICv by calling apicv_reset function.
+ */
+static const struct acrn_apicv_ops apicv_basic_ops = {
+	.accept_intr = apicv_basic_accept_intr,
+	.inject_intr = apicv_basic_inject_intr,
+	.has_pending_delivery_intr = apicv_basic_has_pending_delivery_intr,
+	.has_pending_intr = apicv_basic_has_pending_intr,
+	.x2apic_read_msr_may_valid = apicv_basic_x2apic_read_msr_may_valid,
+	.x2apic_write_msr_may_valid = apicv_basic_x2apic_write_msr_may_valid,
+	.reset = apicv_reset,
+};
+#endif /* #ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT */
+
 /**
  * @brief APICv operation set implementing advanced APIC virtualization features.
  *
@@ -4364,6 +4798,32 @@ static const struct acrn_apicv_ops apicv_advanced_ops = {
 	.x2apic_write_msr_may_valid  = apicv_advanced_x2apic_write_msr_may_valid,
 	.reset = apicv_reset,
 };
+
+/**
+ * @brief Initialize global APICv operation callback function set.
+ *
+ * This global variable pointers to an instance of `struct acrn_apicv_ops`, and it is initialized
+ * with pointer to APICv operation set implementing advanced APIC virtualization features if it is
+ * supporeted on current hardware platform. Otherwise, it pointers to APICv operation set
+ * implementing basic APIC virtualization features.
+ *
+ * @return None.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ *
+ * @remark N/A
+ */
+void vlapic_set_apicv_ops(void)
+{
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+	apicv_ops = &apicv_basic_ops;
+#else
+	apicv_ops = &apicv_advanced_ops;
+#endif
+}
+
 /**
  * @}
  */

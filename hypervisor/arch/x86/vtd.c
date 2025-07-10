@@ -638,9 +638,13 @@ static int32_t register_hrhd_units(void)
 			break;
 		}
 
-		if ((iommu_cap_pi(drhd_rt->cap) == 0U)) {
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+		platform_caps.pi = false;
+#else
+		if (iommu_cap_pi(drhd_rt->cap) == 0U) {
 			platform_caps.pi = false;
 		}
+#endif
 	}
 
 	return ret;

@@ -114,6 +114,52 @@ static uint8_t get_exception_type(uint32_t vector)
 	return type;
 }
 
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+/**
+ * @brief Check whether local interrupt of a vCPU is blocked
+ *
+ * Check if the vCPU can respond to pending interrupts. CPU local interrupt is blocked if
+ * RFLAGS.IF is 0. Besides, following special situations also blocked local interrupt even if
+ * RFLAGS.IF is 1.
+ * - Previous instruction is STI with RFLAGS.IF=0, local interrupt is blocked even current
+ *   RFLAGS.IF=1
+ * - Previous instruction is a MOV to SS or a POP to SS.
+ *
+ * @param[in] vcpu     Pointer to a vCPU structure against which we check the local interrupt
+ *
+ * @return A boolean indicating whether local interrupt of a vCPU is enabled
+ * @retval true The vCPU can response to pending interrupts
+ * @retval false The vCPU can not response to pending interrupts
+ *
+ * @pre vcpu != NULL
+ */
+static bool is_guest_irq_enabled(struct acrn_vcpu *vcpu)
+{
+	uint64_t guest_rflags, guest_state;
+	bool status = false;
+
+	/* Read the RFLAGS of the guest */
+	guest_rflags = vcpu_get_rflags(vcpu);
+	/* Check the RFLAGS[IF] bit first */
+	if ((guest_rflags & HV_ARCH_VCPU_RFLAGS_IF) != 0UL) {
+		/* Interrupts are allowed */
+		/* Check for temporarily disabled interrupts */
+		guest_state = exec_vmread32(VMX_GUEST_INTERRUPTIBILITY_INFO);
+
+		if ((guest_state & (HV_ARCH_VCPU_BLOCKED_BY_STI |
+				    HV_ARCH_VCPU_BLOCKED_BY_MOVSS)) == 0UL) {
+			status = true;
+		}
+	}
+	return status;
+}
+#else
+static inline bool is_guest_irq_enabled(__unused struct acrn_vcpu *vcpu)
+{
+	return true;
+}
+#endif
+
 /**
  * @brief Check whether current vCPU can accept NMI
  *
@@ -542,6 +588,7 @@ int32_t external_interrupt_vmexit_handler(struct acrn_vcpu *vcpu)
  */
 int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 {
+	bool injected = false;
 	int32_t ret = 0;
 	struct acrn_vcpu_arch *arch = &vcpu->arch;
 	uint64_t *pending_req_bits = &arch->pending_req;
@@ -616,6 +663,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 			}
 
 			vcpu_inject_exception(vcpu);
+			injected = true;
 		} else {
 			/* inject NMI before maskable hardware interrupt */
 
@@ -625,6 +673,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 					/* Inject NMI vector = 2 */
 					exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD,
 							VMX_INT_INFO_VALID | (VMX_INT_TYPE_NMI << 8U) | IDT_NMI);
+					injected = true;
 				} else {
 					/* keep the NMI request for next vmexit */
 					bitmap_set_lock(ACRN_REQUEST_NMI, pending_req_bits);
@@ -640,6 +689,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 				if ((arch->idt_vectoring_info & VMX_INT_INFO_VALID) != 0U) {
 					exec_vmwrite32(VMX_ENTRY_INT_INFO_FIELD, arch->idt_vectoring_info);
 					arch->idt_vectoring_info = 0U;
+					injected = true;
 				}
 			}
 		}
@@ -650,7 +700,7 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 		 */
 		if (!is_lapic_pt_configured(vcpu->vm) && !vcpu->arch.emulating_lock) {
 			if (bitmap_test_and_clear_lock(ACRN_REQUEST_EVENT, pending_req_bits)) {
-				vlapic_inject_intr(vcpu_vlapic(vcpu));
+				vlapic_inject_intr(vcpu_vlapic(vcpu), is_guest_irq_enabled(vcpu), injected);
 			}
 		}
 
@@ -673,7 +723,12 @@ int32_t acrn_handle_pending_request(struct acrn_vcpu *vcpu)
 			 * so use interrupt window to inject NMI.
 			 * After enable virtual NMIs, we can use NMI-Window
 			 */
-			if (bitmap_test(ACRN_REQUEST_NMI, pending_req_bits)) {
+			if (bitmap_test(ACRN_REQUEST_NMI, pending_req_bits)
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+				|| vlapic_has_pending_delivery_intr(vcpu)
+#endif
+				) {
+
 				vcpu->arch.proc_vm_exec_ctrls |= VMX_PROCBASED_CTLS_IRQ_WIN;
 				exec_vmwrite32(VMX_PROC_VM_EXEC_CONTROLS, vcpu->arch.proc_vm_exec_ctrls);
 				arch->irq_window_enabled = true;
