@@ -637,30 +637,6 @@ static inline struct pi_desc *get_pi_desc(struct acrn_vcpu *vcpu)
 	return &(vcpu->arch.pid);
 }
 
-uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu);
-
-/* External Interfaces */
-uint64_t vcpu_get_gpreg(const struct acrn_vcpu *vcpu, uint32_t reg);
-void vcpu_set_gpreg(struct acrn_vcpu *vcpu, uint32_t reg, uint64_t val);
-uint64_t vcpu_get_rip(struct acrn_vcpu *vcpu);
-void vcpu_set_rip(struct acrn_vcpu *vcpu, uint64_t val);
-uint64_t vcpu_get_rsp(struct acrn_vcpu *vcpu);
-void vcpu_set_rsp(struct acrn_vcpu *vcpu, uint64_t val);
-uint64_t vcpu_get_efer(struct acrn_vcpu *vcpu);
-void vcpu_set_efer(struct acrn_vcpu *vcpu, uint64_t val);
-uint64_t vcpu_get_rflags(struct acrn_vcpu *vcpu);
-void vcpu_set_rflags(struct acrn_vcpu *vcpu, uint64_t val);
-uint64_t vcpu_get_guest_msr(const struct acrn_vcpu *vcpu, uint32_t msr);
-void vcpu_set_guest_msr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val);
-void vcpu_set_vmcs_eoi_exit(const struct acrn_vcpu *vcpu);
-void vcpu_reset_eoi_exit_bitmaps(struct acrn_vcpu *vcpu);
-void vcpu_set_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector);
-void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector);
-void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs);
-bool sanitize_cr0_cr4_pattern(struct acrn_vm *vm);
-void init_vcpu_protect_mode_regs(struct acrn_vcpu *vcpu, uint64_t vgdt_base_gpa);
-void set_vcpu_startup_entry(struct acrn_vcpu *vcpu, uint64_t entry);
-
 /**
  * @brief Check whether target vCPU is in 64bit long-mode
  *
@@ -728,11 +704,6 @@ static inline bool is_pae(struct acrn_vcpu *vcpu)
 	return (vcpu_get_cr4(vcpu) & CR4_PAE) != 0UL;
 }
 
-struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id);
-struct acrn_vcpu *get_ever_run_vcpu(uint16_t pcpu_id);
-
-void load_iwkey(struct acrn_vcpu *vcpu);
-
 /**
  * @brief Check whether target vCPU has enabled machine-check passthrough(PT)
  *
@@ -754,8 +725,6 @@ static inline bool is_mc_pt_enabled(struct acrn_vcpu *vcpu)
 {
 	return (vcpu->arch.mc_pt_enabled);
 }
-
-void vcpu_handle_pi_notification(uint32_t vcpu_index);
 
 /**
  * @brief VM-Exit entry
