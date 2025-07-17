@@ -30,6 +30,7 @@
 #include <asm/sgx.h>
 #ifdef HV_DEBUG
 #include <uart16550.h>
+#include <framebuffer.h>
 #endif
 #include <vpci.h>
 #include <ivshmem.h>
@@ -388,6 +389,7 @@ void init_pcpu_pre(bool is_bsp)
 		 * WARNING: DO NOT CALL PRINTF BETWEEN ENABLE PAGING IN init_paging AND HERE!
 		 */
 		uart16550_init(false);
+		fb_init(false);
 #endif
 
 		early_init_lapic();

@@ -70,6 +70,23 @@ static void mb2_efimmap_to_abi(struct acrn_boot_info *abi,
 	abi->uefi_info.memmap_hi = (uint32_t)(((uint64_t)mb2_tag_efimmap->efi_mmap) >> 32U);
 }
 
+#ifdef HV_DEBUG
+/**
+ * @pre abi != NULL && mb2_tag_framebuffer != NULL
+ */
+static void mb2_framebuffer_to_abi(struct acrn_boot_info *abi,
+			const struct multiboot2_tag_framebuffer_info *mb2_tag_framebuffer)
+{
+	void *fb_info = (uint8_t *)mb2_tag_framebuffer + 8U;
+	void *fb_color = (uint8_t *)mb2_tag_framebuffer + sizeof(struct multiboot_framebuffer_info) + 10U;
+
+	abi->framebuffer_info = *(struct multiboot_framebuffer_info *)fb_info;
+	if (abi->framebuffer_info.type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
+		abi->framebuffer_color = *(struct multiboot_framebuffer_color *)fb_color;
+	}
+}
+#endif
+
 /**
  * @pre abi != NULL
  */
@@ -115,6 +132,11 @@ int32_t multiboot2_to_acrn_bi(struct acrn_boot_info *abi, void *mb2_info)
 		case MULTIBOOT2_TAG_TYPE_EFI_MMAP:
 			mb2_efimmap_to_abi(abi, (const struct multiboot2_tag_efi_mmap *)mb2_tag);
 			break;
+#ifdef HV_DEBUG
+		case MULTIBOOT2_TAG_TYPE_FRAMEBUFFER:
+			mb2_framebuffer_to_abi(abi, (const struct multiboot2_tag_framebuffer_info *)mb2_tag);
+			break;
+#endif
 		default:
 			if (mb2_tag->type > MULTIBOOT2_TAG_TYPE_LOAD_BASE_ADDR) {
 				ret = -EINVAL;

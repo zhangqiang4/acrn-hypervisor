@@ -12,6 +12,7 @@
 #include <ticks.h>
 #ifdef HV_DEBUG
 #include <console.h>
+#include <framebuffer.h>
 #include <npk_log.h>
 #endif
 
@@ -183,6 +184,10 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 		/* Check whether output to stdout */
 		if (console_need_log(severity)) {
 			console_log(buffer);
+			/* framebuffer output shares the same loglevel with console */
+			if (fb_need_log()) {
+				fb_log(buffer);
+			}
 		}
 
 		/* Check whether output to NPK */

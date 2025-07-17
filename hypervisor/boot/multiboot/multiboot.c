@@ -92,6 +92,13 @@ static int32_t multiboot_to_acrn_bi(struct acrn_boot_info *abi, void *mb_info) {
 		abi->mods_count = 0U;
 	}
 
+#ifdef HV_DEBUG
+	if ((mbi->mi_flags & MULTIBOOT_INFO_HAS_FRAMEBUFFER) != 0U) {
+		abi->framebuffer_info = mbi->mi_framebuffer_info;
+		abi->framebuffer_color = mbi->mi_framebuffer_color;
+	}
+#endif
+
 	return 0;
 }
 

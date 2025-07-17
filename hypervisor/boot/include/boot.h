@@ -204,6 +204,10 @@ struct acrn_boot_info {
 
 	const void *acpi_rsdp_va;                       /**< Virtual address of ACPI RSDP. */
 	struct efi_info uefi_info;                      /**< UEFI information. */
+#ifdef HV_DEBUG
+	struct multiboot_framebuffer_info framebuffer_info; /**< framebuffer basic information. */
+	struct multiboot_framebuffer_color framebuffer_color; /**< framebuffer color information. */
+#endif
 };
 
 /**

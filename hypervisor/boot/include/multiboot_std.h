@@ -144,6 +144,21 @@
  */
 #define	MULTIBOOT_INFO_HAS_LOADER_NAME			0x00000200U
 
+#ifdef HV_DEBUG
+/**
+ * @brief Multiboot Information Has framebuffer Flag
+ *
+ * This macro defines a flag used in the Multiboot information structure to indicate
+ * that the framebuffer is available. When the flag is available, hypervisor log can be
+ * displayed on screen, which can be used by the hypervisor debug purpose.
+ *
+ * The flag is represented by the value `0x00001000U`. It is used as part of the
+ * `mi_flags` field in the Multiboot information structure to specify the presence
+ * of the framebuffer.
+ */
+#define	MULTIBOOT_INFO_HAS_FRAMEBUFFER                  0x00001000U
+#endif
+
 /* Unused MULTIBOOT INFO FLAGS:
  * #define MULTIBOOT_INFO_HAS_MEMINFO			0x00000001U
  * #define MULTIBOOT_INFO_HAS_BOOTDEV			0x00000002U
@@ -153,7 +168,6 @@
  * #define MULTIBOOT_INFO_HAS_CONFIG_TABLE		0x00000100U
  * #define MULTIBOOT_INFO_HAS_APM_TABLE			0x00000400U
  * #define MULTIBOOT_INFO_HAS_VBE_INFO			0x00000800U
- * #define MULTIBOOT_INFO_HAS_FB_INFO			0x00001000U
  */
 
 #ifndef ASSEMBLER
@@ -296,6 +310,73 @@ struct multiboot_mmap {
 	uint64_t length;     /**< Length of the memory region in bytes. */
 	uint32_t type;       /**< Type of the memory region. */
 } __packed;
+
+#ifdef HV_DEBUG
+/**
+ * @brief Multiboot Framebuffer Structure
+ *
+ * This structure defines framebuffer basic info, including addr, pitch, width, height,
+ * bpp, type of framebuffer.
+ *
+ * @remark This structure shall be packed.
+ */
+struct multiboot_framebuffer_info {
+	uint64_t        addr;    /**< Physical address of framebuffer. */
+	uint32_t        pitch;   /**< Framebuffer pitch in bytes. */
+	uint32_t        width;   /**< Framebuffer width in pixels. */
+	uint32_t        height;  /**< Framebuffer height in pixels. */
+	uint8_t         bpp;     /**< The number of bits per pixel. */
+	uint8_t         type;    /**< Framebuffer format. */
+} __packed;
+
+/**
+ * @brief Multiboot Framebuffer color Structure
+ *
+ * This structure defines framebuffer color info, including red/green/blue position and
+ * mask size.
+ *
+ * @remark This structure shall be packed.
+ */
+struct multiboot_framebuffer_color {
+	uint8_t         red_position;      /**< The bit position of the red in a pixel. */
+	uint8_t         red_mask_size;     /**< The number of bits used for the red. */
+	uint8_t         green_position;    /**< The bit position of the green in a pixel. */
+	uint8_t         green_mask_size;   /**< The number of bits used for the green. */
+	uint8_t         blue_position;     /**< The bit position of the blue in a pixel. */
+	uint8_t         blue_mask_size;    /**< The number of bits used for the blue. */
+} __packed;
+
+/**
+ * @brief Multiboot Framebuffer Indexed Color Type
+ *
+ * This macro defines a framebuffer type for indexed color, which refers to a color mode
+ * where pixel values are not direct RGB values but rather indices into a color palette.
+ */
+#define MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED     0
+/**
+ * @brief Multiboot Framebuffer RGB Color Type
+ *
+ * This macro defines a framebuffer type for rgb color, which refers to a color mode
+ * where each pixel's color is directly represented by its red, green, and blue components.
+ */
+#define MULTIBOOT_FRAMEBUFFER_TYPE_RGB         1
+/**
+ * @brief Multiboot Framebuffer EGA Text Type
+ *
+ * This macro defines a framebuffer type for EGA Text, which refers to a text mode rather
+ * than a graphical framebuffer mode.
+ */
+#define MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT    2
+
+struct multiboot2_tag_framebuffer_info
+{
+	uint32_t	type;
+	uint32_t	size;
+	struct multiboot_framebuffer_info framebuffer_info;
+	uint16_t	reserved;
+	struct multiboot_framebuffer_color framebuffer_color;
+};
+#endif
 
 /**
  * @brief Multiboot Module Structure
@@ -458,6 +539,18 @@ struct multiboot_info {
 	uint16_t unused_mi_vbe_interface_seg;/**< Reserved for future use. */
 	uint16_t unused_mi_vbe_interface_off;/**< Reserved for future use. */
 	uint16_t unused_mi_vbe_interface_len;/**< Reserved for future use. */
+
+#ifdef HV_DEBUG
+	/**
+	 * @defgroup MULTIBOOT_INFO_HAS_FRAMEBUFFER Fields related to MULTIBOOT_INFO_HAS_FRAMEBUFFER
+	 * @brief Valid if MULTIBOOT_INFO_HAS_FRAMEBUFFER flag is set in the Multiboot Info mi_flags.
+	 *
+	 * @{
+	 */
+	struct multiboot_framebuffer_info mi_framebuffer_info; /**< Framebuffer basic info. */
+	struct multiboot_framebuffer_color mi_framebuffer_color; /**< Framebuffer color info. */
+#endif
+
 	/**
 	 * @}
 	 */
@@ -571,6 +664,7 @@ struct multiboot2_tag_efi_mmap {
 	uint32_t	descr_vers;
 	uint8_t		efi_mmap[0];
 };
+
 #endif
 
 #endif /* CONFIG_MULTIBOOT2 */

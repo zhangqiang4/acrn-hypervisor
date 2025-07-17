@@ -9,6 +9,7 @@
 #include <asm/per_cpu.h>
 #ifdef HV_DEBUG
 #include <console.h>
+#include <framebuffer.h>
 #include <shell.h>
 #endif
 #include <asm/vmx.h>
@@ -74,7 +75,7 @@ extern bool platform_s3_resume;
 #ifdef HV_DEBUG
 /*TODO: move into debug module */
 /**
- * @brief Initializes debug related stuff (console) before switching to runtime stack.
+ * @brief Initializes debug related stuff (framebuffer, console) before switching to runtime stack.
  *
  * @return None
  *
@@ -86,6 +87,8 @@ static void init_debug_pre(void)
 {
 	/* Initialize console */
 	console_init();
+	/* Initialize framebuffer */
+	fb_init(true);
 }
 
 /*TODO: move into debug module */
