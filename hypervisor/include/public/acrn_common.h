@@ -212,6 +212,13 @@ static inline enum vlapic_reset_mode reset_mode_vcpu2vlapic(enum vcpu_reset_mode
 #define GUEST_FLAG_LOCKED_IN_XAPIC  (1UL << 16U)
 
 /**
+ * @brief Whether the VM is a Windows VM.
+ *
+ * Hyper-V features are only exposed to the Windows VM.
+ */
+#define GUEST_FLAG_WINDOWS  (1UL << 17U)
+
+/**
  * @brief Whether the vCPU supports vHWP
  */
 #define GUEST_CPU_FEATURE_VHWP		(1UL << 0U)

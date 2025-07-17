@@ -15,6 +15,7 @@ class GuestFlagPolicy(namedtuple("GuestFlagPolycy", ["condition", "guest_flag"])
     pass
 
 policies = [
+    GuestFlagPolicy(".//os_type = 'Windows OS'", "GUEST_FLAG_WINDOWS"),
     GuestFlagPolicy(".//locked_in_xapic = 'y'", "GUEST_FLAG_LOCKED_IN_XAPIC"),
     GuestFlagPolicy(".//lapic_passthrough = 'y'", "GUEST_FLAG_LAPIC_PASSTHROUGH"),
     GuestFlagPolicy(".//io_completion_polling = 'y'", "GUEST_FLAG_IO_COMPLETION_POLLING"),

@@ -42,6 +42,9 @@
 #include <asm/e820.h>
 #include <asm/vm_config.h>
 #include <io_req.h>
+#ifdef CONFIG_HYPERV_ENABLED
+#include <asm/guest/hyperv.h>
+#endif
 
 /**
  * @brief Hardware information of a VM
@@ -166,6 +169,10 @@ struct vm_arch {
 	struct acrn_vioapics vioapics;	/**< Virtual IOAPIC structure */
 
 	struct acrn_vmtrr vmtrr;	/**< VMTRR structure */
+
+#ifdef CONFIG_HYPERV_ENABLED
+	struct acrn_hyperv hyperv;	/**< Hyper-V structure */
+#endif
 
 	/**
 	 * @brief IWKey backup status
@@ -456,6 +463,10 @@ struct acrn_vm *get_highest_severity_vm(bool runtime);
 bool is_mc_pt_configured(const struct acrn_vm *vm);
 void get_vm_lock(struct acrn_vm *vm);
 void put_vm_lock(struct acrn_vm *vm);
+
+#ifdef CONFIG_HYPERV_ENABLED
+bool is_windows_vm(const struct acrn_vm *vm);
+#endif
 
 #endif /* !ASSEMBLER */
 

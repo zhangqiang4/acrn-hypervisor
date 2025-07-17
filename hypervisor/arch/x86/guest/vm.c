@@ -290,6 +290,15 @@ bool is_prelaunched_vm(const struct acrn_vm *vm)
 	return (vm_config->load_order == PRE_LAUNCHED_VM);
 }
 
+#ifdef CONFIG_HYPERV_ENABLED
+bool is_windows_vm(const struct acrn_vm *vm)
+{
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
+
+	return ((vm_config->guest_flags & GUEST_FLAG_WINDOWS) != 0U);
+}
+#endif
+
 /**
  * @brief Checks if a VM has configured Local APIC passthrough.
  *
@@ -1359,6 +1368,10 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 	if (mask != 0UL) {
 		ret = online_lapic_pt_pcpus(mask);
 	}
+
+#ifdef CONFIG_HYPERV_ENABLED
+	hyperv_page_destory(vm);
+#endif
 
 	/* after guest_flags not used, then clear it */
 	vm_config = get_vm_config(vm->vm_id);

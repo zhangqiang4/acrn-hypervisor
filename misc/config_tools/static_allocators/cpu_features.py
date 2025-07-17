@@ -18,7 +18,7 @@ def check_hwp(vm_id, board_etree, scenario_etree, allocation_etree):
     vm_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']", scenario_etree)
     load_order = vm_node.find("load_order").text
     if (lib.lib.is_service_vm(load_order) or \
-        (get_node(".//own_pcpu/text()", vm_node) == "y" and get_node(".//os_type/text()", vm_node) != "Windows OS")):
+        (get_node(".//own_pcpu/text()", vm_node) == "y")):
             return True
     return False
 
