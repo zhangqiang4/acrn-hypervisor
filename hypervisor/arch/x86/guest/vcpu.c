@@ -1594,6 +1594,17 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 	vcpu_set_state(vcpu, VCPU_OFFLINE);
 }
 
+void online_vcpu(struct acrn_vcpu *vcpu)
+{
+	vlapic_create(vcpu, pcpuid_from_vcpu(vcpu));
+	per_cpu(ever_run_vcpu, pcpuid_from_vcpu(vcpu)) = vcpu;
+
+	/* This operation must be atomic to avoid contention with posted interrupt handler */
+	per_cpu(vcpu_array, pcpuid_from_vcpu(vcpu))[vcpu->vm->vm_id] = vcpu;
+
+	reset_vcpu(vcpu, VCPU_COLD_RESET);
+}
+
 /**
  * @brief Kick vCPU out of non-root mode
  *

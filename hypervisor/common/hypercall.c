@@ -135,6 +135,8 @@ bool is_hypercall_from_ring0(void)
 	return ret;
 }
 
+static spinlock_t vcpu_hotplug_lock = { .head = 0U, .tail = 0U, };
+
 /**
  * @brief Handle hypercall to offline a vCPU from Service VM.
  *
@@ -174,8 +176,9 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 	int32_t ret = 0;
 	uint32_t lapicid = (uint32_t)param1;
 
-	pr_fatal("Service VM offline cpu with lapicid %d", lapicid);
+	pr_info("Service VM offline cpu with lapicid %d", lapicid);
 
+	spinlock_obtain(&vcpu_hotplug_lock);
 	foreach_vcpu(i, vcpu->vm, target_vcpu) {
 		if (vlapic_get_apicid(vcpu_vlapic(target_vcpu)) == lapicid) {
 			uint64_t mask = 0UL;
@@ -196,9 +199,39 @@ int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, __unused struct acr
 			start_pcpus(mask);
 		}
 	}
+	spinlock_release(&vcpu_hotplug_lock);
 
 	return ret;
 }
+
+int32_t hcall_service_vm_online_cpu(struct acrn_vcpu *vcpu, __unused struct acrn_vm *target_vm,
+		uint64_t param1, __unused uint64_t param2)
+{
+	struct acrn_vm *service_vm = vcpu->vm;
+	uint16_t i;
+	int32_t ret = -EINVAL;
+	uint32_t lapicid = (uint32_t)param1;
+
+	pr_info("Service VM online cpu with lapicid %d", lapicid);
+
+	spinlock_obtain(&vcpu_hotplug_lock);
+	for (i = 0U; i < service_vm->hw.created_vcpus; i++) {
+		struct acrn_vcpu *target_vcpu = &(service_vm->hw.vcpu_array[i]);
+		uint16_t target_pcpu = pcpuid_from_vcpu(target_vcpu);
+
+		if ((get_ever_run_vcpu(target_pcpu) == NULL) &&
+		    (vlapic_get_apicid(vcpu_vlapic(target_vcpu)) == lapicid)) {
+			pr_acrnlog("Found target Service VM vCPU %u, pCPU %u, LAPIC ID %u",
+				   target_vcpu->vcpu_id, target_pcpu, lapicid);
+			online_vcpu(target_vcpu);
+			ret = 0;
+		}
+	}
+	spinlock_release(&vcpu_hotplug_lock);
+
+	return ret;
+}
+
 
 /**
  * @brief Handle hypercall to create a virtual machine (VM).

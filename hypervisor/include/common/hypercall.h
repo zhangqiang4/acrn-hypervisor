@@ -28,6 +28,9 @@ int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu);
 int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1,
 		 uint64_t param2);
 
+int32_t hcall_service_vm_online_cpu(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1,
+		 uint64_t param2);
+
 int32_t hcall_create_vm(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
 
 int32_t hcall_destroy_vm(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);

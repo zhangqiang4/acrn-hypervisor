@@ -75,6 +75,10 @@
  * @brief Hypercall to set the callback vector.
  */
 #define HC_SET_CALLBACK_VECTOR      BASE_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x02UL)
+/**
+ * @brief Hypercall to assign a CPU back to Service OS.
+ */
+#define HC_SERVICE_VM_ONLINE_CPU    BASE_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x03UL)
 
 /* VM management */
 #define HC_ID_VM_BASE               0x10UL  /**< Base offset for VM management hypercalls. */

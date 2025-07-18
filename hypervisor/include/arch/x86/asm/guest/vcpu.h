@@ -513,6 +513,7 @@ void load_iwkey(struct acrn_vcpu *vcpu);
 
 int32_t run_vcpu(struct acrn_vcpu *vcpu);
 void offline_vcpu(struct acrn_vcpu *vcpu);
+void online_vcpu(struct acrn_vcpu *vcpu);
 void reset_vcpu(struct acrn_vcpu *vcpu, enum vcpu_reset_mode mode);
 void zombie_vcpu(struct acrn_vcpu *vcpu);
 void launch_vcpu(struct acrn_vcpu *vcpu);

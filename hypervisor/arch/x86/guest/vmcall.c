@@ -69,6 +69,8 @@ struct hc_dispatch {
 static const struct hc_dispatch hc_dispatch_table[] = {
 	[HC_IDX(HC_SERVICE_VM_OFFLINE_CPU)] = {
 		.handler = hcall_service_vm_offline_cpu},	/**< Handler for HC_SERVICE_VM_OFFLINE_CPU hypercall */
+	[HC_IDX(HC_SERVICE_VM_ONLINE_CPU)] = {
+		.handler = hcall_service_vm_online_cpu},	/**< Handler for HC_SERVICE_VM_ONLINE_CPU hypercall */
 	[HC_IDX(HC_SET_CALLBACK_VECTOR)] = {
 		.handler = hcall_set_callback_vector},		/**< Handler for HC_SET_CALLBACK_VECTOR hypercall */
 	[HC_IDX(HC_CREATE_VM)] = {
@@ -213,6 +215,7 @@ static struct acrn_vm *parse_target_vm(struct acrn_vm *service_vm, uint64_t hcal
 		}
 		break;
 	case HC_SERVICE_VM_OFFLINE_CPU:
+	case HC_SERVICE_VM_ONLINE_CPU:
 	case HC_SET_CALLBACK_VECTOR:
 #ifdef HV_DEBUG
 	case HC_SETUP_HV_NPK_LOG:
