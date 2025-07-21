@@ -134,15 +134,20 @@ struct shell {
 #define SHELL_CMD_VMEXIT_HELP		"profiling vmexit, use: vmexit [clear | enable | disable | vm_id] disabled by default"
 
 #define SHELL_CMD_DUMP_PCI		"dump_pci"
-#define SHELL_CMD_DUMP_PCI_PARAM	"[-vm_id <vm_id>] <bdf, offset, length>"
-#define SHELL_CMD_DUMP_PCI_HELP		"Dump PCI Configuration Space of designated device (BDF), starting at a given offset(Hex), "\
-					"and for a given length (Dec in bytes, multiple of 4 bytes). The offset must align with 4 bytes. Without '-vm_id' "\
-					"to dump physical devices, -vm_id <vm_id> to dump VM's devices, vm_id(Dec)."
+#define SHELL_CMD_DUMP_PCI_PARAM	"[-vm_id <vm_id>] <bdf> <offset> <length>"
+#define SHELL_CMD_DUMP_PCI_HELP		"Dump the PCI Configuration Space of the specified device (by BDF), "\
+					"starting at a given offset (in hexadecimal), and for a specified "\
+					"length (in decimal, must be a multiple of 4 bytes). The offset must "\
+					"be 4-byte aligned. Without '-vm_id', it dumps physical devices; "\
+					"with '-vm_id <vm_id>' (in decimal), it dumps the PCI devices "\
+					"assigned to the specified VM."
 
-#define SHELL_CMD_LSPCI		"lspci"
+#define SHELL_CMD_LSPCI			"lspci"
 #define SHELL_CMD_LSPCI_PARAM		"[-vm_id <vm_id>]"
-#define SHELL_CMD_LSPCI_HELP		"List BDF of PCI devices, without paramemter to get physical devices, -vm_id <vm_id> to get "\
-					"VM's devices, vm_id(Dec). The virtual device correpsonding physical device BDF will be shown too."
+#define SHELL_CMD_LSPCI_HELP		"List BDFs of PCI devices. Without any parameter, it lists physical "\
+					"devices. Use '-vm_id <vm_id>' (where vm_id is in decimal) to list "\
+					"the PCI devices assigned to a specific VM. For virtual devices, "\
+					"the corresponding physical device BDF will also be shown."
 
 int64_t strtol_deci(const char *nptr);
 #endif /* SHELL_PRIV_H */

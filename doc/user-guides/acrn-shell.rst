@@ -63,6 +63,15 @@ Here's the list of commands supported by the ACRN shell, followed by example use
    * - wrmsr [-p<pcpu_id>] <msr_index> <value>
      - Write ``value`` (in hexadecimal) to the model-specific register (MSR) at
        index ``msr_index`` (in hexadecimal) for CPU ID ``pcpu_id``.
+   * - lspci [-vm_id <vm_id>]
+     - List BDFs of PCI devices. Without any parameter, it lists physical devices. Use '-vm_id <vm_id>'
+       (where vm_id is in decimal) to list the PCI devices assigned to a specific VM. For virtual devices,
+       the corresponding physical device BDF will also be shown.
+   * - dump_pci [-vm_id <vm_id>] <bdf> <offset> <length>
+     - Dump the PCI Configuration Space of the specified device (by BDF), starting at a given offset (in hexadecimal),
+       and for a specified length (in decimal, must be a multiple of 4 bytes). The offset must be 4-byte aligned.
+       Without '-vm_id', it dumps physical devices; with '-vm_id <vm_id>' (in decimal), it dumps the PCI devices
+       assigned to the specified VM.
 
 Command Examples
 ****************
@@ -261,3 +270,33 @@ In the following example, we can set the IA32_APIC_BASE value of pCPU 1 through
 the command::
 
    wrmsr -p1 1b 0xfee00c00
+
+lspci
+=====
+
+We can list BDF of PCI devices through ``lspci [-vm_id <vm_id>]``.
+
+.. figure:: images/shell_image21.png
+   :align: center
+
+   lspci physical devices
+
+.. figure:: images/shell_image22.png
+   :align: center
+
+   lspci virtual devices
+
+dump_pci
+========
+
+We can dump PCI Configuration Space through ``dump_pci [-vm_id <vm_id>] <bdf> <offset> <length>``.
+
+.. figure:: images/shell_image23.png
+   :align: center
+
+   dump_pci physical device configuration space
+
+.. figure:: images/shell_image24.png
+   :align: center
+
+   dump_pci virtual device configuration space
