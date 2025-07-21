@@ -340,6 +340,8 @@ void flush_cache_range(const volatile void *p, uint64_t size);
 void allocate_ppt_pages(void);
 #ifdef HV_DEBUG
 void get_high64_ram(uint64_t *high_min, uint64_t *high_max);
+void early_pgtable_identical_map(void *pdpte_page, void *pde_page, uint64_t addr,
+		uint64_t size, uint64_t prot);
 #endif
 
 #endif /* ASSEMBLER not defined */

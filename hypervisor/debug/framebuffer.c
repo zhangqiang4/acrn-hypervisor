@@ -277,10 +277,12 @@ void fb_log(char *buffer)
 	spinlock_irqrestore_release(&framebuffer_log_lock, rflags);
 }
 
+static uint8_t fb_pde_page[PAGE_SIZE]__aligned(PAGE_SIZE);
+static uint8_t fb_pdpte_page[PAGE_SIZE]__aligned(PAGE_SIZE);
+
 void fb_init(bool early_boot)
 {
 	struct acrn_boot_info *abi = get_acrn_boot_info();
-	uint64_t fb_end = 0UL;
 	static bool is_fb_valid = false;
 	const char *cmd_src = abi->cmdline;
 
@@ -309,14 +311,13 @@ void fb_init(bool early_boot)
 			fb_color = abi->framebuffer_color;
 			default_font_pixel = fb_output_pixel(font_color);
 			default_bg_pixel = fb_output_pixel(bg_color);
-			if (abi->framebuffer_info.addr < MEM_4G) {
-				fb_addr = hpa2hva_early(abi->framebuffer_info.addr);
-				fb_end = (uint64_t)fb_addr + fb_y * fb_pitch;
-				if (fb_end < MEM_4G) {
-					memset(fb_addr, 0x0U, fb_y * fb_pitch);
-					fb_is_open = true;
-				}
-			}
+			if (abi->framebuffer_info.addr >= MEM_4G)
+				early_pgtable_identical_map(fb_pdpte_page, fb_pde_page, abi->framebuffer_info.addr, fb_y * fb_pitch, PAGE_RW);
+
+			fb_addr = hpa2hva_early(abi->framebuffer_info.addr);
+			memset(fb_addr, 0x0U, fb_y * fb_pitch);
+			fb_is_open = true;
+
 		}
 	} else {
 		if (is_fb_valid && (abi->framebuffer_info.addr > MEM_4G)) {

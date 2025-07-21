@@ -631,6 +631,63 @@ void flush_cache_range(const volatile void *p, uint64_t size)
 	}
 }
 
+#ifdef HV_DEBUG
+/**
+ * @brief Set up page table before paging enabling.
+ *
+ * Set up early page table mappings in a virtual memory system, specifically used for
+ * identically mapping high memory-mapped I/O (MMIO) regions using 2MB pages. This function
+ * is used when the page tables are being set up before the full memory management
+ * system is initialized. The caller need to provide buffer for pdpte page and pde page.
+ *
+ * @param[in] pdpte_page Pointer to pdpte page
+ * @param[in] pde_page Pointer to pde page
+ * @param[in] addr Address of the memory needed to be mapped identically
+ * @param[in] size The size of the specified input address space.
+ * @param[in] prot Bit positions representing the specified properties which need to be set.
+ *
+ * @return None
+ *
+ * @pre pdpte_page != NULL
+ * @pre pde_page != NULL
+ * @post N/A
+ */
+void early_pgtable_identical_map(void *pdpte_page, void *pde_page, uint64_t addr,
+		uint64_t size, uint64_t prot)
+{
+	uint64_t *pml4e, *pdpte, *pde;
+	uint64_t value;
+	uint64_t pde_cnt;
+
+	CPU_CR_READ(cr3, &value);
+	pde_cnt = (size + PDE_SIZE - 1)/PDE_SIZE;
+
+	/**assumpiton for map high mmio in early pagetable is that it is only used for
+	  2MB page since 1G page may not available when memory width is 39bit */
+	pml4e = pml4e_offset((uint64_t *)value, addr);
+	/** address is above 512G */
+	if(!(*pml4e & PAGE_PRESENT)) {
+		*pml4e = hva2hpa_early(pdpte_page) + (PAGE_PRESENT|prot);
+	}
+	pdpte = pdpte_offset(pml4e, addr);
+	if(!(*pdpte & PAGE_PRESENT)) {
+		*(pdpte) = hva2hpa_early(pde_page) + (PAGE_PRESENT|prot);
+		for(uint64_t index = 0; index < pde_cnt; index++) {
+			uint64_t addr_next = addr + PDE_SIZE*index;
+			pde = pde_offset(pdpte, addr_next);
+			*pde =  (addr_next & PDE_MASK) + (PAGE_PRESENT|prot|PAGE_PSE);
+		}
+	} else if(!(*pdpte & PAGE_PSE)) {
+		for(uint64_t index = 0; index < pde_cnt; index++) {
+			uint64_t addr_next = addr + PDE_SIZE*index;
+			pde = pde_offset(pdpte, addr_next);
+			if(!(*pde & PAGE_PRESENT)) {
+				*pde = (addr_next & PDE_MASK) + (PAGE_PRESENT|prot|PAGE_PSE);
+			}
+		}
+	}
+}
+#endif
 /**
  * @}
  */
