@@ -31,9 +31,11 @@ Here's the list of commands supported by the ACRN shell, followed by example use
      - List all vCPUs in all VMs.
    * - vcpu_dumpreg <vm_id> <vcpu_id>
      - Dump registers for a specific vCPU.
-   * - dump_host_mem <hva> <length>
+   * - dump_host_mem [-h] [<hva> <length>]
      - Dump the host memory region as specified by the start of the region ``hva`` (in hexadecimal)
        and its length ``length`` (in bytes, decimal number).
+       ``dump_host_mem -h`` Show available address range.
+       ``dump_host_mem <hva> <length>`` and ``dump_host_mem -h`` are used independently.
    * - dump_guest_mem <vm_id> [-p] <addr> <length>
      - Dump a User VM (guest) memory region based on the VM ID (``vm_id``, in decimal),
        the start of the memory region ``addr`` (in hexadecimal), and its length ``length`` (in bytes, decimal number).
@@ -130,8 +132,9 @@ function ``acpi_idle_do_entry``.
 dump_host_mem
 =============
 
-The ``dump_host_mem <hva> <length>`` command provides the specified memory
+The ``dump_host_mem [-h] [<hva> <length>]`` command provides the specified memory
 target data such as the physical CPU (pCPU) number.
+``dump_host_mem -h`` Show available address range.
 
 In this example, we know the pCPU active bitmap and physical CPU number
 physical memory address through
@@ -151,6 +154,13 @@ pCPU number is 0x0000000000000004.
    :align: center
 
    acrn map information
+
+The ``dump_host_mem -h`` show available address range.
+
+.. figure:: images/shell_image26.png
+   :align: center
+
+   available address range
 
 dump_guest_mem
 ==============
