@@ -385,7 +385,7 @@ static void alloc_hv_memory(void)
 	uint64_t hv_start = hva2hpa((void *)(get_hv_image_base()));
 	uint64_t hv_end  = hv_start + get_hv_image_size();
 
-	pr_err("%s: hv start: 0x%016lx, end: 0x%016lx", __func__, hv_start, hv_end);
+	dev_dbg(DBG_LEVEL_E820, "%s: hv start: 0x%016lx, end: 0x%016lx", __func__, hv_start, hv_end);
 
 	reserve_e820_region(hv_start, hv_end);
 }
@@ -415,7 +415,8 @@ static void alloc_mods_memory(void)
 		mod_start = hva2hpa(abi->mods[mod_index].start);
 		mod_end = mod_start + abi->mods[mod_index].size;
 
-		pr_err("%s: mod %d, start: 0x%016lx, end: 0x%016lx", __func__, mod_index, mod_start, mod_end);
+		dev_dbg(DBG_LEVEL_E820, "%s: mod %d, start: 0x%016lx, end: 0x%016lx",
+			__func__, mod_index, mod_start, mod_end);
 
 		reserve_e820_region(mod_start, mod_end);
 	}
