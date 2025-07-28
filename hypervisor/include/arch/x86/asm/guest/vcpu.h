@@ -23,6 +23,10 @@
 #include <asm/vmx.h>
 #include <asm/vm_config.h>
 
+#ifdef HV_DEBUG
+#include <vmexit_sample.h>
+#endif
+
 /**
  * @defgroup vp-base_vcpu vp-base.vcpu
  * @ingroup vp-base
@@ -213,11 +217,6 @@ enum reset_mode;
 
 #define EOI_EXIT_BITMAP_SIZE	256U /**< EOI exit bitmap size */
 
-#ifdef HV_DEBUG
-	#define MAX_VMEXIT_LEVEL 14 /**< Maximum VM-Exit profiling level, from 0 to 14 for counts */
-	#define TOTAL_ARRAY_LEVEL (MAX_VMEXIT_LEVEL + 1) /**< Profiling Array size */
-#endif
-
 /**
  * @brief Guest vCPU context structure
  *
@@ -395,10 +394,7 @@ struct acrn_vcpu {
 	struct sched_event events[VCPU_EVENT_NUM]; /**< Events used to sync between thread objects */
 
 #ifdef HV_DEBUG
-	uint64_t vmexit_begin; /**< VM-Exit profiling begin time-stamp counter */
-
-	uint64_t vmexit_cnt[NR_VMX_EXIT_REASONS][TOTAL_ARRAY_LEVEL]; /**< TSC counts for different VM-Exit reasons */
-	uint64_t vmexit_time[NR_VMX_EXIT_REASONS]; /**< VM-Exit latency for different VM-Exit reasons */
+	struct vmexit_sample vmexit_stat;
 #endif
 
 } __aligned(PAGE_SIZE);

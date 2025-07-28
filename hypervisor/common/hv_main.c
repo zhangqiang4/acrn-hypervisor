@@ -96,7 +96,7 @@ void vcpu_thread(struct thread_object *obj)
 		TRACE_2L(TRACE_VM_ENTER, 0UL, 0UL);
 #ifdef HV_DEBUG
 		profiling_vmenter_handler(vcpu);
-		sample_vmexit_end(vcpu);
+		sample_vmentry(vcpu);
 #endif
 		ret = run_vcpu(vcpu);
 		if (ret != 0) {
@@ -109,7 +109,7 @@ void vcpu_thread(struct thread_object *obj)
 		}
 		TRACE_2L(TRACE_VM_EXIT, vcpu->arch.exit_reason, vcpu_get_rip(vcpu));
 #ifdef HV_DEBUG
-		sample_vmexit_begin(vcpu);
+		sample_vmexit(vcpu);
 		profiling_pre_vmexit_handler(vcpu);
 #endif
 		if (!is_lapic_pt_configured(vcpu->vm)) {
