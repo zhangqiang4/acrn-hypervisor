@@ -59,6 +59,17 @@ static int32_t log_seq = 0;
  */
 uint16_t mem_loglevel = CONFIG_MEM_LOGLEVEL_DEFAULT;
 
+#define NUM_SEV                 6U		/**< Number of severity names */
+#define MAX_SEV_NAME_SIZE       16U		/**< Maximum size of a severity name */
+/**
+ * @brief Severity names for logging.
+ *
+ * This static variable is used to show severity name string in log messages.
+ */
+static const char severity_name[NUM_SEV][MAX_SEV_NAME_SIZE] = {
+	"FATAL", "ACRN", "ERROR", "WARNING", "INFO", "DEBUG"
+};
+
 /**
  * @brief Determine if a message should be logged to memory based on severity.
  *
@@ -131,7 +142,7 @@ static void mem_log(uint16_t pcpu_id, char *buffer)
  * - Retrieves the current timestamp and scales it to microseconds.
  * - Gets the current physical CPU ID and the current thread object.
  * - Clears the log buffer and formats the initial part of the message with timestamp, CPU ID,
- *   thread name, severity, and a sequence number.
+ *   thread name, severity name, and a sequence number.
  * - Formats the remaining part of the message using the provided format string and arguments.
  * - Logs the message to memory, console, and NPK as needed based on the severity.
  *
@@ -147,6 +158,7 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	uint64_t timestamp;
 	uint16_t pcpu_id;
 	char *buffer;
+	char hv_name[16U] = "hv_main";
 	struct thread_object *current;
 #ifdef HV_DEBUG
 	if (mem_need_log(severity) || console_need_log(severity) || npk_need_log(severity)) {
@@ -166,8 +178,9 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 
 		(void)memset(buffer, 0U, LOG_MESSAGE_MAX_SIZE);
 		/* Put time-stamp, CPU ID and severity into buffer */
-		(void)snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][sev=%u][seq=%u]:",
-				timestamp, pcpu_id, current->name, severity, atomic_inc_return(&log_seq));
+		(void)snprintf(buffer, LOG_MESSAGE_MAX_SIZE, "[%luus][cpu=%hu][%s][%s][seq=%u]:",
+				timestamp, pcpu_id, ((current != NULL) ? current->name : hv_name),
+				severity_name[severity - 1U], atomic_inc_return(&log_seq));
 
 		/* Put message into remaining portion of local buffer */
 		va_start(args, fmt);
