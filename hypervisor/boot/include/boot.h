@@ -31,7 +31,6 @@
  * get boot module, how to calculate hv image position and size, etc.
  */
 
-/* TODO: MAX_MMAP_ENTRIES shall be config by config tool, and same as E820_MAX_ENTRIES */
 /**
  * @brief Maximum Number of Memory Map Entries
  *
@@ -40,7 +39,7 @@
  * ensuring that the system does not exceed its capacity to manage memory
  * regions.
  */
-#define MAX_MMAP_ENTRIES		32U
+#define MAX_MMAP_ENTRIES		128U
 
 /**
  * @brief Maximum Size for Boot Arguments
