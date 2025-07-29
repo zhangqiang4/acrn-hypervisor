@@ -161,6 +161,10 @@
     </xsl:call-template>
 
     <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'SRIOV_VF_BAR_FIXUP'" />
+    </xsl:call-template>
+
+    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'LOCK_INSTRUCTION_EMULATION'" />
     </xsl:call-template>
 

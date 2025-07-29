@@ -480,10 +480,19 @@ void write_sriov_cap_reg(struct pci_vdev *vdev, uint32_t offset, uint32_t bytes,
 			 * above.
 			 */
 			if ((bytes == 4U) && ((offset & 0x3U) == 0U)) {
+#ifdef CONFIG_SRIOV_VF_BAR_FIXUP
+				/* Allow OS programming VF BARs, in case BIOS failed to setup it.  */
+				pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
+				if (val != ((uint32_t)~0U)) {
+					/* Update the saved VF BAR value */
+					vdev->pdev->vf_bars[(reg - PCIR_SRIOV_VF_BAR_OFF)/4] = val;
+				}
+#else
 				if ((val == ((uint32_t)~0U)) ||
 				    (val == vdev->pdev->vf_bars[(reg - PCIR_SRIOV_VF_BAR_OFF)/4])) {
 					pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
 				}
+#endif
 			}
 		} else {
 			pci_pdev_write_cfg(vdev->pdev->bdf, offset, bytes, val);
