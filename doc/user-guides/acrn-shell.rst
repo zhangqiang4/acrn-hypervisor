@@ -34,9 +34,10 @@ Here's the list of commands supported by the ACRN shell, followed by example use
    * - dump_host_mem <hva> <length>
      - Dump the host memory region as specified by the start of the region ``hva`` (in hexadecimal)
        and its length ``length`` (in bytes, decimal number).
-   * - dump_guest_mem <vm_id> <gva> <length>
+   * - dump_guest_mem <vm_id> [-p] <addr> <length>
      - Dump a User VM (guest) memory region based on the VM ID (``vm_id``, in decimal),
-       the start of the memory region ``gva`` (in hexadecimal), and its length ``length`` (in bytes, decimal number).
+       the start of the memory region ``addr`` (in hexadecimal), and its length ``length`` (in bytes, decimal number).
+       Use the option ``-p`` to indicate a guest physical address. Otherwise, ``addr`` is a guest virtual address.
    * - vm_console <vm_id>
      - Switch to the VM's console. Use :kbd:`Ctrl` + :kbd:`Alt` + :kbd:`Space` to return to the ACRN
        shell console.
@@ -169,7 +170,17 @@ in the guest console or through the ``system.map``. (Note that the path for
 .. figure:: images/shell_image20.png
    :align: center
 
-   guest memory information
+   guest memory information (virtual address)
+
+The ``dump_guest_mem <vm_id> -p <gpa> <length>`` command dumps guest memory
+information according to the given VM ID and guest physical address (``gpa``).
+
+In this example, the guest physical address is got from the shell command ``dump_pci``.
+
+.. figure:: images/shell_image25.png
+   :align: center
+
+   guest memory information (physical address)
 
 vm_console
 ===========
