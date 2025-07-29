@@ -598,6 +598,17 @@ def acrnconfig_logger_init(args):
 # Subcommands
 
 def acrnconfig_init(args):
+    if not args.force and \
+        os.path.isfile(os.path.join(args.cpath if args.cpath else os.getcwd(), ACRNCONFIG_CONF_FILE_NAME)):
+        while True:
+            resp = input(f"File {ACRNCONFIG_CONF_FILE_NAME} already exists. Choose Action: (O)verwrite/(A)bort: ")
+            if resp.lower() == 'o':
+                logging.warning(f"Overwriting existing {ACRNCONFIG_CONF_FILE_NAME}")
+                break
+            elif resp.lower() == 'a':
+                raise Exception("User aborted")
+            else:
+                logging.error("Unknown action")
     scn = AcrnScenario(args.cpath, create=True, name=args.scenario_name,
             schema_dir=args.schema_dir)
     if not args.create_empty:
@@ -749,6 +760,8 @@ def main():
     # init
     parser_init.set_defaults(func=acrnconfig_init)
     parser_init.add_argument("scenario_name", help="Scenario name")
+    parser_init.add_argument("--force", help="Force init, regardless of whatever is already inside target folder",
+                             action="store_true", default=False)
     parser_init.add_argument("--create-empty", action="store_true", default=False,
             help="Create an empty scenario")
 
