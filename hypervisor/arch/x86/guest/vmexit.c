@@ -22,6 +22,7 @@
 #include <trace.h>
 #include <common/hypercall.h>
 #ifdef HV_DEBUG
+#include <asm/tsc.h>
 #include <debug/console.h>
 #endif
 
@@ -719,9 +720,19 @@ static int32_t pause_vmexit_handler(__unused struct acrn_vcpu *vcpu)
  */
 static int32_t hlt_vmexit_handler(struct acrn_vcpu *vcpu)
 {
+#ifdef HV_DEBUG
+	uint64_t idle_start = 0UL;
+#endif
+
 	if ((vcpu->arch.pending_req == 0UL) && (!vlapic_has_pending_intr(vcpu))) {
+#ifdef HV_DEBUG
+		sample_vcpu_idle(vcpu, &idle_start, 0U);
+#endif
 		/* HLT is emulated with MWAIT C1 (hint=0) */
 		wait_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
+#ifdef HV_DEBUG
+		sample_vcpu_idle(vcpu, &idle_start, 1U);
+#endif
 	}
 	return 0;
 }
@@ -757,6 +768,10 @@ static int32_t mwait_vmexit_handler(struct acrn_vcpu *vcpu)
 	uint32_t eax, ecx;
 	uint64_t guest_ia32_misc_enable = vcpu_get_guest_msr(vcpu, MSR_IA32_MISC_ENABLE);
 
+#ifdef HV_DEBUG
+	uint64_t idle_start = 0UL;
+#endif
+
 	if ((guest_ia32_misc_enable & MSR_IA32_MISC_ENABLE_MONITOR_ENA) == 0UL) {
 		vcpu_inject_ud(vcpu);
 	} else {
@@ -774,8 +789,14 @@ static int32_t mwait_vmexit_handler(struct acrn_vcpu *vcpu)
 			} else {
 				/* EAX [7:4] 01111B indicates C0, which means no idle. */
 				if ((eax & 0xF0U) != 0xF0U) {
+#ifdef HV_DEBUG
+					sample_vcpu_idle(vcpu, &idle_start, 0U);
+#endif
 					vcpu->idle_hint = eax & 0xFFU;
 					wait_event(&vcpu->events[VCPU_EVENT_VIRTUAL_INTERRUPT]);
+#ifdef HV_DEBUG
+					sample_vcpu_idle(vcpu, &idle_start, 1U);
+#endif
 					/* restore the hint to 0(C1) for default */
 					vcpu->idle_hint = 0U;
 				}

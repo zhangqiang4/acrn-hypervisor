@@ -41,6 +41,7 @@ static int32_t shell_cmd_help(__unused int32_t argc, __unused char **argv);
 static int32_t shell_version(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vm(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
+static int32_t shell_vcpu_stat(int32_t argc, char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
 static int32_t shell_dump_host_mem(int32_t argc, char **argv);
 static int32_t shell_dump_guest_mem(int32_t argc, char **argv);
@@ -87,6 +88,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VCPU_LIST_PARAM,
 		.help_str	= SHELL_CMD_VCPU_LIST_HELP,
 		.fcn		= shell_list_vcpu,
+	},
+	{
+		.str		= SHELL_CMD_VCPU_STAT,
+		.cmd_param	= SHELL_CMD_VCPU_STAT_PARAM,
+		.help_str	= SHELL_CMD_VCPU_STAT_HELP,
+		.fcn		= shell_vcpu_stat,
 	},
 	{
 		.str		= SHELL_CMD_VCPU_DUMPREG,
@@ -2195,5 +2202,44 @@ static int32_t shell_lspci(int32_t argc, char **argv)
 		ret = -EINVAL;
 	}
 
+	return ret;
+}
+
+static int32_t shell_vcpu_stat(int32_t argc, char **argv)
+{
+	int32_t ret = 0;
+	bool to_continue = true;
+
+	if (argc == 2) {
+		if (strcmp(argv[1], "clear") == 0) {
+			clear_vcpu_stat_info();
+			shell_puts("\tclear vCPU stat info!\n");
+		} else if (strcmp(argv[1], "enable") == 0) {
+			clear_vcpu_stat_info();
+			set_vcpu_stat_profiling(true);
+			shell_puts("\tenable vCPU stat!\n");
+		} else if (strcmp(argv[1], "disable") == 0) {
+			shell_puts("\tdisable vCPU stat!\n");
+			set_vcpu_stat_profiling(false);
+		}
+		to_continue = false;
+	} else if (argc != 1) {
+		to_continue = false;
+		ret = -1;
+		pr_err("%s, invalid input", __func__);
+	}
+
+
+	if (to_continue && !is_vcpu_stat_profiling_enabled()) {
+		shell_puts("\tvCPU stat is disabled!\n");
+		to_continue = false;
+	}
+
+	if (to_continue) {
+		ret = get_vcpu_stat_info(shell_log_buf, SHELL_LOG_BUF_SIZE);
+		if (!ret) {
+			shell_puts(shell_log_buf);
+		}
+	}
 	return ret;
 }

@@ -203,7 +203,6 @@ static void sample_vmexit_begin(struct acrn_vcpu *vcpu)
 	vcpu->vmexit_stat.vmexit_cnt[basic_exit_reason][TOTAL_ARRAY_LEVEL - 1]++;
 }
 
-
 int get_vmexit_details_per_vcpu(char *str_arg, size_t str_max, uint16_t target_vm_id)
 {
 	char *str = str_arg;
@@ -290,6 +289,161 @@ void clear_vmexit_info_buffer(void)
 	}
 }
 
+/* ================== vCPU stat feature ================== */
+static bool vcpu_stat_enabled = false;
+
+/* Record vCPU stat sample start time */
+static uint64_t vcpu_stat_exec_start_tsc;
+
+static void vcpu_stat_vmentry(struct acrn_vcpu *vcpu)
+{
+	if (!is_lapic_pt_configured(vcpu->vm)) {
+		vcpu->vmexit_stat.vmentry_begin = rdtsc();
+	}
+}
+
+static void vcpu_stat_vmexit(struct acrn_vcpu *vcpu)
+{
+	if (!is_lapic_pt_configured(vcpu->vm)) {
+		vcpu->vmexit_stat.exec_period +=
+			(rdtsc() - vcpu->vmexit_stat.vmentry_begin);
+	}
+}
+
+void clear_vcpu_stat_info(void)
+{
+	uint16_t vm_id, vcpu_id;
+	struct acrn_vm *vm;
+	struct acrn_vcpu *vcpu;
+
+	vcpu_stat_exec_start_tsc = rdtsc();
+	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
+		vm = get_vm_from_vmid(vm_id);
+		if (!is_poweroff_vm(vm) && !is_lapic_pt_configured(vm)) {
+			foreach_vcpu(vcpu_id, vm, vcpu) {
+				vcpu->vmexit_stat.exec_period = 0UL;
+				vcpu->vmexit_stat.idle_period = 0UL;
+			}
+		}
+	}
+}
+
+static void vcpu_stat_format_rate_to_string(uint64_t sample_period_tsc,
+	uint64_t sub_time_tsc, char *str_buf, size_t str_max)
+{
+	const uint64_t scale = 100;  /* Scale factor for 2 decimal places */
+	uint64_t percentage_scaled;
+	uint64_t remainder;
+
+
+	if (sub_time_tsc == 0) {
+		snprintf(str_buf, str_max, "0.00%%");
+	} else {
+		/*
+		 * Calculate percentage with rounding:
+		 * 1. Multiply numerator by 100*scale*10 for extra precision
+		 * 2. Division gives us remainder for rounding decision
+		 * 3. Round up if remainder >= 5
+		 */
+		remainder = (sub_time_tsc * 100 * scale * 10) / sample_period_tsc;
+		percentage_scaled = remainder / 10;
+		if (remainder % 10 >= 5) {
+			percentage_scaled++;  /* Round up */
+		}
+
+		/* Format the result with 2 decimal places */
+		snprintf(str_buf, str_max, "%llu.%02llu%%",
+			percentage_scaled / scale, /* Integer part */
+			percentage_scaled % scale  /* Fractional part */);
+	}
+}
+
+int get_vcpu_stat_info(char *str_arg, size_t str_max)
+{
+	char *str = str_arg;
+	char vcpu_state_str[32];
+	char vcpu_idle_str[32];
+	struct acrn_vm *vm;
+	struct acrn_vcpu *vcpu;
+	uint16_t i, idx;
+	size_t len, size = str_max;
+	uint64_t sample_period;
+	int ret = -ENOMEM;
+
+	len = snprintf(str, size, "\r\nVM ID    PCPU ID    VCPU ID    CPU Usage    vCPU Idle"
+			"\r\n=====    =======    =======    =========    =========  \r\n");
+	if (len >= size) {
+		goto overflow;
+	}
+
+	size -= len;
+	str += len;
+
+	sample_period = rdtsc() - vcpu_stat_exec_start_tsc;
+	if (sample_period > 0UL) {
+		for (idx = 0U; idx < CONFIG_MAX_VM_NUM; idx++) {
+			vm = get_vm_from_vmid(idx);
+			if (is_poweroff_vm(vm) || is_lapic_pt_configured(vm)) {
+				continue;
+			}
+
+			foreach_vcpu(i, vm, vcpu) {
+				/* get vcpu usage rate string */
+				vcpu_stat_format_rate_to_string(sample_period,
+					vcpu->vmexit_stat.exec_period, vcpu_state_str, 32U);
+
+				/*
+				 *get vcpu idle rate string:
+				 *vcpu ilde period / (vcpu period time + vcpu idle period)
+				 */
+				vcpu_stat_format_rate_to_string((vcpu->vmexit_stat.exec_period
+					+ vcpu->vmexit_stat.idle_period),
+					vcpu->vmexit_stat.idle_period, vcpu_idle_str, 32U);
+
+				len = snprintf(str, size, "  %-9d %-10d %-7hu %-12s %-12s\r\n",
+						vm->vm_id,
+						pcpuid_from_vcpu(vcpu),
+						vcpu->vcpu_id,
+						vcpu_state_str,
+						vcpu_idle_str);
+
+				if (len >= size) {
+					goto overflow;
+				}
+
+				size -= len;
+				str += len;
+			}
+		}
+	}
+	ret = 0;
+
+overflow:
+	return ret;
+}
+
+/* opt: 0 -> enter idle,  1 -> exit idle */
+void sample_vcpu_idle(struct acrn_vcpu *vcpu, uint64_t *data,  uint8_t opt)
+{
+	if (vcpu_stat_enabled && (data != NULL)) {
+		if (opt == 0U) {
+			*data = rdtsc();
+		} else if (opt == 1U) {
+			vcpu->vmexit_stat.idle_period += (rdtsc() - *data);
+		}
+	}
+}
+
+void set_vcpu_stat_profiling(bool enable)
+{
+	vcpu_stat_enabled = enable;
+}
+
+bool is_vcpu_stat_profiling_enabled(void)
+{
+	return vcpu_stat_enabled;
+}
+
 void set_vmexit_profiling(bool enable)
 {
 	sample_vmexit_enabled = enable;
@@ -300,15 +454,20 @@ bool is_vmexit_profiling_enabled(void)
 	return sample_vmexit_enabled;
 }
 
-
 void sample_vmexit(struct acrn_vcpu *vcpu)
 {
 	if (sample_vmexit_enabled)
 		sample_vmexit_begin(vcpu);
+
+	if (vcpu_stat_enabled)
+		vcpu_stat_vmexit(vcpu);
 }
 
 void sample_vmentry(struct acrn_vcpu *vcpu)
 {
 	if (sample_vmexit_enabled)
 		sample_vmexit_end(vcpu);
+
+	if (vcpu_stat_enabled)
+		vcpu_stat_vmentry(vcpu);
 }

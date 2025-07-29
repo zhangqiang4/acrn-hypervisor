@@ -59,6 +59,10 @@ struct shell {
 #define SHELL_CMD_VCPU_LIST_PARAM	NULL
 #define SHELL_CMD_VCPU_LIST_HELP	"List all vCPUs in all VMs"
 
+#define SHELL_CMD_VCPU_STAT		"vcpu_stat"
+#define SHELL_CMD_VCPU_STAT_PARAM	"[clear | enable | disable]"
+#define SHELL_CMD_VCPU_STAT_HELP	"List all vCPUs usage on scheduled pCPUs: vcpu_stat [clear | enable | disable], disabled by default"
+
 #define SHELL_CMD_VCPU_DUMPREG		"vcpu_dumpreg"
 #define SHELL_CMD_VCPU_DUMPREG_PARAM	"<vm id, vcpu id>"
 #define SHELL_CMD_VCPU_DUMPREG_HELP	"Dump registers for a specific vCPU"
