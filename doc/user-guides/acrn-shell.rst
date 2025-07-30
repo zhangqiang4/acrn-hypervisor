@@ -29,6 +29,11 @@ Here's the list of commands supported by the ACRN shell, followed by example use
      - List all VMs, displaying the VM UUID, ID, name, and state ("Started"=running).
    * - vcpu_list
      - List all vCPUs in all VMs.
+   * - vcpu_stat [clear | enable | disable]
+     - Show usage of vCPUs which shares pCPU, and the idle status of vCPUs, it is disabled by default.
+       User need to enable it with ``vcpu_stat enable`` before getting more information via ``vcpu_stat``,
+       ``vcpu_stat clear`` can be used to clear previous sample data and restart a new sample.
+       ``vcpu_stat disable`` to disable this sampling.
    * - vcpu_dumpreg <vm_id> <vcpu_id>
      - Dump registers for a specific vCPU.
    * - dump_host_mem [-h] [<hva> <length>]
@@ -66,6 +71,11 @@ Here's the list of commands supported by the ACRN shell, followed by example use
    * - wrmsr [-p<pcpu_id>] <msr_index> <value>
      - Write ``value`` (in hexadecimal) to the model-specific register (MSR) at
        index ``msr_index`` (in hexadecimal) for CPU ID ``pcpu_id``.
+   * - vmexit [clear | enable | disable | vm_id]
+     - Show detailed latency of each vmexit on all vCPUs for one VM or all VMs, it is disabled by default.
+       User need to enable it with ``vmexit enable`` before getting more information via ``vmexit [vm_id]``,
+       ``vmexit clear`` can be used to clear previous sample data and restart a new sample.
+       ``vmexit disable`` to disable this sampling.
    * - lspci [-vm_id <vm_id>]
      - List BDFs of PCI devices. Without any parameter, it lists physical devices. Use '-vm_id <vm_id>'
        (where vm_id is in decimal) to list the PCI devices assigned to a specific VM. For virtual devices,
@@ -103,6 +113,17 @@ state (init, paused, running, zombie, or unknown).
    :align: center
 
    vcpu_list information
+
+vcpu_stat
+=========
+
+The ``vcpu_stat`` command provides information about usage of vCPUs which shares pCPU,
+and the idle status of vCPUs through ``vcpu_stat [clear | enable | disable]``.
+
+.. figure:: images/shell_vcpu_stat_image26.png
+   :align: center
+
+   vcpu_stat information
 
 vcpu_dumpreg
 ============
@@ -291,6 +312,22 @@ In the following example, we can set the IA32_APIC_BASE value of pCPU 1 through
 the command::
 
    wrmsr -p1 1b 0xfee00c00
+
+vmexit
+=========
+
+The ``vmexit`` command provides information about detailed latency of each vmexit
+on all vCPUs for one VM or all VMs through ``vmexit [clear | enable | disable | vm_id]``.
+
+.. figure:: images/shell_vmexit_image27.png
+   :align: center
+
+   ``vmexit`` show vmexit latency for all running VMs
+
+.. figure:: images/shell_vmexit_image28.png
+   :align: center
+
+   ``vmexit 2`` show vmexit latency for VM2
 
 lspci
 =====
