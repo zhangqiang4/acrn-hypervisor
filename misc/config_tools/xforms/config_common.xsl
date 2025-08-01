@@ -121,6 +121,10 @@
     </xsl:call-template>
 
     <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'ENFORCE_APICv_BASIC_SUPPORT'" />
+    </xsl:call-template>
+
+    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'ACPI_PARSE_ENABLED'" />
     </xsl:call-template>
 

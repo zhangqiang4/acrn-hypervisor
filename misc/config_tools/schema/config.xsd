@@ -119,6 +119,11 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Enable Microsoft Hyper-V Hypervisor Top-Level Functional Specification (TFLS) for User VMs running Windows.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="ENFORCE_APICv_BASIC_SUPPORT" type="Boolean" default="n">
+      <xs:annotation acrn:title="APICv-Basic" acrn:views="advanced">
+        <xs:documentation>Enforce APICv basic feature for Local APIC Virtualization in Hypervisor.</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="IOMMU_ENFORCE_SNP" type="Boolean" default="n">
       <xs:annotation acrn:views="">
         <xs:documentation>Specify if the IOMMU enforces snoop behavior of DMA operations.</xs:documentation>
