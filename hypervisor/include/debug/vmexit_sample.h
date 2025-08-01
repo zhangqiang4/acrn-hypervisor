@@ -23,8 +23,6 @@
  * They are used to facilitate performance monitoring and analysis within the system.
  */
 
-//struct acrn_vcpu;
-
 #define MAX_VMEXIT_LEVEL 14 /**< Maximum VM-Exit profiling level, from 0 to 14 for counts */
 #define TOTAL_ARRAY_LEVEL (MAX_VMEXIT_LEVEL + 1) /**< Profiling Array size */
 struct vmexit_sample {

@@ -304,7 +304,9 @@ static void vcpu_stat_vmentry(struct acrn_vcpu *vcpu)
 
 static void vcpu_stat_vmexit(struct acrn_vcpu *vcpu)
 {
-	if (!is_lapic_pt_configured(vcpu->vm)) {
+	if (!is_lapic_pt_configured(vcpu->vm)
+		&& (vcpu->vmexit_stat.vmentry_begin != 0UL)) {
+
 		vcpu->vmexit_stat.exec_period +=
 			(rdtsc() - vcpu->vmexit_stat.vmentry_begin);
 	}
@@ -394,7 +396,7 @@ int get_vcpu_stat_info(char *str_arg, size_t str_max)
 
 				/*
 				 *get vcpu idle rate string:
-				 *vcpu ilde period / (vcpu period time + vcpu idle period)
+				 *vcpu idle period / (vcpu period time + vcpu idle period)
 				 */
 				vcpu_stat_format_rate_to_string((vcpu->vmexit_stat.exec_period
 					+ vcpu->vmexit_stat.idle_period),
@@ -428,7 +430,7 @@ void sample_vcpu_idle(struct acrn_vcpu *vcpu, uint64_t *data,  uint8_t opt)
 	if (vcpu_stat_enabled && (data != NULL)) {
 		if (opt == 0U) {
 			*data = rdtsc();
-		} else if (opt == 1U) {
+		} else if ((opt == 1U) && (*data != 0UL)) {
 			vcpu->vmexit_stat.idle_period += (rdtsc() - *data);
 		}
 	}
