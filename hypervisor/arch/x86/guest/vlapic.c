@@ -4790,7 +4790,11 @@ static const struct acrn_apicv_ops apicv_basic_ops = {
  *
  * - reset  This callback function resets the APICv by calling apicv_reset function.
  */
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+static __unused const struct acrn_apicv_ops apicv_advanced_ops = {
+#else
 static const struct acrn_apicv_ops apicv_advanced_ops = {
+#endif
 	.accept_intr = apicv_advanced_accept_intr,
 	.inject_intr = apicv_advanced_inject_intr,
 	.has_pending_intr = apicv_advanced_has_pending_intr,

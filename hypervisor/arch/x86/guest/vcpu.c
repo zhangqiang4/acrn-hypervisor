@@ -446,6 +446,10 @@ void vcpu_set_guest_msr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
 	}
 }
 
+#ifdef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
+void vcpu_set_vmcs_eoi_exit(__unused const struct acrn_vcpu *vcpu) {}
+
+#else
 /**
  * @brief Update eoi_exit_bitmaps to VMCS fields.
  *
@@ -467,13 +471,12 @@ void vcpu_set_guest_msr(struct acrn_vcpu *vcpu, uint32_t msr, uint64_t val)
  */
 void vcpu_set_vmcs_eoi_exit(const struct acrn_vcpu *vcpu)
 {
-#ifndef CONFIG_ENFORCE_APICv_BASIC_SUPPORT
 	exec_vmwrite64(VMX_EOI_EXIT0_FULL, vcpu->arch.eoi_exit_bitmap[0]);
 	exec_vmwrite64(VMX_EOI_EXIT1_FULL, vcpu->arch.eoi_exit_bitmap[1]);
 	exec_vmwrite64(VMX_EOI_EXIT2_FULL, vcpu->arch.eoi_exit_bitmap[2]);
 	exec_vmwrite64(VMX_EOI_EXIT3_FULL, vcpu->arch.eoi_exit_bitmap[3]);
-#endif
 }
+#endif
 
 /**
  * @brief Set bit in vCPU EOI bitmaps
