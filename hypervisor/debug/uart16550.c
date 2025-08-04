@@ -54,6 +54,8 @@ static struct console_uart uart = {
 	.mmio_base_vaddr = (void *)CONFIG_SERIAL_MMIO_BASE,
 	.reg_width = 1,
 };
+#else
+static struct console_uart uart;
 #endif
 
 typedef uint32_t uart_reg_t;
