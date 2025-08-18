@@ -55,11 +55,11 @@ static int32_t shell_cpuid(int32_t argc, char **argv);
 static int32_t shell_reboot(int32_t argc, char **argv);
 #ifdef CONFIG_HV_COREDUMP_ENABLED
 static int32_t shell_coredump(int32_t argc, char **argv);
+static int32_t shell_dump_vm_console_out(int32_t argc, char **argv);
 #endif
 static int32_t shell_rdmsr(int32_t argc, char **argv);
 static int32_t shell_wrmsr(int32_t argc, char **argv);
 static int32_t shell_show_vmexit_profile(__unused int argc, __unused char **argv);
-static int32_t shell_dump_vm_console_out(int32_t argc, char **argv);
 static int32_t shell_vm_resume(int32_t argc, char **argv);
 static int32_t shell_dump_pci(int32_t argc, char **argv);
 static int32_t shell_lspci(int32_t argc, char **argv);
@@ -187,12 +187,14 @@ static struct shell_cmd shell_cmds[] = {
 		.help_str	= SHELL_CMD_VMEXIT_HELP,
 		.fcn		= shell_show_vmexit_profile,
 	},
+#ifdef CONFIG_HV_COREDUMP_ENABLED
 	{
 		.str		= SHELL_CMD_DUMP_VCON_OUT,
 		.cmd_param	= SHELL_CMD_DUMP_VCON_OUT_PARAM,
 		.help_str	= SHELL_CMD_DUMP_VCON_OUT_HELP,
 		.fcn		= shell_dump_vm_console_out,
 	},
+#endif
 	{
 		.str		= SHELL_CMD_VM_RESUME,
 		.cmd_param	= SHELL_CMD_VM_RESUME_PARAM,
@@ -1807,7 +1809,7 @@ static int shell_show_vmexit_profile(__unused int argc, __unused char **argv)
 
 	return ret;
 }
-
+#ifdef CONFIG_HV_COREDUMP_ENABLED
 static int32_t shell_dump_vm_console_out(int32_t argc, char **argv)
 {
 	char temp_str[TEMP_STR_SIZE];
@@ -1847,7 +1849,7 @@ static int32_t shell_dump_vm_console_out(int32_t argc, char **argv)
 	shell_puts(shell_log_buf);
 	return 0;
 }
-
+#endif
 static int32_t shell_vm_resume(int32_t argc, char **argv)
 {
 	uint16_t vm_id = 0U;
