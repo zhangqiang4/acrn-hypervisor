@@ -69,8 +69,11 @@ static inline void reset_fifo(struct vuart_fifo *fifo)
  * This function calculates how long it takes to transmit one char for a physical UART
  * that works on the same baudrate.
  * Assuming 8N1 mode, it can be calculated with:
- *   char_vtx_time = us_to_ticks(10U * 1000000U / baudrate);
- *   baudrate = UART_CLOCK_RATE / (div * 16);
+ *   char_vtx_time_us = BITS_PER_CHAR * US_PER_SEC / BAUDRATE;
+ * where BAUDRATE = UART_CLOCK_RATE / (div * 16),
+ * and BITS_PER_CHAR is 10 for 8N1, plus 2 clocks inter-char delay.
+ * In order to cope with the UART16550 driver to output chars to console, vUART needs to
+ * transmit at a slightly lower rate to prevent overrun. So let BITS_PER_CHAR = 13 here.
  *
  * @param[inout] vu Pointer to struct acrn_vuart.
  *
@@ -83,7 +86,7 @@ static void update_vtransmitter_tx_rate(struct acrn_vuart *vu)
 	uint64_t div;
 	div = vu->dlh;
 	div = (div << 8) | vu->dll;
-	vu->char_vtx_time = us_to_ticks( 10UL * 1000000UL * 16U * div / UART_CLOCK_RATE);
+	vu->char_vtx_time = us_to_ticks(13UL * 1000000UL * 16U * div / UART_CLOCK_RATE);
 }
 
 /**

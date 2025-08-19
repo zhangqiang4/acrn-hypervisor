@@ -173,8 +173,12 @@ exit:
  *
  * This function reads vUART tx chars and print on console.
  * The output is throttled as it may block CPU when there is a flood of message
- * from vUART. We use debug UART tx fifo size as the throttle value.
- * Polling is not needed when we output less chars than throttle value at one time.
+ * from vUART.
+ * When the 16550 UART tx fifo has no headroom for the incoming chars, this function
+ * will return true to indicate that the output is throttled. Then the caller
+ * can wait for a certain time for the tx headroom to be available again.
+ * The char that is fetched from vUART but not transferred will be pended to the next round.
+ * Polling is not needed when we output number of chars within the headroom value.
  *
  * @return A bool value to indicate whether output is throttled.
  *
@@ -183,16 +187,24 @@ exit:
 static bool vuart_console_tx_chars(struct acrn_vuart *vu)
 {
 	bool is_throttled = false;
-	char c = vuart_getchar(vu);
-	uint32_t char_transferred = 0;
+	static char c = -1;
+
+	/* When c == -1 Get a new char.
+	   Otherwise it should be the pending char of last round. Try to transfer it first. */
+	if (c == -1) {
+		c = vuart_getchar(vu);
+	}
 
 	while(c != -1) {
-		printf("%c", c);
-		char_transferred++;
-		if (char_transferred >= uart16550_get_tx_load_size()) {
+		/* If there is no headroom in uart tx fifo, pend it till next round.
+		   '\n' will be expanded to '\r\n', it needs headroom for 2. */
+		if ((c == '\n' && uart16550_get_tx_headroom() < 2) ||
+			 uart16550_get_tx_headroom() < 1) {
 			is_throttled = true;
 			break;
 		}
+		printf("%c", c);
+
 		c = vuart_getchar(vu);
 	}
 

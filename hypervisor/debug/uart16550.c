@@ -220,34 +220,26 @@ char uart16550_getc(void)
 }
 
 /**
- * @brief Get debug UART tx load size.
- *
- * The tx load size is how many chars the console can output without polling.
- * 16550 has a tx fifo that can buff those tx chars.
- * Once the console pushes in more chars than the load size, tx API
- * (uart16550_putc/uart16550_puts) will poll lsr THRE/TEMT status until the
- * tx fifo is empty again.
- *
- * @return Tx load size.
- */
-uint32_t uart16550_get_tx_load_size(void)
-{
-	return TX_FIFO_DEPTH;
-}
-
-/**
  * @brief Get debug UART tx load interval.
  *
  * The tx load interval is the time for UART transmitter to sends out all chars
  * in its tx fifo. It is decided by baudrate and transfer modes. Here we
  * assume that debug UART always uses 115200 8n1 mode.
+ * the tx load interval is calculated as:
+ * 	interval_us = TX_FIFO_DEPTH * BITS_PER_CHAR * US_PER_SEC / BAUDRATE;
+ * where BITS_PER_CHAR is 10 for 8N1 mode, and US_PER_SEC is 1000000.
+ *
+ * However, when transfering a batch of chars, we need to consider the
+ * inter-char delay. According to UART timing, the least avarage inter-char delay is
+ * 1~2 clocks. So we use 12 as BITS_PER_CHAR here. It is an experience value
+ * that works well on most platforms.
  *
  * @return Tx load interval in CPU ticks.
  */
 uint64_t uart16550_get_tx_load_interval(void)
 {
 	/* assume 115200 8n1 */
-	return us_to_ticks(TX_FIFO_DEPTH * 10UL * 1000000UL / 115200UL);
+	return us_to_ticks(TX_FIFO_DEPTH * 12UL * 1000000UL / 115200UL);
 }
 
 /**
@@ -258,11 +250,11 @@ static void uart16550_putc(char c)
 	uint8_t temp;
 	uint32_t reg;
 
-	/* We don't need to poll THRE/TEMT until fifo is fully filled up. */
+	/* We don't need to poll THRE until fifo is fully filled up. */
 	if (tx_fifo_counter >= TX_FIFO_DEPTH) {
 		do {
 			reg = uart16550_read_reg(uart, UART16550_LSR);
-		} while ((reg & LSR_THRE) == 0U || (reg & LSR_TEMT) == 0U);
+		} while ((reg & LSR_THRE) == 0U);
 		tx_fifo_counter = 0;
 	}
 
@@ -270,6 +262,31 @@ static void uart16550_putc(char c)
 	/* Transmit the character. */
 	uart16550_write_reg(uart, (uint32_t)temp, UART16550_THR);
 	tx_fifo_counter ++;
+}
+
+/**
+ * @brief Get the number of chars that can be put into debug UART tx fifo.
+ *
+ * This function returns how many headroom for chars in UART tx fifo.
+ * Sending chars more than this number at one time will result in polling,
+ * which blocks CPU shortly.
+ *
+ * @return Number of chars that can be put into debug UART tx fifo.
+ */
+int32_t uart16550_get_tx_headroom(void)
+{
+	uint64_t rflags;
+	int32_t headroom;
+
+	spinlock_irqsave_obtain(&uart.tx_lock, &rflags);
+	if ((uart16550_read_reg(uart, UART16550_LSR) & LSR_THRE) != 0U) {
+		/* If THR is empty, restore full headroom */
+		tx_fifo_counter = 0;
+	}
+	headroom = (int32_t)(TX_FIFO_DEPTH - tx_fifo_counter);
+	spinlock_irqrestore_release(&uart.tx_lock, rflags);
+
+	return headroom;
 }
 
 size_t uart16550_puts(const char *buf, uint32_t len)
