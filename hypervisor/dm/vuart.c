@@ -165,11 +165,11 @@ static void schedule_vtransmitter_update(struct vuart_transmitter *vtx)
 {
 	struct acrn_vuart *vu = vtx->vu;
 
-	del_timer(&vtx->trans_timer);
-	update_timer(&vtx->trans_timer,
+	del_timer(&vtx->trans_timer[get_pcpu_id()]);
+	update_timer(&vtx->trans_timer[get_pcpu_id()],
 		 cpu_ticks() + vu->char_vtx_time * vtx->vfifo_level,
 		 0);
-	(void)add_timer(&vtx->trans_timer);
+	(void)add_timer(&vtx->trans_timer[get_pcpu_id()]);
 }
 
 /**
@@ -814,6 +814,7 @@ static void setup_vuart(struct acrn_vm *vm, uint16_t vuart_idx)
 {
 	uint32_t divisor;
 	struct acrn_vuart *vu = &vm->vuart[vuart_idx];
+	uint32_t i;
 
 	/* Set baud rate*/
 	divisor = (UART_CLOCK_RATE / BAUD_115200) >> 4U;
@@ -822,8 +823,10 @@ static void setup_vuart(struct acrn_vm *vm, uint16_t vuart_idx)
 	vu->vtx.vu = vu;
 	vu->vtx.vfifo_time_stamp = cpu_ticks();
 	update_vtransmitter_tx_rate(vu);
-	initialize_timer(&vu->vtx.trans_timer,
-		 vtransmitter_timer_handler, &vu->vtx, 0, 0);
+	for (i = 0; i < MAX_PCPU_NUM; i++) {
+		initialize_timer(&vu->vtx.trans_timer[i],
+			vtransmitter_timer_handler, &vu->vtx, 0, 0);
+	}
 	vu->vm = vm;
 	init_fifo(vu);
 	init_vuart_lock(vu);

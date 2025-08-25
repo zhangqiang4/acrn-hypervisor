@@ -91,7 +91,7 @@ struct acrn_vuart;
 struct vuart_transmitter {
 	uint64_t vfifo_level; /**< How many chars in the virtual fifo when it is last checked. */
 	uint64_t vfifo_time_stamp; /**< Time stamp in CPU ticks when virtual fifo is last checked. */
-	struct hv_timer trans_timer; /**< Timer used to emulate the physical transfer process */
+	struct hv_timer trans_timer[MAX_PCPU_NUM]; /**< Timer used to emulate the physical transfer process */
 	struct acrn_vuart *vu;	/**< pointer to the vUART which owns this transmitter */
 };
 
