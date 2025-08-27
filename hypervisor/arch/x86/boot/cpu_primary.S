@@ -225,6 +225,10 @@ primary_start_long_mode:
     /* 16 = CPU_STACK_ALIGN */
     and     $(~(16 - 1)),%rsp
 
+    /* 0x80000033 = (CR0_PG | CR0_ET | CR0_PE | CR0_MP | CR0_NE) */
+    movl    $0x80000033, %ebx
+    movq    %rbx, %cr0
+
 #ifdef CONFIG_RELOC
     /*
      * Fix up the .rela sections
