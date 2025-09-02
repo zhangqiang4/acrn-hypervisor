@@ -166,6 +166,7 @@ struct virtio_blk {
 	int num_vqs;
 	struct iothreads_info iothrds_info;
 	struct virtio_ops ops;
+	bool use_legacy;
 };
 
 static void virtio_blk_reset(void *);
@@ -418,6 +419,9 @@ virtio_blk_get_caps(struct virtio_blk *blk, bool wb)
 	if (blk->num_vqs > 1)
 		caps |= VIRTIO_BLK_F_MQ;
 
+	if (!blk->use_legacy)
+		caps |= (1UL << VIRTIO_F_VERSION_1);
+
 	return caps;
 }
 
@@ -478,7 +482,7 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	char *opt = NULL;
 	u_char digest[16];
 	struct virtio_blk *blk;
-	bool use_iothread;
+	bool use_iothread, use_legacy=false;
 	struct iothread_ctx *ioctx_base = NULL;
 	struct iothreads_info iothrds_info;
 	int num_vqs;
@@ -537,6 +541,9 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 					return -1;
 				}
 
+				p = opts_tmp;
+			} else if (!strncmp(opt, "legacy", strlen("legacy"))) {
+				use_legacy = true;
 				p = opts_tmp;
 			} else if (!strncmp(opt, "mq", strlen("mq"))) {
 				strsep(&opt, "=");
@@ -607,7 +614,7 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		rc = -1;
 		goto failed_blk;
 	}
-
+	blk->use_legacy = use_legacy;
 	blk->iothrds_info.ioctx_base = ioctx_base;
 	blk->iothrds_info.num = iot_opt.num;
 
@@ -711,10 +718,16 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	 * have the device, class, and subdev_0 as fields in
 	 * the virtio constants structure.
 	 */
-	pci_set_cfgdata16(dev, PCIR_DEVICE, VIRTIO_DEV_BLOCK);
+	if (blk->use_legacy) {
+		pci_set_cfgdata16(dev, PCIR_DEVICE, VIRTIO_DEV_BLOCK);
+		pci_set_cfgdata16(dev, PCIR_SUBDEV_0, VIRTIO_TYPE_BLOCK);
+	} else {
+		pci_set_cfgdata16(dev, PCIR_DEVICE, 0x1040 + VIRTIO_TYPE_BLOCK);
+		pci_set_cfgdata8(dev, PCIR_REVID, 0x01);
+		pci_set_cfgdata16(dev, PCIR_SUBDEV_0, 0x1100);
+	}
 	pci_set_cfgdata16(dev, PCIR_VENDOR, VIRTIO_VENDOR);
 	pci_set_cfgdata8(dev, PCIR_CLASS, PCIC_STORAGE);
-	pci_set_cfgdata16(dev, PCIR_SUBDEV_0, VIRTIO_TYPE_BLOCK);
 	if (is_winvm == true)
 		pci_set_cfgdata16(dev, PCIR_SUBVEND_0, ORACLE_VENDOR_ID);
 	else
@@ -724,8 +737,11 @@ virtio_blk_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		rc = -1;
 		goto failed_intr;
 	}
-	virtio_set_io_bar(&blk->base, 0);
 
+	if (blk->use_legacy)
+		virtio_set_io_bar(&blk->base, 0);
+	else
+		virtio_set_modern_bar(&blk->base, false);
 	/*
 	 * Register ops for virtio-blk Rescan
 	 */
