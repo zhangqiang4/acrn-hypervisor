@@ -51,8 +51,68 @@
       <kern_type>KERNEL_BZIMAGE</kern_type>
       <kern_mod>asos_bzimage</kern_mod>
       <ramdisk_mod>asos_ramdisk</ramdisk_mod>
-      <bootargs>no_timer_check intel_iommu=off tsc=reliable</bootargs>
+      <bootargs>idle=halt no_timer_check intel_iommu=off tsc=reliable</bootargs>
     </os_config>
     <console_vuart>COM Port 1</console_vuart>
+  </vm>
+    <vm id="1">
+    <vm_type>STANDARD_VM</vm_type>
+    <console_vuart>COM Port 1</console_vuart>
+    <mcbanks_bitmask>0xfffff</mcbanks_bitmask>
+    <os_type>Non-Windows OS</os_type>
+    <own_pcpu>n</own_pcpu>
+    <vuart0>n</vuart0>
+    <vbootloader>y</vbootloader>
+    <locked_in_xapic>y</locked_in_xapic>
+    <!-- <lapic_passthrough>y</lapic_passthrough> -->
+    <memory>
+      <size>1</size>
+    </memory>
+    <cpu_affinity>
+      <pcpu>
+        <pcpu_id>2</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>3</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>4</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>5</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>6</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>7</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>8</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>9</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>10</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+      <pcpu>
+        <pcpu_id>11</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
+    </cpu_affinity>
+    <load_order>POST_LAUNCHED_VM</load_order>
+    <name>VM1</name>
+    <priority>PRIO_LOW</priority>
+    <companion_vmid>65535</companion_vmid>
   </vm>
 </acrn-config>
