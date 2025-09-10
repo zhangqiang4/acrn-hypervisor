@@ -437,6 +437,8 @@ arguments:
            By default, only one iothread instance is created.
            To configure multiple iothread instances, specify ``iothread=x``, x is the number of
            iothread instances.
+         * ``legacy``: support legacy VIRTIO interface to be compatible with some old OSes.
+           By default, this option is not configured.
          * ``aio=xxx``: configure the mechanism that is used by BE to process the IO request,
            support either ``aio=threads`` or ``aio=io_uring``.
 
