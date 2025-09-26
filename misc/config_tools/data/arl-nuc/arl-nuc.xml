@@ -1,4 +1,4 @@
-<acrn-config board="my-board">
+<acrn-config board="arl-nuc">
   <BIOS_INFO>
 	BIOS Information
 	Vendor: American Megatrends International, LLC.
