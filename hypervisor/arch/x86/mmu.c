@@ -539,7 +539,7 @@ void init_paging(void)
 	/* Modify WB attribute for E820_TYPE_RAM */
 	for (i = 0U; i < entries_count; i++) {
 		entry = p_mmap + i;
-		if (entry->type == MMAP_TYPE_RAM) {
+		if ((entry->type == MMAP_TYPE_RAM) || (entry->type == MMAP_TYPE_RESERVED)) {
 			uint64_t end = entry->baseaddr + entry->length;
 			if (end < MEM_4G) {
 				low32_max_ram = max(end, low32_max_ram);
