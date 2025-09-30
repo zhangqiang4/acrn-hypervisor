@@ -102,6 +102,7 @@ LIBS += -lEGL
 LIBS += -lGLESv2
 LIBS += -lasound
 LIBS += -ldrm
+LIBS += -lm
 
 
 # lib
@@ -186,6 +187,7 @@ SRCS += hw/pci/gvt.c
 SRCS += hw/pci/npk.c
 SRCS += hw/pci/ivshmem.c
 SRCS += hw/mmio/core.c
+SRCS += hw/pci/hda.c
 
 # core
 #SRCS += core/bootrom.c
