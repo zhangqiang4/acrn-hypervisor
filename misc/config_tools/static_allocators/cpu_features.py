@@ -52,6 +52,15 @@ def fn(board_etree, scenario_etree, allocation_etree):
                 ((policies[p].extra_check_fn is None) or policies[p].extra_check_fn(vm_id, board_etree, scenario_etree, allocation_etree))):
                     acrn_config_utilities.append_node("./cpu_features/feature_flag", policies[p].feature_flag, allocation_vm_node)
 
+        # Handle thermal virtualization features from scenario XML
+        virtual_thermal_monitor = get_node(".//virtual_thermal_monitor/text()", vm_node)
+        if virtual_thermal_monitor == "y":
+            acrn_config_utilities.append_node("./cpu_features/feature_flag", policies["tm"].feature_flag, allocation_vm_node)
+
+        virtual_package_thermal_management = get_node(".//virtual_package_thermal_management/text()", vm_node)
+        if virtual_package_thermal_management == "y":
+            acrn_config_utilities.append_node("./cpu_features/feature_flag", policies["ptm"].feature_flag, allocation_vm_node)
+
         cpu_features_node = get_node(f"/acrn-config/vm[@id = '{vm_id}']/cpu_features", scenario_etree)
         if cpu_features_node is None:
             continue
