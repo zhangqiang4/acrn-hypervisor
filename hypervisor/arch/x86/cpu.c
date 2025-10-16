@@ -417,13 +417,14 @@ void init_pcpu_pre(bool is_bsp)
 		 */
 		pci_switch_to_mmio_cfg_ops();
 	} else {
-		/* Let BSP (Board Support Package) do the per-processor initialization. */
-		bsp_init();
 
 		/* Switch this CPU to use the same page tables set-up by the
 		 * primary/boot CPU
 		 */
 		enable_paging();
+
+		/* Let BSP (Board Support Package) do the per-processor initialization. */
+		bsp_init();
 
 		early_init_lapic();
 
