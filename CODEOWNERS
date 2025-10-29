@@ -10,9 +10,9 @@
 # Additional reviewers can be assigned manually
 
 # Default/global reviewers (if not overridden later)
-*                                        @ywan170 @NanlinXie
-/hypervisor/                             @dongyaozu @lifeix @yfliuuu
+*                                        @ywan170 @jsun26intel
+/hypervisor/                             @ywan170 @chejianj @lifeix @yfliuuu
 /devicemodel/                            @ywan170 @chejianj
-/doc/                                    @NanlinXie @qianouyang @shiqingg
-/misc/                                   @jsun26intel @NanlinXie @yfliuuu
-*.rst                                    @NanlinXie @qianouyang @shiqingg
+/doc/                                    @qianouyang @shiqingg
+/misc/                                   @jsun26intel @yfliuuu
+*.rst                                    @qianouyang @shiqingg
