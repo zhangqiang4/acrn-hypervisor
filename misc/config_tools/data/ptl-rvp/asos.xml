@@ -51,7 +51,7 @@
       <kern_type>KERNEL_BZIMAGE</kern_type>
       <kern_mod>asos_bzimage</kern_mod>
       <ramdisk_mod>asos_ramdisk</ramdisk_mod>
-      <bootargs>idle=halt no_timer_check intel_iommu=off tsc=reliable</bootargs>
+      <bootargs>no_timer_check intel_iommu=off tsc=reliable</bootargs>
     </os_config>
     <console_vuart>COM Port 1</console_vuart>
   </vm>
@@ -60,7 +60,7 @@
     <console_vuart>COM Port 1</console_vuart>
     <mcbanks_bitmask>0xfffff</mcbanks_bitmask>
     <os_type>Non-Windows OS</os_type>
-    <own_pcpu>n</own_pcpu>
+    <own_pcpu>y</own_pcpu>
     <vuart0>n</vuart0>
     <vbootloader>y</vbootloader>
     <locked_in_xapic>y</locked_in_xapic>
@@ -69,6 +69,10 @@
       <size>1</size>
     </memory>
     <cpu_affinity>
+      <pcpu>
+        <pcpu_id>1</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
       <pcpu>
         <pcpu_id>2</pcpu_id>
         <real_time_vcpu>n</real_time_vcpu>

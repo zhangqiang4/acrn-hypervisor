@@ -15,6 +15,7 @@
       <SPLIT_LOCK_DETECTION_ENABLED>n</SPLIT_LOCK_DETECTION_ENABLED>
       <UC_LOCK_DETECTION_ENABLED>n</UC_LOCK_DETECTION_ENABLED>
       <SECURITY_VM_FIXUP>n</SECURITY_VM_FIXUP>
+      <SRIOV_VF_BAR_FIXUP>y</SRIOV_VF_BAR_FIXUP>
       <RDT>
         <RDT_ENABLED>n</RDT_ENABLED>
         <CDP_ENABLED>n</CDP_ENABLED>
@@ -51,7 +52,7 @@
       <kern_type>KERNEL_BZIMAGE</kern_type>
       <kern_mod>asos_bzimage</kern_mod>
       <ramdisk_mod>asos_ramdisk</ramdisk_mod>
-      <bootargs>idle=halt no_timer_check intel_iommu=off tsc=reliable xe.force_probe=* xe.enable_guc=0x3 xe.max_vfs=0x7</bootargs>
+      <bootargs>no_timer_check intel_iommu=off tsc=reliable i915.force_probe=* i915.enable_guc=0x3 i915.max_vfs=0x7</bootargs>
     </os_config>
     <console_vuart>None</console_vuart>
   </vm>
@@ -69,6 +70,10 @@
       <size>1</size>
     </memory>
     <cpu_affinity>
+      <pcpu>
+        <pcpu_id>1</pcpu_id>
+        <real_time_vcpu>n</real_time_vcpu>
+      </pcpu>
       <pcpu>
         <pcpu_id>2</pcpu_id>
         <real_time_vcpu>n</real_time_vcpu>
