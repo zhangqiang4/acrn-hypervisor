@@ -488,7 +488,6 @@ bool is_valid_cr0_cr4(struct acrn_vm *vm, uint64_t cr0, uint64_t cr4)
  * This function checks below invalid cases:
  * - Any guest CR4 reserved bit is set.
  * - EFER.MSR_IA32_EFER_LMA_BIT is set but CR4.PAE is not.
- * - CR4.MCE is set but Machine-Check is not passed through to guest.
  *
  * If these invalid cases are not detected, the target write value is valid, otherwise invalid.
  *
@@ -506,10 +505,6 @@ static bool is_cr4_write_valid(struct acrn_vcpu *vcpu, uint64_t cr4)
 	bool ret = true;
 
 	if (!is_valid_cr4(vcpu->vm, cr4) || (is_long_mode(vcpu) && ((cr4 & CR4_PAE) == 0UL))) {
-		ret = false;
-	}
-
-	if (!is_mc_pt_enabled(vcpu) && ((cr4 & CR4_MCE) != 0UL)) {
 		ret = false;
 	}
 
