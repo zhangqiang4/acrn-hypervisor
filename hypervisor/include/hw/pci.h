@@ -125,6 +125,8 @@
 #define PCIR_INTERRUPT_PIN    0x3dU  /**< Interrupt Pin register offset. */
 
 #define PCIC_SIMPLECOMM       0x07U  /**< Class codes of Simple communication controllers */
+#define PCIS_SIMPLECOMM_UART  0x00U  /**< Subclass code for Serial/UART controller */
+#define PCIS_SIMPLECOMM_MULSER 0x02U  /**< Subclass code for Multi-port Serial controller */
 /* Config registers for header type 1 (PCI-to-PCI bridge) devices */
 #define PCIR_PRIBUS_1         0x18U  /**< Primary Bus Number register offset. */
 #define PCIR_SECBUS_1         0x19U  /**< Secondary Bus Number register offset. */

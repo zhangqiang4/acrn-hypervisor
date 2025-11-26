@@ -151,6 +151,15 @@ void uart16550_init(bool early_boot)
 
 	/* if configure serial PCI BDF, get its base MMIO address */
 	if (uart.type == PCI) {
+		uint8_t class_code = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_CLASS, 1U);
+		uint8_t subclass = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_SUBCLASS, 1U);
+		/* Class 0x07 = Simple Communication Controller, Subclass = Serial/Multi-Serial */
+		if ((class_code != PCIC_SIMPLECOMM) ||
+		    ((subclass != PCIS_SIMPLECOMM_UART) && (subclass != PCIS_SIMPLECOMM_MULSER))) {
+			uart.enabled = false;
+			return;
+		}
+
 		uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
 
 		if ((bar0 & ~0xfU) == 0U) {
