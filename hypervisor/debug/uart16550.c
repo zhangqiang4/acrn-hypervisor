@@ -131,12 +131,12 @@ static void uart16550_set_baud_rate(uint32_t baud_rate)
 static uint8_t uart_pde_page[PAGE_SIZE]__aligned(PAGE_SIZE);
 static uint8_t uart_pdpte_page[PAGE_SIZE]__aligned(PAGE_SIZE);
 
-void uart16550_init(bool early_boot)
+bool uart16550_init(bool early_boot)
 {
 	void *mmio_base_va = NULL;
 
 	if (!uart.enabled) {
-		return;
+		return false;
 	}
 
 	if (!early_boot) {
@@ -146,7 +146,7 @@ void uart16550_init(bool early_boot)
 				set_paging_supervisor((uint64_t)mmio_base_va, PDE_SIZE);
 			}
 		}
-		return;
+		return true;
 	}
 
 	/* if configure serial PCI BDF, get its base MMIO address */
@@ -157,7 +157,7 @@ void uart16550_init(bool early_boot)
 		if ((class_code != PCIC_SIMPLECOMM) ||
 		    ((subclass != PCIS_SIMPLECOMM_UART) && (subclass != PCIS_SIMPLECOMM_MULSER))) {
 			uart.enabled = false;
-			return;
+			return false;
 		}
 
 		uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
@@ -165,7 +165,7 @@ void uart16550_init(bool early_boot)
 		if ((bar0 & ~0xfU) == 0U) {
 			/* in case the PCI UART BAR is reset to 0 after boot */
 			uart.enabled = false;
-			return;
+			return false;
 		} else {
 			uint16_t cmd = (uint16_t)pci_pdev_read_cfg(uart.bdf, PCIR_COMMAND, 2U);
 			if ((bar0 & 0x3U) == PCIM_BAR_IO_SPACE) { /* IO Space */
@@ -184,7 +184,7 @@ void uart16550_init(bool early_boot)
 					pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_MEMEN);
 			} else {
 				uart.enabled = false;
-				return;
+				return false;
 			}
 		}
 	}
@@ -206,6 +206,8 @@ void uart16550_init(bool early_boot)
 
 	/* Data terminal ready + Request to send */
 	uart16550_write_reg(uart, MCR_RTS | MCR_DTR, UART16550_MCR);
+
+	return true;
 }
 
 char uart16550_getc(void)

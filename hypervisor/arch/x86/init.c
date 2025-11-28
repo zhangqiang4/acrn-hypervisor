@@ -86,7 +86,7 @@ extern bool platform_s3_resume;
 static void init_debug_pre(void)
 {
 	/* Initialize console */
-	console_init();
+	console_init(true);
 	/* Initialize framebuffer */
 	fb_init(true);
 }
@@ -114,7 +114,7 @@ static void init_debug_post(uint16_t pcpu_id)
 	}
 
 	if (pcpu_id == VUART_TIMER_CPU) {
-		console_setup_timer();
+		console_init(false);
 	}
 
 	profiling_setup();

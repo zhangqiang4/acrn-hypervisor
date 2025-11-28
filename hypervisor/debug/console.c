@@ -47,6 +47,9 @@ static bool use_init_ipi = false;
 
 uint16_t console_loglevel = CONFIG_CONSOLE_LOGLEVEL_DEFAULT;
 static spinlock_t console_log_lock;
+static bool init_console;
+static void console_timer_callback(void *data);
+static void console_setup_timer(void);
 
 bool is_using_init_ipi(void)
 {
@@ -81,18 +84,24 @@ static void parse_hvdbg_cmdline(void)
 
 }
 
-void console_init(void)
+
+void console_init(bool pre)
 {
-	/*Parse cmdline to get UART setting*/
-	parse_hvdbg_cmdline();
+	if (pre) {
+		/*Parse cmdline to get UART setting*/
+		parse_hvdbg_cmdline();
 
-	/*
-	 * Enable UART as early as possible.
-	 * Then we could use printf for debugging on early boot stage.
-	 */
-	uart16550_init(true);
-
-	spinlock_init(&console_log_lock);
+		/*
+		 * Enable UART as early as possible.
+		 * Then we could use printf for debugging on early boot stage.
+		 */
+		if (uart16550_init(true)) {
+			spinlock_init(&console_log_lock);
+			init_console = true;
+		}
+	} else if (init_console) {
+		console_setup_timer();
+	}
 }
 
 void console_putc(const char *ch)
@@ -272,7 +281,7 @@ static void console_timer_callback(__unused void *data)
 	}
 }
 
-void console_setup_timer(void)
+static void console_setup_timer(void)
 {
 	uint64_t period_in_cycle, fire_tsc;
 
@@ -300,7 +309,7 @@ void console_vmexit_callback(struct acrn_vcpu *vcpu)
 	static uint64_t prev_tsc = 0;
 	uint64_t tsc;
 
-	if ((pcpuid_from_vcpu(vcpu) == VUART_TIMER_CPU) && (is_lapic_pt_configured(vcpu->vm))) {
+	if (init_console && (pcpuid_from_vcpu(vcpu) == VUART_TIMER_CPU) && (is_lapic_pt_configured(vcpu->vm))) {
 		tsc = cpu_ticks();
 		if (tsc - prev_tsc > (TICKS_PER_MS * CONSOLE_KICK_TIMER_TIMEOUT)) {
 			console_timer_callback(NULL);
@@ -311,7 +320,7 @@ void console_vmexit_callback(struct acrn_vcpu *vcpu)
 
 void suspend_console(void)
 {
-	if (VUART_TIMER_CPU == BSP_CPU_ID) {
+	if (init_console && (VUART_TIMER_CPU == BSP_CPU_ID)) {
 		del_timer(&console_timer);
 	}
 }
@@ -319,23 +328,23 @@ void suspend_console(void)
 void resume_console(void)
 {
 	if (VUART_TIMER_CPU == BSP_CPU_ID) {
-		console_setup_timer();
+		console_init(false);
 	}
 }
 
 bool console_need_log(uint32_t severity)
 {
-	return (severity <= console_loglevel);
+	return (init_console && (severity <= console_loglevel));
 }
 
 void console_log(char *buffer)
 {
 	uint64_t rflags;
 
-	spinlock_irqsave_obtain(&console_log_lock ,&rflags);
+	spinlock_irqsave_obtain(&console_log_lock, &rflags);
 
 	/* Send buffer to stdout */
 	printf("%s\n\r", buffer);
-
 	spinlock_irqrestore_release(&console_log_lock, rflags);
+
 }
