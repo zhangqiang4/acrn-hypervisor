@@ -176,6 +176,10 @@ static void ptirq_build_physical_msi(struct acrn_vm *vm,
 
 	vdmask = vlapic_calc_dest_noshort(vm, false, dest, phys, false);
 	pdmask = vcpumask2pcpumask(vm, vdmask);
+	if ((pid_paddr == 0UL) && !is_lapic_pt_configured(vm)) {
+		/* only select one CPU with lowest CPU ID to avoid concurrency of IRQ injection */
+		pdmask = (pdmask | (pdmask -1)) & ~(pdmask - 1);
+	}
 
 	/* get physical delivery mode */
 	delmode = entry->vmsi.data.bits.delivery_mode;
@@ -314,6 +318,8 @@ ptirq_build_physical_rte(struct acrn_vm *vm, struct ptirq_remapping_info *entry)
 		vector = rte.bits.vector;
 	} else {
 		vector = irq_to_vector(phys_irq);
+		/* only select one CPU with lowest CPU ID to avoid concurrency of IRQ injection */
+		pdmask = (pdmask | (pdmask -1)) & ~(pdmask - 1);
 	}
 
 	dest_mask = calculate_logical_dest_mask(pdmask);
