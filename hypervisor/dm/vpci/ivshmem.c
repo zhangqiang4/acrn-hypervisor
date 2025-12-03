@@ -529,6 +529,7 @@ static void ivshmem_vbar_map(struct pci_vdev *vdev, uint32_t idx)
  *   vpci_update_one_vbar(), ivshmem_vbar_map() and ivshmem_vbar_unmap().
  * - If the write request is for the MSI-X capability register, it specially handles the write request. For detailed
  *   operations, refer to write_vmsix_cap_reg().
+ * - If the write request is for the BIOS ROM BAR (PCIR_BIOS), it does nothing.
  * - Otherwise, the function writes the provided value to the specified configuration space register.
  * - Finally, the function returns 0.
  *
@@ -552,7 +553,9 @@ static int32_t write_ivshmem_vdev_cfg(struct pci_vdev *vdev, uint32_t offset, ui
 	} else if (msixcap_access(vdev, offset)) {
 		(void)write_vmsix_cap_reg(vdev, offset, bytes, val);
 	} else {
-		pci_vdev_write_vcfg(vdev, offset, bytes, val);
+		if (offset != PCIR_BIOS) {
+			pci_vdev_write_vcfg(vdev, offset, bytes, val);
+		}
 	}
 
 	return 0;
