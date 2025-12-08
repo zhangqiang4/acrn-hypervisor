@@ -41,6 +41,8 @@
 #include <asm/mce.h>
 #include <asm/platform_caps.h>
 #include <bsp.h>
+#include <asm/guest/optee.h>
+
 /**
  * @defgroup hwmgmt_cpu hwmgmt.cpu
  * @ingroup hwmgmt
@@ -829,6 +831,8 @@ static inline void asm_safe_mwait(uint64_t eax, uint64_t ecx)
  *
  * If no vcpu is launched on that pCPU, return 0xE0 to suggest the deepest Cx.
  *
+ * TEE VMs are considered stateless, they are not counted in the idle hint calculation.
+ *
  * @param[in] pcpu_id Id of pCPU to get the idle hint.
  *
  * @return Idle hint for the target pCPU.
@@ -841,7 +845,7 @@ static uint32_t get_pcpu_idle_hint(uint16_t pcpu_id)
 
 	for (i = 0; i < CONFIG_MAX_VM_NUM; i++) {
 		vcpu = per_cpu(vcpu_array[i], pcpu_id);
-		if ((vcpu != NULL) && vcpu->launched) {
+		if ((vcpu != NULL) && vcpu->launched && !is_tee_vm(vcpu->vm)) {
 			hint = (vcpu->idle_hint < hint) ? vcpu->idle_hint : hint;
 			launched_cnt ++;
 		}
