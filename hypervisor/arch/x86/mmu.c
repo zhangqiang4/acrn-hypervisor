@@ -89,12 +89,38 @@ static uint8_t sanitized_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 #define PPT_PDPT_PAGE_NUM	PDPT_PAGE_NUM(MAX_PHY_ADDRESS_SPACE)
 
 /**
+ * @brief Number of PD pages needed for the hypervisor page tables.
+ *
+ * 2MB hugepage for each page until the memory top, plus 6 BARs for each PCI device.
+ */
+#define PPT_PD_PAGE_NUM	(PD_PAGE_NUM(MEM_TOP_ADDRESS) + CONFIG_MAX_PCI_DEV_NUM * 6U)
+
+/**
  * @brief Number of PT pages needed for the hypervisor page tables.
  *
  * This value is set 0 as we do not support 4K granularity page mapping.
  */
 #define PPT_PT_PAGE_NUM	0UL
 
+/**
+ * @brief Calculate the total number of pages needed for the primary page table.
+ *
+ * This function calculates the number of pages required for all page table levels:
+ * - PML4 page: Typically one page for the entire address space (512GB per entry * 512 entries).
+ * - PDPT pages: Based on maximum physical address space (1GB per entry when using 1GB pages).
+ * - PD pages: Based on total physical memory size plus additional pages for PCI device mappings
+ *   (2MB per entry when using 2MB pages).
+ * - PT pages: Set to 0 as the hypervisor uses 2MB or 1GB pages instead of 4KB pages.
+ *
+ * The total is then rounded up to a multiple of 64 for alignment purposes.
+ *
+ * @return The total number of pages needed for all page table structures.
+ *
+ * @pre N/A
+ *
+ * @post N/A
+ */
+#define PPT_PAGE_NUM roundup((PPT_PML4_PAGE_NUM + PPT_PDPT_PAGE_NUM + PPT_PD_PAGE_NUM + PPT_PT_PAGE_NUM), 64U)
 
 /**
  * @brief High RAM region's min address
@@ -129,33 +155,10 @@ void get_high64_ram(uint64_t *high_min, uint64_t *high_max) {
 	*high_max = high64_max_ram;
 }
 #endif
-/**
- * @brief Calculate the total number of pages needed for the primary page table.
- *
- * This function calculates the number of pages required for all page table levels:
- * - PML4 page: Typically one page for the entire address space (512GB per entry * 512 entries).
- * - PDPT pages: Based on maximum physical address space (1GB per entry when using 1GB pages).
- * - PD pages: Based on total physical memory size plus additional pages for PCI device mappings
- *   (2MB per entry when using 2MB pages).
- * - PT pages: Set to 0 as the hypervisor uses 2MB or 1GB pages instead of 4KB pages.
- *
- * The total is then rounded up to a multiple of 64 for alignment purposes.
- *
- * @return The total number of pages needed for all page table structures.
- *
- * @pre N/A
- *
- * @post N/A
- */
-static uint64_t get_ppt_page_num(void)
-{
-       uint64_t ppt_pd_page_num = PD_PAGE_NUM(MEM_TOP_ADDRESS) + CONFIG_MAX_PCI_DEV_NUM * 6U;
-
-       /* must be a multiple of 64 */
-       return roundup((PPT_PML4_PAGE_NUM + PPT_PDPT_PAGE_NUM + ppt_pd_page_num + PPT_PT_PAGE_NUM), 64U);
-}
 
 static struct page_pool ppt_page_pool; /**< Primary page pool */
+static struct page ppt_pages[PPT_PAGE_NUM] __aligned(PAGE_SIZE); /**< Primary page pool pages */
+static uint64_t ppt_pages_bitmap[PPT_PAGE_NUM / 8UL]; /**< Page pool bitmaps */
 
 /**
  * @brief Determine if large page mapping is supported at the specified level.
@@ -486,13 +489,10 @@ void set_paging_supervisor(uint64_t base, uint64_t size)
  */
 void allocate_ppt_pages(void)
 {
-	uint64_t page_base;
-	uint64_t bitmap_size = get_ppt_page_num() / 8UL;
+	uint64_t bitmap_size = PPT_PAGE_NUM / 8UL;
 
-	page_base = e820_alloc_memory(sizeof(struct page) * get_ppt_page_num(), MEM_4G);
-	ppt_page_pool.bitmap = (uint64_t *)e820_alloc_memory(bitmap_size, MEM_4G);
-
-	ppt_page_pool.start_page = (struct page *)(void *)page_base;
+	ppt_page_pool.start_page = ppt_pages;
+	ppt_page_pool.bitmap = ppt_pages_bitmap;
 	ppt_page_pool.bitmap_size = bitmap_size / sizeof(uint64_t);
 	ppt_page_pool.dummy_page = NULL;
 
