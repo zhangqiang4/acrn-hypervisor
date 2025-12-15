@@ -173,6 +173,10 @@ static bool local_add_timer(struct per_cpu_timers *cpu_timer,
 
 	list_add(&timer->node, prev);
 
+	if (timer->is_vlapic_timer) {
+		cpu_timer->active_vlapic_timers ++;
+	}
+
 	return (prev == &cpu_timer->timer_list);
 }
 
@@ -334,6 +338,9 @@ void del_timer(struct hv_timer *timer)
 	CPU_INT_ALL_DISABLE(&rflags);
 	if ((timer != NULL) && !list_empty(&timer->node)) {
 		list_del_init(&timer->node);
+		if (timer->is_vlapic_timer) {
+			get_cpu_var(cpu_timers).active_vlapic_timers --;
+		}
 	}
 	CPU_INT_ALL_RESTORE(rflags);
 }
@@ -447,6 +454,37 @@ void timer_init(void)
 	}
 
 	init_hw_timer();
+}
+
+/**
+ * @brief Check whether there is any active vlapic timer on the given physical CPU.
+ *
+ * This function checks whether there is any active vlapic timer on the specified physical CPU.
+ *
+ * @param[in] pcpu_id The ID of the physical CPU to check.
+ *
+ * @return true if there is at least one active vlapic timer on the specified physical CPU, false otherwise.
+ */
+bool is_vlapic_timer_active(uint16_t pcpu_id)
+{
+	return (per_cpu(cpu_timers, pcpu_id).active_vlapic_timers > 0);
+}
+
+/**
+ * @brief Set the vlapic timer flag for a timer.
+ *
+ * This function sets the vlapic timer flag for the specified timer.
+ *
+ * @param[in] timer The timer to set the vlapic timer flag for.
+ * @param[in] is_vlapic_timer A boolean value indicating whether the timer is a vlapic timer.
+ *
+ * @return None
+ */
+void set_vlapic_timer_flag(struct hv_timer *timer, bool is_vlapic_timer)
+{
+	if (timer != NULL) {
+		timer->is_vlapic_timer = is_vlapic_timer;
+	}
 }
 
 /**

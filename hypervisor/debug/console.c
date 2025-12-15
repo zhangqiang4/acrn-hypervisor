@@ -318,6 +318,16 @@ void console_vmexit_callback(struct acrn_vcpu *vcpu)
 	}
 }
 
+/**
+ * @brief Get the console timer interval in CPU ticks.
+ *
+ * @return The console timer interval in CPU ticks.
+ */
+uint64_t get_console_timer_interval(void)
+{
+	return CONSOLE_KICK_TIMER_TIMEOUT * TICKS_PER_MS;
+}
+
 void suspend_console(void)
 {
 	if (init_console && (VUART_TIMER_CPU == BSP_CPU_ID)) {
@@ -330,6 +340,11 @@ void resume_console(void)
 	if (VUART_TIMER_CPU == BSP_CPU_ID) {
 		console_init(false);
 	}
+}
+
+int16_t get_console_timer_cpu_id(void)
+{
+	return VUART_TIMER_CPU;
 }
 
 bool console_need_log(uint32_t severity)

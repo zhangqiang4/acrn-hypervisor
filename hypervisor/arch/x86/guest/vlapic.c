@@ -521,6 +521,7 @@ static void vlapic_init_timer(struct acrn_vlapic *vlapic)
 	(void)memset(vtimer, 0U, sizeof(struct vlapic_timer));
 
 	initialize_timer(&vtimer->timer, vlapic_timer_expired, vlapic2vcpu((const struct acrn_vlapic *)vlapic), 0UL, 0UL);
+	set_vlapic_timer_flag(&vtimer->timer, true);
 }
 
 /**

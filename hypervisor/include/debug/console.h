@@ -36,6 +36,8 @@ void console_vmexit_callback(struct acrn_vcpu *vcpu);
 
 void suspend_console(void);
 void resume_console(void);
+int16_t get_console_timer_cpu_id(void);
+uint64_t get_console_timer_interval(void);
 bool is_using_init_ipi(void);
 
 bool console_need_log(uint32_t severity);

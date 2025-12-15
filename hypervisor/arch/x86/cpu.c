@@ -42,6 +42,7 @@
 #include <asm/platform_caps.h>
 #include <bsp.h>
 #include <asm/guest/optee.h>
+#include <asm/host_pm.h>
 
 /**
  * @defgroup hwmgmt_cpu hwmgmt.cpu
@@ -83,6 +84,14 @@ static uint64_t pcpu_sync = 0UL;
  * @brief The static variable representing the startup address of APs.
  */
 static uint64_t startup_paddr = 0UL;
+
+/**
+ * @brief The static variable indicating the number of physical CPUs that are currently idle.
+ *
+ * This variable is used to track the number of physical CPUs that are in an idle state.
+ * Specifically, it is sleeping in the do_cpu_idle() mwait context.
+ */
+static int32_t pcpu_idle_count = 0;
 
 /**
  * @brief The static variable indicating the physical CPU active bitmap, supporting up to 64 CPUs.
@@ -889,8 +898,52 @@ void cpu_do_idle(void)
 
 	if (per_cpu(mode_to_idle, pcpu_id) == IDLE_MODE_CX) {
 		uint32_t hint = get_pcpu_idle_hint(pcpu_id);
+
+		/* This is to check if the current CPU is the last CPU entering idle.
+		 * If all CPUs are in idle, plus all vCPU TSC deadline timers are deleted,
+		 * We know all guests are in S0ix state
+		 */
+		if (atomic_inc_return(&pcpu_idle_count) == get_pcpu_nums()) {
+			if(is_s0ix_detected()) {
+				/* Try to enter s0ix now. Console time is deleted here.
+				 *  Note:
+				 *  - Console time can only be deleted by VUART_TIMER_CPU. Other CPUs may
+				 *    reach here first, but finally it will be the VUART_TIMER_CPU entering
+				 *    here as console timer tickes.
+				 *  - After console timer deleted, the console times's TSC deadline is not
+				 *    deleted by design. It will later break mwait idle and reach here again.
+				 *    is_hypervisor_s0ix_confirmed() will confirm that the last tick has
+				 *    triggered.
+				 *  - After the timer's last tick, all CPUs enter mait, thus PC8/10 is reached.
+				 *    If all the required device power/clk/link are turned off right, the
+				 *    platform can enter s0ix.
+				 */
+				hypervisor_s0ix_enter();
+				pr_info("Hypervisor entering S0ix state");
+			}
+		}
+
 		asm_monitor(&dummy, 0UL, 0UL);
 		asm_safe_mwait(hint, 0UL);
+
+		(void)atomic_dec_return(&pcpu_idle_count);
+
+		/* Check if we need to resume from s0ix.
+		 *
+		 * Currently, we only need to resume console timer on the pCPU that runs it.
+		 *
+		 * We need some time after the console timer deleted to confirm that
+		 * s0ix is actually entered as the console timer still has a last tick on the way.
+		 * Calling resume function before that will setup timer again and we
+		 * can never enter s0ix.
+		 *
+		 * In the future, if more actions are needed on other pCPUs, we need to add per
+		 * pCPU s0ix state to manage it.
+		 */
+		if (pcpu_id == get_s0ix_resume_cpu_id() && is_hypervisor_s0ix_confirmed()) {
+			hypervisor_s0ix_resume();
+			pr_info("Hypervisor resumed from S0ix state");
+		}
 	} else {
 		/* IDLE_MODE_PAUSE only used in lapic_pt VMs. So we don't need to enable IRQ here. */
 		asm_pause();

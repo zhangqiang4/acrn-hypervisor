@@ -54,6 +54,7 @@ enum tick_mode {
  */
 struct per_cpu_timers {
 	struct list_head timer_list;	/**< it's for runtime active timer list */
+	int32_t active_vlapic_timers;	/**< number of active vlapic timers */
 };
 
 /**
@@ -67,6 +68,7 @@ struct hv_timer {
 	uint64_t timeout;		/**< tsc deadline to interrupt */
 	uint64_t period_in_cycle;	/**< period of the periodic timer in CPU ticks */
 	timer_handle_t func;		/**< callback if time reached */
+	bool is_vlapic_timer;	/**< flag to indicate the timer is a vlapic timer */
 	void *priv_data;		/**< func private data */
 };
 
@@ -87,6 +89,10 @@ int32_t add_timer(struct hv_timer *timer);
 void del_timer(struct hv_timer *timer);
 
 void timer_init(void);
+
+bool is_vlapic_timer_active(uint16_t pcpu_id);
+
+void set_vlapic_timer_flag(struct hv_timer *timer, bool is_vlapic_timer);
 
 #endif /* COMMON_TIMER_H */
 
