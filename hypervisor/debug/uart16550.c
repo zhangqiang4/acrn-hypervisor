@@ -357,6 +357,10 @@ int32_t uart16550_get_tx_headroom(void)
 	uint64_t rflags;
 	int32_t headroom;
 
+	if (!uart.enabled) {
+		return TX_FIFO_DEPTH;
+	}
+
 	spinlock_irqsave_obtain(&uart.tx_lock, &rflags);
 	if ((uart16550_read_reg(uart, UART16550_LSR) & LSR_THRE) != 0U) {
 		/* If THR is empty, restore full headroom */
