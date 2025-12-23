@@ -208,53 +208,6 @@ static void vtransmitter_timer_handler(void *param)
 	release_vuart_lock(vu, rflags);
 }
 
-static inline void fifo_putchar(struct vuart_fifo *fifo, char ch)
-{
-	fifo->buf[fifo->windex] = ch;
-	if (fifo->num < fifo->size) {
-		fifo->windex = (fifo->windex + 1U) % fifo->size;
-		fifo->num++;
-	} else {
-		fifo->rindex = (fifo->rindex + 1U) % fifo->size;
-		fifo->windex = (fifo->windex + 1U) % fifo->size;
-	}
-}
-
-static inline char fifo_getchar(struct vuart_fifo *fifo)
-{
-	char c = -1;
-
-	if (fifo->num > 0U) {
-		c = fifo->buf[fifo->rindex];
-		fifo->rindex = (fifo->rindex + 1U) % fifo->size;
-		fifo->num--;
-	}
-	return c;
-}
-
-static inline uint32_t fifo_numchars(const struct vuart_fifo *fifo)
-{
-	return fifo->num;
-}
-
-static inline bool fifo_isfull(const struct vuart_fifo *fifo)
-{
-	bool ret = false;
-	/* When the FIFO has less than 16 empty bytes, it should be
-	 * mask as full. As when the 16550 driver in OS receive the
-	 * THRE interrupt, it will directly send 16 bytes without
-	 * checking the LSR(THRE) */
-
-	/* Desired value should be 16 bytes, but to improve
-	 * fault-tolerant, enlarge 16 to 64. So that even the THRE
-	 * interrupt is raised by mistake, only if it less than 4
-	 * times, data in FIFO will not be overwritten. */
-	if ((fifo->size - fifo->num) < 64U) {
-		ret = true;
-	}
-	return ret;
-}
-
 void vuart_putchar(struct acrn_vuart *vu, char ch)
 {
 	uint64_t rflags;
