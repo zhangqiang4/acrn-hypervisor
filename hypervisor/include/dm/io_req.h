@@ -234,6 +234,8 @@ void set_io_req_state(struct acrn_vm *vm, uint16_t vcpu_id, uint32_t state);
 void set_hsm_notification_vector(uint32_t vector);
 uint32_t get_hsm_notification_vector(void);
 int32_t emulate_io(struct acrn_vcpu *vcpu, struct io_request *io_req);
+void set_dummy_mmio_access(struct acrn_vm *vm, uint64_t start, uint64_t end);
+void remove_dummy_mmio_access(struct acrn_vm *vm, uint64_t start, uint64_t end);
 
 void   register_pio_emulation_handler(struct acrn_vm *vm, uint32_t pio_idx,
 		const struct vm_io_range *range, io_read_fn_t io_read_fn_ptr, io_write_fn_t io_write_fn_ptr);

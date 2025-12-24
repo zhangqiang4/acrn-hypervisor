@@ -55,6 +55,7 @@ int32_t assign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev)
 {
 	int32_t i, ret = 0;
 	const struct acrn_mmiores *res;
+	uint64_t gpa;
 
 	for (i = 0; i < MMIODEV_RES_NUM; i++) {
 		res = &mmiodev->res[i];
@@ -68,10 +69,13 @@ int32_t assign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev)
 					add_variable_mtrr(vm, res->user_vm_pa, res->size, (res->mem_type & EPT_MT_MASK));
 				}
 			}
+			gpa = is_service_vm(vm) ? res->host_pa : res->user_vm_pa;
+
+			/* incase the dummy access handler has been setup on the gpa */
+			remove_dummy_mmio_access(vm, gpa, gpa + res->size);
 
 			ept_add_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, res->host_pa,
-				is_service_vm(vm) ? res->host_pa : res->user_vm_pa,
-				res->size, EPT_RWX | (res->mem_type & EPT_MT_MASK));
+				gpa, res->size, EPT_RWX | (res->mem_type & EPT_MT_MASK));
 		} else {
 			pr_err("%s invalid mmio res[%d] gpa:0x%lx hpa:0x%lx size:0x%lx",
 				__func__, i, res->user_vm_pa, res->host_pa, res->size);
@@ -118,6 +122,10 @@ int32_t deassign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev
 			if (mem_aligned_check(gpa, PAGE_SIZE) &&
 				mem_aligned_check(res->size, PAGE_SIZE)) {
 				ept_del_mr(vm, (uint64_t *)vm->arch_vm.nworld_eptp, gpa, res->size);
+				/* after deassigned, the mmio area is still possible to be accessed in the origin vm.
+				 * So set up dummy mmio access to avoid injecting exception.
+				 */
+				set_dummy_mmio_access(vm, gpa, gpa + res->size);
 			} else {
 				pr_err("%s invalid mmio res[%d] gpa:0x%lx hpa:0x%lx size:0x%lx",
 					__func__, i, res->user_vm_pa, res->host_pa, res->size);

@@ -831,11 +831,11 @@ static bool pio_default_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t
 }
 
 /**
- * @brief Set a default value to MMIO read request.
+ * @brief handle a MMIO access request on dummy address.
  *
- * Default mmio handler for Service VM and Pre-launch VM.
- * - For MMIO read,  set all bit to 1 as a default value.
- * - For MMIO write, do nothing just return success.
+ * This function is used to handle MMIO access on dummy address. The dummy address
+ * is neither mapped to any host mmio address nor used to emulate any function. Write access
+ * to dummy address will be ignored. Read access to dummy address will return all 1 bits.
  *
  * @param[in] io_req The I/O request holding the details of the IO access.
  * @param[in] handler_private_data Unused parameter.
@@ -847,7 +847,7 @@ static bool pio_default_write(__unused struct acrn_vcpu *vcpu, __unused uint16_t
  *
  * @post N/A
  */
-static int32_t mmio_default_access_handler(struct io_request *io_req,
+static int32_t mmio_dummy_access_handler(struct io_request *io_req,
 	__unused void *handler_private_data)
 {
 	struct acrn_mmio_request *mmio = &io_req->reqs.mmio_request;
@@ -873,6 +873,34 @@ static int32_t mmio_default_access_handler(struct io_request *io_req,
 	}
 
 	return 0;
+}
+
+/**
+ * @brief Default MMIO access request handler.
+ *
+ * The default MMIO read/write handler does the following work:
+ * - Print error message as the access is unexpected.
+ * - Call mmio_dummy_access_handler to treat the MMIO read/write with dummy value.
+ *
+ * @param[in] io_req The I/O request holding the details of the IO access.
+ * @param[in] handler_private_data Unused parameter.
+ *
+ * @return Always return 0 to indicate a successful emulation of MMIO read/write.
+ *
+ * @pre (io_req->reqs.mmio.size == 1U) || (io_req->reqs.mmio.size == 2U) ||
+ *      (io_req->reqs.mmio.size == 4U) || (io_req->reqs.mmio.size == 8U)
+ *
+ * @post N/A
+ */
+static int32_t mmio_default_access_handler(struct io_request *io_req,
+	void *handler_private_data)
+{
+	struct acrn_mmio_request *mmio = &io_req->reqs.mmio_request;
+
+	pr_err("unexpected MMIO %s on addr %016llx, size %u",
+		(mmio->direction == ACRN_IOREQ_DIR_READ) ? "read" : "write",
+		mmio->address, mmio->size);
+	return mmio_dummy_access_handler(io_req, handler_private_data);
 }
 
 /**
@@ -947,6 +975,42 @@ hv_emulate_pio(struct acrn_vcpu *vcpu, struct io_request *io_req)
 		(pio_req->direction == ACRN_IOREQ_DIR_READ) ? "read" : "write", port, pio_req->value);
 
 	return status;
+}
+
+/**
+ * @brief Set up dummy MMIO access handlers for a specified address range in a VM.
+ *
+ * This function unregisters any existing MMIO emulation handlers for the given address range
+ * and registers a dummy MMIO access handler. This is useful for handling accesses to MMIO
+ * regions that have been deassigned, preventing unexpected exceptions.
+ *
+ * @param[inout] vm Pointer to the VM for which to set the dummy MMIO access.
+ * @param[in] start The start address of the MMIO range.
+ * @param[in] end The end address of the MMIO range.
+ *
+ * @return None.
+ */
+void set_dummy_mmio_access(struct acrn_vm *vm, uint64_t start, uint64_t end)
+{
+	unregister_mmio_emulation_handler(vm, start, end);
+	register_mmio_emulation_handler(vm, mmio_dummy_access_handler, 
+		start, end, NULL, false);
+}
+
+/**
+ * @brief Remove dummy MMIO access handlers for a specified address range in a VM.
+ *
+ * This function unregisters the dummy MMIO access handler for the given address range.
+ *
+ * @param[inout] vm Pointer to the VM for which to remove the dummy MMIO access.
+ * @param[in] start The start address of the MMIO range.
+ * @param[in] end The end address of the MMIO range.
+ *
+ * @return None.
+ */
+void remove_dummy_mmio_access(struct acrn_vm *vm, uint64_t start, uint64_t end)
+{
+	unregister_mmio_emulation_handler(vm, start, end);
 }
 
 /**
