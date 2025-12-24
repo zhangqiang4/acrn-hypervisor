@@ -1160,6 +1160,9 @@ struct pci_vdev *vpci_init_vdev(struct acrn_vpci *vpci, struct acrn_vm_pci_dev_c
 		vdev->pdev = dev_config->pdev;
 		vdev->pci_dev_config = dev_config;
 		vdev->phyfun = parent_pf_vdev;
+		if (dev_config->emu_type == PCI_DEV_TYPE_PTDEV && dev_config->is_pm_stub) {
+			vdev->flags |= ACRN_PTDEV_PM_STUB;
+		}
 
 		hlist_add_head(&vdev->link,
 			       &vpci->vdevs_hlist_heads[hash64(dev_config->vbdf.value, VDEV_LIST_HASHBITS)]);
