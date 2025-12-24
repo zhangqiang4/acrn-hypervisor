@@ -23,6 +23,7 @@ struct console_uart {
 	bool enabled;
 
 	enum serial_dev_type type;
+	bool is_io_access; /**< How the uart reg is accessed. true: PIO; false: MMIO */
 	uint16_t port_address;
 	void *mmio_base_vaddr;
 	union pci_bdf bdf;
@@ -39,6 +40,7 @@ static struct console_uart uart = {
 	.type = PIO,
 	.port_address = CONFIG_SERIAL_PIO_BASE,
 	.reg_width = 1,
+	.is_io_access = true,
 };
 #elif defined(CONFIG_SERIAL_PCI_BDF)
 static struct console_uart uart = {
@@ -53,6 +55,7 @@ static struct console_uart uart = {
 	.type = MMIO,
 	.mmio_base_vaddr = (void *)CONFIG_SERIAL_MMIO_BASE,
 	.reg_width = 1,
+	.is_io_access = false,
 };
 #else
 static struct console_uart uart;
@@ -65,7 +68,7 @@ typedef uint32_t uart_reg_t;
  */
 static inline uint32_t uart16550_read_reg(struct console_uart uart, uint16_t reg_idx)
 {
-	if (uart.type == PIO) {
+	if (uart.is_io_access) {
 		return pio_read8(uart.port_address + (reg_idx * uart.reg_width));
 	} else {
 		if (uart.reg_width == 4U) {
@@ -81,7 +84,7 @@ static inline uint32_t uart16550_read_reg(struct console_uart uart, uint16_t reg
  */
 static inline void uart16550_write_reg(struct console_uart uart, uint32_t val, uint16_t reg_idx)
 {
-	if (uart.type == PIO) {
+	if (uart.is_io_access) {
 		pio_write8(val, uart.port_address + (reg_idx * uart.reg_width));
 	} else {
 		if (uart.reg_width == 4U) {
@@ -131,6 +134,103 @@ static void uart16550_set_baud_rate(uint32_t baud_rate)
 static uint8_t uart_pde_page[PAGE_SIZE]__aligned(PAGE_SIZE);
 static uint8_t uart_pdpte_page[PAGE_SIZE]__aligned(PAGE_SIZE);
 
+/**
+ * @brief Initialize PCI UART16550 device.
+ *
+ * This function reads the PCI configuration space to check if the device is a valid
+ * UART16550 device. If valid, it retrieves the base address from BAR0 and configures
+ * the access method (PIO or MMIO).
+ *
+ * @return true if initialization is successful, false otherwise.
+ */
+static bool init_pci_uart16550(void)
+{
+	/* if configure serial PCI BDF, get its base MMIO address */
+	uint8_t class_code = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_CLASS, 1U);
+	uint8_t subclass = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_SUBCLASS, 1U);
+
+	/* Class 0x07 = Simple Communication Controller, Subclass = Serial/Multi-Serial */
+	if ((class_code != PCIC_SIMPLECOMM) ||
+		((subclass != PCIS_SIMPLECOMM_UART) && (subclass != PCIS_SIMPLECOMM_MULSER))) {
+		return false;
+	}
+
+	uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
+
+	if ((bar0 & ~0xfU) == 0U) {
+		/* in case the PCI UART BAR is reset to 0 after boot */
+		return false;
+	} else {
+		uint16_t cmd = (uint16_t)pci_pdev_read_cfg(uart.bdf, PCIR_COMMAND, 2U);
+		if ((bar0 & 0x3U) == PCIM_BAR_IO_SPACE) { /* IO Space */
+			uart.is_io_access = true;
+			uart.port_address = (uint16_t)(bar0 & PCI_BASE_ADDRESS_IO_MASK);
+			uart.reg_width = 1;
+			pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_PORTEN);
+		} else if (((bar0 & 0x7U) == 0U) || ((bar0 & 0x7U) == 4U)) {
+				uart.is_io_access = false;
+				uint32_t bar_hi = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(1), 4U);
+				uint64_t addr = (bar0 & PCI_BASE_ADDRESS_MEM_MASK)|(((uint64_t)bar_hi) << 32U);
+				if (bar_hi != 0U) {
+					early_pgtable_identical_map(uart_pdpte_page, uart_pde_page, addr, PDE_SIZE, PAGE_RW);
+				}
+				uart.mmio_base_vaddr = hpa2hva_early(addr);
+				pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_MEMEN);
+		} else {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * @brief Configure UART16550 device registers.
+ *
+ * Set 115200 8n1, enable FIFOs, disable interrupts.
+ *
+ * @pre uart->enabled == true
+ * @return None
+ */
+static void config_uart16550(void)
+{
+	/* Enable TX and RX FIFOs */
+	uart16550_write_reg(uart, FCR_FIFOE | FCR_RFR | FCR_TFR, UART16550_FCR);
+
+	/* Set-up data bits / parity / stop bits. */
+	uart16550_write_reg(uart, (LCR_WL8 | LCR_NB_STOP_BITS_1 | LCR_PARITY_NONE), UART16550_LCR);
+
+	/* Disable interrupts (we use polling) */
+	uart16550_write_reg(uart, UART_IER_DISABLE_ALL, UART16550_IER);
+
+	/* Set baud rate */
+	uart16550_set_baud_rate(BAUD_115200);
+
+	/* Data terminal ready + Request to send */
+	uart16550_write_reg(uart, MCR_RTS | MCR_DTR, UART16550_MCR);
+}
+
+/**
+ * @brief Resume UART16550 device after a suspend or reset.
+ * @return true if resume is successful, false otherwise.
+ */
+bool resume_uart16550(void)
+{
+	if (!uart.enabled) {
+		return false;
+	}
+
+	if (uart.type == PCI) {
+		if (init_pci_uart16550() == false) {
+			return false;
+		}
+	}
+
+	config_uart16550();
+
+	return true;
+}
+
 bool uart16550_init(bool early_boot)
 {
 	void *mmio_base_va = NULL;
@@ -149,63 +249,17 @@ bool uart16550_init(bool early_boot)
 		return true;
 	}
 
-	/* if configure serial PCI BDF, get its base MMIO address */
 	if (uart.type == PCI) {
-		uint8_t class_code = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_CLASS, 1U);
-		uint8_t subclass = (uint8_t)pci_pdev_read_cfg(uart.bdf, PCIR_SUBCLASS, 1U);
-		/* Class 0x07 = Simple Communication Controller, Subclass = Serial/Multi-Serial */
-		if ((class_code != PCIC_SIMPLECOMM) ||
-		    ((subclass != PCIS_SIMPLECOMM_UART) && (subclass != PCIS_SIMPLECOMM_MULSER))) {
-			uart.enabled = false;
+		uart.enabled = init_pci_uart16550();
+		if (!uart.enabled) {
 			return false;
-		}
-
-		uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
-
-		if ((bar0 & ~0xfU) == 0U) {
-			/* in case the PCI UART BAR is reset to 0 after boot */
-			uart.enabled = false;
-			return false;
-		} else {
-			uint16_t cmd = (uint16_t)pci_pdev_read_cfg(uart.bdf, PCIR_COMMAND, 2U);
-			if ((bar0 & 0x3U) == PCIM_BAR_IO_SPACE) { /* IO Space */
-				uart.type = PIO;
-				uart.port_address = (uint16_t)(bar0 & PCI_BASE_ADDRESS_IO_MASK);
-				uart.reg_width = 1;
-				pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_PORTEN);
-			} else if (((bar0 & 0x7U) == 0U) || ((bar0 & 0x7U) == 4U)) {
-					uart.type = MMIO;
-					uint32_t bar_hi = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(1), 4U);
-					uint64_t addr = (bar0 & PCI_BASE_ADDRESS_MEM_MASK)|(((uint64_t)bar_hi) << 32U);
-					if (bar_hi != 0U) {
-						early_pgtable_identical_map(uart_pdpte_page, uart_pde_page, addr, PDE_SIZE, PAGE_RW);
-					}
-					uart.mmio_base_vaddr = hpa2hva_early(addr);
-					pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_MEMEN);
-			} else {
-				uart.enabled = false;
-				return false;
-			}
 		}
 	}
 
 	spinlock_init(&uart.rx_lock);
 	spinlock_init(&uart.tx_lock);
 
-	/* Enable TX and RX FIFOs */
-	uart16550_write_reg(uart, FCR_FIFOE | FCR_RFR | FCR_TFR, UART16550_FCR);
-
-	/* Set-up data bits / parity / stop bits. */
-	uart16550_write_reg(uart, (LCR_WL8 | LCR_NB_STOP_BITS_1 | LCR_PARITY_NONE), UART16550_LCR);
-
-	/* Disable interrupts (we use polling) */
-	uart16550_write_reg(uart, UART_IER_DISABLE_ALL, UART16550_IER);
-
-	/* Set baud rate */
-	uart16550_set_baud_rate(BAUD_115200);
-
-	/* Data terminal ready + Request to send */
-	uart16550_write_reg(uart, MCR_RTS | MCR_DTR, UART16550_MCR);
+	config_uart16550();
 
 	return true;
 }
