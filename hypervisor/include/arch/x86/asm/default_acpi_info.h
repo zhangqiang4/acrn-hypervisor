@@ -58,6 +58,8 @@
 #define RESET_REGISTER_BIT_OFFSET	0U      /**< Bit offset of reset register */
 #define RESET_REGISTER_ACCESS_SIZE	0x01U   /**< Access size of reset register */
 
+#define IOE_P2SB_MMIO_BASE  0x3FFF0000000UL /**< IO-Extension chiplet P2SB MMIO area base address */
+#define IOE_P2SB_MMIO_LEN   0x10000000UL    /**< IO-Extension chiplet P2SB MMIO area length */
 /**
  * @}
  */

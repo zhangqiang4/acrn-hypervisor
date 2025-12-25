@@ -587,6 +587,14 @@ enum pcpu_boot_state {
 	PCPU_STATE_DEAD,/**< The physical CPU is dead. */
 };
 
+#define MODEL_INTEL_METEORLAKE		0xACU /**< CPU model value for Meteor Lake */
+#define MODEL_INTEL_METEORLAKE_L	0xAAU /**< CPU model value for Meteor Lake-L */
+#define MODEL_INTEL_ARROWLAKE_H		0xC5U /**< CPU model value for Arrow Lake-H */
+#define MODEL_INTEL_ARROWLAKE		0xC6U /**< CPU model value for Arrow Lake */
+#define MODEL_INTEL_ARROWLAKE_U		0xB5U /**< CPU model value for Arrow Lake-U */
+#define MODEL_INTEL_LUNARLAKE_M		0xBDU /**< CPU model value for Lunar Lake-M */
+#define MODEL_INTEL_PANTHERLAKE_L	0xCCU /**< CPU model value for Panther Lake-L */
+
 /**
  * @brief The message flag of CPU representing the CPU will do offline operation.
  */

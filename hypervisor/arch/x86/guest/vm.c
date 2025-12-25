@@ -45,6 +45,9 @@
 #include <quirks/security_vm_fixup.h>
 #endif
 #include <asm/guest/optee.h>
+#ifdef CONFIG_S0IX_SUPPORT
+#include <asm/default_acpi_info.h>
+#endif
 
 /**
  * @defgroup vp-base_vm vp-base.vm
@@ -938,6 +941,21 @@ static void prepare_service_vm_memmap(struct acrn_vm *vm)
 		ept_del_mr(vm, pml4_page, plat_dmar_info.drhd_units[i].reg_base_addr, PAGE_SIZE);
 	}
 
+#ifdef CONFIG_S0IX_SUPPORT
+	struct cpuinfo_x86 *cpu_info = get_pcpu_info();
+	/* map Intel IO-Extension chiplet p2sb mmio registers for specify CPU models */
+	if (cpu_info->displayfamily == 6U &&
+		 (cpu_info->displaymodel == MODEL_INTEL_METEORLAKE ||
+		  cpu_info->displaymodel == MODEL_INTEL_METEORLAKE_L ||
+		  cpu_info->displaymodel == MODEL_INTEL_ARROWLAKE_H ||
+		  cpu_info->displaymodel == MODEL_INTEL_ARROWLAKE ||
+		  cpu_info->displaymodel == MODEL_INTEL_ARROWLAKE_U ||
+		  cpu_info->displaymodel == MODEL_INTEL_LUNARLAKE_M ||
+		  cpu_info->displaymodel == MODEL_INTEL_PANTHERLAKE_L)) {
+		ept_add_mr(vm, pml4_page, IOE_P2SB_MMIO_BASE, IOE_P2SB_MMIO_BASE, IOE_P2SB_MMIO_LEN,
+			 EPT_RWX | EPT_UNCACHED);
+	}
+#endif
 }
 
 /**
