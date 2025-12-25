@@ -165,6 +165,10 @@
     </xsl:call-template>
 
     <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'S0IX_SUPPORT'" />
+    </xsl:call-template>
+
+    <xsl:call-template name="boolean-by-key">
       <xsl:with-param name="key" select="'LOCK_INSTRUCTION_EMULATION'" />
     </xsl:call-template>
 

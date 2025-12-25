@@ -164,6 +164,11 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Allow service VM program VF bar in PF capability structure</xs:documentation>
       </xs:annotation>
     </xs:element>
+   <xs:element name="S0IX_SUPPORT" type="Boolean" default="n">
+     <xs:annotation acrn:title="Enable S0IX support" acrn:views="advanced">
+       <xs:documentation>Enable support for the platform to enter S0IX idle</xs:documentation>
+     </xs:annotation>
+   </xs:element>
     <xs:element name="LOCK_INSTRUCTION_EMULATION" type="Boolean" default="y">
       <xs:annotation acrn:title="Enable lock instruction emulation" acrn:views="advanced">
         <xs:documentation>Enable lock instruction emulation</xs:documentation>
