@@ -269,32 +269,29 @@
   </xsl:template>
 
   <xsl:template match="console_vuart">
+    <xsl:variable name="vm_id" select="../@id" />
     <xsl:value-of select="acrn:initializer('vuart[0]', '{', true())" />
-    <xsl:choose>
-      <xsl:when test="./text() = 'COM Port 1'">
-	<xsl:value-of select="acrn:initializer('type', 'VUART_LEGACY_PIO')" />
-	<xsl:value-of select="acrn:initializer('addr.port_base', '0x3F8U')" />
-	<xsl:value-of select="acrn:initializer('irq', '4U')" />
-      </xsl:when>
-      <xsl:when test="./text() = 'COM Port 2'">
-	<xsl:value-of select="acrn:initializer('type', 'VUART_LEGACY_PIO')" />
-	<xsl:value-of select="acrn:initializer('addr.port_base', '0x2F8U')" />
-	<xsl:value-of select="acrn:initializer('irq', '3U')" />
-      </xsl:when>
-      <xsl:when test="./text() = 'COM Port 3'">
-	<xsl:value-of select="acrn:initializer('type', 'VUART_LEGACY_PIO')" />
-	<xsl:value-of select="acrn:initializer('addr.port_base', '0x3E8U')" />
-	<xsl:value-of select="acrn:initializer('irq', '4U')" />
-      </xsl:when>
-      <xsl:when test="./text() = 'COM Port 4'">
-	<xsl:value-of select="acrn:initializer('type', 'VUART_LEGACY_PIO')" />
-	<xsl:value-of select="acrn:initializer('addr.port_base', '0x2E8U')" />
-	<xsl:value-of select="acrn:initializer('irq', '3U')" />
-      </xsl:when>
-      <xsl:when test="./text() = 'PCI'">
-	<xsl:value-of select="acrn:initializer('type', 'VUART_PCI')" />
-      </xsl:when>
-    </xsl:choose>
+
+    <!-- Only add configuration if console_vuart is not None or empty -->
+    <xsl:if test="normalize-space(./text()) != '' and ./text() != 'None'">
+      <xsl:choose>
+        <xsl:when test="./text() = 'PCI'">
+          <xsl:value-of select="acrn:initializer('type', 'VUART_PCI')" />
+        </xsl:when>
+        <xsl:otherwise>
+          <!-- Legacy COM port: read configuration from allocation-data -->
+          <xsl:variable name="alloc_base" select="//allocation-data/acrn-config/vm[@id=$vm_id]/console_vuart/base" />
+          <xsl:variable name="alloc_irq" select="//allocation-data/acrn-config/vm[@id=$vm_id]/console_vuart/irq" />
+
+          <xsl:if test="$alloc_base and $alloc_irq">
+            <xsl:value-of select="acrn:initializer('type', 'VUART_LEGACY_PIO')" />
+            <xsl:value-of select="acrn:initializer('addr.port_base', concat($alloc_base, 'U'))" />
+            <xsl:value-of select="acrn:initializer('irq', concat($alloc_irq, 'U'))" />
+          </xsl:if>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:if>
+
     <xsl:text>},</xsl:text>
     <xsl:value-of select="$newline" />
   </xsl:template>

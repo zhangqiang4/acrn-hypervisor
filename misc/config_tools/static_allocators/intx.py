@@ -91,6 +91,14 @@ def alloc_vuart_connection_irqs(board_etree, scenario_etree, allocation_etree):
                     if vuart_type == "legacy":
                         io_port = get_node("./io_port/text()", endpoint)
                         legacy_vuart_irq = alloc_standard_irq(io_port)
+
+                        # WARNING: Missing global I/O port conflict detection:
+                        # 1. No check with console_vuart (both may use 0x3F8/0x2F8)
+                        # 2. Service VM: legacy vUART may conflict with ACPI physical UART
+                        # Recommendation: Use PCI vUART for Service VM to avoid legacy I/O port conflicts.
+                        if load_order == "SERVICE_VM":
+                            logging.warning(f"Service VM legacy vUART at {io_port} may conflict with ACPI UART. Use PCI vUART.")
+
                         if legacy_vuart_irq == "0" and load_order != "SERVICE_VM":
                             legacy_vuart_irq = alloc_irq(irq_list)
                     else:
