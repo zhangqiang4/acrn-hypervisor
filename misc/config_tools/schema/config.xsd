@@ -194,18 +194,18 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Enable boot check between runtime and buildtime DMI info </xs:documentation>
       </xs:annotation>
     </xs:element>
-    <xs:element name="VUART_RX_BUF_SIZE" default="256">
+    <xs:element name="VUART_RX_BUF_SIZE" default="8192">
       <xs:annotation acrn:title="vuart rx buffer size (bytes)" acrn:views="advanced"
                      acrn:errormsg="'required': 'must config the max rx buffer size of vuart in byte'">
         <xs:documentation>Specify the maximum rx buffer size of vuart.</xs:documentation>
       </xs:annotation>
       <xs:simpleType>
          <xs:annotation>
-           <xs:documentation>Integer from 256 to 2560.</xs:documentation>
+           <xs:documentation>Integer from 256 to 81920.</xs:documentation>
          </xs:annotation>
         <xs:restriction base="xs:integer">
           <xs:minInclusive value="256" />
-          <xs:maxInclusive value="2560" />
+          <xs:maxInclusive value="81920" />
         </xs:restriction>
       </xs:simpleType>
     </xs:element>
