@@ -67,6 +67,8 @@ struct hc_dispatch {
  * when the corresponding hypercall is invoked.
  */
 static const struct hc_dispatch hc_dispatch_table[] = {
+	[HC_IDX(HC_PROBE_FEATURE)] = {
+		.handler = hcall_probe_feature},	/**< Handler for HC_SERVICE_VM_OFFLINE_CPU hypercall */
 	[HC_IDX(HC_SERVICE_VM_OFFLINE_CPU)] = {
 		.handler = hcall_service_vm_offline_cpu},	/**< Handler for HC_SERVICE_VM_OFFLINE_CPU hypercall */
 	[HC_IDX(HC_SERVICE_VM_ONLINE_CPU)] = {

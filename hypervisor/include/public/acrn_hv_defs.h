@@ -64,9 +64,13 @@
 /* general */
 #define HC_ID_GEN_BASE               0x0UL  /**< Base offset for general hypercalls */
 /**
- * @brief Hypercall to get the API version.
+ * @brief Hypercall to probe whether a feature is supported.
  */
-#define HC_GET_API_VERSION          BASE_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x00UL)
+#define HC_PROBE_FEATURE            BASE_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x00UL)
+
+/* Currently supported features */
+#define HC_FEATURE_ID_HVC           0UL    /**< Hypervisor console with ACRN console backend  for Service VM */
+
 /**
  * @brief Hypercall to offline a CPU from Service OS.
  */

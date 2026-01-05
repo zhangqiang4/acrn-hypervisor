@@ -137,6 +137,19 @@ bool is_hypercall_from_ring0(void)
 
 static spinlock_t vcpu_hotplug_lock = { .head = 0U, .tail = 0U, };
 
+int32_t hcall_probe_feature(__unused struct acrn_vcpu *vcpu, __unused struct acrn_vm *target_vm,
+		uint64_t feat, __unused uint64_t param2)
+{
+	switch (feat) {
+#ifdef CONFIG_IN_SOS_HVC
+		case HC_FEATURE_ID_HVC:
+			return 0;
+#endif
+		default:
+			return -1;
+	}
+}
+
 /**
  * @brief Handle hypercall to offline a vCPU from Service VM.
  *

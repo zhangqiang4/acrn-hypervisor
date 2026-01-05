@@ -25,6 +25,8 @@ bool is_hypercall_from_ring0(void);
 
 int32_t vmcall_vmexit_handler(struct acrn_vcpu *vcpu);
 
+int32_t hcall_probe_feature(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1, uint64_t param2);
+
 int32_t hcall_service_vm_offline_cpu(struct acrn_vcpu *vcpu, struct acrn_vm *target_vm, uint64_t param1,
 		 uint64_t param2);
 
