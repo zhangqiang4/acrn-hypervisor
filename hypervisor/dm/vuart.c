@@ -107,18 +107,24 @@ static void update_vtransmitter_tx_rate(struct acrn_vuart *vu)
 static void update_vtransmitter(struct vuart_transmitter *vtx)
 {
 	struct acrn_vuart *vu = vtx->vu;
-	uint64_t now = cpu_ticks();
+	uint64_t now;
 	uint64_t n_char_sent;
 
-	/* how many chars should have been sent since last update */
-	n_char_sent = (now - vtx->vfifo_time_stamp) / vu->char_vtx_time;
-	if (n_char_sent >= vtx->vfifo_level) {
+	/* For VMs with LAPIC PT, simulate immediate transmission without timing calculation */
+	if (is_lapic_pt_configured(vu->vm)) {
 		vtx->vfifo_level = 0;
-		vtx->vfifo_time_stamp = now;
 	} else {
-		vtx->vfifo_level = vtx->vfifo_level - n_char_sent;
-		/* avoid using 'now' as it may accumulate remainders. */
-		vtx->vfifo_time_stamp = vtx->vfifo_time_stamp + n_char_sent * vu->char_vtx_time;
+		now = cpu_ticks();
+		/* how many chars should have been sent since last update */
+		n_char_sent = (now - vtx->vfifo_time_stamp) / vu->char_vtx_time;
+		if (n_char_sent >= vtx->vfifo_level) {
+			vtx->vfifo_level = 0;
+			vtx->vfifo_time_stamp = now;
+		} else {
+			vtx->vfifo_level = vtx->vfifo_level - n_char_sent;
+			/* avoid using 'now' as it may accumulate remainders. */
+			vtx->vfifo_time_stamp = vtx->vfifo_time_stamp + n_char_sent * vu->char_vtx_time;
+		}
 	}
 
 	if (vtx->vfifo_level == 0) {
@@ -154,6 +160,9 @@ static inline void vtransmitter_push_char(struct vuart_transmitter *vtx)
  * By setting up a one shot timer that triggers at the time when the virtual transmitter
  * should have finished sending its chars in virtual fifo.
  *
+ * Note: LAPIC PT VMs should never reach this function since update_vtransmitter()
+ * always clears vfifo_level to 0 immediately for them.
+ *
  * @param[inout] vtx Pointer to struct vuart_transmitter.
  *
  * @return None.
@@ -165,11 +174,13 @@ static void schedule_vtransmitter_update(struct vuart_transmitter *vtx)
 {
 	struct acrn_vuart *vu = vtx->vu;
 
-	del_timer(&vtx->trans_timer[get_pcpu_id()]);
-	update_timer(&vtx->trans_timer[get_pcpu_id()],
-		 cpu_ticks() + vu->char_vtx_time * vtx->vfifo_level,
-		 0);
-	(void)add_timer(&vtx->trans_timer[get_pcpu_id()]);
+	if (!is_lapic_pt_configured(vu->vm)) {
+		del_timer(&vtx->trans_timer[get_pcpu_id()]);
+		update_timer(&vtx->trans_timer[get_pcpu_id()],
+			 cpu_ticks() + vu->char_vtx_time * vtx->vfifo_level,
+			 0);
+		(void)add_timer(&vtx->trans_timer[get_pcpu_id()]);
+	}
 }
 
 /**
