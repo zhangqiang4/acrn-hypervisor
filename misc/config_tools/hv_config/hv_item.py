@@ -81,6 +81,7 @@ class Features:
         self.hyperv_enabled = ''
         self.iommu_enforce_snp = ''
         self.acpi_parse_enabled = ''
+        self.in_sos_hvc = ''
         self.l1d_flush_vmentry_enabled = ''
         self.mce_on_psc_workaround_disabled = ''
         self.ssram_enabled = ''
@@ -96,6 +97,7 @@ class Features:
         self.hyperv_enabled = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "HYPERV_ENABLED")
         self.enforce_apicv_basic_support = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "ENFORCE_APICv_BASIC_SUPPORT")
         self.acpi_parse_enabled = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "ACPI_PARSE_ENABLED")
+        self.in_sos_hvc = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "IN_SOS_HVC")
         self.l1d_flush_vmentry_enabled = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "L1D_VMENTRY_ENABLED")
         self.mce_on_psc_workaround_disabled = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "MCE_ON_PSC_DISABLED")
         self.iommu_enforce_snp = acrn_config_utilities.get_hv_item_tag(self.hv_file, "FEATURES", "IOMMU_ENFORCE_SNP")
@@ -112,6 +114,7 @@ class Features:
         hv_cfg_lib.ny_support_check(self.hyperv_enabled, "FEATURES", "HYPERV_ENABLED")
         hv_cfg_lib.ny_support_check(self.enforce_apicv_basic_support, "FEATURES", "ENFORCE_APICv_BASIC_SUPPORT")
         hv_cfg_lib.ny_support_check(self.acpi_parse_enabled, "FEATURES", "ACPI_PARSE_ENABLED")
+        hv_cfg_lib.ny_support_check(self.in_sos_hvc, "FEATURES", "IN_SOS_HVC")
         hv_cfg_lib.ny_support_check(self.l1d_flush_vmentry_enabled, "FEATURES", "L1D_VMENTRY_ENABLED")
         hv_cfg_lib.ny_support_check(self.mce_on_psc_workaround_disabled, "FEATURES", "MCE_ON_PSC_DISABLED")
         hv_cfg_lib.ny_support_check(self.iommu_enforce_snp, "FEATURES", "IOMMU_ENFORCE_SNP")

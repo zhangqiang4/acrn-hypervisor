@@ -134,6 +134,11 @@ If your VM is not a security VM, leave this option unchecked. </xs:documentation
         <xs:documentation>Enable ACPI runtime parsing to get DMAR (DMA remapping) configuration data from the ACPI tables. Otherwise, use existing, static information from the associated board configuration file.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="IN_SOS_HVC" type="Boolean" default="y">
+      <xs:annotation acrn:title="In SOS Hypervisor console" acrn:views="advanced">
+        <xs:documentation>Enable ACRN HVC console in SOS and connect hypervisor console as its backend</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="L1D_VMENTRY_ENABLED" type="Boolean" default="n">
       <xs:annotation acrn:title="Mitigate L1 terminal fault" acrn:views="advanced">
         <xs:documentation>Enable L1 cache flush before VM entry to prevent L1 terminal fault. L1 terminal fault is a hardware vulnerability that could allow unauthorized disclosure of information residing in the L1 data cache.</xs:documentation>

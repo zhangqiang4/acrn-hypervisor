@@ -128,6 +128,10 @@
       <xsl:with-param name="key" select="'ACPI_PARSE_ENABLED'" />
     </xsl:call-template>
 
+    <xsl:call-template name="boolean-by-key">
+      <xsl:with-param name="key" select="'IN_SOS_HVC'" />
+    </xsl:call-template>
+
     <xsl:call-template name="boolean-by-key-value">
       <xsl:with-param name="key" select="'L1D_FLUSH_VMENTRY_ENABLED'" />
       <xsl:with-param name="value" select="L1D_VMENTRY_ENABLED" />
