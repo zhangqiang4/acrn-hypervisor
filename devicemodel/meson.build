@@ -7,6 +7,7 @@ sources = [
     'lib/dm_string.c',
     'lib/work.c',
     'hw/block_if.c',
+    'hw/usb/core.c',
     'hw/uart_core.c',
     'hw/vdisplay_backend.c',
     'hw/sdl.c',
