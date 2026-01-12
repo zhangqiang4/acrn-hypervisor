@@ -42,7 +42,7 @@ CFLAGS += -I$(DM_OBJDIR)/include
 CFLAGS += -I$(TOOLS_OUT)/services
 CFLAGS += -I$(SYSROOT)/usr/include/drm
 CFLAGS += -I$(SYSROOT)/usr/include/pixman-1
-CFLAGS += -I$(SYSROOT)/usr/include/glib-2.0
+CFLAGS += $(shell pkg-config --cflags glib-2.0)
 CFLAGS += -I$(SYSROOT)/usr/include/SDL2
 
 GCC_MAJOR=$(shell echo __GNUC__ | $(CC) -E -x c - | tail -n 1)
@@ -107,6 +107,7 @@ SRCS += lib/work.c
 
 # hw
 SRCS += hw/block_if.c
+SRCS += hw/usb/core.c
 SRCS += hw/uart_core.c
 SRCS += hw/vdisplay_backend.c
 SRCS += hw/sdl.c

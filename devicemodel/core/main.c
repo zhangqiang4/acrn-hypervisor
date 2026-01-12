@@ -79,6 +79,7 @@
 #endif
 
 #include "work.h"
+#include "usb/core.h"
 
 #define IASL_MIN_VER "20190703"
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
@@ -1284,6 +1285,11 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (usb_core_init()) {
+		pr_err("failed to initialize USB core\n");
+		exit(1);
+	}
+
 	if (gfx_ui) {
 		if(gfx_ui_init()) {
 			pr_err("gfx ui initialize failed\n");
@@ -1446,6 +1452,7 @@ create_fail:
 	if (gfx_ui) {
 		gfx_ui_deinit();
 	}
+	usb_core_deinit();
 	uninit_hugetlb();
 	worker_deinit();
 	deinit_loggers();
