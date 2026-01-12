@@ -8,6 +8,7 @@ sources = [
     'lib/work.c',
     'hw/block_if.c',
     'hw/usb/core.c',
+    'hw/usb/host_libusb.c',
     'hw/uart_core.c',
     'hw/vdisplay_backend.c',
     'hw/sdl.c',
