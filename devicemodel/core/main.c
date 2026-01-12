@@ -80,6 +80,7 @@
 
 #include "work.h"
 #include "usb/core.h"
+#include "usb/pmapper.h"
 
 #define IASL_MIN_VER "20190703"
 #define	VM_MAXCPU		16	/* maximum virtual cpus */
@@ -1290,6 +1291,11 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (usb_pmapper_init()) {
+		pr_err("failed to initialize USB pmapper\n");
+		exit(1);
+	}
+
 	if (gfx_ui) {
 		if(gfx_ui_init()) {
 			pr_err("gfx ui initialize failed\n");
@@ -1452,6 +1458,7 @@ create_fail:
 	if (gfx_ui) {
 		gfx_ui_deinit();
 	}
+	usb_pmapper_deinit();
 	usb_core_deinit();
 	uninit_hugetlb();
 	worker_deinit();

@@ -109,6 +109,7 @@ SRCS += lib/work.c
 # hw
 SRCS += hw/block_if.c
 SRCS += hw/usb/core.c
+SRCS += hw/usb/pmapper.c
 SRCS += hw/usb/host_libusb.c
 SRCS += hw/uart_core.c
 SRCS += hw/vdisplay_backend.c
