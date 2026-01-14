@@ -42,6 +42,17 @@
  */
 
  /**
+  * @brief Flag to indicate whether TPM2 power management is enabled.
+  */
+static bool is_tpm2_pm_enabled = false;
+
+/**
+ * @brief Pointer to the TPM2 MMIO base address.
+ */
+static void* tpm2_mmio_base = NULL;
+
+
+ /**
   * @brief Flag to indicate the hypervisor in S0ix state.
   */
 static bool is_s0ix_entered = false;
@@ -117,6 +128,120 @@ static struct pm_s_state_data host_pm_s_state = {
 	.wake_vector_64 = (uint64_t *)WAKE_VECTOR_64,
 	.pm1a_cnt_ready = 0U
 };
+struct crb_regs_head {
+	uint32_t loc_state;
+	uint32_t reserved1;
+	uint32_t loc_ctrl;
+	uint32_t loc_sts;
+	uint8_t reserved2[32];
+	uint64_t intf_id;
+	uint64_t ctrl_ext;
+} __packed;
+
+struct crb_regs_tail {
+	uint32_t ctrl_req;
+	uint32_t ctrl_sts;
+	uint32_t ctrl_cancel;
+	uint32_t ctrl_start;
+	uint32_t ctrl_int_enable;
+	uint32_t ctrl_int_sts;
+	uint32_t ctrl_cmd_size;
+	uint32_t ctrl_cmd_pa_low;
+	uint32_t ctrl_cmd_pa_high;
+	uint32_t ctrl_rsp_size;
+	uint64_t ctrl_rsp_pa;
+} __packed;
+
+/**
+ * @brief Enable or disable TPM2 power management.
+ *
+ * This function enables or disables TPM2 power management. If enabled, it sets the TPM2 MMIO base address.
+ *
+ * @param[in] enabled A boolean flag indicating whether to enable (true) or disable (false) TPM2 power management.
+ * @param[in] tpm2_mmio_pa The physical address of the TPM2 MMIO base.
+ *
+ * @return None
+ */
+void enable_tpm2_pm(bool enabled, void *tpm2_mmio_pa)
+{
+	if (enabled && (tpm2_mmio_pa != NULL)) {
+		is_tpm2_pm_enabled = enabled;
+		tpm2_mmio_base = hpa2hva((uint64_t)tpm2_mmio_pa);
+	} else {
+		is_tpm2_pm_enabled = false;
+		tpm2_mmio_base = NULL;
+	}
+}
+
+/**
+ * @brief Suspend TPM2 before entering S0ix state.
+ *
+ * This function suspends the TPM2 device by sending a shutdown command via its CRB interface.
+ * It ensures that the TPM2 is properly shut down before the system enters S0ix state.
+ *
+ * @return None
+ */
+static void tpm2_suspend(void)
+{
+	/* WA: only allow tpm2 suspended be called on BSP CPU, so that we don't
+	 *     have to manage racing conditions.
+	 */
+	if (is_tpm2_pm_enabled && (tpm2_mmio_base != NULL) && get_pcpu_id() == BSP_CPU_ID) {
+		int32_t i;
+		uint64_t time_start;
+		struct crb_regs_head *regs_h = (struct crb_regs_head *)tpm2_mmio_base;
+		struct crb_regs_tail *regs_t = (struct crb_regs_tail *)((uint8_t *)tpm2_mmio_base
+			 + sizeof(struct crb_regs_head));
+		/* WA: cmd_addr should be get from regs_t->ctrl_cmd_pa_low and ctrl_cmd_pa_high during init.
+		 * 	   we use hard code value 0x80 for now.
+		 */
+		void *cmd_addr = tpm2_mmio_base + 0x80;
+
+		pr_info("S0ix enter: tpm2 suspend start %lx", (uint64_t)tpm2_mmio_base);
+
+		/* request locality */
+		mmio_write32(1U, &regs_h->loc_ctrl);
+		time_start = cpu_ticks();
+		while ((mmio_read32(&regs_h->loc_state) & 0x82U) != 0x82U &&
+				ticks_to_us(cpu_ticks() - time_start) < TICKS_PER_MS * 200) {
+		}
+		/* cmd ready */
+		mmio_write32(1U, &regs_t->ctrl_req);
+		time_start = cpu_ticks();
+		while ((mmio_read32(&regs_t->ctrl_req) != 0) &&
+				ticks_to_us(cpu_ticks() - time_start) < TICKS_PER_MS * 200) {
+		}
+		/* send shut down cmd*/
+		uint8_t shutdown_cmd[12] = {0x80U, 0x01U, 0x00U, 0x00U,
+			 0x00U, 0x0cU, 0x00U, 0x00U,
+			 0x01U, 0x45U, 0x00U, 0x01U};
+
+		for (i = 0; i < 12; i++) {
+			mmio_write8(shutdown_cmd[i], (uint8_t *)cmd_addr + i);
+		}
+		mmio_write32(0, &regs_t->ctrl_cancel);
+		mmio_write32(1U, &regs_t->ctrl_start);
+		time_start = cpu_ticks();
+		while (mmio_read32(&regs_t->ctrl_start) == 1U &&
+				ticks_to_us(cpu_ticks() - time_start) < TICKS_PER_MS * 200) {
+			if (mmio_read32(&regs_t->ctrl_cancel) != 0U) {
+				pr_err("S0ix enter: tpm cmd cancelled!");
+				break;
+			}
+		}
+
+		if (mmio_read32(&regs_t->ctrl_sts) & 1U) {
+			pr_err("S0ix enter: tpm cmd failed, sts=0x%x!", mmio_read32(&regs_t->ctrl_sts));
+		}
+
+		/* relinquish locality */
+		mmio_write32(2U, &regs_h->loc_ctrl);
+		time_start = cpu_ticks();
+		while ((mmio_read32(&regs_h->loc_state) & 0x82U) != 0x80U &&
+				ticks_to_us(cpu_ticks() - time_start) < TICKS_PER_MS * 200) {
+		}
+	}
+}
 
 /**
  * @brief Host ACPI reset register information data.
@@ -597,6 +722,8 @@ void apply_frequency_policy(void)
  */
 void hypervisor_s0ix_enter(void)
 {
+	tpm2_suspend();
+
 #ifdef HV_DEBUG
 	suspend_console();
 	/* recored time stamp when entering */

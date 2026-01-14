@@ -40,7 +40,7 @@ static void tpm2_fixup(uint16_t vm_id)
 {
 	struct acpi_table_tpm2 *vtpm2 = NULL, *tpm2 = NULL;
 	struct acrn_vm_config *config = get_vm_config(vm_id);
-	uint8_t checksum, i;
+	uint8_t checksum;
 	struct acrn_boot_info *abi = get_acrn_boot_info();
 	struct acrn_mmiodev *dev = NULL;
 
@@ -50,12 +50,7 @@ static void tpm2_fixup(uint16_t vm_id)
 		tpm2 = get_acpi_tbl(ACPI_SIG_TPM2);
 
 		if (config->pt_tpm2 && (vtpm2 != NULL) && (tpm2 != NULL)) {
-			for (i = 0U; i < MAX_MMIO_DEV_NUM; i++) {
-				if (strncmp(config->mmiodevs[i].name, "tpm2", 4) == 0) {
-					dev = &config->mmiodevs[i];
-					break;
-				}
-			}
+			dev = get_mmio_dev(get_vm_from_id(vm_id), "tpm2");
 
 			if (dev != NULL) {
 				vtpm2->start_method = tpm2->start_method;

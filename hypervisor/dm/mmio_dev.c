@@ -12,6 +12,7 @@
 #include <asm/guest/ept.h>
 #include <logmsg.h>
 #include <dm/mmio_dev.h>
+#include "mmio_dev.h"
 
 /**
  * @addtogroup vp-dm_mmio-dev
@@ -136,6 +137,23 @@ int32_t deassign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev
 	}
 
 	return ret;
+}
+
+
+struct acrn_mmiodev* get_mmio_dev(struct acrn_vm *vm, const char *name)
+{
+	uint32_t i;
+	struct acrn_mmiodev *dev = NULL;
+	struct acrn_vm_config *vm_config = get_vm_config(vm->vm_id);
+
+	for (i = 0U; i < MAX_MMIO_DEV_NUM; i++) {
+		if (strncmp(vm_config->mmiodevs[i].name, name, sizeof(vm_config->mmiodevs[i].name) - 1) == 0) {
+			dev = &vm_config->mmiodevs[i];
+			break;
+		}
+	}
+
+	return dev;
 }
 
 /**

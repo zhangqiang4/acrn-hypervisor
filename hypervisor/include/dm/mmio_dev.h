@@ -31,6 +31,7 @@
 
 int32_t assign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev);
 int32_t deassign_mmio_dev(struct acrn_vm *vm, const struct acrn_mmiodev *mmiodev);
+struct acrn_mmiodev *get_mmio_dev(struct acrn_vm *vm, const char *name);
 
 #endif /* MMIO_DEV_H */
 

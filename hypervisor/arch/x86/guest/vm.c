@@ -47,6 +47,7 @@
 #include <asm/guest/optee.h>
 #ifdef CONFIG_S0IX_SUPPORT
 #include <asm/default_acpi_info.h>
+#include <mmio_dev.h>
 #endif
 
 /**
@@ -1098,6 +1099,18 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		passthrough_smbios(vm, get_acrn_boot_info());
 #endif
 
+#ifdef CONFIG_S0IX_SUPPORT
+		/* currently, TEE VM does not have TPM2 PM capability that
+		 * can support S0ix.
+		 * We enable TPM2 power management by hypervisor.
+		 */
+		if (is_tee_vm(vm) && vm_config->pt_tpm2) {
+			struct acrn_mmiodev *tpm2_dev = get_mmio_dev(vm, "tpm2");
+			if (tpm2_dev != NULL) {
+				enable_tpm2_pm(true, (void *)tpm2_dev->res[0].host_pa);
+			}
+		}
+#endif
 		vm->sw.vm_event_sbuf = NULL;
 
 		fixup_cr0_cr4_guest_mask(vm);
