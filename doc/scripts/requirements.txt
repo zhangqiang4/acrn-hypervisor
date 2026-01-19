@@ -1,4 +1,4 @@
-urllib3==2.5.0
+urllib3==2.6.3
 breathe>=4.23
 sphinx>=3.2.1,<6.0
 docutils>=0.16,<0.18

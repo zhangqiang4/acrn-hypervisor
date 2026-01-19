@@ -16,6 +16,8 @@ tauri-build = { version = "1.5.2", features = [] }
 
 [dependencies]
 openssl = "0.10.72" # fix vulnerability only
+glib = "=0.20.0"     # fix vulnerability only
+tracing-subscriber = "=0.3.20"   # fix vulnerability only
 idna = "=1.0.0"     # fix vulnerability only
 url = "=2.5.1"      # fix vulnerability only
 tokio = "=1.43.1"   # fix vulnerability only
