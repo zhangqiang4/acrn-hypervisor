@@ -337,7 +337,11 @@ uint64_t get_console_timer_interval(void)
 
 void suspend_console(void)
 {
-	if (init_console && (VUART_TIMER_CPU == BSP_CPU_ID)) {
+	/* del_timer is only allowed on the CPU hosting the console timer
+	 * currently we assume that vuart timer is always on the BSP CPU.
+	 */
+	if (init_console && (VUART_TIMER_CPU == BSP_CPU_ID) &&
+		 (get_pcpu_id() == VUART_TIMER_CPU)) {
 		del_timer(&console_timer);
 	}
 }
