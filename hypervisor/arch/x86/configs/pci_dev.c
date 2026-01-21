@@ -23,9 +23,6 @@
 #include <asm/pci_dev.h>
 #include <vpci.h>
 #include <logmsg.h>
-#ifdef HV_DEBUG
-#include <uart16550.h>
-#endif
 
 /**
  * @brief Check if a physical PCI device is allocated to any Pre-Launched VM.
@@ -128,12 +125,6 @@ struct acrn_vm_pci_dev_config *init_one_dev_config(struct pci_pdev *pdev)
 			dev_config = NULL;
 		} else {
 			dev_config->emu_type = PCI_DEV_TYPE_PTDEV;
-#ifdef CONFIG_S0IX_SUPPORT
-			if (is_pci_dbg_uart(pdev->bdf)) {
-				/* let service vm manage power and link status, while not load drivers on it */
-				dev_config->is_pm_stub = true;
-			}
-#endif
 		}
 
 		if ((is_allocated_to_hv || is_allocated_to_prelaunched_vm)

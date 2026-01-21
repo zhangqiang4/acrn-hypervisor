@@ -809,15 +809,6 @@ void init_vdev_pt(struct pci_vdev *vdev, bool is_pf_vdev)
 		pci_vdev_write_vcfg(vdev, offset, 4U, pci_pdev_read_cfg(vdev->pdev->bdf, offset, 4U));
 	}
 
-	/* Construct an unrecognizabel vender id, so that guest os treats it as a generic pci device.
-	 * This is useful when we need the guest OS manage the pdev's pm and link state.
-	 */
-	if (vdev->flags & ACRN_PTDEV_PM_STUB) {
-		pci_vdev_write_vcfg(vdev, PCIR_VENDOR, 2U, 0x0U);
-		pci_vdev_write_vcfg(vdev, PCIV_SUB_VENDOR_ID, 2U, 0x0U);
-		pci_vdev_write_vcfg(vdev, PCIV_SUB_SYSTEM_ID, 2U, 0x0U);
-	}
-
 	/* Initialize the vdev BARs except SRIOV VF, VF BARs are initialized directly from create_vf function */
 	if (vdev->phyfun == NULL) {
 		init_bars(vdev, is_pf_vdev);

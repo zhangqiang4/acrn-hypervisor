@@ -285,7 +285,6 @@ struct acrn_vm_pci_dev_config {
 	uint64_t vbar_base[PCI_BAR_COUNT]; /**< vbar base address of PCI device, which is power-on default value */
 	struct pci_pdev *pdev;				/**< the physical PCI device structure if it's a PT device */
 	const struct pci_vdev_ops *vdev_ops;		/**< operations for virtual PCI */
-	bool is_pm_stub; /**< whether the device is a PM stub device */
 } __aligned(8);
 
 /**

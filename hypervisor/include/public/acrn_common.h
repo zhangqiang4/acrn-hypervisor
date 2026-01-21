@@ -854,7 +854,6 @@ struct vrp_config {
 
 /* Type of PCI device assignment */
 #define ACRN_PTDEV_QUIRK_ASSIGN	(1U << 0)  /**< PCI device assignment quirk */
-#define ACRN_PTDEV_PM_STUB	(1U << 1)  /**< PCI device passthrough as a PM stub in the target VM */
 
 #define ACRN_PCI_NUM_BARS	6U  /**< Number of BARs in a PCI device */
 

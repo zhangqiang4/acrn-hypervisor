@@ -1435,13 +1435,12 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index, struct pc
 				pci_enumerate_cap(pdev);
 			}
 
-#ifndef CONFIG_S0IX_SUPPORT
 			/* PCI debug uart and RP for EP which has been assigned to pre-launched VM are owned by HV */
 			if (is_pci_dbg_uart(bdf)) {
 				hv_owned_pci_pdevs[num_hv_owned_pci_pdev] = pdev;
 				num_hv_owned_pci_pdev++;
 			}
-#endif
+
 			if (allocate_to_prelaunched_vm(pdev) && parent) {
 				hv_owned_pci_pdevs[num_hv_owned_pci_pdev] = parent;
 				num_hv_owned_pci_pdev++;
