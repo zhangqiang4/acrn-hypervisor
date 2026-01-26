@@ -149,7 +149,7 @@ bool is_hypervisor_s0ix_confirmed(void);
 void hypervisor_s0ix_resume(void);
 bool is_s0ix_detected(void);
 int16_t get_s0ix_resume_cpu_id(void);
-void enable_tpm2_pm(bool enabled, void *tpm2_mmio_pa);
+void tpm2_pm_init(void *tpm2_mmio_pa);
 
 #endif	/* HOST_PM_H */
 

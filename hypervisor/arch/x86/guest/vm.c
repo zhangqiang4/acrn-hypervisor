@@ -1107,7 +1107,7 @@ int32_t create_vm(uint16_t vm_id, uint64_t pcpu_bitmap, struct acrn_vm_config *v
 		if (is_tee_vm(vm) && vm_config->pt_tpm2) {
 			struct acrn_mmiodev *tpm2_dev = get_mmio_dev(vm, "tpm2");
 			if (tpm2_dev != NULL) {
-				enable_tpm2_pm(true, (void *)tpm2_dev->res[0].host_pa);
+				tpm2_pm_init((void *)tpm2_dev->res[0].host_pa);
 			}
 		}
 #endif

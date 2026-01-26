@@ -42,17 +42,6 @@
  */
 
  /**
-  * @brief Flag to indicate whether TPM2 power management is enabled.
-  */
-static bool is_tpm2_pm_enabled = false;
-
-/**
- * @brief Pointer to the TPM2 MMIO base address.
- */
-static void* tpm2_mmio_base = NULL;
-
-
- /**
   * @brief Flag to indicate the hypervisor in S0ix state.
   */
 static bool is_s0ix_entered = false;
@@ -128,6 +117,10 @@ static struct pm_s_state_data host_pm_s_state = {
 	.wake_vector_64 = (uint64_t *)WAKE_VECTOR_64,
 	.pm1a_cnt_ready = 0U
 };
+
+/**
+ * @brief CRB registers head structure for TPM2 interface.
+ */
 struct crb_regs_head {
 	uint32_t loc_state;
 	uint32_t reserved1;
@@ -138,6 +131,9 @@ struct crb_regs_head {
 	uint64_t ctrl_ext;
 } __packed;
 
+/**
+ * @brief CRB registers tail structure for TPM2 interface.
+ */
 struct crb_regs_tail {
 	uint32_t ctrl_req;
 	uint32_t ctrl_sts;
@@ -153,23 +149,54 @@ struct crb_regs_tail {
 } __packed;
 
 /**
- * @brief Enable or disable TPM2 power management.
- *
- * This function enables or disables TPM2 power management. If enabled, it sets the TPM2 MMIO base address.
- *
- * @param[in] enabled A boolean flag indicating whether to enable (true) or disable (false) TPM2 power management.
- * @param[in] tpm2_mmio_pa The physical address of the TPM2 MMIO base.
- *
- * @return None
+ * @brief TPM2 CRB private data structure.
  */
-void enable_tpm2_pm(bool enabled, void *tpm2_mmio_pa)
+struct crb_priv {
+	bool enabled;
+	struct crb_regs_head *regs_h;
+	struct crb_regs_tail *regs_t;
+	void *cmd_addr;
+};
+
+/**
+ * @brief TPM2 CRB private data instance.
+ */
+static struct crb_priv tpm2_crb = {0};
+
+/**
+ * @brief Initialize TPM2 power management.
+ * This function initializes TPM2 power management by setting up the CRB interface.
+ * It requests locality 0 and retrieves the command address for TPM2 operations.
+ * If successful, it enables TPM2 power management.
+ *
+ * @param[in] tpm2_mmio_pa The physical address of the TPM2 MMIO region.
+ * @return None.
+ */
+void tpm2_pm_init(void *tpm2_mmio_pa)
 {
-	if (enabled && (tpm2_mmio_pa != NULL)) {
-		is_tpm2_pm_enabled = enabled;
-		tpm2_mmio_base = hpa2hva((uint64_t)tpm2_mmio_pa);
-	} else {
-		is_tpm2_pm_enabled = false;
-		tpm2_mmio_base = NULL;
+	if (tpm2_mmio_pa != NULL) {
+		uint64_t time_start;
+		void *cmd_addr;
+		struct crb_regs_head *regs_h = (struct crb_regs_head *)hpa2hva((uint64_t)tpm2_mmio_pa);
+		struct crb_regs_tail *regs_t = (struct crb_regs_tail *)(hpa2hva((uint64_t)tpm2_mmio_pa) +
+			 sizeof(struct crb_regs_head));
+
+		/* request locality 0 and read the cmd_addr. */
+		mmio_write32(1U, &regs_h->loc_ctrl);
+		time_start = cpu_ticks();
+		while (ticks_to_us(cpu_ticks() - time_start) < TICKS_PER_MS * 200) {
+			if ((mmio_read32(&regs_h->loc_state) & 0x82U) == 0x82U) {
+				uint32_t cmd_l = mmio_read32(&regs_t->ctrl_cmd_pa_low);
+				uint32_t cmd_h = mmio_read32(&regs_t->ctrl_cmd_pa_high);
+				cmd_addr = hpa2hva(((uint64_t)cmd_h << 32U) | (uint64_t)cmd_l);
+				pr_info("TPM2 PM initialized, cmd_addr=0x%p", cmd_addr);
+				tpm2_crb.enabled = true;
+				tpm2_crb.regs_h = regs_h;
+				tpm2_crb.regs_t = regs_t;
+				tpm2_crb.cmd_addr = cmd_addr;
+				break;
+			}
+		}
 	}
 }
 
@@ -183,21 +210,14 @@ void enable_tpm2_pm(bool enabled, void *tpm2_mmio_pa)
  */
 static void tpm2_suspend(void)
 {
-	/* WA: only allow tpm2 suspended be called on BSP CPU, so that we don't
-	 *     have to manage racing conditions.
-	 */
-	if (is_tpm2_pm_enabled && (tpm2_mmio_base != NULL) && get_pcpu_id() == BSP_CPU_ID) {
+	if (tpm2_crb.enabled) {
 		int32_t i;
 		uint64_t time_start;
-		struct crb_regs_head *regs_h = (struct crb_regs_head *)tpm2_mmio_base;
-		struct crb_regs_tail *regs_t = (struct crb_regs_tail *)((uint8_t *)tpm2_mmio_base
-			 + sizeof(struct crb_regs_head));
-		/* WA: cmd_addr should be get from regs_t->ctrl_cmd_pa_low and ctrl_cmd_pa_high during init.
-		 * 	   we use hard code value 0x80 for now.
-		 */
-		void *cmd_addr = tpm2_mmio_base + 0x80;
+		struct crb_regs_head *regs_h = tpm2_crb.regs_h;
+		struct crb_regs_tail *regs_t = tpm2_crb.regs_t;
+		void *cmd_addr = tpm2_crb.cmd_addr;
 
-		pr_info("S0ix enter: tpm2 suspend start %lx", (uint64_t)tpm2_mmio_base);
+		pr_info("S0ix enter: tpm2 suspend start %lx", (uint64_t)regs_h);
 
 		/* request locality */
 		mmio_write32(1U, &regs_h->loc_ctrl);
@@ -716,19 +736,32 @@ void apply_frequency_policy(void)
  *
  * This function is called when the platform is detected to be entering S0ix state.
  * The flag is_s0ix_entered is set to true.
- * If HV_DEBUG is defined, it puts the console to sleep.
+ * If HV_DEBUG is defined, it puts the console to sleep, records the time stamp, and
+ * suspends TPM2 if it is called on the console CPU.
+ * If HV_DEBUG is not defined, it suspends TPM2 on BSP CPU, and kicks BSP CPU if it is
+ * called on other CPUs.
  *
  * @return None.
  */
 void hypervisor_s0ix_enter(void)
 {
-	tpm2_suspend();
-
 #ifdef HV_DEBUG
+	/* The console CPU is always the last to enter mwait as console timer is running on it */
+	if (get_pcpu_id() == get_console_timer_cpu_id()) {
+		tpm2_suspend();
+	}
+
 	suspend_console();
 	/* recored time stamp when entering */
 	if (!is_s0ix_entered) {
 		s0ix_enter_time = cpu_ticks();
+	}
+#else
+	if (get_pcpu_id() == BSP_CPU_ID) {
+		tpm2_suspend();
+	} else {
+		/* This make sures BSP CPU is always the last awake CPU that handles TPM2 suspend */
+		kick_pcpu(BSP_CPU_ID);
 	}
 #endif
 	is_s0ix_entered = true;
