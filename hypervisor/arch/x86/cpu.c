@@ -85,6 +85,7 @@ static uint64_t pcpu_sync = 0UL;
  */
 static uint64_t startup_paddr = 0UL;
 
+#ifdef CONFIG_S0IX_SUPPORT
 /**
  * @brief The static variable indicating the number of physical CPUs that are currently idle.
  *
@@ -92,6 +93,7 @@ static uint64_t startup_paddr = 0UL;
  * Specifically, it is sleeping in the do_cpu_idle() mwait context.
  */
 static int32_t pcpu_idle_count = 0;
+#endif
 
 /**
  * @brief The static variable indicating the physical CPU active bitmap, supporting up to 64 CPUs.
@@ -898,7 +900,7 @@ void cpu_do_idle(void)
 
 	if (per_cpu(mode_to_idle, pcpu_id) == IDLE_MODE_CX) {
 		uint32_t hint = get_pcpu_idle_hint(pcpu_id);
-
+#ifdef CONFIG_S0IX_SUPPORT
 		/* This is to check if the current CPU is the last CPU entering idle.
 		 * If all CPUs are in idle, plus all vCPU TSC deadline timers are deleted,
 		 * We know all guests are in S0ix state
@@ -922,10 +924,10 @@ void cpu_do_idle(void)
 				pr_info("Hypervisor entering S0ix state");
 			}
 		}
-
+#endif
 		asm_monitor(&dummy, 0UL, 0UL);
 		asm_safe_mwait(hint, 0UL);
-
+#ifdef CONFIG_S0IX_SUPPORT
 		(void)atomic_dec_return(&pcpu_idle_count);
 
 		/* Check if we need to resume from s0ix.
@@ -944,6 +946,7 @@ void cpu_do_idle(void)
 			hypervisor_s0ix_resume();
 			pr_info("Hypervisor resumed from S0ix state");
 		}
+#endif
 	} else {
 		/* IDLE_MODE_PAUSE only used in lapic_pt VMs. So we don't need to enable IRQ here. */
 		asm_pause();

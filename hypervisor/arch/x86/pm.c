@@ -41,14 +41,6 @@
  * and accessing state tables.
  */
 
- /**
-  * @brief Flag to indicate the hypervisor in S0ix state.
-  */
-static bool is_s0ix_entered = false;
-
-#ifdef HV_DEBUG
-static uint64_t s0ix_enter_time = 0UL;
-#endif
 /**
  * @brief CPU context
  *
@@ -117,6 +109,19 @@ static struct pm_s_state_data host_pm_s_state = {
 	.wake_vector_64 = (uint64_t *)WAKE_VECTOR_64,
 	.pm1a_cnt_ready = 0U
 };
+
+#ifdef CONFIG_S0IX_SUPPORT
+/**
+ * @brief Flag to indicate the hypervisor in S0ix state.
+ */
+static bool is_s0ix_entered = false;
+
+#ifdef HV_DEBUG
+/**
+ * @brief time stamp when entering S0ix, in cpu ticks.
+ */
+static uint64_t s0ix_enter_time = 0UL;
+#endif
 
 /**
  * @brief CRB registers head structure for TPM2 interface.
@@ -262,6 +267,117 @@ static void tpm2_suspend(void)
 		}
 	}
 }
+
+/**
+ * @brief make hypervisor enter S0ix state.
+ *
+ * This function is called when the platform is detected to be entering S0ix state.
+ * The flag is_s0ix_entered is set to true.
+ * If HV_DEBUG is defined, it puts the console to sleep, records the time stamp, and
+ * suspends TPM2 if it is called on the console CPU.
+ * If HV_DEBUG is not defined, it suspends TPM2 on BSP CPU, and kicks BSP CPU if it is
+ * called on other CPUs.
+ *
+ * @return None.
+ */
+void hypervisor_s0ix_enter(void)
+{
+#ifdef HV_DEBUG
+	/* The console CPU is always the last to enter mwait as console timer is running on it */
+	if (get_pcpu_id() == get_console_timer_cpu_id()) {
+		tpm2_suspend();
+	}
+
+	suspend_console();
+	/* recored time stamp when entering */
+	if (!is_s0ix_entered) {
+		s0ix_enter_time = cpu_ticks();
+	}
+#else
+	if (get_pcpu_id() == BSP_CPU_ID) {
+		tpm2_suspend();
+	} else {
+		/* This make sures BSP CPU is always the last awake CPU that handles TPM2 suspend */
+		kick_pcpu(BSP_CPU_ID);
+	}
+#endif
+	is_s0ix_entered = true;
+}
+
+/**
+ * @brief hypervisor resume from S0ix state.
+ *
+ * This function is called when the platform resumes from S0ix state.
+ * The flag is_s0ix_entered is set to false.
+ * If HV_DEBUG is defined, it resumes the console.
+ *
+ * @return None.
+ */
+void hypervisor_s0ix_resume(void)
+{
+#ifdef HV_DEBUG
+	resume_console();
+#endif
+	is_s0ix_entered = false;
+}
+
+/**
+ * @brief check whether hypervisor is confirmed to be in S0ix state.
+ *
+ * In HV_DEBUG mode, after at least 2 console timer intervals since S0ix is detected,
+ * we can confirm that S0ix is entered, as the timer interrupt would still tick
+ * a last beat after is is suspended.
+ * If HV_DEBUG is not defined, we can confirm that hypervisor is in S0ix state right
+ * after it is detected.
+ *
+ * @return true if hypervisor is confirmed to be in S0ix state, false otherwise.
+ */
+bool is_hypervisor_s0ix_confirmed(void)
+{
+	bool ret = is_s0ix_entered;
+#ifdef HV_DEBUG
+	/* after at least 2 interval, we can confirm that console timer is down */
+	ret = (ret && ((cpu_ticks() - s0ix_enter_time) > (2 * get_console_timer_interval())));
+#endif
+	return ret;
+}
+
+/**
+ * @brief check whether S0ix state is detected.
+ *
+ * This function checks whether the guests are putting the platform to s0ix state.
+ * This is done by checking whether all vlapic timers are inactive.
+ *
+ * @return true if S0ix state is detected, false otherwise.
+ */
+bool is_s0ix_detected(void)
+{
+	bool ret = true;
+	for (uint32_t i = 0U; i < MAX_PCPU_NUM; i++) {
+		if (is_vlapic_timer_active(i)) {
+			pr_dbg("vlapic timer is active on pcpu %d", i);
+			ret = false;
+			break;
+		}
+	}
+	return ret;
+}
+
+/**
+ * @brief get the physical CPU id on which we can call hypervisor_s0ix_resume
+ *
+ * @return physical CPU id on which we can call hypervisor_s0ix_resume
+ */
+int16_t get_s0ix_resume_cpu_id(void)
+{
+#ifdef HV_DEBUG
+	return get_console_timer_cpu_id();
+#else
+	return BSP_CPU_ID;
+#endif
+}
+
+#endif /* CONFIG_S0IX_SUPPORT */
 
 /**
  * @brief Host ACPI reset register information data.
@@ -729,115 +845,6 @@ void apply_frequency_policy(void)
 	} else {
 		/* If no frequency interface is presented, just let CPU run by itself. Do nothing here.*/
 	}
-}
-
-/**
- * @brief make hypervisor enter S0ix state.
- *
- * This function is called when the platform is detected to be entering S0ix state.
- * The flag is_s0ix_entered is set to true.
- * If HV_DEBUG is defined, it puts the console to sleep, records the time stamp, and
- * suspends TPM2 if it is called on the console CPU.
- * If HV_DEBUG is not defined, it suspends TPM2 on BSP CPU, and kicks BSP CPU if it is
- * called on other CPUs.
- *
- * @return None.
- */
-void hypervisor_s0ix_enter(void)
-{
-#ifdef HV_DEBUG
-	/* The console CPU is always the last to enter mwait as console timer is running on it */
-	if (get_pcpu_id() == get_console_timer_cpu_id()) {
-		tpm2_suspend();
-	}
-
-	suspend_console();
-	/* recored time stamp when entering */
-	if (!is_s0ix_entered) {
-		s0ix_enter_time = cpu_ticks();
-	}
-#else
-	if (get_pcpu_id() == BSP_CPU_ID) {
-		tpm2_suspend();
-	} else {
-		/* This make sures BSP CPU is always the last awake CPU that handles TPM2 suspend */
-		kick_pcpu(BSP_CPU_ID);
-	}
-#endif
-	is_s0ix_entered = true;
-}
-
-/**
- * @brief hypervisor resume from S0ix state.
- *
- * This function is called when the platform resumes from S0ix state.
- * The flag is_s0ix_entered is set to false.
- * If HV_DEBUG is defined, it resumes the console.
- *
- * @return None.
- */
-void hypervisor_s0ix_resume(void)
-{
-#ifdef HV_DEBUG
-	resume_console();
-#endif
-	is_s0ix_entered = false;
-}
-
-/**
- * @brief check whether hypervisor is confirmed to be in S0ix state.
- *
- * In HV_DEBUG mode, after at least 2 console timer intervals since S0ix is detected,
- * we can confirm that S0ix is entered, as the timer interrupt would still tick
- * a last beat after is is suspended.
- * If HV_DEBUG is not defined, we can confirm that hypervisor is in S0ix state right
- * after it is detected.
- *
- * @return true if hypervisor is confirmed to be in S0ix state, false otherwise.
- */
-bool is_hypervisor_s0ix_confirmed(void)
-{
-	bool ret = is_s0ix_entered;
-#ifdef HV_DEBUG
-	/* after at least 2 interval, we can confirm that console timer is down */
-	ret = (ret && ((cpu_ticks() - s0ix_enter_time) > (2 * get_console_timer_interval())));
-#endif
-	return ret;
-}
-
-/**
- * @brief check whether S0ix state is detected.
- *
- * This function checks whether the guests are putting the platform to s0ix state.
- * This is done by checking whether all vlapic timers are inactive.
- *
- * @return true if S0ix state is detected, false otherwise.
- */
-bool is_s0ix_detected(void)
-{
-	bool ret = true;
-	for (uint32_t i = 0U; i < MAX_PCPU_NUM; i++) {
-		if (is_vlapic_timer_active(i)) {
-			pr_dbg("vlapic timer is active on pcpu %d", i);
-			ret = false;
-			break;
-		}
-	}
-	return ret;
-}
-
-/**
- * @brief get the physical CPU id on which we can call hypervisor_s0ix_resume
- *
- * @return physical CPU id on which we can call hypervisor_s0ix_resume
- */
-int16_t get_s0ix_resume_cpu_id(void)
-{
-#ifdef HV_DEBUG
-	return get_console_timer_cpu_id();
-#else
-	return BSP_CPU_ID;
-#endif
 }
 
 /**

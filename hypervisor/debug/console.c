@@ -50,7 +50,9 @@ static spinlock_t console_log_lock;
 static bool init_console;
 static void console_timer_callback(void *data);
 static void console_setup_timer(void);
+#ifdef CONFIG_S0IX_SUPPORT
 static bool is_console_resuming = false;
+#endif
 
 bool is_using_init_ipi(void)
 {
@@ -262,11 +264,13 @@ static void console_timer_callback(__unused void *data)
 	bool is_tx_throttled;
 	uint64_t period;
 
+#ifdef CONFIG_S0IX_SUPPORT
 	if (is_console_resuming) {
 		/* try to resume the uart16550 after wakeup. We may have exposed uart pm to
 		 * service VM, it may take a few tries before ready */
 		is_console_resuming = !resume_uart16550();
 	}
+#endif
 
 	/* Kick HV-Shell and Uart-Console tasks */
 	vu = vuart_console_active();
@@ -350,7 +354,9 @@ void resume_console(void)
 {
 	if (VUART_TIMER_CPU == BSP_CPU_ID) {
 		console_init(false);
+#ifdef CONFIG_S0IX_SUPPORT
 		is_console_resuming = true;
+#endif
 	}
 }
 

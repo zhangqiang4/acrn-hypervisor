@@ -144,12 +144,14 @@ void init_frequency_policy(void);
 void apply_frequency_policy(void);
 extern struct cpu_context cpu_ctx;
 void restore_msrs(void);
+#ifdef CONFIG_S0IX_SUPPORT
 void hypervisor_s0ix_enter(void);
 bool is_hypervisor_s0ix_confirmed(void);
 void hypervisor_s0ix_resume(void);
 bool is_s0ix_detected(void);
 int16_t get_s0ix_resume_cpu_id(void);
 void tpm2_pm_init(void *tpm2_mmio_pa);
+#endif
 
 #endif	/* HOST_PM_H */
 
