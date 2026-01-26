@@ -32,6 +32,7 @@ struct console_uart {
 	spinlock_t tx_lock;
 
 	uint32_t reg_width;
+	struct pci_pdev *pdev;
 };
 
 #if defined(CONFIG_SERIAL_PIO_BASE)
@@ -155,9 +156,23 @@ static bool init_pci_uart16550(void)
 		return false;
 	}
 
-	uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
+	/* if the uart has been initialized before, check if the bars need restoring as
+	 * system sleep may have cleared it.
+	 */
+	if (uart.pdev != NULL && (uart.port_address != 0U || uart.mmio_base_vaddr != NULL)) {
+		if (pdev_need_bar_restore(uart.pdev)) {
+			pdev_restore_bar(uart.pdev);
+		}
+	}
 
-	if ((bar0 & ~0xfU) == 0U) {
+	uint32_t bar0 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(0), 4U);
+	uint32_t bar1 = 0U;
+	if ((bar0 & 0x7U) == PCIM_BAR_MEM_64) {
+		/* 64-bit MMIO BAR, read high 32 bits */
+		bar1 = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(1), 4U);
+	}
+
+	if ((bar0 & ~0xfU) == 0U && bar1 == 0U) {
 		/* in case the PCI UART BAR is reset to 0 after boot */
 		return false;
 	} else {
@@ -169,9 +184,8 @@ static bool init_pci_uart16550(void)
 			pci_pdev_write_cfg(uart.bdf, PCIR_COMMAND, 2U, cmd | PCIM_CMD_PORTEN);
 		} else if (((bar0 & 0x7U) == 0U) || ((bar0 & 0x7U) == 4U)) {
 				uart.is_io_access = false;
-				uint32_t bar_hi = pci_pdev_read_cfg(uart.bdf, pci_bar_offset(1), 4U);
-				uint64_t addr = (bar0 & PCI_BASE_ADDRESS_MEM_MASK)|(((uint64_t)bar_hi) << 32U);
-				if (bar_hi != 0U) {
+				uint64_t addr = (bar0 & PCI_BASE_ADDRESS_MEM_MASK)|(((uint64_t)bar1) << 32U);
+				if (bar1 != 0U) {
 					early_pgtable_identical_map(uart_pdpte_page, uart_pde_page, addr, PDE_SIZE, PAGE_RW);
 				}
 				uart.mmio_base_vaddr = hpa2hva_early(addr);
@@ -423,4 +437,11 @@ bool get_pio_dbg_uart_cfg(uint16_t *pio_address, uint32_t *nbytes)
 	}
 
 	return ret;
+}
+
+void set_dbg_uart_pci_pdev(struct pci_pdev *pdev)
+{
+	if (uart.enabled && (uart.type == PCI)) {
+		uart.pdev = pdev;
+	}
 }

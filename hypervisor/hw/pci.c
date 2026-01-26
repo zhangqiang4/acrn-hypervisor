@@ -1439,6 +1439,7 @@ struct pci_pdev *pci_init_pdev(union pci_bdf bdf, uint32_t drhd_index, struct pc
 			if (is_pci_dbg_uart(bdf)) {
 				hv_owned_pci_pdevs[num_hv_owned_pci_pdev] = pdev;
 				num_hv_owned_pci_pdev++;
+				set_dbg_uart_pci_pdev(pdev);
 			}
 
 			if (allocate_to_prelaunched_vm(pdev) && parent) {

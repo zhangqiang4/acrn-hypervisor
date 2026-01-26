@@ -34,6 +34,7 @@ size_t uart16550_puts(const char *buf, uint32_t len);
 void uart16550_set_property(bool enabled, enum serial_dev_type uart_type, uint64_t base_addr);
 bool is_pci_dbg_uart(union pci_bdf bdf_value);
 bool get_pio_dbg_uart_cfg(uint16_t *pio_address, uint32_t *nbytes);
+void set_dbg_uart_pci_pdev(struct pci_pdev *pdev);
 uint64_t uart16550_get_tx_load_interval(void);
 int32_t uart16550_get_tx_headroom(void);
 bool resume_uart16550(void);
