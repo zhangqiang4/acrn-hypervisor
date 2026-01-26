@@ -381,10 +381,15 @@ void uart16550_set_property(bool enabled, enum serial_dev_type uart_type, uint64
 {
 	uart.enabled = enabled;
 	uart.type = uart_type;
+	/* set property to zeros before overwrite to prevent conflict. */
 	uart.bdf.value = 0U;
+	uart.port_address = 0U;
+	uart.mmio_base_vaddr = NULL;
+	uart.is_io_access = false;
 
 	if (uart_type == PIO) {
 		uart.port_address = data;
+		uart.is_io_access = true;
 	} else if (uart_type == PCI) {
 		uart.bdf.value = data;
 		uart.reg_width = 4;
