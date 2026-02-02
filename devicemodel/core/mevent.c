@@ -210,7 +210,6 @@ mevent_add(int tfd, enum ev_type type,
 	   void (*teardown)(void *), void *teardown_param)
 {
 	int ret;
-	struct epoll_event ee;
 	struct mevent *lp, *mevp;
 
 	if (tfd < 0 || run == NULL)
@@ -245,17 +244,17 @@ mevent_add(int tfd, enum ev_type type,
 	mevp->teardown = teardown;
 	mevp->teardown_param = teardown_param;
 
-	ee.events = mevent_kq_filter(mevp);
-	ee.data.ptr = mevp;
-	ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mevp->me_fd, &ee);
+	mevent_qlock();
+	LIST_INSERT_HEAD(&global_head, mevp, me_list);
+	mevent_qunlock();
 
+	ret = mevent_enable(mevp);
 	if (ret == 0) {
-		mevent_qlock();
-		LIST_INSERT_HEAD(&global_head, mevp, me_list);
-		mevent_qunlock();
-
 		return mevp;
 	} else {
+		mevent_qlock();
+		LIST_REMOVE(mevp, me_list);
+		mevent_qunlock();
 		free(mevp);
 		return NULL;
 	}
@@ -266,24 +265,28 @@ mevent_enable(struct mevent *evp)
 {
 	int ret;
 	struct epoll_event ee;
-	struct mevent *lp, *mevp = NULL;
 
-	mevent_qlock();
-	/* Verify that the fd/type tuple is not present in the list */
-	LIST_FOREACH(lp, &global_head, me_list) {
-		if (lp == evp) {
-			mevp = lp;
-			break;
+	{
+		/* Sanity check which is not necessary in release build ? */
+		struct mevent *lp, *mevp = NULL;
+
+		mevent_qlock();
+		/* Verify that the fd/type tuple is not present in the list */
+		LIST_FOREACH(lp, &global_head, me_list) {
+			if (lp == evp) {
+				mevp = lp;
+				break;
+			}
 		}
+		mevent_qunlock();
+
+		if (!mevp)
+			return -1;
 	}
-	mevent_qunlock();
 
-	if (!mevp)
-		return -1;
-
-	ee.events = mevent_kq_filter(mevp);
-	ee.data.ptr = mevp;
-	ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mevp->me_fd, &ee);
+	ee.events = mevent_kq_filter(evp);
+	ee.data.ptr = evp;
+	ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, evp->me_fd, &ee);
 	if (ret < 0 && errno == EEXIST)
 		ret = 0;
 
@@ -334,13 +337,14 @@ mevent_drain_del_list(void)
 static int
 mevent_delete_event(struct mevent *evp, int closefd)
 {
+	mevent_disable(evp);
+
 	mevent_qlock();
 	LIST_REMOVE(evp, me_list);
 	mevent_qunlock();
 	evp->me_state = 0;
 	evp->closefd = closefd;
 
-	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, evp->me_fd, NULL);
 	if (!is_dispatch_thread()) {
 		mevent_add_to_del_list(evp, closefd);
 	} else {
