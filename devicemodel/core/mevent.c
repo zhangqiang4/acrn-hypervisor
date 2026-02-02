@@ -376,42 +376,19 @@ mevent_set_name(void)
 int
 mevent_init(void)
 {
+	struct mevent *pipev;
 	pthread_mutexattr_t attr;
+	int ret;
 
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&mevent_lmutex, &attr);
 	pthread_mutexattr_destroy(&attr);
 
-	epoll_fd = epoll_create1(0);
-
-	if (epoll_fd >= 0)
-		return 0;
-	else
+	ret = epoll_create1(0);
+	if (ret < 0)
 		return -1;
-}
-
-void
-mevent_deinit(void)
-{
-	mevent_destroy();
-	close(epoll_fd);
-	if (mevent_pipefd[1] != 0)
-		close(mevent_pipefd[1]);
-
-	pthread_mutex_destroy(&mevent_lmutex);
-}
-
-void
-mevent_dispatch(void)
-{
-	struct epoll_event eventlist[MEVENT_MAX];
-
-	struct mevent *pipev;
-	int ret;
-
-	mevent_tid = pthread_self();
-	mevent_set_name();
+	epoll_fd = ret;
 
 	/*
 	 * Open the pipe that will be used for other threads to force
@@ -430,8 +407,31 @@ mevent_dispatch(void)
 	pipev = mevent_add(mevent_pipefd[0], EVF_READ, mevent_pipe_read, NULL, NULL, NULL);
 	if (!pipev) {
 		pr_err("pipefd mevent_add failed\n");
-		exit(0);
+		return -1;
 	}
+
+	return 0;
+}
+
+void
+mevent_deinit(void)
+{
+	mevent_destroy();
+	close(epoll_fd);
+	if (mevent_pipefd[1] != 0)
+		close(mevent_pipefd[1]);
+
+	pthread_mutex_destroy(&mevent_lmutex);
+}
+
+void
+mevent_dispatch(void)
+{
+	struct epoll_event eventlist[MEVENT_MAX];
+	int ret;
+
+	mevent_tid = pthread_self();
+	mevent_set_name();
 
 	for (;;) {
 		int suspend_mode;
