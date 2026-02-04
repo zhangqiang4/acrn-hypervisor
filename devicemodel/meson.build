@@ -9,7 +9,7 @@ sources = [
     'hw/block_if.c',
     'hw/usb/core.c',
     'hw/usb/pmapper.c',
-    'hw/usb/host_libusb.c',
+    'hw/usb/host_usbfs.c',
     'hw/usb/testdev.c',
     'hw/uart_core.c',
     'hw/vdisplay_backend.c',
