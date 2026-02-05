@@ -178,6 +178,10 @@ void reset_vioapics(struct acrn_vm *vm);
 
 void	vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
 void	vioapic_set_irqline_nolock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation);
+void	vioapic_assert_irq_lock(struct acrn_vm *vm, uint32_t vgsi);
+void	vioapic_assert_irq_nolock(struct acrn_vm *vm, uint32_t vgsi);
+void	vioapic_deassert_irq_lock(struct acrn_vm *vm, uint32_t vgsi);
+void	vioapic_deassert_irq_nolock(struct acrn_vm *vm, uint32_t vgsi);
 
 uint32_t get_vm_gsicount(const struct acrn_vm *vm);
 void	vioapic_broadcast_eoi(struct acrn_vm *vm, uint32_t vector);

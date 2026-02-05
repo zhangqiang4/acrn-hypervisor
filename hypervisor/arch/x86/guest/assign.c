@@ -589,34 +589,14 @@ static void ptirq_handle_intx(struct acrn_vm *vm,
 		const struct ptirq_remapping_info *entry)
 {
 	const union source_id *virt_sid = &entry->virt_sid;
-	union ioapic_rte rte;
-	bool trigger_lvl = false;
 
-	/* INTX_CTLR_IOAPIC means we have vioapic enabled */
-	vioapic_get_rte(vm, (uint32_t)virt_sid->intx_id.gsi, &rte);
-	if (rte.bits.trigger_mode == IOAPIC_RTE_TRGRMODE_LEVEL) {
-		trigger_lvl = true;
-	}
-
-	if (trigger_lvl) {
-		if (entry->polarity != 0U) {
-			vioapic_set_irqline_lock(vm, virt_sid->intx_id.gsi, GSI_SET_LOW);
-		} else {
-			vioapic_set_irqline_lock(vm, virt_sid->intx_id.gsi, GSI_SET_HIGH);
-		}
-	} else {
-		if (entry->polarity != 0U) {
-			vioapic_set_irqline_lock(vm, virt_sid->intx_id.gsi, GSI_FALLING_PULSE);
-		} else {
-			vioapic_set_irqline_lock(vm, virt_sid->intx_id.gsi, GSI_RAISING_PULSE);
-		}
-	}
+	/* Assert interrupt */
+	vioapic_assert_irq_lock(vm, virt_sid->intx_id.gsi);
 
 	dev_dbg(DBG_LEVEL_PTIRQ,
-		"dev-assign: irq=0x%x assert vr: 0x%x vRTE=0x%lx",
+		"dev-assign: irq=0x%x assert vr: 0x%x",
 		entry->allocated_pirq,
-		irq_to_vector(entry->allocated_pirq),
-		rte.full);
+		irq_to_vector(entry->allocated_pirq));
 }
 
 /**
@@ -695,11 +675,8 @@ void ptirq_intx_ack(struct acrn_vm *vm, uint32_t virt_gsi)
 		/* NOTE: only Level trigger will process EOI/ACK and if we got here
 		 * means we have this vioapic or vpic or both enabled
 		 */
-		if (entry->polarity != 0U) {
-			vioapic_set_irqline_nolock(vm, virt_gsi, GSI_SET_HIGH);
-		} else {
-			vioapic_set_irqline_nolock(vm, virt_gsi, GSI_SET_LOW);
-		}
+		/* Deassert: restore to inactive state after interrupt is acknowledged */
+		vioapic_deassert_irq_nolock(vm, virt_gsi);
 
 		dev_dbg(DBG_LEVEL_PTIRQ, "dev-assign: irq=0x%x acked vr: 0x%x",
 				phys_irq, irq_to_vector(phys_irq));

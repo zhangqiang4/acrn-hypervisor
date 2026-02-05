@@ -356,6 +356,113 @@ vioapic_set_irqline_lock(struct acrn_vm *vm, uint32_t vgsi, uint32_t operation)
 }
 
 /**
+ * @brief Assert interrupt without lock, adapts to RTE config (level/edge, polarity).
+ *
+ * @param[in] vm Pointer to VM.
+ * @param[in] vgsi Virtual GSI number.
+ *
+ * @pre vgsi < get_vm_gsicount(vm)
+ * @pre Caller must hold vioapic lock.
+ *
+ * @return none
+ *
+ */
+void
+vioapic_assert_irq_nolock(struct acrn_vm *vm, uint32_t vgsi)
+{
+	union ioapic_rte rte;
+	uint32_t operation;
+
+	/* Get vioapic and pin first */
+	vioapic_get_rte(vm, vgsi, &rte);
+
+	if (rte.bits.trigger_mode == IOAPIC_RTE_TRGRMODE_LEVEL) {
+		/* Level-triggered: Set to active state based on polarity */
+		operation = (rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_ALO) ? GSI_SET_LOW : GSI_SET_HIGH;
+	} else {
+		/* Edge-triggered: Send pulse based on polarity */
+		operation = (rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_ALO) ? GSI_FALLING_PULSE : GSI_RAISING_PULSE;
+	}
+
+	vioapic_set_irqline_nolock(vm, vgsi, operation);
+}
+
+/**
+ * @brief Assert interrupt with lock, adapts to RTE config (level/edge, polarity).
+ *
+ * @param[in] vm Pointer to VM.
+ * @param[in] vgsi Virtual GSI number.
+ *
+ * @pre vgsi < get_vm_gsicount(vm)
+ *
+ * @return none
+ *
+ */
+void
+vioapic_assert_irq_lock(struct acrn_vm *vm, uint32_t vgsi)
+{
+	uint64_t rflags;
+	struct acrn_single_vioapic *vioapic;
+
+	vioapic = vgsi_to_vioapic_and_vpin(vm, vgsi, NULL);
+	spinlock_irqsave_obtain(&(vioapic->lock), &rflags);
+	vioapic_assert_irq_nolock(vm, vgsi);
+	spinlock_irqrestore_release(&(vioapic->lock), rflags);
+}
+
+
+/**
+ * @brief Deassert interrupt without lock, only for level-triggered interrupts.
+ *
+ * @param[in] vm Pointer to VM.
+ * @param[in] vgsi Virtual GSI number.
+ *
+ * @pre vgsi < get_vm_gsicount(vm)
+ * @pre Caller must hold vioapic lock.
+ *
+ * @return none
+ *
+ */
+void
+vioapic_deassert_irq_nolock(struct acrn_vm *vm, uint32_t vgsi)
+{
+	union ioapic_rte rte;
+	uint32_t operation;
+
+	/* Get vioapic and pin first */
+	vioapic_get_rte(vm, vgsi, &rte);
+
+	if (rte.bits.trigger_mode == IOAPIC_RTE_TRGRMODE_LEVEL) {
+		/* Level-triggered: Set to inactive state based on polarity */
+		operation = (rte.bits.intr_polarity == IOAPIC_RTE_INTPOL_ALO) ? GSI_SET_HIGH : GSI_SET_LOW;
+		vioapic_set_irqline_nolock(vm, vgsi, operation);
+	}
+}
+
+/**
+ * @brief Deassert interrupt with lock, only for level-triggered interrupts.
+ *
+ * @param[in] vm Pointer to VM.
+ * @param[in] vgsi Virtual GSI number.
+ *
+ * @pre vgsi < get_vm_gsicount(vm)
+ *
+ * @return none
+ *
+ */
+void
+vioapic_deassert_irq_lock(struct acrn_vm *vm, uint32_t vgsi)
+{
+	uint64_t rflags;
+	struct acrn_single_vioapic *vioapic;
+
+	vioapic = vgsi_to_vioapic_and_vpin(vm, vgsi, NULL);
+	spinlock_irqsave_obtain(&(vioapic->lock), &rflags);
+	vioapic_deassert_irq_nolock(vm, vgsi);
+	spinlock_irqrestore_release(&(vioapic->lock), rflags);
+}
+
+/**
  * @brief Reads a register from the Virtual IOAPIC (VIOAPIC).
  *
  * This function just returns the cached value for the target writable register directly.
