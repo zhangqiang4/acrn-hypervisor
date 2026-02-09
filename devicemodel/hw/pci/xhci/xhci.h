@@ -32,7 +32,7 @@
 #define ACRN_XHCI_INTERRUPTERS	1	/* Even linux uses only one event ring */
 #define ACRN_XHCI_CAPLEN	64	/* Spec Table 5-1: Capability Registers up to 256 bytes */
 #define ACRN_XHCI_VERSION	0x0100	/* BCD number for xHCI version that we implement */
-#define ACRN_XHCI_IST		0x4	/* TODO profile backend URB submission overhead */
+#define ACRN_XHCI_IST		0xD	/* 5ms. TODO profile backend URB submission overhead */
 #define ACRN_XHCI_ERST_MAX	3	/* 2^3 event ring segment table entries */
 #define ACRN_XHCI_PSA_MAX	3	/* 2^(3+1) streams */
 //#define ACRN_XHCI_EXTCAP_OFFSET 0x8000	/* Place extended capabilities here for APL? */
@@ -465,10 +465,9 @@ static inline struct itimerspec xhci_sched_get_next(struct pci_xhci *xhci)
 	struct itimerspec ret = {0};
 
 	if (!CIRCLEQ_EMPTY(&xhci->sched_rings)) {
-		struct xhci_ring *r = CIRCLEQ_FIRST(&xhci->sched_rings);
-		ret.it_interval.tv_sec = 0;	/* polling interval > 1s ? Impossible */
-		ret.it_interval.tv_nsec = 125000 * r->interval;
-		xhci_get_time_for_it(xhci, r->interval, &ret.it_value);
+		ret.it_interval.tv_sec = 0;
+		ret.it_interval.tv_nsec = 125000 * 32;	// fixed at 4ms
+		xhci_get_time_for_it(xhci, 32, &ret.it_value);
 	}
 	return ret;
 }

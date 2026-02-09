@@ -117,6 +117,7 @@ exit_free:
 	return NULL;
 }
 
+/* actually start and/or notify */
 int xhci_ring_start(struct xhci_ring *xring)
 {
 	pthread_mutex_lock(&xring->lock);
@@ -128,6 +129,38 @@ int xhci_ring_start(struct xhci_ring *xring)
 
 		if (!xring->periodic)
 			mevent_enable(xring->kick_event);
+		else {
+			// add ring to schedule list
+			struct pci_xhci *xhci = xring->xhci;
+			pthread_mutex_lock(&xhci->sched_lock);
+			struct xhci_ring *r;
+			CIRCLEQ_FOREACH(r, &xhci->sched_rings, list) {
+				if (r == xring) {
+					// shouldn't happen. TBD Sanity check ?
+					pthread_mutex_unlock(&xhci->sched_lock);
+					goto done;
+				}
+				// Newcomer will be the last one among rings with the same interval.
+				// Don't use ">=" here (as the first one with the same interval) !!
+				// Because above check existence wouldn't reach forever for nodes not the
+				// head after re-notify!
+				if (r->interval > xring->interval)
+					break;
+			}
+			if (r != (const void *)(&xhci->sched_rings))
+				CIRCLEQ_INSERT_BEFORE(&xhci->sched_rings, r, xring, list);
+			else
+				CIRCLEQ_INSERT_TAIL(&xhci->sched_rings, xring, list);
+			pr_dbg("insert ring %s with interval %x\n", xring->name, xring->interval);
+			struct itimerspec new = xhci_sched_get_next(xhci);
+			pr_dbg("itimerspec value %ld,%ld, it %ld,%ld\n",
+					new.it_value.tv_sec, new.it_value.tv_nsec,
+					new.it_interval.tv_sec, new.it_interval.tv_nsec);
+			acrn_timer_settime_abs(&xhci->sched, &new);
+			pthread_mutex_unlock(&xhci->sched_lock);
+
+		}
+done:
 
 		xring->running = true;
 	}
@@ -197,32 +230,7 @@ void xhci_ring_notify(struct xhci_ring *xring)
 		return;
 
 	if (xring->periodic) {
-		struct pci_xhci *xhci = xring->xhci;
-		pthread_mutex_lock(&xhci->sched_lock);
-		struct xhci_ring *r;
-		CIRCLEQ_FOREACH(r, &xhci->sched_rings, list) {
-			if (r == xring) {
-				pthread_mutex_unlock(&xhci->sched_lock);
-				return;
-			}
-			// Newcomer will be the last one among rings with the same interval.
-			// Don't use ">=" here (as the first one with the same interval) !!
-			// Because above check existence wouldn't reach forever for nodes not the
-			// head after re-notify!
-			if (r->interval > xring->interval)
-				break;
-		}
-		if (r != (const void *)(&xhci->sched_rings))
-			CIRCLEQ_INSERT_BEFORE(&xhci->sched_rings, r, xring, list);
-		else
-			CIRCLEQ_INSERT_TAIL(&xhci->sched_rings, xring, list);
-		pr_dbg("insert ring %s with interval %x\n", xring->name, xring->interval);
-		struct itimerspec new = xhci_sched_get_next(xhci);
-		pr_dbg("itimerspec value %ld,%ld, it %ld,%ld\n",
-				new.it_value.tv_sec, new.it_value.tv_nsec,
-				new.it_interval.tv_sec, new.it_interval.tv_nsec);
-		acrn_timer_settime_abs(&xhci->sched, &new);
-		pthread_mutex_unlock(&xhci->sched_lock);
+		// do nothing before they are polled by timer
 	} else {
 		uint64_t dummy = 1;
 		if (write(xring->kick_fd, &dummy, sizeof(dummy)) < 0) {
@@ -249,25 +257,10 @@ void sched_timer_handler(void *data, uint64_t nexp)
 	uint32_t mfindex = xhci_get_mfindex(xhci);
 	pr_dbg("timer handler, mfindex %x\n", mfindex);
 
-	struct xhci_ring *r, *first;
+	struct xhci_ring *r;
 	pthread_mutex_lock(&xhci->sched_lock);
-	first = CIRCLEQ_FIRST(&xhci->sched_rings);
 	CIRCLEQ_FOREACH(r, &xhci->sched_rings, list) {
-		if (mfindex - r->last_mfindex >= r->interval) {
-			r->last_mfindex = mfindex;
-			if (!r->ops->handle_trb(r)) {
-				CIRCLEQ_REMOVE(&xhci->sched_rings, r, list);
-				pr_dbg("drop ring %s from scheduling list\n", r->name);
-			}
-		}
-	}
-
-	if (first != CIRCLEQ_FIRST(&xhci->sched_rings)) {
-		struct itimerspec new = xhci_sched_get_next(xhci);
-		pr_dbg("itimerspec value %ld,%ld, it %ld,%ld\n",
-				new.it_value.tv_sec, new.it_value.tv_nsec,
-				new.it_interval.tv_sec, new.it_interval.tv_nsec);
-		acrn_timer_settime_abs(&xhci->sched, &new);
+		r->ops->handle_trb(r);
 	}
 	pthread_mutex_unlock(&xhci->sched_lock);
 

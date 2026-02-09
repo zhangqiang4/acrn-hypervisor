@@ -938,15 +938,7 @@ static bool transfer_ring_handle_trbs(struct xhci_ring *xring)
 
 		ring_priv->deq_trb++;
 		ring_priv->deq_ptr_gpa += sizeof(union xhci_trb);
-
-		/* TBD consume only one TD in one time ? Submit more? */
-		if (xring->periodic && progress)
-			break;
 	}
-	if (!progress) {
-		pr_dbg("no progress, issue underrun/overrun\n");
-	}
-
 	return progress;
 }
 
